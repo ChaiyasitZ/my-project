@@ -40,9 +40,25 @@ export class AIService {
       });
 
       const generatedConfig = response.data.choices[0].message.content.trim();
+      console.log('🤖 Raw AI Response:', generatedConfig);
       
       // Extract configuration commands (remove explanations if any)
       const configLines = this.extractConfigCommands(generatedConfig);
+      console.log('🔧 Extracted Config:', configLines);
+      
+      // Check if configuration is empty after extraction
+      if (!configLines || configLines.trim().length === 0) {
+        console.log('⚠️ Configuration extraction resulted in empty config, using raw response');
+        // If extraction results in empty config, use the raw response cleaned up
+        const fallbackConfig = this.cleanRawResponse(generatedConfig);
+        return {
+          success: true,
+          configuration: fallbackConfig,
+          rawResponse: generatedConfig,
+          model: this.model,
+          tokensUsed: response.data.usage || {}
+        };
+      }
       
       return {
         success: true,
@@ -102,21 +118,50 @@ interface gigabitethernet0/1
 IMPORTANT: Respond with configuration commands only, no explanations or additional text.`;
   }
 
-  extractConfigCommands(response) {
-    // Remove any markdown code blocks
+  cleanRawResponse(response) {
+    // Remove markdown code blocks
     let config = response.replace(/```[\s\S]*?```/g, '');
     
-    // Remove any lines that start with explanatory text or comments
+    // Remove common non-command text
+    config = config.replace(/Here's the configuration:/i, '');
+    config = config.replace(/Configuration:/i, '');
+    config = config.replace(/Commands:/i, '');
+    
+    // Clean up extra whitespace
     const lines = config.split('\n')
+      .map(line => line.trim())
+      .filter(line => {
+        // Remove empty lines and common explanatory phrases
+        if (line === '') return false;
+        if (line.toLowerCase().includes('explanation')) return false;
+        if (line.toLowerCase().includes('this configuration')) return false;
+        if (line.toLowerCase().includes('these commands')) return false;
+        return true;
+      });
+    
+    return lines.join('\n').trim();
+  }
+
+  extractConfigCommands(response) {
+    // First, clean the raw response
+    const cleaned = this.cleanRawResponse(response);
+    
+    // If cleaned response is empty, return original
+    if (!cleaned || cleaned.trim().length === 0) {
+      return response.trim();
+    }
+    
+    // Split into lines and filter more carefully
+    const lines = cleaned.split('\n')
       .map(line => line.trim())
       .filter(line => {
         // Keep empty lines for formatting
         if (line === '') return true;
         
-        // Remove explanatory text (lines that don't start with typical IOS commands)
+        // Keep lines that look like IOS commands (more lenient patterns)
         const iosCommandPatterns = [
           /^interface\s+/i,
-          /^vlan\s+/i,
+          /^vlan\s+\d+/i,
           /^ip\s+/i,
           /^no\s+/i,
           /^name\s+/i,
@@ -129,19 +174,47 @@ IMPORTANT: Respond with configuration commands only, no explanations or addition
           /^access-list\s+/i,
           /^permit\s+/i,
           /^deny\s+/i,
-          /^shutdown/i,
-          /^exit/i,
-          /^\s+/i, // Indented commands (sub-commands)
+          /^shutdown\s*$/i,
+          /^exit\s*$/i,
+          /^end\s*$/i,
+          /^\s+\w+/, // Indented commands (sub-commands)
+          /^vlan\s*$/i, // Just "vlan" command
         ];
         
-        return iosCommandPatterns.some(pattern => pattern.test(line));
+        // If it matches any IOS command pattern, keep it
+        const isIOSCommand = iosCommandPatterns.some(pattern => pattern.test(line));
+        
+        // Also keep lines that don't look like explanatory text
+        const isNotExplanation = !line.toLowerCase().includes('this command') &&
+                                !line.toLowerCase().includes('this will') &&
+                                !line.toLowerCase().includes('explanation') &&
+                                !line.startsWith('Note:') &&
+                                !line.startsWith('#');
+        
+        return isIOSCommand || (isNotExplanation && line.length < 100);
       });
     
-    return lines.join('\n').trim();
+    const result = lines.join('\n').trim();
+    
+    // If result is too short, return the cleaned version instead
+    if (result.length < 10) {
+      return cleaned;
+    }
+    
+    return result;
   }
 
   async validateConfiguration(configuration, deviceType) {
     try {
+      // Check if configuration is empty
+      if (!configuration || configuration.trim().length === 0) {
+        return {
+          isValid: false,
+          feedback: 'INVALID - There is no configuration provided. Please provide the configuration for validation.',
+          suggestions: 'Generate a configuration first before attempting validation.'
+        };
+      }
+
       const validationPrompt = `Validate this Cisco ${deviceType} configuration for syntax errors and best practices:
 
 ${configuration}
