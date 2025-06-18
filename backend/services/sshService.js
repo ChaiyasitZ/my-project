@@ -96,6 +96,9 @@ export class SSHService {
 
   async sendConfigCommands(deviceConfig, commands) {
     try {
+      console.log(`🔧 Starting configuration deployment to ${deviceConfig.ip_address}`);
+      console.log(`📝 Commands to deploy:\n${commands}`);
+      
       let conn = this.connections.get(deviceConfig.id);
       
       if (!conn) {
@@ -103,81 +106,134 @@ export class SSHService {
       }
 
       return new Promise((resolve, reject) => {
-        conn.shell((err, stream) => {
+        conn.shell({ pty: true }, (err, stream) => {
           if (err) {
-            reject(err);
+            reject(new Error(`Failed to create shell: ${err.message}`));
             return;
           }
 
           let output = '';
-          let isComplete = false;
+          let currentStep = 0;
+          let commandComplete = false;
+          
+          // Prepare commands
+          const configCommands = commands.split('\n')
+            .map(cmd => cmd.trim())
+            .filter(cmd => cmd && !cmd.startsWith('configure terminal') && !cmd.startsWith('end') && !cmd.startsWith('exit'));
+          
+          const allCommands = [
+            'enable',
+            'configure terminal',
+            ...configCommands,
+            'end',
+            'write memory'
+          ];
+          
+          console.log(`📋 Prepared commands:`, allCommands);
           
           const timeout = setTimeout(() => {
-            if (!isComplete) {
-              reject(new Error('Configuration timeout'));
+            if (!commandComplete) {
+              stream.end();
+              reject(new Error('Configuration deployment timeout (60 seconds)'));
             }
-          }, 30000); // 30 second timeout
+          }, 60000); // 60 second timeout
+
+          const sendNextCommand = () => {
+            if (currentStep >= allCommands.length) {
+              commandComplete = true;
+              clearTimeout(timeout);
+              
+              console.log(`✅ All commands sent successfully to ${deviceConfig.ip_address}`);
+              
+              // Wait a bit for final output then close
+              setTimeout(() => {
+                stream.end();
+                resolve({
+                  success: true,
+                  output: output.trim(),
+                  commandsExecuted: allCommands
+                });
+              }, 2000);
+              return;
+            }
+            
+            const command = allCommands[currentStep];
+            console.log(`➡️ Sending command ${currentStep + 1}/${allCommands.length}: ${command}`);
+            
+            stream.write(command + '\r\n');
+            currentStep++;
+          };
+
+          stream.on('data', (data) => {
+            const chunk = data.toString();
+            output += chunk;
+            console.log(`📥 Received: ${chunk.trim()}`);
+            
+            // Check for various Cisco prompts and send next command
+            if (chunk.includes('#') || 
+                chunk.includes('Password:') || 
+                chunk.includes('(config)#') ||
+                chunk.includes('(config-') ||
+                chunk.includes('[OK]') ||
+                chunk.includes('Building configuration')) {
+              
+              // Small delay to ensure prompt is complete
+              setTimeout(sendNextCommand, 500);
+            }
+            
+            // Handle password prompt specifically
+            if (chunk.toLowerCase().includes('password:')) {
+              stream.write(deviceConfig.password + '\r\n');
+            }
+            
+            // Check for errors
+            if (chunk.includes('% Invalid') || 
+                chunk.includes('% Ambiguous') ||
+                chunk.includes('% Incomplete') ||
+                chunk.includes('% Unknown')) {
+              console.log(`⚠️ Warning: Possible command error detected: ${chunk.trim()}`);
+            }
+          });
 
           stream.on('close', () => {
             clearTimeout(timeout);
-            if (!isComplete) {
-              isComplete = true;
-              resolve({
-                success: true,
-                output: output.trim()
-              });
+            if (!commandComplete) {
+              reject(new Error('SSH session closed unexpectedly'));
             }
           });
 
-          stream.on('data', (data) => {
-            output += data.toString();
-            
-            // Check if we're in config mode and ready for commands
-            if (output.includes('#') || output.includes('(config)#')) {
-              // Send commands one by one
-              const commandsToSend = [
-                'configure terminal',
-                ...commands.split('\n').filter(cmd => cmd.trim()),
-                'end',
-                'write memory',
-                'exit'
-              ];
-              
-              commandsToSend.forEach((cmd, index) => {
-                setTimeout(() => {
-                  stream.write(cmd + '\n');
-                  if (index === commandsToSend.length - 1) {
-                    setTimeout(() => {
-                      isComplete = true;
-                      clearTimeout(timeout);
-                      stream.end();
-                    }, 2000);
-                  }
-                }, index * 500); // 500ms delay between commands
-              });
-            }
+          stream.on('error', (error) => {
+            clearTimeout(timeout);
+            reject(new Error(`SSH stream error: ${error.message}`));
           });
 
-          // Start the session
-          stream.write('\n');
+          // Start the process - wait for initial prompt
+          console.log(`🚀 Waiting for initial prompt from ${deviceConfig.ip_address}`);
         });
       });
     } catch (error) {
-      throw new Error(`Configuration failed: ${error.message}`);
+      console.error(`❌ Configuration deployment failed:`, error.message);
+      throw new Error(`Configuration deployment failed: ${error.message}`);
     }
   }
 
   async testConnection(deviceConfig) {
     try {
+      console.log(`🧪 Testing connection to ${deviceConfig.ip_address}`);
       const conn = await this.connect(deviceConfig);
+      
+      // Test with a simple command that doesn't require enable mode
       const result = await this.executeCommand(deviceConfig, 'show version | include Software');
       this.disconnect(deviceConfig.id);
+      
+      console.log(`✅ Connection test successful for ${deviceConfig.ip_address}`);
       return {
         success: true,
         message: 'Connection successful',
         version: result.output
       };
     } catch (error) {
+      console.error(`❌ Connection test failed for ${deviceConfig.ip_address}:`, error.message);
       return {
         success: false,
         message: error.message
@@ -190,10 +246,12 @@ export class SSHService {
     if (conn) {
       conn.end();
       this.connections.delete(deviceId);
+      console.log(`🔌 Disconnected device ID: ${deviceId}`);
     }
   }
 
   disconnectAll() {
+    console.log(`🔌 Disconnecting all SSH connections (${this.connections.size} active)`);
     for (const [deviceId, conn] of this.connections) {
       conn.end();
     }
