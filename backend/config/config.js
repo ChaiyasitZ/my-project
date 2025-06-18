@@ -9,7 +9,7 @@ export const config = {
     port: process.env.DB_PORT || 5432,
     name: process.env.DB_NAME || 'network_automation',
     user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'password',
+    password: process.env.DB_PASSWORD || 'admin',
   },
 
   // OpenRouter AI Configuration
@@ -22,7 +22,7 @@ export const config = {
   // Server Configuration
   server: {
     port: process.env.PORT || 5000,
-    jwtSecret: process.env.JWT_SECRET || 'network_automation_jwt_secret_2024',
+    jwtSecret: process.env.JWT_SECRET || 'network_automation_jwt_secret_2025',
     nodeEnv: process.env.NODE_ENV || 'development',
   },
 

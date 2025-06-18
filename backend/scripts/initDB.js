@@ -4,6 +4,7 @@ import { config } from '../config/config.js';
 const { Client } = pg;
 
 const createDatabase = async () => {
+  console.log('🔗 Connecting to PostgreSQL...');
   // First connect to postgres to create the database
   const client = new Client({
     host: config.database.host,
@@ -15,14 +16,17 @@ const createDatabase = async () => {
 
   try {
     await client.connect();
+    console.log('✅ Connected to PostgreSQL');
     
     // Check if database exists
+    console.log(`🔍 Checking if database '${config.database.name}' exists...`);
     const dbExists = await client.query(
       "SELECT 1 FROM pg_database WHERE datname = $1",
       [config.database.name]
     );
 
     if (dbExists.rows.length === 0) {
+      console.log(`📝 Creating database '${config.database.name}'...`);
       await client.query(`CREATE DATABASE ${config.database.name}`);
       console.log(`✅ Database '${config.database.name}' created successfully`);
     } else {
@@ -30,12 +34,14 @@ const createDatabase = async () => {
     }
   } catch (error) {
     console.error('❌ Error creating database:', error.message);
+    throw error;
   } finally {
     await client.end();
   }
 };
 
 const createTables = async () => {
+  console.log(`🔗 Connecting to database '${config.database.name}'...`);
   const client = new Client({
     host: config.database.host,
     port: config.database.port,
@@ -46,8 +52,10 @@ const createTables = async () => {
 
   try {
     await client.connect();
+    console.log(`✅ Connected to database '${config.database.name}'`);
 
     // Create devices table
+    console.log('📝 Creating devices table...');
     await client.query(`
       CREATE TABLE IF NOT EXISTS devices (
         id SERIAL PRIMARY KEY,
@@ -66,8 +74,10 @@ const createTables = async () => {
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    console.log('✅ Devices table created');
 
     // Create configuration_history table
+    console.log('📝 Creating configuration_history table...');
     await client.query(`
       CREATE TABLE IF NOT EXISTS configuration_history (
         id SERIAL PRIMARY KEY,
@@ -83,8 +93,10 @@ const createTables = async () => {
         applied_at TIMESTAMP WITH TIME ZONE
       )
     `);
+    console.log('✅ Configuration_history table created');
 
     // Create configuration_templates table
+    console.log('📝 Creating configuration_templates table...');
     await client.query(`
       CREATE TABLE IF NOT EXISTS configuration_templates (
         id SERIAL PRIMARY KEY,
@@ -98,8 +110,10 @@ const createTables = async () => {
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    console.log('✅ Configuration_templates table created');
 
     // Create indexes for better performance
+    console.log('📝 Creating indexes...');
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_devices_type ON devices(type);
       CREATE INDEX IF NOT EXISTS idx_devices_status ON devices(status);
@@ -107,8 +121,10 @@ const createTables = async () => {
       CREATE INDEX IF NOT EXISTS idx_config_history_status ON configuration_history(status);
       CREATE INDEX IF NOT EXISTS idx_config_templates_device_type ON configuration_templates(device_type);
     `);
+    console.log('✅ Database indexes created');
 
     // Insert sample data
+    console.log('📝 Inserting sample configuration templates...');
     await client.query(`
       INSERT INTO configuration_templates (name, description, device_type, template_config, variables, category)
       VALUES 
@@ -132,6 +148,7 @@ const createTables = async () => {
 
   } catch (error) {
     console.error('❌ Error creating tables:', error.message);
+    throw error;
   } finally {
     await client.end();
   }
@@ -139,9 +156,14 @@ const createTables = async () => {
 
 const initializeDatabase = async () => {
   console.log('🚀 Initializing database...');
-  await createDatabase();
-  await createTables();
-  console.log('🎉 Database initialization completed!');
+  try {
+    await createDatabase();
+    await createTables();
+    console.log('🎉 Database initialization completed!');
+  } catch (error) {
+    console.error('💥 Database initialization failed:', error.message);
+    process.exit(1);
+  }
 };
 
 // Run initialization if this file is executed directly
