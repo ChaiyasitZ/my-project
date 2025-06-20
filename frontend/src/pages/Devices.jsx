@@ -113,6 +113,8 @@ function Devices() {
     }
   };
 
+
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -227,6 +229,7 @@ function Devices() {
                       onClick={() => handleTestConnection(device)}
                       disabled={testingDevice === device.id}
                       className="btn btn-secondary btn-sm"
+                      title="Test Connection"
                     >
                       {testingDevice === device.id ? (
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
@@ -234,10 +237,13 @@ function Devices() {
                         <TestTubeIcon className="h-4 w-4" />
                       )}
                     </button>
+
+
                     
                     <button
                       onClick={() => handleEdit(device)}
                       className="btn btn-secondary btn-sm"
+                      title="Edit Device"
                     >
                       <PencilIcon className="h-4 w-4" />
                     </button>
@@ -245,6 +251,7 @@ function Devices() {
                     <button
                       onClick={() => handleDelete(device)}
                       className="btn btn-danger btn-sm"
+                      title="Delete Device"
                     >
                       <TrashIcon className="h-4 w-4" />
                     </button>
@@ -420,6 +427,8 @@ function Devices() {
                     <option value="maintenance">Maintenance</option>
                   </select>
                 </div>
+
+
               </div>
               
               <div className="px-6 py-4 bg-gray-50 flex justify-end space-x-3">

@@ -20,6 +20,17 @@ CREATE TABLE devices (
     model VARCHAR(255),
     ios_version VARCHAR(255),
     status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'maintenance')),
+    -- SNMP Configuration
+    snmp_enabled BOOLEAN DEFAULT true,
+    snmp_version VARCHAR(10) DEFAULT '2c' CHECK (snmp_version IN ('1', '2c', '3')),
+    snmp_community VARCHAR(255) DEFAULT 'public',
+    snmp_port INTEGER DEFAULT 161,
+    -- SNMP v3 specific fields
+    snmp_username VARCHAR(255),
+    snmp_auth_protocol VARCHAR(20) CHECK (snmp_auth_protocol IN ('MD5', 'SHA')),
+    snmp_auth_key VARCHAR(255),
+    snmp_priv_protocol VARCHAR(20) CHECK (snmp_priv_protocol IN ('DES', 'AES')),
+    snmp_priv_key VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -87,7 +98,39 @@ interface vlan{vlan_id}
  network {network} {wildcard_mask} area {area_id}
  exit',
  '{"process_id": "number", "network": "ip", "wildcard_mask": "mask", "area_id": "number"}',
- 'Routing');
+ 'Routing'),
+
+-- SNMP Configuration Templates
+('Basic SNMP v2c Configuration', 'Configure SNMP v2c with read-only community', 'both',
+ 'snmp-server community {ro_community} RO
+snmp-server community {rw_community} RW
+snmp-server location {location}
+snmp-server contact {contact}
+snmp-server enable traps',
+ '{"ro_community": "string", "rw_community": "string", "location": "string", "contact": "string"}',
+ 'SNMP'),
+
+('SNMP v3 Configuration', 'Configure SNMP v3 with authentication and privacy', 'both',
+ 'snmp-server group {group_name} v3 priv
+snmp-server user {username} {group_name} v3 auth {auth_protocol} {auth_password} priv {priv_protocol} {priv_password}
+snmp-server location {location}
+snmp-server contact {contact}
+snmp-server enable traps',
+ '{"group_name": "string", "username": "string", "auth_protocol": "string", "auth_password": "string", "priv_protocol": "string", "priv_password": "string", "location": "string", "contact": "string"}',
+ 'SNMP'),
+
+('SNMP Monitoring Setup', 'Configure SNMP for comprehensive monitoring', 'both',
+ 'snmp-server community {community} RO
+snmp-server location {location}
+snmp-server contact {contact}
+snmp-server enable traps snmp authentication linkdown linkup coldstart warmstart
+snmp-server enable traps cpu threshold
+snmp-server enable traps memory bufferpeak
+snmp-server enable traps config
+snmp-server enable traps entity
+snmp-server enable traps envmon fan shutdown supply temperature',
+ '{"community": "string", "location": "string", "contact": "string"}',
+ 'SNMP');
 
 -- Show created tables
 \dt 
