@@ -42,9 +42,47 @@ export class SSHService {
         password,
         readyTimeout: 10000,
         algorithms: {
-          kex: ['diffie-hellman-group14-sha256', 'diffie-hellman-group14-sha1'],
-          cipher: ['aes128-ctr', 'aes192-ctr', 'aes256-ctr'],
-          hmac: ['hmac-sha2-256', 'hmac-sha2-512', 'hmac-sha1'],
+          kex: [
+            'diffie-hellman-group14-sha256',
+            'diffie-hellman-group14-sha1',
+            'diffie-hellman-group1-sha1',
+            'diffie-hellman-group-exchange-sha256',
+            'diffie-hellman-group-exchange-sha1',
+            'ecdh-sha2-nistp256',
+            'ecdh-sha2-nistp384',
+            'ecdh-sha2-nistp521'
+          ],
+          cipher: [
+            'aes128-ctr',
+            'aes192-ctr', 
+            'aes256-ctr',
+            'aes128-cbc',
+            'aes192-cbc',
+            'aes256-cbc',
+            '3des-cbc',
+            'blowfish-cbc',
+            'cast128-cbc',
+            'arcfour',
+            'arcfour128',
+            'arcfour256'
+          ],
+          hmac: [
+            'hmac-sha2-256',
+            'hmac-sha2-512', 
+            'hmac-sha1',
+            'hmac-sha1-96',
+            'hmac-sha2-256-96',
+            'hmac-sha2-512-96',
+            'hmac-md5',
+            'hmac-md5-96'
+          ],
+          serverHostKey: [
+            'ssh-rsa',
+            'ssh-dss',
+            'ecdsa-sha2-nistp256',
+            'ecdsa-sha2-nistp384', 
+            'ecdsa-sha2-nistp521'
+          ]
         },
       });
     });
