@@ -358,7 +358,7 @@ function Devices() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700">
-                      Password * {editingDevice && <span className="text-xs text-gray-500">(leave blank to keep current)</span>}
+                      Password {!editingDevice && '*'} {editingDevice && <span className="text-xs text-gray-500">(leave blank to keep current password)</span>}
                     </label>
                     <input
                       type="password"
@@ -366,6 +366,7 @@ function Devices() {
                       className="input mt-1"
                       value={formData.password}
                       onChange={(e) => setFormData({...formData, password: e.target.value})}
+                      placeholder={editingDevice ? "Leave blank to keep current password" : "Enter password"}
                     />
                   </div>
                 </div>

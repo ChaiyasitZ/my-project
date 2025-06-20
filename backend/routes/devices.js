@@ -6,13 +6,27 @@ import sshService from '../services/sshService.js';
 const router = express.Router();
 
 // Validation schemas
-const deviceSchema = Joi.object({
+const deviceCreateSchema = Joi.object({
   name: Joi.string().required().min(1).max(255),
   type: Joi.string().valid('switch', 'router').required(),
   ip_address: Joi.string().ip().required(),
   ssh_port: Joi.number().integer().min(1).max(65535).default(22),
   username: Joi.string().required().min(1).max(255),
   password: Joi.string().required().min(1),
+  description: Joi.string().max(1000).allow(''),
+  location: Joi.string().max(255).allow(''),
+  model: Joi.string().max(255).allow(''),
+  ios_version: Joi.string().max(255).allow(''),
+  status: Joi.string().valid('active', 'inactive', 'maintenance').default('active')
+});
+
+const deviceUpdateSchema = Joi.object({
+  name: Joi.string().required().min(1).max(255),
+  type: Joi.string().valid('switch', 'router').required(),
+  ip_address: Joi.string().ip().required(),
+  ssh_port: Joi.number().integer().min(1).max(65535).default(22),
+  username: Joi.string().required().min(1).max(255),
+  password: Joi.string().allow('').optional(), // Allow empty password for updates
   description: Joi.string().max(1000).allow(''),
   location: Joi.string().max(255).allow(''),
   model: Joi.string().max(255).allow(''),
@@ -94,7 +108,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/devices - Create new device
 router.post('/', async (req, res) => {
   try {
-    const { error, value } = deviceSchema.validate(req.body);
+    const { error, value } = deviceCreateSchema.validate(req.body);
     
     if (error) {
       return res.status(400).json({
@@ -145,7 +159,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { error, value } = deviceSchema.validate(req.body);
+    const { error, value } = deviceUpdateSchema.validate(req.body);
     
     if (error) {
       return res.status(400).json({
@@ -160,15 +174,18 @@ router.put('/:id', async (req, res) => {
       description, location, model, ios_version, status
     } = value;
     
-    // Check if device exists
-    const existingDevice = await query('SELECT id FROM devices WHERE id = $1', [id]);
+    // Check if device exists and get current password
+    const existingDeviceResult = await query('SELECT password FROM devices WHERE id = $1', [id]);
     
-    if (existingDevice.rows.length === 0) {
+    if (existingDeviceResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         message: 'Device not found'
       });
     }
+    
+    // Use existing password if new password is empty
+    const finalPassword = password && password.trim() !== '' ? password : existingDeviceResult.rows[0].password;
     
     // Check if IP address conflicts with other devices
     const conflictingDevice = await query('SELECT id FROM devices WHERE ip_address = $1 AND id != $2', [ip_address, id]);
@@ -186,7 +203,7 @@ router.put('/:id', async (req, res) => {
           description = $7, location = $8, model = $9, ios_version = $10, status = $11, updated_at = CURRENT_TIMESTAMP
       WHERE id = $12
       RETURNING *
-    `, [name, type, ip_address, ssh_port, username, password, description, location, model, ios_version, status, id]);
+    `, [name, type, ip_address, ssh_port, username, finalPassword, description, location, model, ios_version, status, id]);
     
     const device = { ...result.rows[0], password: undefined };
     
