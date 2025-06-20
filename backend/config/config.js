@@ -14,7 +14,7 @@ export const config = {
 
   // OpenRouter AI Configuration
   openrouter: {
-    apiKey: process.env.OPENROUTER_API_KEY || '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',
+    apiKey: process.env.OPENROUTER_API_KEY || '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',
     model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
     baseUrl: 'https://openrouter.ai/api/v1',
   },

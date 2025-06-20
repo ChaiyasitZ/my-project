@@ -30,6 +30,21 @@ export class SSHService {
         reject(err);
       });
 
+      // Handle keyboard-interactive authentication
+      conn.on('keyboard-interactive', (name, instructions, instructionsLang, prompts, finish) => {
+        console.log(`🔐 Keyboard-interactive auth for ${ip_address}`);
+        console.log(`Name: ${name}`);
+        console.log(`Instructions: ${instructions}`);
+        
+        // Respond to prompts with the password
+        const answers = prompts.map(prompt => {
+          console.log(`Prompt: ${prompt.prompt}`);
+          return password; // Use the provided password for all prompts
+        });
+        
+        finish(answers);
+      });
+
       conn.on('close', () => {
         console.log(`🔌 SSH connection closed for ${ip_address}`);
         this.connections.delete(id);
@@ -41,6 +56,7 @@ export class SSHService {
         username,
         password,
         readyTimeout: 10000,
+        tryKeyboard: true, // Enable keyboard-interactive authentication
         algorithms: {
           kex: [
             'diffie-hellman-group14-sha256',
@@ -48,9 +64,7 @@ export class SSHService {
             'diffie-hellman-group1-sha1',
             'diffie-hellman-group-exchange-sha256',
             'diffie-hellman-group-exchange-sha1',
-            'ecdh-sha2-nistp256',
-            'ecdh-sha2-nistp384',
-            'ecdh-sha2-nistp521'
+            'ecdh-sha2-nistp256'
           ],
           cipher: [
             'aes128-ctr',
@@ -59,22 +73,13 @@ export class SSHService {
             'aes128-cbc',
             'aes192-cbc',
             'aes256-cbc',
-            '3des-cbc',
-            'blowfish-cbc',
-            'cast128-cbc',
-            'arcfour',
-            'arcfour128',
-            'arcfour256'
+            '3des-cbc'
           ],
           hmac: [
             'hmac-sha2-256',
             'hmac-sha2-512', 
             'hmac-sha1',
-            'hmac-sha1-96',
-            'hmac-sha2-256-96',
-            'hmac-sha2-512-96',
-            'hmac-md5',
-            'hmac-md5-96'
+            'hmac-md5'
           ],
           serverHostKey: [
             'ssh-rsa',
