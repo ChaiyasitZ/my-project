@@ -4,14 +4,18 @@ import {
   ServerIcon, 
   CogIcon, 
   ClockIcon,
-  WifiIcon
+  WifiIcon,
+  TerminalIcon,
+  Archive
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
   { name: 'Devices', href: '/devices', icon: ServerIcon },
   { name: 'Configurations', href: '/configurations', icon: CogIcon },
+  { name: 'Initial Setup SSH', href: '/console', icon: TerminalIcon },
   { name: 'History', href: '/history', icon: ClockIcon },
+  { name: 'Backups', href: '/backups', icon: Archive },
 ];
 
 function Navbar() {

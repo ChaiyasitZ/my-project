@@ -8,6 +8,8 @@ import { pool } from './lib/database.js';
 // Import routes
 import devicesRouter from './routes/devices.js';
 import configurationsRouter from './routes/configurations.js';
+import consoleRouter from './routes/console.js';
+import backupsRouter from './routes/backups.js';
 
 const app = express();
 
@@ -17,17 +19,21 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
-// Rate limiting
+// Rate limiting - More lenient for development
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 1000, // limit each IP to 1000 requests per windowMs
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.'
+  },
+  skip: (req) => {
+    // Skip rate limiting for console and health endpoints during development
+    return req.url.includes('/console') || req.url.includes('/health') || req.url.includes('/backups');
   }
 });
 
-app.use('/api/', limiter);
+// app.use('/api/', limiter); // Disabled for development
 
 // CORS
 app.use(cors(config.cors));
@@ -61,6 +67,8 @@ app.get('/api/health', async (req, res) => {
 // API routes
 app.use('/api/devices', devicesRouter);
 app.use('/api/configurations', configurationsRouter);
+app.use('/api/console', consoleRouter);
+app.use('/api/backups', backupsRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -71,7 +79,9 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/api/health',
       devices: '/api/devices',
-      configurations: '/api/configurations'
+      configurations: '/api/configurations',
+      console: '/api/console',
+      backups: '/api/backups'
     }
   });
 });
@@ -131,7 +141,8 @@ const PORT = config.server.port;
 app.listen(PORT, () => {
   console.log(`🚀 Network Automation API server running on port ${PORT}`);
   console.log(`🌍 Environment: ${config.server.nodeEnv}`);
-  console.log(`🤖 AI Model: ${config.openrouter.model}`);
+  console.log(`🤖 Ollama Host: ${config.ollama.host}`);
+  console.log(`🧠 AI Model: ${config.ollama.model}`);
   console.log(`🔗 Frontend URL: ${config.cors.origin}`);
 });
 

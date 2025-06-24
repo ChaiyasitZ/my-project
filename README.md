@@ -4,7 +4,7 @@ A comprehensive web application for automating Cisco network device configuratio
 
 ## ✨ Features
 
-- **🤖 AI-Powered Configuration Generation**: Generate Cisco IOS configurations using natural language prompts
+- **🤖 Local AI-Powered Configuration Generation**: Generate Cisco IOS configurations using local Ollama models with natural language prompts
 - **📱 Modern Web Interface**: Clean, responsive React frontend with Tailwind CSS
 - **🔐 SSH Device Management**: Secure SSH connections to Cisco devices
 - **📊 Real-time Dashboard**: Monitor devices and configuration status
@@ -18,7 +18,7 @@ A comprehensive web application for automating Cisco network device configuratio
 ### Backend (Node.js + Express)
 - **API Server**: RESTful API with Express.js
 - **Database**: PostgreSQL for data persistence
-- **AI Integration**: OpenRouter API with Llama 3.3 70B model
+- **AI Integration**: Local Ollama service with configurable models
 - **SSH Client**: SSH2 library for device connections
 - **Security**: Rate limiting, CORS, input validation
 
@@ -40,6 +40,7 @@ Before running this application, ensure you have:
 
 - **Node.js** (v18+ recommended)
 - **PostgreSQL** (v12+ recommended)
+- **Ollama** (for local AI models)
 - **Git** for version control
 
 ## 🚀 Quick Start
@@ -51,7 +52,32 @@ git clone <repository-url>
 cd my-project
 ```
 
-### 2. Setup PostgreSQL Database
+### 2. Install and Setup Ollama
+
+**Install Ollama:**
+
+**Windows/macOS:**
+- Download and install from https://ollama.com
+
+**Linux:**
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+**Start Ollama and pull a model:**
+```bash
+# Start Ollama service (runs on http://localhost:11434)
+ollama serve
+
+# Pull the main code-specialized model (recommended)
+ollama pull codellama:13b
+
+# Or pull alternative models
+ollama pull llama3.2:3b    # Lightweight for testing
+ollama pull llama3.1:8b    # Balanced performance
+```
+
+### 3. Setup PostgreSQL Database
 
 Make sure PostgreSQL is running and create the database:
 
@@ -60,7 +86,7 @@ Make sure PostgreSQL is running and create the database:
 CREATE DATABASE network_automation;
 ```
 
-### 3. Configure Backend
+### 4. Configure Backend
 
 Navigate to the backend directory and install dependencies:
 
@@ -73,9 +99,24 @@ The configuration is already set up in `backend/config/config.js` with these def
 - Database: `network_automation`
 - User: `postgres`
 - Password: `admin`
-- OpenRouter API Key: Already configured
+- Ollama Host: `http://localhost:11434`
+- Default Model: `codellama:13b` (optimized for code generation)
 
-### 4. Initialize Database Tables
+You can customize these settings by creating a `.env` file:
+```bash
+# Database configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=network_automation
+DB_USER=postgres
+DB_PASSWORD=admin
+
+# Ollama configuration
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=codellama:13b
+```
+
+### 5. Initialize Database Tables
 
 Since the database tables are required, run this manual setup:
 
@@ -138,7 +179,7 @@ console.log('Database tables created successfully!');
 "
 ```
 
-### 5. Configure Frontend
+### 6. Configure Frontend
 
 Navigate to the frontend directory and install dependencies:
 
@@ -147,7 +188,7 @@ cd ../frontend
 npm install
 ```
 
-### 6. Start the Application
+### 7. Start the Application
 
 Start the backend server (in one terminal):
 
@@ -215,6 +256,7 @@ The application will be available at:
 - `POST /api/devices/:id/test` - Test SSH connection
 
 ### Configurations API
+- `GET /api/configurations/ai-status` - Get AI service status and model info
 - `POST /api/configurations/generate` - Generate AI configuration
 - `POST /api/configurations/apply` - Apply configuration to device
 - `GET /api/configurations/history` - Get configuration history
@@ -248,8 +290,9 @@ The application will be available at:
    - Ensure SSH is enabled on the device
 
 4. **AI Generation Errors**
-   - Verify OpenRouter API key is valid
-   - Check internet connectivity
+   - Ensure Ollama service is running: `ollama serve`
+   - Verify the configured model is available: `ollama list`
+   - Pull the required model if missing: `ollama pull codellama:13b`
    - Try simpler prompts if complex ones fail
 
 5. **Frontend Connection Issues**
@@ -270,7 +313,7 @@ The application will be available at:
 - Complete React frontend with modern UI
 - Backend API with all endpoints
 - Database schema and connection
-- AI integration with OpenRouter
+- Local AI integration with Ollama
 - SSH service for device connections
 - Device management (CRUD operations)
 - Configuration generation and history

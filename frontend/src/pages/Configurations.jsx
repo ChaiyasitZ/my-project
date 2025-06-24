@@ -18,9 +18,11 @@ function Configurations() {
   const [isApplying, setIsApplying] = useState(false);
   const [generatedConfig, setGeneratedConfig] = useState(null);
   const [validation, setValidation] = useState(null);
+  const [aiStatus, setAiStatus] = useState(null);
 
   useEffect(() => {
     fetchDevices();
+    fetchAiStatus();
   }, []);
 
   const fetchDevices = async () => {
@@ -32,16 +34,32 @@ function Configurations() {
     }
   };
 
+  const fetchAiStatus = async () => {
+    try {
+      const response = await axios.get('/configurations/ai-status');
+      setAiStatus(response.data.aiService);
+    } catch (error) {
+      console.error('Error fetching AI status:', error);
+      setAiStatus({
+        success: false,
+        status: 'disconnected',
+        error: 'Unable to connect to AI service'
+      });
+    }
+  };
+
   const handleGenerateConfiguration = async (e) => {
     e.preventDefault();
     if (!selectedDevice || !prompt) return;
 
     setIsGenerating(true);
     try {
-      const response = await axios.post('/configurations/generate', {
+      const requestData = {
         device_id: parseInt(selectedDevice),
         prompt: prompt
-      });
+      };
+
+      const response = await axios.post('/configurations/generate', requestData);
 
       setGeneratedConfig(response.data.configuration);
       setValidation(response.data.configuration.validation);
@@ -122,9 +140,69 @@ function Configurations() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">AI Configuration Generator</h1>
         <p className="mt-2 text-gray-600">
-          Generate Cisco device configurations using AI
+          Generate Cisco device configurations using local AI with Ollama
         </p>
       </div>
+
+      {/* AI Status */}
+      {aiStatus && (
+        <div className="card p-4 bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className={`w-3 h-3 rounded-full mr-3 ${
+                aiStatus.success && aiStatus.modelAvailable ? 'bg-green-500' : 'bg-red-500'
+              }`}></div>
+              <div>
+                <h3 className="text-sm font-medium text-gray-900">
+                  🤖 AI Service Status
+                </h3>
+                <p className="text-sm text-gray-600">
+                  {aiStatus.success ? (
+                    aiStatus.modelAvailable ? (
+                      <>Model: <span className="font-mono font-medium">{aiStatus.currentModel}</span> • Host: {aiStatus.host}</>
+                    ) : (
+                      <>Model <span className="font-mono">{aiStatus.currentModel}</span> not available • Please pull the model first</>
+                    )
+                  ) : (
+                    <>Disconnected: {aiStatus.error}</>
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm font-medium text-gray-900">
+                {aiStatus.success ? aiStatus.modelCount : 0} models
+              </div>
+              <button
+                onClick={fetchAiStatus}
+                className="text-xs text-blue-600 hover:text-blue-800"
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+          
+          {aiStatus.success && !aiStatus.modelAvailable && (
+            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start">
+                <AlertTriangleIcon className="h-5 w-5 text-yellow-600 mr-2 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-yellow-800">Model Not Available</p>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    The configured model "{aiStatus.currentModel}" is not available. 
+                    {aiStatus.availableModels?.length > 0 && (
+                      <> Available models: {aiStatus.availableModels.join(', ')}</>
+                    )}
+                  </p>
+                  <p className="text-sm text-yellow-700 mt-2">
+                    Pull the model using: <code className="bg-yellow-100 px-1 rounded">ollama pull {aiStatus.currentModel}</code>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Generation Form */}
@@ -250,17 +328,28 @@ function Configurations() {
             <div className="space-y-4">
               {/* Device Info */}
               <div className="bg-gray-50 p-3 rounded-lg">
-                <div className="flex items-center text-sm text-gray-600">
-                  <ServerIcon className="h-4 w-4 mr-2" />
-                  <span>
-                    {generatedConfig.device_name} ({generatedConfig.device_type})
-                  </span>
-                  <span className={`ml-auto badge ${
+                <div className="flex items-center justify-between text-sm text-gray-600">
+                  <div className="flex items-center">
+                    <ServerIcon className="h-4 w-4 mr-2" />
+                    <span>
+                      {generatedConfig.device_name} ({generatedConfig.device_type})
+                    </span>
+                  </div>
+                  <span className={`badge ${
                     generatedConfig.status === 'applied' ? 'badge-success' : 
                     generatedConfig.status === 'failed' ? 'badge-danger' : 'badge-info'
                   }`}>
                     {generatedConfig.status}
                   </span>
+                </div>
+                
+                {/* Model Info */}
+                <div className="mt-2 flex items-center text-xs text-gray-500">
+                  <BotIcon className="h-3 w-3 mr-1" />
+                  <span>Generated with: <span className="font-mono font-medium">{generatedConfig.ai_model}</span></span>
+                  {generatedConfig.execution_time && (
+                    <span className="ml-3">• {generatedConfig.execution_time}ms</span>
+                  )}
                 </div>
               </div>
 

@@ -112,6 +112,27 @@ const createTables = async () => {
     `);
     console.log('✅ Configuration_templates table created');
 
+    // Create configuration_backups table
+    console.log('📝 Creating configuration_backups table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS configuration_backups (
+        id SERIAL PRIMARY KEY,
+        device_id INTEGER REFERENCES devices(id) ON DELETE CASCADE,
+        backup_name VARCHAR(255) NOT NULL,
+        description TEXT,
+        running_config TEXT NOT NULL,
+        startup_config TEXT,
+        backup_type VARCHAR(50) DEFAULT 'manual' CHECK (backup_type IN ('manual', 'scheduled', 'pre_change')),
+        file_size INTEGER, -- Size in bytes
+        config_hash VARCHAR(64), -- SHA-256 hash for duplicate detection
+        created_by VARCHAR(255),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        is_restore_point BOOLEAN DEFAULT FALSE,
+        tags JSONB -- Store tags as JSON array
+      )
+    `);
+    console.log('✅ Configuration_backups table created');
+
     // Create indexes for better performance
     console.log('📝 Creating indexes...');
     await client.query(`
@@ -120,6 +141,10 @@ const createTables = async () => {
       CREATE INDEX IF NOT EXISTS idx_config_history_device_id ON configuration_history(device_id);
       CREATE INDEX IF NOT EXISTS idx_config_history_status ON configuration_history(status);
       CREATE INDEX IF NOT EXISTS idx_config_templates_device_type ON configuration_templates(device_type);
+      CREATE INDEX IF NOT EXISTS idx_config_backups_device_id ON configuration_backups(device_id);
+      CREATE INDEX IF NOT EXISTS idx_config_backups_backup_type ON configuration_backups(backup_type);
+      CREATE INDEX IF NOT EXISTS idx_config_backups_created_at ON configuration_backups(created_at);
+      CREATE INDEX IF NOT EXISTS idx_config_backups_hash ON configuration_backups(config_hash);
     `);
     console.log('✅ Database indexes created');
 
@@ -167,6 +192,10 @@ const initializeDatabase = async () => {
 };
 
 // Run initialization if this file is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+const isMainModule = import.meta.url === `file://${process.argv[1]}` || 
+                     import.meta.url.endsWith(process.argv[1]) ||
+                     process.argv[1].endsWith('initDB.js');
+
+if (isMainModule) {
   initializeDatabase();
 } 

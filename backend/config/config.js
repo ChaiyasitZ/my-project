@@ -12,11 +12,10 @@ export const config = {
     password: process.env.DB_PASSWORD || 'admin',
   },
 
-  // OpenRouter AI Configuration
-  openrouter: {
-    apiKey: process.env.OPENROUTER_API_KEY || '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',
-    model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
-    baseUrl: 'https://openrouter.ai/api/v1',
+  // Ollama Local AI Configuration
+  ollama: {
+    host: process.env.OLLAMA_HOST || 'http://localhost:11434',
+    model: process.env.OLLAMA_MODEL || 'codellama:13b',
   },
 
   // Server Configuration

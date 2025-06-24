@@ -178,52 +178,23 @@ function Dashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="card p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
-          <div className="space-y-3">
-            <a
-              href="/devices"
-              className="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors duration-200"
-            >
-              <ServerIcon className="h-5 w-5 text-gray-600 mr-3" />
-              <span className="text-sm text-gray-900">Manage Devices</span>
-            </a>
-            <a
-              href="/configurations"
-              className="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors duration-200"
-            >
-              <CogIcon className="h-5 w-5 text-gray-600 mr-3" />
-              <span className="text-sm text-gray-900">Generate Configuration</span>
-            </a>
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">System Status</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">API Server</span>
-              <div className="flex items-center">
-                <div className="h-2 w-2 bg-green-400 rounded-full mr-2"></div>
-                <span className="text-sm text-green-600">Online</span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Database</span>
-              <div className="flex items-center">
-                <div className="h-2 w-2 bg-green-400 rounded-full mr-2"></div>
-                <span className="text-sm text-green-600">Connected</span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">AI Service</span>
-              <div className="flex items-center">
-                <div className="h-2 w-2 bg-green-400 rounded-full mr-2"></div>
-                <span className="text-sm text-green-600">Available</span>
-              </div>
-            </div>
-          </div>
+      <div className="card p-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
+        <div className="space-y-3">
+          <a
+            href="/devices"
+            className="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors duration-200"
+          >
+            <ServerIcon className="h-5 w-5 text-gray-600 mr-3" />
+            <span className="text-sm text-gray-900">Manage Devices</span>
+          </a>
+          <a
+            href="/configurations"
+            className="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors duration-200"
+          >
+            <CogIcon className="h-5 w-5 text-gray-600 mr-3" />
+            <span className="text-sm text-gray-900">Generate Configuration</span>
+          </a>
         </div>
       </div>
     </div>

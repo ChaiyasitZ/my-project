@@ -16,6 +16,24 @@ const applyConfigSchema = Joi.object({
   configuration_id: Joi.number().integer().required()
 });
 
+// GET /api/configurations/ai-status - Get AI service status
+router.get('/ai-status', async (req, res) => {
+  try {
+    const status = await aiService.getServiceStatus();
+    res.json({
+      success: true,
+      aiService: status
+    });
+  } catch (error) {
+    console.error('Error getting AI service status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get AI service status',
+      error: error.message
+    });
+  }
+});
+
 // POST /api/configurations/generate - Generate configuration using AI
 router.post('/generate', async (req, res) => {
   try {
@@ -275,7 +293,7 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/configurations/:id/validate - Validate configuration
+// POST /api/configurations/:id/validate - Validate configuration with detailed accuracy metrics
 router.post('/:id/validate', async (req, res) => {
   try {
     const { id } = req.params;
@@ -302,7 +320,17 @@ router.post('/:id/validate', async (req, res) => {
     
     res.json({
       success: true,
-      validation
+      validation,
+      accuracy_metrics: {
+        overall_accuracy: validation.accuracy,
+        confidence_score: validation.confidence,
+        valid_commands: validation.validCommands,
+        total_commands: validation.totalCommands,
+        accuracy_percentage: `${(validation.accuracy * 100).toFixed(1)}%`,
+        quality_rating: validation.accuracy >= 0.95 ? 'Excellent' : 
+                       validation.accuracy >= 0.90 ? 'Good' : 
+                       validation.accuracy >= 0.80 ? 'Fair' : 'Poor'
+      }
     });
     
   } catch (error) {
@@ -310,6 +338,67 @@ router.post('/:id/validate', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to validate configuration'
+    });
+  }
+});
+
+// POST /api/configurations/test-accuracy - Test configuration accuracy in real-time
+router.post('/test-accuracy', async (req, res) => {
+  try {
+    const { configuration, device_type } = req.body;
+    
+    if (!configuration || !device_type) {
+      return res.status(400).json({
+        success: false,
+        message: 'Configuration and device_type are required'
+      });
+    }
+
+    if (!['router', 'switch'].includes(device_type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'device_type must be either "router" or "switch"'
+      });
+    }
+
+    console.log(`🧪 Testing configuration accuracy for ${device_type}`);
+    
+    const startTime = Date.now();
+    const validation = await aiService.validateConfiguration(configuration, device_type);
+    const testTime = Date.now() - startTime;
+    
+    // Generate improvement suggestions if accuracy is below 100%
+    let improvements = [];
+    if (validation.accuracy < 1.0) {
+      if (validation.exhaustiveValidation?.issues?.length > 0) {
+        improvements = validation.exhaustiveValidation.issues.slice(0, 5);
+      }
+    }
+    
+    res.json({
+      success: true,
+      test_results: {
+        accuracy: validation.accuracy,
+        confidence: validation.confidence,
+        is_valid: validation.isValid,
+        quality_rating: validation.accuracy >= 0.95 ? 'Production Ready' : 
+                       validation.accuracy >= 0.90 ? 'Minor Issues' : 
+                       validation.accuracy >= 0.80 ? 'Needs Improvement' : 'Major Issues',
+        accuracy_percentage: `${(validation.accuracy * 100).toFixed(1)}%`,
+        valid_commands: validation.validCommands,
+        total_commands: validation.totalCommands,
+        test_time_ms: testTime,
+        improvements: improvements,
+        detailed_feedback: validation.feedback
+      },
+      validation: validation
+    });
+    
+  } catch (error) {
+    console.error('Error testing configuration accuracy:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to test configuration accuracy'
     });
   }
 });
@@ -342,7 +431,87 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// GET /api/configurations/templates - Get configuration templates
+// GET /api/configurations/suggestions - Get configuration suggestions
+router.get('/suggestions', async (req, res) => {
+  try {
+    const { device_type, scenario = 'basic' } = req.query;
+    
+    if (!device_type) {
+      return res.status(400).json({
+        success: false,
+        message: 'device_type parameter is required'
+      });
+    }
+
+    if (!['router', 'switch'].includes(device_type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'device_type must be either "router" or "switch"'
+      });
+    }
+
+    const suggestions = await aiService.getConfigurationSuggestions(device_type, scenario);
+    
+    res.json({
+      success: true,
+      ...suggestions
+    });
+    
+  } catch (error) {
+    console.error('Error getting configuration suggestions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get configuration suggestions'
+    });
+  }
+});
+
+// GET /api/configurations/template - Generate configuration template
+router.get('/template', async (req, res) => {
+  try {
+    const { device_type, scenario = 'basic' } = req.query;
+    
+    if (!device_type) {
+      return res.status(400).json({
+        success: false,
+        message: 'device_type parameter is required'
+      });
+    }
+
+    if (!['router', 'switch'].includes(device_type)) {
+      return res.status(400).json({
+        success: false,
+        message: 'device_type must be either "router" or "switch"'
+      });
+    }
+
+    // Extract optional device context from query parameters
+    const deviceContext = {};
+    if (req.query.hostname) deviceContext.hostname = req.query.hostname;
+    if (req.query.domain) deviceContext.domain = req.query.domain;
+    if (req.query.mgmt_ip) deviceContext.mgmtIP = req.query.mgmt_ip;
+    if (req.query.mgmt_mask) deviceContext.mgmtMask = req.query.mgmt_mask;
+    if (req.query.gateway) deviceContext.gateway = req.query.gateway;
+    if (req.query.loopback_ip) deviceContext.loopbackIP = req.query.loopback_ip;
+    if (req.query.mgmt_network) deviceContext.mgmtNetwork = req.query.mgmt_network;
+
+    const template = await aiService.generateConfigurationTemplate(device_type, scenario, deviceContext);
+    
+    res.json({
+      success: true,
+      ...template
+    });
+    
+  } catch (error) {
+    console.error('Error generating configuration template:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate configuration template'
+    });
+  }
+});
+
+// GET /api/configurations/templates - Get configuration templates (legacy endpoint)
 router.get('/templates', async (req, res) => {
   try {
     const { device_type, category } = req.query;

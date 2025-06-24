@@ -278,4 +278,60 @@ router.post('/:id/test', async (req, res) => {
   }
 });
 
+// POST /api/devices/:id/debug - Debug SSH connection with detailed logging
+router.post('/:id/debug', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await query('SELECT * FROM devices WHERE id = $1', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    const device = result.rows[0];
+    
+    // Enable debug mode temporarily
+    const originalDebug = process.env.SSH_DEBUG;
+    process.env.SSH_DEBUG = 'true';
+    
+    console.log('🔍 Debug mode enabled for SSH connection test');
+    console.log(`📋 Device config: ${JSON.stringify({
+      ip: device.ip_address,
+      port: device.ssh_port,
+      username: device.username,
+      // Don't log password
+    })}`);
+    
+    const testResult = await sshService.testConnection(device);
+    
+    // Restore original debug setting
+    process.env.SSH_DEBUG = originalDebug;
+    
+    res.json({
+      success: true,
+      connectionTest: testResult,
+      debugInfo: {
+        ip: device.ip_address,
+        port: device.ssh_port,
+        username: device.username,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    // Restore original debug setting
+    process.env.SSH_DEBUG = process.env.SSH_DEBUG || 'false';
+    
+    console.error('Error in debug connection test:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to debug connection',
+      error: error.message
+    });
+  }
+});
+
 export default router; 

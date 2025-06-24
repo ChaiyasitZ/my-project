@@ -7,7 +7,9 @@ import Navbar from './components/Navbar';
 import Dashboard from './pages/Dashboard';
 import Devices from './pages/Devices';
 import Configurations from './pages/Configurations';
+import ConsoleConfiguration from './pages/ConsoleConfiguration';
 import ConfigurationHistory from './pages/ConfigurationHistory';
+import BackupManagement from './pages/BackupManagement';
 import NotFound from './pages/NotFound';
 
 // API Configuration
@@ -77,7 +79,9 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/devices" element={<Devices />} />
             <Route path="/configurations" element={<Configurations />} />
+            <Route path="/console" element={<ConsoleConfiguration />} />
             <Route path="/history" element={<ConfigurationHistory />} />
+            <Route path="/backups" element={<BackupManagement />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
