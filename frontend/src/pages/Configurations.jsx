@@ -6,7 +6,6 @@ import {
   CheckCircleIcon, 
   PlayIcon,
   EyeIcon,
-  AlertTriangleIcon,
   ServerIcon
 } from 'lucide-react';
 
@@ -18,11 +17,10 @@ function Configurations() {
   const [isApplying, setIsApplying] = useState(false);
   const [generatedConfig, setGeneratedConfig] = useState(null);
   const [validation, setValidation] = useState(null);
-  const [aiStatus, setAiStatus] = useState(null);
+
 
   useEffect(() => {
     fetchDevices();
-    fetchAiStatus();
   }, []);
 
   const fetchDevices = async () => {
@@ -34,19 +32,7 @@ function Configurations() {
     }
   };
 
-  const fetchAiStatus = async () => {
-    try {
-      const response = await axios.get('/configurations/ai-status');
-      setAiStatus(response.data.aiService);
-    } catch (error) {
-      console.error('Error fetching AI status:', error);
-      setAiStatus({
-        success: false,
-        status: 'disconnected',
-        error: 'Unable to connect to AI service'
-      });
-    }
-  };
+
 
   const handleGenerateConfiguration = async (e) => {
     e.preventDefault();
@@ -61,11 +47,41 @@ function Configurations() {
 
       const response = await axios.post('/configurations/generate', requestData);
 
-      setGeneratedConfig(response.data.configuration);
-      setValidation(response.data.configuration.validation);
+      if (response.data.configuration) {
+        setGeneratedConfig(response.data.configuration);
+        setValidation(response.data.configuration.validation);
+        
+        // Show warning if fallback method was used
+        if (response.data.configuration.warning) {
+          console.warn('⚠️ Configuration warning:', response.data.configuration.warning);
+        }
+      } else {
+        // Handle case where AI couldn't generate valid configuration
+        throw new Error(response.data.error || 'No configuration generated');
+      }
     } catch (error) {
       console.error('Error generating configuration:', error);
-      alert('Error generating configuration: ' + (error.response?.data?.message || error.message));
+      
+      let errorMessage = '';
+      if (error.response?.data?.error && error.response.data.error.includes('could not generate')) {
+        // Special handling for generation errors
+        errorMessage = `❌ Configuration Generation Failed\n\n`;
+        errorMessage += `Try being more specific about what you want to configure:\n\n`;
+        errorMessage += `Examples:\n`;
+        errorMessage += `• "interface fe0/1 ip 192.168.1.1/24"\n`;
+        errorMessage += `• "username admin password cisco123"\n`;
+        errorMessage += `• "vlan 100 sales"\n`;
+        errorMessage += `• "hostname Router1"\n\n`;
+        errorMessage += `Use proper Cisco command format.`;
+      } else if (error.response?.data?.details) {
+        // Show validation details
+        const details = error.response.data.details.map(d => d.message).join(', ');
+        errorMessage = 'Validation error: ' + details;
+      } else {
+        errorMessage = 'Error: ' + (error.response?.data?.message || error.message);
+      }
+      
+      alert(errorMessage);
     } finally {
       setIsGenerating(false);
     }
@@ -123,15 +139,17 @@ function Configurations() {
   const getValidationIcon = (isValid) => {
     return isValid ? 
       <CheckCircleIcon className="h-5 w-5 text-green-600" /> : 
-      <AlertTriangleIcon className="h-5 w-5 text-red-600" />;
+      <CheckCircleIcon className="h-5 w-5 text-red-600" />;
   };
 
   const examplePrompts = [
-    "Create VLAN 100 named 'Sales' with IP 192.168.100.1/24",
-    "Configure interface GigabitEthernet0/1 as trunk port",
-    "Set up OSPF routing with area 0 for network 192.168.1.0/24",
-    "Create access list to deny HTTP traffic from 192.168.10.0/24",
-    "Configure port security on interface FastEthernet0/5"
+    "interface fe0/1 ip 192.168.1.1/24",
+    "username admin password cisco123",
+    "vlan 100 sales", 
+    "hostname Router1",
+    "interface ge0/1 switchport mode trunk",
+    "router ospf 1 network 192.168.1.0 0.0.0.255 area 0",
+    "access-list 100 deny tcp 192.168.10.0 0.0.0.255 any eq 80"
   ];
 
   return (
@@ -144,65 +162,7 @@ function Configurations() {
         </p>
       </div>
 
-      {/* AI Status */}
-      {aiStatus && (
-        <div className="card p-4 bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className={`w-3 h-3 rounded-full mr-3 ${
-                aiStatus.success && aiStatus.modelAvailable ? 'bg-green-500' : 'bg-red-500'
-              }`}></div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-900">
-                  🤖 AI Service Status
-                </h3>
-                <p className="text-sm text-gray-600">
-                  {aiStatus.success ? (
-                    aiStatus.modelAvailable ? (
-                      <>Model: <span className="font-mono font-medium">{aiStatus.currentModel}</span> • Host: {aiStatus.host}</>
-                    ) : (
-                      <>Model <span className="font-mono">{aiStatus.currentModel}</span> not available • Please pull the model first</>
-                    )
-                  ) : (
-                    <>Disconnected: {aiStatus.error}</>
-                  )}
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-sm font-medium text-gray-900">
-                {aiStatus.success ? aiStatus.modelCount : 0} models
-              </div>
-              <button
-                onClick={fetchAiStatus}
-                className="text-xs text-blue-600 hover:text-blue-800"
-              >
-                Refresh
-              </button>
-            </div>
-          </div>
-          
-          {aiStatus.success && !aiStatus.modelAvailable && (
-            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <div className="flex items-start">
-                <AlertTriangleIcon className="h-5 w-5 text-yellow-600 mr-2 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-yellow-800">Model Not Available</p>
-                  <p className="text-sm text-yellow-700 mt-1">
-                    The configured model "{aiStatus.currentModel}" is not available. 
-                    {aiStatus.availableModels?.length > 0 && (
-                      <> Available models: {aiStatus.availableModels.join(', ')}</>
-                    )}
-                  </p>
-                  <p className="text-sm text-yellow-700 mt-2">
-                    Pull the model using: <code className="bg-yellow-100 px-1 rounded">ollama pull {aiStatus.currentModel}</code>
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Generation Form */}
@@ -239,19 +199,28 @@ function Configurations() {
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Describe what you want to configure..."
+                placeholder="Enter Cisco commands. Example: 'interface fe0/1 ip 192.168.1.1/24'"
                 className="input"
                 rows="4"
                 required
+                minLength="10"
               />
-              <p className="text-sm text-gray-500 mt-1">
-                Be specific about what you want to configure. Include IP addresses, VLAN IDs, interface names, etc.
-              </p>
+              <div className="flex justify-between items-center mt-1">
+                <p className="text-sm text-gray-500">
+                  Enter the configuration you want. Use standard Cisco command format.
+                </p>
+                <p className={`text-sm ${
+                  prompt.length < 10 ? 'text-red-500' : 
+                  prompt.length > 2000 ? 'text-red-500' : 'text-green-500'
+                }`}>
+                  {prompt.length}/2000 chars {prompt.length < 10 ? '(min 10)' : ''}
+                </p>
+              </div>
             </div>
 
             <button
               type="submit"
-              disabled={isGenerating || !selectedDevice || !prompt}
+              disabled={isGenerating || !selectedDevice || !prompt || prompt.length < 10}
               className="btn btn-primary btn-md w-full"
             >
               {isGenerating ? (
@@ -266,6 +235,14 @@ function Configurations() {
                 </>
               )}
             </button>
+            
+            {prompt.length > 0 && prompt.length < 10 && (
+              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-700">
+                  Prompt must be at least 10 characters long. Currently: {prompt.length} characters.
+                </p>
+              </div>
+            )}
           </form>
 
           {/* Example Prompts */}
@@ -405,7 +382,7 @@ function Configurations() {
       {devices.length === 0 && (
         <div className="card p-6 bg-blue-50 border-blue-200">
           <div className="flex items-start">
-            <AlertTriangleIcon className="h-6 w-6 text-blue-600 mr-3 mt-0.5" />
+            <ServerIcon className="h-6 w-6 text-blue-600 mr-3 mt-0.5" />
             <div>
               <h3 className="text-lg font-medium text-blue-900">No Active Devices Found</h3>
               <p className="text-blue-700 mt-1">

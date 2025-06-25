@@ -31,11 +31,12 @@ function Dashboard() {
 
       const devices = devicesResponse.data.devices || [];
       const configurations = configurationsResponse.data.configurations || [];
+      const totalConfigs = configurationsResponse.data.total || 0;
 
       setStats({
         totalDevices: devices.length,
         activeDevices: devices.filter(d => d.status === 'active').length,
-        totalConfigurations: configurations.length,
+        totalConfigurations: totalConfigs,
         recentConfigurations: configurations
       });
     } catch (error) {
@@ -84,11 +85,20 @@ function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-2 text-gray-600">
-          Overview of your network automation system
-        </p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="mt-2 text-gray-600">
+            Overview of your network automation system
+          </p>
+        </div>
+        <button
+          onClick={fetchDashboardData}
+          className="btn btn-secondary btn-md"
+          disabled={loading}
+        >
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
       </div>
 
       {/* Stats Cards */}

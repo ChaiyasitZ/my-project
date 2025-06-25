@@ -75,10 +75,12 @@ router.post('/generate', async (req, res) => {
     const executionTime = Date.now() - startTime;
     
     if (!aiResult.success) {
-      return res.status(500).json({
+      return res.status(400).json({
         success: false,
-        message: 'Failed to generate configuration',
-        error: aiResult.error
+        message: 'Failed to generate valid configuration',
+        error: aiResult.error,
+        debugInfo: aiResult.debugInfo,
+        suggestions: 'Try using more specific Cisco IOS command syntax in your prompt'
       });
     }
     
@@ -226,21 +228,35 @@ router.get('/history', async (req, res) => {
       FROM configuration_history ch
       JOIN devices d ON ch.device_id = d.id
     `;
+    let countQueryText = `
+      SELECT COUNT(*) as total
+      FROM configuration_history ch
+      JOIN devices d ON ch.device_id = d.id
+    `;
     const queryParams = [];
+    const countParams = [];
     
     if (status) {
       queryParams.push(status);
+      countParams.push(status);
       queryText += ` WHERE ch.status = $${queryParams.length}`;
+      countQueryText += ` WHERE ch.status = $${countParams.length}`;
     }
     
     queryParams.push(limit, offset);
     queryText += ` ORDER BY ch.created_at DESC LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`;
     
-    const result = await query(queryText, queryParams);
+    const [result, countResult] = await Promise.all([
+      query(queryText, queryParams),
+      query(countQueryText, countParams)
+    ]);
     
     res.json({
       success: true,
-      configurations: result.rows
+      configurations: result.rows,
+      total: parseInt(countResult.rows[0].total),
+      limit: parseInt(limit),
+      offset: parseInt(offset)
     });
     
   } catch (error) {
