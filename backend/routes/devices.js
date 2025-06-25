@@ -17,7 +17,12 @@ const deviceCreateSchema = Joi.object({
   location: Joi.string().max(255).allow(''),
   model: Joi.string().max(255).allow(''),
   ios_version: Joi.string().max(255).allow(''),
-  status: Joi.string().valid('active', 'inactive', 'maintenance').default('active')
+  status: Joi.string().valid('active', 'inactive', 'maintenance').default('active'),
+  // SNMP configuration fields
+  snmp_community: Joi.string().max(255).default('public'),
+  snmp_version: Joi.number().valid(0, 1, 2).default(0), // 0=v1, 1=v2c, 2=v3
+  snmp_port: Joi.number().integer().min(1).max(65535).default(161),
+  snmp_enabled: Joi.boolean().default(false)
 });
 
 const deviceUpdateSchema = Joi.object({
@@ -31,7 +36,12 @@ const deviceUpdateSchema = Joi.object({
   location: Joi.string().max(255).allow(''),
   model: Joi.string().max(255).allow(''),
   ios_version: Joi.string().max(255).allow(''),
-  status: Joi.string().valid('active', 'inactive', 'maintenance').default('active')
+  status: Joi.string().valid('active', 'inactive', 'maintenance').default('active'),
+  // SNMP configuration fields
+  snmp_community: Joi.string().max(255).default('public'),
+  snmp_version: Joi.number().valid(0, 1, 2).default(0), // 0=v1, 1=v2c, 2=v3
+  snmp_port: Joi.number().integer().min(1).max(65535).default(161),
+  snmp_enabled: Joi.boolean().default(false)
 });
 
 // GET /api/devices - Get all devices
@@ -120,7 +130,8 @@ router.post('/', async (req, res) => {
     
     const {
       name, type, ip_address, ssh_port, username, password,
-      description, location, model, ios_version, status
+      description, location, model, ios_version, status,
+      snmp_community, snmp_version, snmp_port, snmp_enabled
     } = value;
     
     // Check if IP address already exists
@@ -134,10 +145,10 @@ router.post('/', async (req, res) => {
     }
     
     const result = await query(`
-      INSERT INTO devices (name, type, ip_address, ssh_port, username, password, description, location, model, ios_version, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO devices (name, type, ip_address, ssh_port, username, password, description, location, model, ios_version, status, snmp_community, snmp_version, snmp_port, snmp_enabled)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *
-    `, [name, type, ip_address, ssh_port, username, password, description, location, model, ios_version, status]);
+    `, [name, type, ip_address, ssh_port, username, password, description, location, model, ios_version, status, snmp_community, snmp_version, snmp_port, snmp_enabled]);
     
     const device = { ...result.rows[0], password: undefined };
     
@@ -171,7 +182,8 @@ router.put('/:id', async (req, res) => {
     
     const {
       name, type, ip_address, ssh_port, username, password,
-      description, location, model, ios_version, status
+      description, location, model, ios_version, status,
+      snmp_community, snmp_version, snmp_port, snmp_enabled
     } = value;
     
     // Check if device exists and get current password
@@ -200,10 +212,11 @@ router.put('/:id', async (req, res) => {
     const result = await query(`
       UPDATE devices 
       SET name = $1, type = $2, ip_address = $3, ssh_port = $4, username = $5, password = $6,
-          description = $7, location = $8, model = $9, ios_version = $10, status = $11, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $12
+          description = $7, location = $8, model = $9, ios_version = $10, status = $11, 
+          snmp_community = $12, snmp_version = $13, snmp_port = $14, snmp_enabled = $15, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $16
       RETURNING *
-    `, [name, type, ip_address, ssh_port, username, finalPassword, description, location, model, ios_version, status, id]);
+    `, [name, type, ip_address, ssh_port, username, finalPassword, description, location, model, ios_version, status, snmp_community, snmp_version, snmp_port, snmp_enabled, id]);
     
     const device = { ...result.rows[0], password: undefined };
     

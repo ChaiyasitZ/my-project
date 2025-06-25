@@ -10,6 +10,7 @@ import devicesRouter from './routes/devices.js';
 import configurationsRouter from './routes/configurations.js';
 import consoleRouter from './routes/console.js';
 import backupsRouter from './routes/backups.js';
+import snmpRouter from './routes/snmp.js';
 
 const app = express();
 
@@ -69,6 +70,7 @@ app.use('/api/devices', devicesRouter);
 app.use('/api/configurations', configurationsRouter);
 app.use('/api/console', consoleRouter);
 app.use('/api/backups', backupsRouter);
+app.use('/api/snmp', snmpRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -81,7 +83,8 @@ app.get('/', (req, res) => {
       devices: '/api/devices',
       configurations: '/api/configurations',
       console: '/api/console',
-      backups: '/api/backups'
+      backups: '/api/backups',
+      snmp: '/api/snmp'
     }
   });
 });

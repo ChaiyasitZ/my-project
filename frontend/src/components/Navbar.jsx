@@ -6,7 +6,8 @@ import {
   ClockIcon,
   WifiIcon,
   TerminalIcon,
-  Archive
+  Archive,
+  Activity
 } from 'lucide-react';
 
 const navigation = [
@@ -16,6 +17,7 @@ const navigation = [
   { name: 'Initial Setup SSH', href: '/console', icon: TerminalIcon },
   { name: 'History', href: '/history', icon: ClockIcon },
   { name: 'Backups', href: '/backups', icon: Archive },
+  { name: 'SNMP Monitoring', href: '/snmp', icon: Activity },
 ];
 
 function Navbar() {

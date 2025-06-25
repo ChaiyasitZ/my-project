@@ -10,6 +10,7 @@ import Configurations from './pages/Configurations';
 import ConsoleConfiguration from './pages/ConsoleConfiguration';
 import ConfigurationHistory from './pages/ConfigurationHistory';
 import BackupManagement from './pages/BackupManagement';
+import SNMPMonitoring from './pages/SNMPMonitoring';
 import NotFound from './pages/NotFound';
 
 // API Configuration
@@ -82,6 +83,7 @@ function App() {
             <Route path="/console" element={<ConsoleConfiguration />} />
             <Route path="/history" element={<ConfigurationHistory />} />
             <Route path="/backups" element={<BackupManagement />} />
+            <Route path="/snmp" element={<SNMPMonitoring />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
