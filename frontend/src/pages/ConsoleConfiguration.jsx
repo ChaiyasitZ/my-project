@@ -1,5 +1,16 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
+import { 
+  TerminalIcon, 
+  PlayIcon, 
+  StopIcon,
+  SettingsIcon,
+  WifiIcon,
+  WifiOffIcon,
+  SendIcon,
+  ClockIcon
+} from 'lucide-react';
 
 function ConsoleConfiguration() {
   const [availablePorts, setAvailablePorts] = useState([]);
@@ -32,6 +43,7 @@ function ConsoleConfiguration() {
       setAvailablePorts(response.data.ports || []);
     } catch (error) {
       console.error('❌ Error fetching serial ports:', error.response?.data?.message || error.message);
+      toast.error('Failed to fetch serial ports: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -47,26 +59,32 @@ function ConsoleConfiguration() {
   const handleTestConnection = async () => {
     if (!selectedPort) {
       console.warn('⚠️ Please select a serial port');
+      toast.error('Please select a serial port');
       return;
     }
 
     setIsLoading(true);
+    const toastId = toast.loading('Testing console connection...');
+    
     try {
       const response = await axios.post('/console/test', {
-        deviceId: 'test',
-        portPath: selectedPort,
-        ...connectionSettings
+        port: selectedPort,
+        baudRate: connectionSettings.baudRate,
+        timeout: 5 // Assuming a default timeout of 5 seconds
       });
 
       if (response.data.test.success) {
         console.log('✅ Console connection test successful!');
         console.log('Response:', response.data.test.output || response.data.test.message);
+        toast.success('Console connection test successful!', { id: toastId });
       } else {
         console.warn('⚠️ Console connection test failed:');
         console.warn('Error:', response.data.test.message);
+        toast.error(`Connection test failed: ${response.data.test.message}`, { id: toastId });
       }
     } catch (error) {
       console.error('❌ Connection test failed:', error.response?.data?.message || error.message);
+      toast.error(`Connection test failed: ${error.response?.data?.message || error.message}`, { id: toastId });
     } finally {
       setIsLoading(false);
     }
@@ -75,22 +93,28 @@ function ConsoleConfiguration() {
   const handleConnect = async () => {
     if (!selectedPort || !deviceId) {
       console.warn('⚠️ Please select a port and enter a device ID');
+      toast.error('Please select a port and enter a device ID');
       return;
     }
 
     setIsLoading(true);
+    const toastId = toast.loading('Connecting to console...');
+    
     try {
       await axios.post('/console/connect', {
-        deviceId,
-        portPath: selectedPort,
-        ...connectionSettings
+        port: selectedPort,
+        baudRate: connectionSettings.baudRate,
+        deviceId: deviceId,
+        timeout: 10 // Assuming a default timeout of 10 seconds
       });
 
       setIsConnected(true);
       setConsoleOutput(prev => prev + `\n✅ Connected to ${selectedPort}\n`);
       console.log('✅ Console connected successfully!');
+      toast.success(`Connected to console on ${selectedPort}!`, { id: toastId });
     } catch (error) {
       console.error('❌ Connection failed:', error.response?.data?.message || error.message);
+      toast.error(`Connection failed: ${error.response?.data?.message || error.message}`, { id: toastId });
     } finally {
       setIsLoading(false);
     }
@@ -99,12 +123,14 @@ function ConsoleConfiguration() {
   const handleDisconnect = async () => {
     setIsLoading(true);
     try {
-      await axios.post('/console/disconnect', { deviceId });
+      await axios.post('/console/disconnect');
       setIsConnected(false);
       setConsoleOutput(prev => prev + `\n🔌 Disconnected from console\n`);
       console.log('✅ Console disconnected successfully!');
+      toast.success('Console disconnected successfully!');
     } catch (error) {
       console.error('❌ Disconnect failed:', error.response?.data?.message || error.message);
+      toast.error(`Disconnect failed: ${error.response?.data?.message || error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -137,35 +163,33 @@ function ConsoleConfiguration() {
   const handleApplyConfiguration = async () => {
     if (!isConnected) {
       console.warn('⚠️ Please connect to console first');
+      toast.error('Please connect to console first');
+      return;
+    }
+
+    if (!selectedTemplate && !customConfig) {
+      console.warn('⚠️ Please select a template or enter custom configuration');
+      toast.error('Please select a template or enter custom configuration');
       return;
     }
 
     setIsLoading(true);
-    setConfigResults(null);
-
+    const toastId = toast.loading('Applying configuration...');
+    
     try {
-      let response;
-      
-      if (configMode === 'template' && selectedTemplate) {
-        response = await axios.post('/console/templates/apply', {
-          templateKey: selectedTemplate,
-          variables: templateVariables,
-          deviceId
-        });
-      } else if (configMode === 'custom' && customConfig) {
-        response = await axios.post('/console/initial-config', {
-          deviceId,
-          configCommands: customConfig,
-          deviceInfo: templateVariables
-        });
+      let configData;
+      if (selectedTemplate) {
+        configData = { template: selectedTemplate };
       } else {
-        console.warn('⚠️ Please select a template or enter custom configuration');
-        return;
+        configData = { customConfig: customConfig };
       }
 
+      const response = await axios.post('/console/apply-config', {
+        ...configData,
+        deviceId: deviceId
+      });
+
       setConfigResults(response.data.configuration);
-      setConsoleOutput(prev => prev + `\n📝 Configuration applied:\n${response.data.configuration.fullOutput}\n`);
-      
       const summary = response.data.configuration.summary;
       console.log('✅ Configuration completed!');
       console.log('Summary:\n' +
@@ -173,28 +197,41 @@ function ConsoleConfiguration() {
             `❌ Failed: ${summary.failed} commands\n` +
             `📊 Success rate: ${summary.successRate}%`);
       
+      if (summary.successRate === 100) {
+        toast.success(`Configuration applied successfully! ${summary.successful}/${summary.totalCommands} commands executed.`, { id: toastId });
+      } else {
+        toast.error(`Configuration partially applied: ${summary.successful}/${summary.totalCommands} commands successful (${summary.successRate}%)`, { id: toastId });
+      }
+      
     } catch (error) {
       console.error('❌ Configuration failed:', error.response?.data?.message || error.message);
+      toast.error(`Configuration failed: ${error.response?.data?.message || error.message}`, { id: toastId });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSendCommand = async () => {
-    const command = prompt('Enter command to send:');
-    if (!command || !isConnected) return;
+  const handleSendCommand = async (command) => {
+    if (!isConnected) {
+      toast.error('Please connect to console first');
+      return;
+    }
+
+    if (!command.trim()) return;
 
     setIsLoading(true);
     try {
       const response = await axios.post('/console/command', {
-        deviceId,
-        command,
-        waitForPrompt: true
+        command: command.trim(),
+        timeout: 5 // Assuming a default timeout of 5 seconds
       });
 
       setConsoleOutput(prev => prev + `\n> ${command}\n${response.data.result.output}\n`);
+      console.log('✅ Command executed successfully:', command.trim());
+      toast.success('Command executed successfully');
     } catch (error) {
       console.error('❌ Command failed:', error.response?.data?.message || error.message);
+      toast.error(`Command failed: ${error.response?.data?.message || error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -302,7 +339,7 @@ function ConsoleConfiguration() {
 
           {isConnected && (
             <button
-              onClick={handleSendCommand}
+              onClick={() => handleSendCommand(prompt('Enter command to send:'))}
               disabled={isLoading}
               className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 disabled:bg-gray-400"
             >

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import { 
   PlusIcon, 
   PencilIcon, 
@@ -51,9 +52,11 @@ function Devices() {
       if (editingDevice) {
         await axios.put(`/devices/${editingDevice.id}`, formData);
         console.log('✅ Device updated successfully:', formData.name);
+        toast.success(`Device "${formData.name}" updated successfully!`);
       } else {
         await axios.post('/devices', formData);
         console.log('✅ Device created successfully:', formData.name);
+        toast.success(`Device "${formData.name}" created successfully!`);
       }
       
       setShowModal(false);
@@ -62,6 +65,7 @@ function Devices() {
       fetchDevices();
     } catch (error) {
       console.error('❌ Error saving device:', error.response?.data?.message || error.message);
+      toast.error('Error saving device: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -88,26 +92,33 @@ function Devices() {
       try {
         await axios.delete(`/devices/${device.id}`);
         console.log('✅ Device deleted successfully:', device.name);
+        toast.success(`Device "${device.name}" deleted successfully!`);
         fetchDevices();
       } catch (error) {
         console.error('❌ Error deleting device:', error.response?.data?.message || error.message);
+        toast.error('Error deleting device: ' + (error.response?.data?.message || error.message));
       }
     }
   };
 
   const handleTestConnection = async (device) => {
     setTestingDevice(device.id);
+    const toastId = toast.loading(`Testing SSH connection to ${device.name}...`);
+    
     try {
       const response = await axios.post(`/devices/${device.id}/test`);
       const result = response.data.connectionTest;
       
       if (result.success) {
         console.log('✅ SSH Connection successful for', device.name + ':', result.message);
+        toast.success(`SSH connection to ${device.name} successful!`, { id: toastId });
       } else {
         console.warn('⚠️ SSH Connection failed for', device.name + ':', result.message);
+        toast.error(`SSH connection to ${device.name} failed: ${result.message}`, { id: toastId });
       }
     } catch (error) {
       console.error('❌ SSH Connection test failed for', device.name + ':', error.response?.data?.message || error.message);
+      toast.error(`Connection test failed: ${error.response?.data?.message || error.message}`, { id: toastId });
     } finally {
       setTestingDevice(null);
     }

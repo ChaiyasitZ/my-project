@@ -1,12 +1,17 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import { 
   BotIcon, 
   SendIcon, 
   CheckCircleIcon, 
   PlayIcon,
   EyeIcon,
-  ServerIcon
+  ServerIcon,
+  SettingsIcon,
+  AlertTriangleIcon,
+  CodeIcon,
+  DevicesIcon
 } from 'lucide-react';
 
 function Configurations() {
@@ -15,6 +20,7 @@ function Configurations() {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
   const [generatedConfig, setGeneratedConfig] = useState(null);
   const [validation, setValidation] = useState(null);
 
@@ -39,6 +45,8 @@ function Configurations() {
     if (!selectedDevice || !prompt) return;
 
     setIsGenerating(true);
+    const toastId = toast.loading('Generating configuration...');
+    
     try {
       const requestData = {
         device_id: parseInt(selectedDevice),
@@ -55,6 +63,7 @@ function Configurations() {
         if (response.data.configuration.warning) {
           console.warn('⚠️ Configuration warning:', response.data.configuration.warning);
         }
+        toast.success('Configuration generated successfully!', { id: toastId });
       } else {
         // Handle case where AI couldn't generate valid configuration
         throw new Error(response.data.error || 'No configuration generated');
@@ -82,6 +91,7 @@ function Configurations() {
       }
       
       console.warn('⚠️', errorMessage);
+      toast.error(errorMessage, { id: toastId });
     } finally {
       setIsGenerating(false);
     }
@@ -95,6 +105,8 @@ function Configurations() {
     }
 
     setIsApplying(true);
+    const toastId = toast.loading('Applying configuration...');
+    
     try {
       await axios.post('/configurations/apply', {
         configuration_id: generatedConfig.id
@@ -105,9 +117,11 @@ function Configurations() {
         ...generatedConfig,
         status: 'applied'
       });
+      toast.success('Configuration applied successfully!', { id: toastId });
     } catch (error) {
       console.error('Error applying configuration:', error);
       console.warn('⚠️', 'Error applying configuration: ' + (error.response?.data?.message || error.message));
+      toast.error('Error applying configuration: ' + (error.response?.data?.message || error.message), { id: toastId });
     } finally {
       setIsApplying(false);
     }
@@ -116,12 +130,19 @@ function Configurations() {
   const handleValidateConfiguration = async () => {
     if (!generatedConfig) return;
 
+    setIsValidating(true);
+    const toastId = toast.loading('Validating configuration...');
+    
     try {
       const response = await axios.post(`/configurations/${generatedConfig.id}/validate`);
       setValidation(response.data.validation);
+      toast.success('Configuration validated successfully!', { id: toastId });
     } catch (error) {
       console.error('Error validating configuration:', error);
       console.warn('⚠️', 'Error validating configuration: ' + (error.response?.data?.message || error.message));
+      toast.error('Error validating configuration: ' + (error.response?.data?.message || error.message), { id: toastId });
+    } finally {
+      setIsValidating(false);
     }
   };
 
@@ -270,10 +291,15 @@ function Configurations() {
               <div className="flex space-x-2">
                 <button
                   onClick={handleValidateConfiguration}
+                  disabled={isValidating}
                   className="btn btn-secondary btn-sm"
                 >
-                  <EyeIcon className="h-4 w-4 mr-2" />
-                  Validate
+                  {isValidating ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                  ) : (
+                    <EyeIcon className="h-4 w-4 mr-2" />
+                  )}
+                  {isValidating ? 'Validating...' : 'Validate'}
                 </button>
                 {generatedConfig.status === 'generated' && (
                   <button

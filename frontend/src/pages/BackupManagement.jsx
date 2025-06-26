@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import { 
   Archive,
   RefreshCwIcon,
@@ -100,9 +101,10 @@ function BackupManagement() {
       setDevices(Array.isArray(devicesData) ? devicesData : []);
     } catch (error) {
       console.error('❌ Error fetching data:', error);
-      // Don't show alert during silent refresh after backup creation
+      // Don't show toast during silent refresh after backup creation
       if (!creating) {
         console.log('⚠️ Error fetching data:', error.response?.data?.message || error.message);
+        toast.error('Failed to load data: ' + (error.response?.data?.message || error.message));
       }
       // Set empty arrays as fallback
       setBackups([]);
@@ -115,9 +117,14 @@ function BackupManagement() {
 
   const handleCreateBackup = async (e) => {
     e.preventDefault();
-    if (!backupForm.device_id || !backupForm.backup_name) return;
+    if (!backupForm.device_id || !backupForm.backup_name) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
 
     setCreating(true);
+    const toastId = toast.loading('Creating backup...');
+    
     try {
       await axios.post('/backups', {
         ...backupForm,
@@ -142,12 +149,14 @@ function BackupManagement() {
         `Device: ${(devices || []).find(d => d.id === parseInt(backupForm.device_id))?.name || 'Unknown'}\n` +
         `Type: ${backupForm.backup_type}`
       );
-
+      
+      toast.success(`Backup "${backupForm.backup_name}" created successfully!`, { id: toastId });
+      
       // Refresh data after successful creation
       await fetchData();
     } catch (error) {
       console.error('❌ Error creating backup:', error);
-      console.log('⚠️ Error creating backup:', error.response?.data?.message || error.message);
+      toast.error('Failed to create backup: ' + (error.response?.data?.message || error.message), { id: toastId });
     } finally {
       setCreating(false);
     }
@@ -155,17 +164,20 @@ function BackupManagement() {
 
   const handleRestoreBackup = async (e) => {
     e.preventDefault();
-    if (!selectedBackup) return;
+    if (!selectedBackup || !restoreForm.restore_type) {
+      toast.error('Please select a backup and restore type');
+      return;
+    }
 
-    if (!window.confirm(
-      `Are you sure you want to restore configuration from backup "${selectedBackup.backup_name}"? ` +
-      `This will ${restoreForm.restore_type === 'both' ? 'replace both running and startup' : 
-        `replace the ${restoreForm.restore_type}`} configuration on ${selectedBackup.device_name}.`
-    )) {
+    const confirmMessage = `Are you sure you want to restore "${selectedBackup.backup_name}"?\n\nThis will ${restoreForm.restore_type === 'startup-config' ? 'replace the startup configuration' : 'apply to running configuration'}.`;
+    
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
     setRestoring(true);
+    const toastId = toast.loading(`Restoring backup "${selectedBackup.backup_name}"...`);
+    
     try {
       const response = await axios.post(`/backups/${selectedBackup.id}/restore`, restoreForm);
       
@@ -174,15 +186,21 @@ function BackupManagement() {
         `Backup: ${selectedBackup.backup_name}\n` +
         `Device: ${selectedBackup.device_name}\n` +
         `Type: ${response.data.restore_details.restore_type}\n` +
-        `Checkpoint created: ${response.data.restore_details.checkpoint_created ? 'Yes' : 'No'}`
-      );
+        `Checkpoint created: ${response.data.restore_details.checkpoint_created ? 'Yes' : 'No'}`);
+      
+      toast.success(`Backup "${selectedBackup.backup_name}" restored successfully!`, { id: toastId });
       
       setShowRestoreModal(false);
-      setSelectedBackup(null);
+      setRestoreForm({
+        restore_type: 'running-config',
+        create_checkpoint: true,
+        description: ''
+      });
+      
       fetchData();
     } catch (error) {
       console.error('❌ Error restoring backup:', error);
-      console.log('⚠️ Error restoring backup:', error.response?.data?.message || error.message);
+      toast.error('Failed to restore backup: ' + (error.response?.data?.message || error.message), { id: toastId });
     } finally {
       setRestoring(false);
     }
@@ -196,10 +214,11 @@ function BackupManagement() {
     try {
       await axios.delete(`/backups/${backup.id}`);
       console.log('✅ Backup deleted successfully!');
+      toast.success(`Backup "${backup.backup_name}" deleted successfully!`);
       fetchData();
     } catch (error) {
       console.error('❌ Error deleting backup:', error);
-      console.log('⚠️ Error deleting backup:', error.response?.data?.message || error.message);
+      toast.error('Failed to delete backup: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -207,10 +226,11 @@ function BackupManagement() {
     try {
       await axios.post(`/backups/${backup.id}/set-restore-point`);
       console.log(`✅ Backup "${backup.backup_name}" marked as restore point!`);
+      toast.success(`Backup "${backup.backup_name}" marked as restore point!`);
       fetchData();
     } catch (error) {
       console.error('❌ Error setting restore point:', error);
-      console.log('⚠️ Error setting restore point:', error.response?.data?.message || error.message);
+      toast.error('Failed to set restore point: ' + (error.response?.data?.message || error.message));
     }
   };
 

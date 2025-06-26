@@ -1,91 +1,86 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { Toaster } from 'react-hot-toast';
 import axios from 'axios';
+
+console.log('🚀 App.jsx: Starting imports...');
 
 // Components
 import Sidebar from './components/Sidebar';
+console.log('✅ Sidebar imported');
+
+// Pages
 import Dashboard from './pages/Dashboard';
+console.log('✅ Dashboard imported');
+
 import Devices from './pages/Devices';
+console.log('✅ Devices imported');
+
 import Configurations from './pages/Configurations';
-import ConsoleConfiguration from './pages/ConsoleConfiguration';
+console.log('✅ Configurations imported');
+
 import ConfigurationHistory from './pages/ConfigurationHistory';
+console.log('✅ ConfigurationHistory imported');
+
+import ConsoleConfiguration from './pages/ConsoleConfiguration';
+console.log('✅ ConsoleConfiguration imported');
+
 import BackupManagement from './pages/BackupManagement';
+console.log('✅ BackupManagement imported');
+
 import SNMPMonitoring from './pages/SNMPMonitoring';
+console.log('✅ SNMPMonitoring imported');
+
 import NotFound from './pages/NotFound';
+console.log('✅ NotFound imported');
+
+import './App.css';
+console.log('✅ All imports completed');
 
 // API Configuration
 axios.defaults.baseURL = 'http://localhost:5000/api';
 
 function App() {
-  const [isServerHealthy, setIsServerHealthy] = useState(false);
-  const [isCheckingHealth, setIsCheckingHealth] = useState(true);
+  console.log('🏁 App component rendering...');
+  
+  const [serverStatus, setServerStatus] = useState('checking');
 
   useEffect(() => {
-    checkServerHealth();
+    console.log('🔍 Setting up server status check...');
+    
+    const checkServerStatus = async () => {
+      try {
+        const response = await axios.get('/health');
+        setServerStatus(response.data.success ? 'connected' : 'error');
+      } catch (error) {
+        console.error('Server health check failed:', error);
+        setServerStatus('error');
+      }
+    };
+
+    checkServerStatus();
+    const interval = setInterval(checkServerStatus, 30000);
+    return () => clearInterval(interval);
   }, []);
 
-  const checkServerHealth = async () => {
-    try {
-      const response = await axios.get('/health');
-      setIsServerHealthy(response.data.success);
-    } catch (error) {
-      console.error('Server health check failed:', error);
-      setIsServerHealthy(false);
-    } finally {
-      setIsCheckingHealth(false);
-    }
-  };
-
-  if (isCheckingHealth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Checking server connection...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isServerHealthy) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="bg-red-100 rounded-full p-3 mx-auto w-16 h-16 flex items-center justify-center mb-4">
-            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Server Connection Failed</h2>
-          <p className="text-gray-600 mb-4">
-            Unable to connect to the backend server. Please ensure the server is running on port 5000.
-          </p>
-          <button 
-            onClick={checkServerHealth}
-            className="btn btn-primary btn-md"
-          >
-            Retry Connection
-          </button>
-        </div>
-      </div>
-    );
-  }
+  console.log('🎨 Rendering App JSX...');
 
   return (
     <Router>
       <div className="flex min-h-screen bg-gray-50">
-        <Sidebar />
+        <Sidebar serverStatus={serverStatus} />
         
         {/* Main content area */}
         <div className="flex-1 lg:ml-0">
           <main className="pt-16 lg:pt-6 px-4 sm:px-6 lg:px-8">
             <div className="max-w-7xl mx-auto">
               <Routes>
-                <Route path="/" element={<Dashboard />} />
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/devices" element={<Devices />} />
                 <Route path="/configurations" element={<Configurations />} />
+                <Route path="/configuration-history" element={<ConfigurationHistory />} />
                 <Route path="/console" element={<ConsoleConfiguration />} />
-                <Route path="/history" element={<ConfigurationHistory />} />
                 <Route path="/backups" element={<BackupManagement />} />
                 <Route path="/snmp" element={<SNMPMonitoring />} />
                 <Route path="*" element={<NotFound />} />
@@ -93,9 +88,55 @@ function App() {
             </div>
           </main>
         </div>
+        
+        {/* Toast Notifications */}
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#363636',
+              color: '#fff',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              fontSize: '14px',
+              fontWeight: '500',
+              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05)',
+            },
+            success: {
+              iconTheme: {
+                primary: '#10b981',
+                secondary: '#fff',
+              },
+              style: {
+                background: '#059669',
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#fff',
+              },
+              style: {
+                background: '#dc2626',
+              },
+            },
+            loading: {
+              iconTheme: {
+                primary: '#3b82f6',
+                secondary: '#fff',
+              },
+              style: {
+                background: '#2563eb',
+              },
+            },
+          }}
+        />
       </div>
     </Router>
   );
 }
+
+console.log('✅ App component defined');
 
 export default App;

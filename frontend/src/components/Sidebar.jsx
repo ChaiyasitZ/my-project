@@ -14,18 +14,44 @@ import {
 } from 'lucide-react';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: HomeIcon },
+  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
   { name: 'Devices', href: '/devices', icon: ServerIcon },
   { name: 'Configurations', href: '/configurations', icon: CogIcon },
   { name: 'Console Setup', href: '/console', icon: TerminalIcon },
-  { name: 'History', href: '/history', icon: ClockIcon },
+  { name: 'History', href: '/configuration-history', icon: ClockIcon },
   { name: 'Backups', href: '/backups', icon: Archive },
   { name: 'SNMP Monitoring', href: '/snmp', icon: Activity },
 ];
 
-function Sidebar() {
+function Sidebar({ serverStatus = 'checking' }) {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const getServerStatusDisplay = () => {
+    switch (serverStatus) {
+      case 'connected':
+        return {
+          color: 'bg-green-400',
+          text: 'Server Connected',
+          textColor: 'text-gray-500'
+        };
+      case 'error':
+        return {
+          color: 'bg-red-400',
+          text: 'Server Disconnected',
+          textColor: 'text-red-500'
+        };
+      case 'checking':
+      default:
+        return {
+          color: 'bg-yellow-400',
+          text: 'Checking Connection...',
+          textColor: 'text-yellow-600'
+        };
+    }
+  };
+
+  const statusDisplay = getServerStatusDisplay();
 
   return (
     <>
@@ -104,8 +130,8 @@ function Sidebar() {
           <div className="p-4 border-t border-gray-200">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-sm text-gray-500">Server Connected</span>
+                <div className={`h-2 w-2 rounded-full ${statusDisplay.color} ${serverStatus === 'checking' ? 'animate-pulse' : ''}`}></div>
+                <span className={`text-sm ${statusDisplay.textColor}`}>{statusDisplay.text}</span>
               </div>
               <div className="text-xs text-gray-400">v1.0.0</div>
             </div>

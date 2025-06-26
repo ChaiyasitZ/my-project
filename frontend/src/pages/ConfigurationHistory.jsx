@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 import { 
   ClockIcon, 
   CheckCircleIcon, 
@@ -18,6 +19,8 @@ function ConfigurationHistory() {
   const [filter, setFilter] = useState('all');
   const [selectedConfig, setSelectedConfig] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [configDetails, setConfigDetails] = useState(null);
 
   useEffect(() => {
     fetchConfigurations();
@@ -35,57 +38,87 @@ function ConfigurationHistory() {
     }
   };
 
-  const handleViewConfiguration = async (config) => {
+  const viewDetails = async (config) => {
+    setSelectedConfig(config);
+    setLoadingDetails(true);
+    
     try {
-      const response = await axios.get(`/configurations/${config.id}?explain=true`);
-      setSelectedConfig(response.data.configuration);
-      setShowModal(true);
+      const response = await axios.get(`/configurations/${config.id}`);
+      setConfigDetails(response.data.configuration);
     } catch (error) {
       console.error('❌ Error loading configuration details:', error.response?.data?.message || error.message);
+      toast.error('Failed to load configuration details');
+    } finally {
+      setLoadingDetails(false);
     }
   };
 
-  const handleDeleteConfiguration = async (config) => {
-    if (window.confirm('Are you sure you want to delete this configuration?')) {
-      try {
-        await axios.delete(`/configurations/${config.id}`);
-        console.log('✅ Configuration deleted successfully');
-        fetchConfigurations();
-      } catch (error) {
-        console.error('❌ Error deleting configuration:', error.response?.data?.message || error.message);
+  const deleteConfiguration = async (configId) => {
+    try {
+      await axios.delete(`/configurations/${configId}`);
+      console.log('✅ Configuration deleted successfully');
+      toast.success('Configuration deleted successfully!');
+      fetchConfigurations();
+      if (selectedConfig?.id === configId) {
+        setSelectedConfig(null);
+        setConfigDetails(null);
       }
+    } catch (error) {
+      console.error('❌ Error deleting configuration:', error.response?.data?.message || error.message);
+      toast.error('Failed to delete configuration: ' + (error.response?.data?.message || error.message));
     }
   };
 
   const handleClearAll = async () => {
-    const filterText = filter === 'all' ? 'all configurations' : `all configurations with status "${filter}"`;
-    const confirmMessage = `Are you sure you want to delete ${filterText}?\n\nThis action cannot be undone and will permanently remove:\n• Configuration history\n• Generated configurations\n• Applied configurations\n\nTotal configurations to delete: ${configurations.length}`;
+    // Get configurations that match the current filter
+    const configurationsToDelete = applyFilters();
     
-    if (!window.confirm(confirmMessage)) {
+    if (configurationsToDelete.length === 0) {
+      console.warn('⚠️ No configurations to delete with current filters');
+      toast.error('No configurations to delete with current filters');
       return;
     }
 
-    // Double confirmation for safety
-    const doubleConfirm = window.confirm('This is your final confirmation. Are you absolutely sure you want to proceed with deleting all configurations?');
-    if (!doubleConfirm) {
-      return;
-    }
+    // Create detailed summary for the confirmation
+    const deviceBreakdown = configurationsToDelete.reduce((acc, config) => {
+      const deviceName = devices.find(d => d.id === config.device_id)?.name || 'Unknown Device';
+      acc[deviceName] = (acc[deviceName] || 0) + 1;
+      return acc;
+    }, {});
 
-    setClearingAll(true);
-    try {
-      // Delete all configurations one by one or use a bulk delete endpoint if available
-      const deletePromises = configurations.map(config => 
-        axios.delete(`/configurations/${config.id}`)
-      );
+    const summaryText = Object.entries(deviceBreakdown)
+      .map(([device, count]) => `• ${device}: ${count} configuration${count > 1 ? 's' : ''}`)
+      .join('\n');
+
+    const confirmationMessage = `Are you sure you want to delete ${configurationsToDelete.length} configuration${configurationsToDelete.length > 1 ? 's' : ''}?\n\nBreakdown:\n${summaryText}\n\nThis action cannot be undone.`;
+
+    if (window.confirm(confirmationMessage)) {
+      setClearingAll(true);
+      const toastId = toast.loading(`Deleting ${configurationsToDelete.length} configurations...`);
       
-      await Promise.all(deletePromises);
-      
-      console.log(`✅ Successfully deleted ${configurations.length} configurations!`);
-      fetchConfigurations();
-    } catch (error) {
-      console.error('❌ Error clearing configurations:', error.response?.data?.message || error.message);
-    } finally {
-      setClearingAll(false);
+      try {
+        // Delete configurations in parallel
+        await Promise.all(
+          configurationsToDelete.map(config => 
+            axios.delete(`/configurations/${config.id}`)
+          )
+        );
+        
+        console.log(`✅ Successfully deleted ${configurationsToDelete.length} configurations!`);
+        toast.success(`Successfully deleted ${configurationsToDelete.length} configurations!`, { id: toastId });
+        fetchConfigurations();
+        
+        // Clear selection if it was deleted
+        if (selectedConfig && configurationsToDelete.some(c => c.id === selectedConfig.id)) {
+          setSelectedConfig(null);
+          setConfigDetails(null);
+        }
+      } catch (error) {
+        console.error('❌ Error clearing configurations:', error.response?.data?.message || error.message);
+        toast.error('Failed to delete some configurations: ' + (error.response?.data?.message || error.message), { id: toastId });
+      } finally {
+        setClearingAll(false);
+      }
     }
   };
 
@@ -247,7 +280,7 @@ function ConfigurationHistory() {
                   
                   <div className="flex space-x-2">
                     <button
-                      onClick={() => handleViewConfiguration(config)}
+                      onClick={() => viewDetails(config)}
                       className="btn btn-secondary btn-sm"
                       title="View Details"
                     >
@@ -255,7 +288,7 @@ function ConfigurationHistory() {
                     </button>
                     
                     <button
-                      onClick={() => handleDeleteConfiguration(config)}
+                      onClick={() => deleteConfiguration(config.id)}
                       className="btn btn-danger btn-sm"
                       title="Delete"
                     >
