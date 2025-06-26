@@ -50,8 +50,10 @@ function Devices() {
     try {
       if (editingDevice) {
         await axios.put(`/devices/${editingDevice.id}`, formData);
+        console.log('✅ Device updated successfully:', formData.name);
       } else {
         await axios.post('/devices', formData);
+        console.log('✅ Device created successfully:', formData.name);
       }
       
       setShowModal(false);
@@ -59,8 +61,7 @@ function Devices() {
       resetForm();
       fetchDevices();
     } catch (error) {
-      console.error('Error saving device:', error);
-      alert('Error saving device: ' + (error.response?.data?.message || error.message));
+      console.error('❌ Error saving device:', error.response?.data?.message || error.message);
     }
   };
 
@@ -86,10 +87,10 @@ function Devices() {
     if (window.confirm(`Are you sure you want to delete ${device.name}?`)) {
       try {
         await axios.delete(`/devices/${device.id}`);
+        console.log('✅ Device deleted successfully:', device.name);
         fetchDevices();
       } catch (error) {
-        console.error('Error deleting device:', error);
-        alert('Error deleting device: ' + (error.response?.data?.message || error.message));
+        console.error('❌ Error deleting device:', error.response?.data?.message || error.message);
       }
     }
   };
@@ -101,19 +102,16 @@ function Devices() {
       const result = response.data.connectionTest;
       
       if (result.success) {
-        alert('Connection successful! ' + result.message);
+        console.log('✅ SSH Connection successful for', device.name + ':', result.message);
       } else {
-        alert('Connection failed: ' + result.message);
+        console.warn('⚠️ SSH Connection failed for', device.name + ':', result.message);
       }
     } catch (error) {
-      console.error('Error testing connection:', error);
-      alert('Connection test failed: ' + (error.response?.data?.message || error.message));
+      console.error('❌ SSH Connection test failed for', device.name + ':', error.response?.data?.message || error.message);
     } finally {
       setTestingDevice(null);
     }
   };
-
-
 
   const resetForm = () => {
     setFormData({

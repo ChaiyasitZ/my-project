@@ -81,7 +81,7 @@ function Configurations() {
         errorMessage = 'Error: ' + (error.response?.data?.message || error.message);
       }
       
-      alert(errorMessage);
+      console.warn('⚠️', errorMessage);
     } finally {
       setIsGenerating(false);
     }
@@ -100,14 +100,14 @@ function Configurations() {
         configuration_id: generatedConfig.id
       });
 
-      alert('Configuration applied successfully!');
+      console.log('✅ Configuration applied successfully!');
       setGeneratedConfig({
         ...generatedConfig,
         status: 'applied'
       });
     } catch (error) {
       console.error('Error applying configuration:', error);
-      alert('Error applying configuration: ' + (error.response?.data?.message || error.message));
+      console.warn('⚠️', 'Error applying configuration: ' + (error.response?.data?.message || error.message));
     } finally {
       setIsApplying(false);
     }
@@ -121,7 +121,7 @@ function Configurations() {
       setValidation(response.data.validation);
     } catch (error) {
       console.error('Error validating configuration:', error);
-      alert('Error validating configuration: ' + (error.response?.data?.message || error.message));
+      console.warn('⚠️', 'Error validating configuration: ' + (error.response?.data?.message || error.message));
     }
   };
 

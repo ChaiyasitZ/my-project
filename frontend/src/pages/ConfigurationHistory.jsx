@@ -7,12 +7,14 @@ import {
   AlertTriangleIcon,
   EyeIcon,
   TrashIcon,
-  FilterIcon
+  FilterIcon,
+  Trash2Icon
 } from 'lucide-react';
 
 function ConfigurationHistory() {
   const [configurations, setConfigurations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [clearingAll, setClearingAll] = useState(false);
   const [filter, setFilter] = useState('all');
   const [selectedConfig, setSelectedConfig] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -39,8 +41,7 @@ function ConfigurationHistory() {
       setSelectedConfig(response.data.configuration);
       setShowModal(true);
     } catch (error) {
-      console.error('Error fetching configuration details:', error);
-      alert('Error loading configuration details');
+      console.error('❌ Error loading configuration details:', error.response?.data?.message || error.message);
     }
   };
 
@@ -48,11 +49,43 @@ function ConfigurationHistory() {
     if (window.confirm('Are you sure you want to delete this configuration?')) {
       try {
         await axios.delete(`/configurations/${config.id}`);
+        console.log('✅ Configuration deleted successfully');
         fetchConfigurations();
       } catch (error) {
-        console.error('Error deleting configuration:', error);
-        alert('Error deleting configuration: ' + (error.response?.data?.message || error.message));
+        console.error('❌ Error deleting configuration:', error.response?.data?.message || error.message);
       }
+    }
+  };
+
+  const handleClearAll = async () => {
+    const filterText = filter === 'all' ? 'all configurations' : `all configurations with status "${filter}"`;
+    const confirmMessage = `Are you sure you want to delete ${filterText}?\n\nThis action cannot be undone and will permanently remove:\n• Configuration history\n• Generated configurations\n• Applied configurations\n\nTotal configurations to delete: ${configurations.length}`;
+    
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    // Double confirmation for safety
+    const doubleConfirm = window.confirm('This is your final confirmation. Are you absolutely sure you want to proceed with deleting all configurations?');
+    if (!doubleConfirm) {
+      return;
+    }
+
+    setClearingAll(true);
+    try {
+      // Delete all configurations one by one or use a bulk delete endpoint if available
+      const deletePromises = configurations.map(config => 
+        axios.delete(`/configurations/${config.id}`)
+      );
+      
+      await Promise.all(deletePromises);
+      
+      console.log(`✅ Successfully deleted ${configurations.length} configurations!`);
+      fetchConfigurations();
+    } catch (error) {
+      console.error('❌ Error clearing configurations:', error.response?.data?.message || error.message);
+    } finally {
+      setClearingAll(false);
     }
   };
 
@@ -107,20 +140,45 @@ function ConfigurationHistory() {
           </p>
         </div>
         
-        {/* Filter */}
-        <div className="flex items-center space-x-2">
-          <FilterIcon className="h-5 w-5 text-gray-500" />
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="input w-48"
-          >
-            <option value="all">All Configurations</option>
-            <option value="generated">Generated</option>
-            <option value="applied">Applied</option>
-            <option value="failed">Failed</option>
-            <option value="rolled_back">Rolled Back</option>
-          </select>
+        {/* Controls */}
+        <div className="flex items-center space-x-3">
+          {/* Clear All Button */}
+          {configurations.length > 0 && (
+            <button
+              onClick={handleClearAll}
+              disabled={clearingAll}
+              className="inline-flex items-center px-4 py-2 border border-red-300 rounded-lg text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              title={`Clear ${filter === 'all' ? 'all configurations' : `all ${filter} configurations`}`}
+            >
+              {clearingAll ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
+                  Clearing...
+                </>
+              ) : (
+                <>
+                  <Trash2Icon className="h-4 w-4 mr-2" />
+                  Clear All ({configurations.length})
+                </>
+              )}
+            </button>
+          )}
+          
+          {/* Filter */}
+          <div className="flex items-center space-x-2">
+            <FilterIcon className="h-5 w-5 text-gray-500" />
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="input w-48"
+            >
+              <option value="all">All Configurations</option>
+              <option value="generated">Generated</option>
+              <option value="applied">Applied</option>
+              <option value="failed">Failed</option>
+              <option value="rolled_back">Rolled Back</option>
+            </select>
+          </div>
         </div>
       </div>
 

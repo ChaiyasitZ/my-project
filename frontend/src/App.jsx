@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 
 // Components
-import Navbar from './components/Navbar';
+import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Devices from './pages/Devices';
 import Configurations from './pages/Configurations';
@@ -73,20 +73,26 @@ function App() {
 
   return (
     <Router>
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
-        <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/devices" element={<Devices />} />
-            <Route path="/configurations" element={<Configurations />} />
-            <Route path="/console" element={<ConsoleConfiguration />} />
-            <Route path="/history" element={<ConfigurationHistory />} />
-            <Route path="/backups" element={<BackupManagement />} />
-            <Route path="/snmp" element={<SNMPMonitoring />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </main>
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        
+        {/* Main content area */}
+        <div className="flex-1 lg:ml-0">
+          <main className="pt-16 lg:pt-6 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto">
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/devices" element={<Devices />} />
+                <Route path="/configurations" element={<Configurations />} />
+                <Route path="/console" element={<ConsoleConfiguration />} />
+                <Route path="/history" element={<ConfigurationHistory />} />
+                <Route path="/backups" element={<BackupManagement />} />
+                <Route path="/snmp" element={<SNMPMonitoring />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </div>
+          </main>
+        </div>
       </div>
     </Router>
   );
