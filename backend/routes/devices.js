@@ -1,82 +1,93 @@
 import express from 'express';
 import Joi from 'joi';
 import { query } from '../lib/database.js';
-import sshService from '../services/sshService.js';
 
 const router = express.Router();
 
 // Validation schemas
-const deviceCreateSchema = Joi.object({
-  name: Joi.string().required().min(1).max(255),
-  type: Joi.string().valid('switch', 'router').required(),
+const createDeviceSchema = Joi.object({
+  name: Joi.string().required().max(255),
+  type: Joi.string().required().max(50),
   ip_address: Joi.string().ip().required(),
   ssh_port: Joi.number().integer().min(1).max(65535).default(22),
-  username: Joi.string().required().min(1).max(255),
-  password: Joi.string().required().min(1),
+  username: Joi.string().required().max(255),
+  password: Joi.string().required().max(255),
   description: Joi.string().max(1000).allow(''),
   location: Joi.string().max(255).allow(''),
   model: Joi.string().max(255).allow(''),
   ios_version: Joi.string().max(255).allow(''),
-  status: Joi.string().valid('active', 'inactive', 'maintenance').default('active'),
-  // SNMP configuration fields
-  snmp_community: Joi.string().max(255).default('public'),
-  snmp_version: Joi.number().valid(0, 1, 2).default(0), // 0=v1, 1=v2c, 2=v3
-  snmp_port: Joi.number().integer().min(1).max(65535).default(161),
-  snmp_enabled: Joi.boolean().default(false)
+  status: Joi.string().valid('active', 'inactive', 'maintenance', 'error').default('inactive')
 });
 
-const deviceUpdateSchema = Joi.object({
-  name: Joi.string().required().min(1).max(255),
-  type: Joi.string().valid('switch', 'router').required(),
-  ip_address: Joi.string().ip().required(),
-  ssh_port: Joi.number().integer().min(1).max(65535).default(22),
-  username: Joi.string().required().min(1).max(255),
-  password: Joi.string().allow('').optional(), // Allow empty password for updates
+const updateDeviceSchema = Joi.object({
+  name: Joi.string().max(255),
+  type: Joi.string().max(50),
+  ip_address: Joi.string().ip(),
+  ssh_port: Joi.number().integer().min(1).max(65535),
+  username: Joi.string().max(255),
+  password: Joi.string().max(255),
   description: Joi.string().max(1000).allow(''),
   location: Joi.string().max(255).allow(''),
   model: Joi.string().max(255).allow(''),
   ios_version: Joi.string().max(255).allow(''),
-  status: Joi.string().valid('active', 'inactive', 'maintenance').default('active'),
-  // SNMP configuration fields
-  snmp_community: Joi.string().max(255).default('public'),
-  snmp_version: Joi.number().valid(0, 1, 2).default(0), // 0=v1, 1=v2c, 2=v3
-  snmp_port: Joi.number().integer().min(1).max(65535).default(161),
-  snmp_enabled: Joi.boolean().default(false)
+  status: Joi.string().valid('active', 'inactive', 'maintenance', 'error')
 });
 
 // GET /api/devices - Get all devices
 router.get('/', async (req, res) => {
   try {
-    const { type, status } = req.query;
+    const { status, type, limit = 50, offset = 0 } = req.query;
     
-    let queryText = 'SELECT * FROM devices WHERE 1=1';
+    let queryText = `
+      SELECT d.*, 
+             COUNT(ch.id) as total_configs,
+             COUNT(CASE WHEN ch.status = 'applied' THEN 1 END) as applied_configs,
+             MAX(ch.created_at) as last_config_date
+      FROM devices d
+      LEFT JOIN configuration_history ch ON d.id = ch.device_id
+    `;
+    
     const queryParams = [];
-    
-    if (type) {
-      queryParams.push(type);
-      queryText += ` AND type = $${queryParams.length}`;
-    }
+    const conditions = [];
     
     if (status) {
+      conditions.push(`d.status = $${queryParams.length + 1}`);
       queryParams.push(status);
-      queryText += ` AND status = $${queryParams.length}`;
     }
     
-    queryText += ' ORDER BY created_at DESC';
+    if (type) {
+      conditions.push(`d.type = $${queryParams.length + 1}`);
+      queryParams.push(type);
+    }
+    
+    if (conditions.length > 0) {
+      queryText += ` WHERE ${conditions.join(' AND ')}`;
+    }
+    
+    queryText += ` GROUP BY d.id ORDER BY d.created_at DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+    queryParams.push(limit, offset);
     
     const result = await query(queryText, queryParams);
     
-    // Remove sensitive password data
-    const devices = result.rows.map(device => ({
-      ...device,
-      password: undefined
-    }));
+    // Get total count for pagination
+    let countQuery = 'SELECT COUNT(*) as total FROM devices d';
+    let countParams = [];
+    
+    if (conditions.length > 0) {
+      countQuery += ` WHERE ${conditions.join(' AND ')}`;
+      countParams = queryParams.slice(0, -2); // Remove limit and offset
+    }
+    
+    const countResult = await query(countQuery, countParams);
     
     res.json({
       success: true,
-      devices,
-      count: devices.length
+      devices: result.rows,
+      total: parseInt(countResult.rows[0].total),
+      limit: parseInt(limit),
+      offset: parseInt(offset)
     });
+    
   } catch (error) {
     console.error('Error fetching devices:', error);
     res.status(500).json({
@@ -86,12 +97,21 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/devices/:id - Get device by ID
+// GET /api/devices/:id - Get specific device
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const result = await query('SELECT * FROM devices WHERE id = $1', [id]);
+    const result = await query(`
+      SELECT d.*, 
+             COUNT(ch.id) as total_configs,
+             COUNT(CASE WHEN ch.status = 'applied' THEN 1 END) as applied_configs,
+             MAX(ch.created_at) as last_config_date
+      FROM devices d
+      LEFT JOIN configuration_history ch ON d.id = ch.device_id
+      WHERE d.id = $1
+      GROUP BY d.id
+    `, [id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -100,12 +120,11 @@ router.get('/:id', async (req, res) => {
       });
     }
     
-    const device = { ...result.rows[0], password: undefined };
-    
     res.json({
       success: true,
-      device
+      device: result.rows[0]
     });
+    
   } catch (error) {
     console.error('Error fetching device:', error);
     res.status(500).json({
@@ -118,7 +137,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/devices - Create new device
 router.post('/', async (req, res) => {
   try {
-    const { error, value } = deviceCreateSchema.validate(req.body);
+    const { error, value } = createDeviceSchema.validate(req.body);
     
     if (error) {
       return res.status(400).json({
@@ -130,33 +149,34 @@ router.post('/', async (req, res) => {
     
     const {
       name, type, ip_address, ssh_port, username, password,
-      description, location, model, ios_version, status,
-      snmp_community, snmp_version, snmp_port, snmp_enabled
+      description, location, model, ios_version, status
     } = value;
     
-    // Check if IP address already exists
-    const existingDevice = await query('SELECT id FROM devices WHERE ip_address = $1', [ip_address]);
+    // Check if device name or IP already exists
+    const existingDevice = await query(
+      'SELECT id FROM devices WHERE name = $1 OR ip_address = $2',
+      [name, ip_address]
+    );
     
     if (existingDevice.rows.length > 0) {
-      return res.status(409).json({
+      return res.status(400).json({
         success: false,
-        message: 'Device with this IP address already exists'
+        message: 'Device with this name or IP address already exists'
       });
     }
     
     const result = await query(`
-      INSERT INTO devices (name, type, ip_address, ssh_port, username, password, description, location, model, ios_version, status, snmp_community, snmp_version, snmp_port, snmp_enabled)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      INSERT INTO devices (name, type, ip_address, ssh_port, username, password, description, location, model, ios_version, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
-    `, [name, type, ip_address, ssh_port, username, password, description, location, model, ios_version, status, snmp_community, snmp_version, snmp_port, snmp_enabled]);
-    
-    const device = { ...result.rows[0], password: undefined };
+    `, [name, type, ip_address, ssh_port, username, password, description, location, model, ios_version, status]);
     
     res.status(201).json({
       success: true,
-      message: 'Device created successfully',
-      device
+      device: result.rows[0],
+      message: 'Device created successfully'
     });
+    
   } catch (error) {
     console.error('Error creating device:', error);
     res.status(500).json({
@@ -170,7 +190,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { error, value } = deviceUpdateSchema.validate(req.body);
+    const { error, value } = updateDeviceSchema.validate(req.body);
     
     if (error) {
       return res.status(400).json({
@@ -180,51 +200,64 @@ router.put('/:id', async (req, res) => {
       });
     }
     
-    const {
-      name, type, ip_address, ssh_port, username, password,
-      description, location, model, ios_version, status,
-      snmp_community, snmp_version, snmp_port, snmp_enabled
-    } = value;
+    // Check if device exists
+    const existingDevice = await query('SELECT * FROM devices WHERE id = $1', [id]);
     
-    // Check if device exists and get current password
-    const existingDeviceResult = await query('SELECT password FROM devices WHERE id = $1', [id]);
-    
-    if (existingDeviceResult.rows.length === 0) {
+    if (existingDevice.rows.length === 0) {
       return res.status(404).json({
         success: false,
         message: 'Device not found'
       });
     }
     
-    // Use existing password if new password is empty
-    const finalPassword = password && password.trim() !== '' ? password : existingDeviceResult.rows[0].password;
+    const {
+      name, type, ip_address, ssh_port, username, password,
+      description, location, model, ios_version, status
+    } = value;
     
-    // Check if IP address conflicts with other devices
-    const conflictingDevice = await query('SELECT id FROM devices WHERE ip_address = $1 AND id != $2', [ip_address, id]);
-    
-    if (conflictingDevice.rows.length > 0) {
-      return res.status(409).json({
-        success: false,
-        message: 'Another device with this IP address already exists'
-      });
+    // Check for duplicate name or IP (excluding current device)
+    if (name || ip_address) {
+      const duplicateCheck = await query(
+        'SELECT id FROM devices WHERE (name = $1 OR ip_address = $2) AND id != $3',
+        [name || existingDevice.rows[0].name, ip_address || existingDevice.rows[0].ip_address, id]
+      );
+      
+      if (duplicateCheck.rows.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Device with this name or IP address already exists'
+        });
+      }
     }
+    
+    // For security, hash password if it's being updated
+    const finalPassword = password || existingDevice.rows[0].password;
     
     const result = await query(`
       UPDATE devices 
       SET name = $1, type = $2, ip_address = $3, ssh_port = $4, username = $5, password = $6,
-          description = $7, location = $8, model = $9, ios_version = $10, status = $11, 
-          snmp_community = $12, snmp_version = $13, snmp_port = $14, snmp_enabled = $15, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $16
+          description = $7, location = $8, model = $9, ios_version = $10, status = $11, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $12
       RETURNING *
-    `, [name, type, ip_address, ssh_port, username, finalPassword, description, location, model, ios_version, status, snmp_community, snmp_version, snmp_port, snmp_enabled, id]);
-    
-    const device = { ...result.rows[0], password: undefined };
+    `, [name || existingDevice.rows[0].name, 
+        type || existingDevice.rows[0].type,
+        ip_address || existingDevice.rows[0].ip_address,
+        ssh_port || existingDevice.rows[0].ssh_port,
+        username || existingDevice.rows[0].username,
+        finalPassword,
+        description !== undefined ? description : existingDevice.rows[0].description,
+        location !== undefined ? location : existingDevice.rows[0].location,
+        model !== undefined ? model : existingDevice.rows[0].model,
+        ios_version !== undefined ? ios_version : existingDevice.rows[0].ios_version,
+        status || existingDevice.rows[0].status,
+        id]);
     
     res.json({
       success: true,
-      message: 'Device updated successfully',
-      device
+      device: result.rows[0],
+      message: 'Device updated successfully'
     });
+    
   } catch (error) {
     console.error('Error updating device:', error);
     res.status(500).json({
@@ -239,19 +272,24 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const result = await query('DELETE FROM devices WHERE id = $1 RETURNING *', [id]);
+    // Check if device exists
+    const existingDevice = await query('SELECT name FROM devices WHERE id = $1', [id]);
     
-    if (result.rows.length === 0) {
+    if (existingDevice.rows.length === 0) {
       return res.status(404).json({
         success: false,
         message: 'Device not found'
       });
     }
     
+    // Delete device (CASCADE will handle related records)
+    await query('DELETE FROM devices WHERE id = $1', [id]);
+    
     res.json({
       success: true,
-      message: 'Device deleted successfully'
+      message: `Device "${existingDevice.rows[0].name}" deleted successfully`
     });
+    
   } catch (error) {
     console.error('Error deleting device:', error);
     res.status(500).json({
@@ -261,12 +299,12 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// POST /api/devices/:id/test - Test SSH connection
-router.post('/:id/test', async (req, res) => {
+// GET /api/devices/:id/status - Get device status
+router.get('/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const result = await query('SELECT * FROM devices WHERE id = $1', [id]);
+    const result = await query('SELECT id, name, type, ip_address, status FROM devices WHERE id = $1', [id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -276,73 +314,51 @@ router.post('/:id/test', async (req, res) => {
     }
     
     const device = result.rows[0];
-    const testResult = await sshService.testConnection(device);
     
     res.json({
       success: true,
-      connectionTest: testResult
+      device: {
+        ...device,
+        last_checked: new Date().toISOString(),
+        connection_status: device.status
+      }
     });
+    
   } catch (error) {
-    console.error('Error testing connection:', error);
+    console.error('Error checking device status:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to test connection'
+      message: 'Failed to check device status'
     });
   }
 });
 
-// POST /api/devices/:id/debug - Debug SSH connection with detailed logging
-router.post('/:id/debug', async (req, res) => {
+// GET /api/devices/stats/summary - Get devices summary statistics
+router.get('/stats/summary', async (req, res) => {
   try {
-    const { id } = req.params;
-    
-    const result = await query('SELECT * FROM devices WHERE id = $1', [id]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Device not found'
-      });
-    }
-    
-    const device = result.rows[0];
-    
-    // Enable debug mode temporarily
-    const originalDebug = process.env.SSH_DEBUG;
-    process.env.SSH_DEBUG = 'true';
-    
-    console.log('🔍 Debug mode enabled for SSH connection test');
-    console.log(`📋 Device config: ${JSON.stringify({
-      ip: device.ip_address,
-      port: device.ssh_port,
-      username: device.username,
-      // Don't log password
-    })}`);
-    
-    const testResult = await sshService.testConnection(device);
-    
-    // Restore original debug setting
-    process.env.SSH_DEBUG = originalDebug;
+    const stats = await query(`
+      SELECT 
+        COUNT(*) as total_devices,
+        COUNT(CASE WHEN status = 'active' THEN 1 END) as active_devices,
+        COUNT(CASE WHEN status = 'inactive' THEN 1 END) as inactive_devices,
+        COUNT(CASE WHEN status = 'maintenance' THEN 1 END) as maintenance_devices,
+        COUNT(CASE WHEN status = 'error' THEN 1 END) as error_devices,
+        COUNT(CASE WHEN type = 'router' THEN 1 END) as routers,
+        COUNT(CASE WHEN type = 'switch' THEN 1 END) as switches,
+        COUNT(CASE WHEN type = 'firewall' THEN 1 END) as firewalls
+      FROM devices
+    `);
     
     res.json({
       success: true,
-      connectionTest: testResult,
-      debugInfo: {
-        ip: device.ip_address,
-        port: device.ssh_port,
-        username: device.username,
-        timestamp: new Date().toISOString()
-      }
+      stats: stats.rows[0]
     });
-  } catch (error) {
-    // Restore original debug setting
-    process.env.SSH_DEBUG = process.env.SSH_DEBUG || 'false';
     
-    console.error('Error in debug connection test:', error);
+  } catch (error) {
+    console.error('Error fetching device stats:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to debug connection',
-      error: error.message
+      message: 'Failed to fetch device statistics'
     });
   }
 });

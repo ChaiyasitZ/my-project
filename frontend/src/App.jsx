@@ -28,9 +28,6 @@ console.log('✅ ConsoleConfiguration imported');
 import BackupManagement from './pages/BackupManagement';
 console.log('✅ BackupManagement imported');
 
-import SNMPMonitoring from './pages/SNMPMonitoring';
-console.log('✅ SNMPMonitoring imported');
-
 import NotFound from './pages/NotFound';
 console.log('✅ NotFound imported');
 
@@ -72,7 +69,7 @@ function App() {
         
         {/* Main content area */}
         <div className="flex-1 lg:ml-0">
-          <main className="pt-16 lg:pt-6 px-4 sm:px-6 lg:px-8">
+          <main className="pt-20 lg:pt-6 px-4 sm:px-6 lg:px-8">
             <div className="max-w-7xl mx-auto">
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -82,7 +79,6 @@ function App() {
                 <Route path="/configuration-history" element={<ConfigurationHistory />} />
                 <Route path="/console" element={<ConsoleConfiguration />} />
                 <Route path="/backups" element={<BackupManagement />} />
-                <Route path="/snmp" element={<SNMPMonitoring />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </div>

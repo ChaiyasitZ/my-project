@@ -64,18 +64,46 @@ export class ConsoleService {
         };
       });
 
-      console.log(`🔌 Found ${formattedPorts.length} serial ports`);
+      // Filter out ports that are likely not real serial devices on Windows
+      const validPorts = formattedPorts.filter(port => {
+        // Skip virtual ports that might cause issues
+        const skipPatterns = [
+          'bluetooth',
+          'virtual',
+          'loopback'
+        ];
+        
+        const lowerPath = port.path.toLowerCase();
+        const lowerName = port.friendlyName.toLowerCase();
+        
+        return !skipPatterns.some(pattern => 
+          lowerPath.includes(pattern) || lowerName.includes(pattern)
+        );
+      });
+
+      console.log(`🔌 Found ${validPorts.length} valid serial ports (filtered from ${formattedPorts.length} total)`);
       
       return {
         success: true,
-        ports: formattedPorts,
-        count: formattedPorts.length
+        ports: validPorts,
+        count: validPorts.length
       };
     } catch (error) {
       console.error('❌ Error listing serial ports:', error.message);
+      
+      // More specific error messages for common Windows issues
+      let errorMessage = error.message;
+      if (error.message.includes('Access is denied')) {
+        errorMessage = 'Access denied to serial ports. Please run as administrator or check port permissions.';
+      } else if (error.message.includes('ENOENT')) {
+        errorMessage = 'Serial port driver not found. Please install USB-to-serial drivers.';
+      } else if (error.message.includes('Permission denied')) {
+        errorMessage = 'Permission denied accessing serial ports. Check user permissions.';
+      }
+      
       return {
         success: false,
-        error: error.message,
+        error: errorMessage,
         ports: [],
         count: 0
       };
@@ -100,23 +128,40 @@ export class ConsoleService {
         dataBits: dataBits || this.defaultSettings.dataBits,
         parity: parity || this.defaultSettings.parity,
         stopBits: stopBits || this.defaultSettings.stopBits,
-        autoOpen: false
+        autoOpen: false,
+        // Windows-specific settings
+        hupcl: false, // Don't hang up on close
+        lock: false   // Don't lock the port
       };
+
+      console.log(`📋 Serial config:`, serialConfig);
 
       const port = new SerialPort(serialConfig);
       const parser = port.pipe(new ReadlineParser({ delimiter: '\r\n' }));
       
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
+          console.log('⏰ Connection timeout, closing port...');
           port.close();
-          reject(new Error('Console connection timeout'));
+          reject(new Error('Console connection timeout after 10 seconds'));
         }, 10000);
 
         port.open((err) => {
           if (err) {
             clearTimeout(timeout);
             console.error(`❌ Failed to open console port ${portPath}:`, err.message);
-            reject(new Error(`Failed to open console port: ${err.message}`));
+            
+            // Provide more specific error messages
+            let errorMessage = err.message;
+            if (err.message.includes('Access is denied') || err.message.includes('EACCES')) {
+              errorMessage = `Port ${portPath} is already in use or access denied. Please close other terminal applications.`;
+            } else if (err.message.includes('ENOENT')) {
+              errorMessage = `Port ${portPath} not found. Please check if the device is connected.`;
+            } else if (err.message.includes('EBUSY')) {
+              errorMessage = `Port ${portPath} is busy. Another application may be using it.`;
+            }
+            
+            reject(new Error(errorMessage));
             return;
           }
 
@@ -449,86 +494,72 @@ export class ConsoleService {
   // Get initial configuration templates
   getInitialConfigTemplates() {
     return {
-      basic_switch: {
-        name: 'Basic Switch Configuration',
-        description: 'Essential configuration for a new Cisco switch',
+      ssh_configuration: {
+        name: 'SSH Configuration',
+        description: 'ตั้งค่า SSH สำหรับอุปกรณ์ Cisco รองรับ Manual IP และ DHCP',
         config: `enable
 configure terminal
 hostname {{hostname}}
-enable secret {{enable_password}}
 username {{username}} secret {{user_password}}
 username {{username}} privilege 15
 ip domain-name {{domain}}
-crypto key generate rsa modulus 2048
+crypto key generate rsa modulus {{rsa_key_size}}
 ip ssh version 2
+ip ssh time-out 60
+ip ssh authentication-retries 3
 line vty 0 15
  login local
  transport input ssh
-line console 0
- logging synchronous
- exec-timeout 30 0
-interface vlan1
- ip address {{management_ip}} {{management_mask}}
+interface {{management_interface}}
+ description Management Interface{{interface_description_suffix}}
+{{ip_configuration}}
  no shutdown
-ip default-gateway {{default_gateway}}
-banner motd # Authorized access only #
+banner motd # 
+=== Authorized Access Only ===
+This system is for authorized users only.
+All activities are monitored and logged.
+#
 service password-encryption
 no ip http server
 no ip http secure-server
-end
-write memory`
-      },
-      
-      basic_router: {
-        name: 'Basic Router Configuration',
-        description: 'Essential configuration for a new Cisco router',
-        config: `enable
-configure terminal
-hostname {{hostname}}
-enable secret {{enable_password}}
-username {{username}} secret {{user_password}}
-username {{username}} privilege 15
-ip domain-name {{domain}}
-crypto key generate rsa modulus 2048
-ip ssh version 2
-line vty 0 4
- login local
- transport input ssh
-line console 0
- logging synchronous
- exec-timeout 30 0
-banner motd # Authorized access only #
-service password-encryption
-no ip http server
-no ip http secure-server
-end
-write memory`
-      },
-
-      security_hardening: {
-        name: 'Security Hardening',
-        description: 'Security best practices configuration',
-        config: `enable
-configure terminal
-service password-encryption
-security passwords min-length 8
-login block-for 300 attempts 3 within 60
-service tcp-keepalives-in
-service tcp-keepalives-out
-no service pad
-no ip bootp server
-no ip http server
-no ip http secure-server
-no ip finger
-no ip source-route
-no cdp run
-spanning-tree mode rapid-pvst
-spanning-tree portfast bpduguard default
-spanning-tree portfast bpdufilter default
+ip ssh logging events
 end
 write memory`
       }
     };
+  }
+
+  // Process template with IP configuration method
+  processTemplateWithIPConfig(templateKey, variables) {
+    const templates = this.getInitialConfigTemplates();
+    const template = templates[templateKey];
+    
+    if (!template) {
+      throw new Error('Template not found');
+    }
+
+    let config = template.config;
+    
+    // Process IP configuration based on method
+    const ipMethod = variables.ip_method || 'manual';
+    
+    if (ipMethod === 'dhcp') {
+      // DHCP Configuration
+      variables.interface_description_suffix = ' - DHCP';
+      variables.ip_configuration = ' ip address dhcp';
+    } else {
+      // Manual IP Configuration
+      variables.interface_description_suffix = '';
+      variables.ip_configuration = ` ip address ${variables.management_ip || '{{management_ip}}'} ${variables.management_mask || '{{management_mask}}'}`;
+    }
+
+    // Replace all variables in the template
+    Object.entries(variables).forEach(([key, value]) => {
+      const placeholder = `{{${key}}}`;
+      config = config.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
+    });
+
+    return config;
   }
 }
 

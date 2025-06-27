@@ -296,13 +296,19 @@ router.post('/templates/apply', async (req, res) => {
       });
     }
 
-    // Replace template variables
-    let config = template.config;
-    if (variables) {
-      Object.entries(variables).forEach(([key, value]) => {
-        const placeholder = `{{${key}}}`;
-        config = config.replace(new RegExp(placeholder, 'g'), value);
-      });
+    // Use the new method to process template with IP configuration
+    let config;
+    try {
+      config = consoleService.processTemplateWithIPConfig(templateKey, variables || {});
+    } catch (error) {
+      config = template.config;
+      // Fallback to simple variable replacement if new method fails
+      if (variables) {
+        Object.entries(variables).forEach(([key, value]) => {
+          const placeholder = `{{${key}}}`;
+          config = config.replace(new RegExp(placeholder, 'g'), value);
+        });
+      }
     }
 
     // Send the configuration

@@ -7,11 +7,7 @@ import {
   CheckCircleIcon, 
   PlayIcon,
   EyeIcon,
-  ServerIcon,
-  SettingsIcon,
-  AlertTriangleIcon,
-  CodeIcon,
-  DevicesIcon
+  ServerIcon
 } from 'lucide-react';
 
 function Configurations() {

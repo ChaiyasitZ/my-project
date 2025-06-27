@@ -313,7 +313,7 @@ function BackupManagement() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Configuration Backups</h1>
           <p className="mt-2 text-gray-600 max-w-2xl">
-            Create, manage, and restore device configuration backups. Keep your network configurations safe and easily restore them when needed.
+            Create, manage, and restore device configuration backups
           </p>
         </div>
         
