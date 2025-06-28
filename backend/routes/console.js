@@ -1,6 +1,6 @@
 import express from 'express';
 import Joi from 'joi';
-import { query } from '../lib/database.js';
+import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import consoleService from '../services/consoleService.js';
 
 const router = express.Router();
@@ -200,19 +200,18 @@ router.post('/initial-config', async (req, res) => {
     // Save configuration to database if successful
     if (result.success) {
       try {
-        await query(`
-          INSERT INTO configuration_history 
-          (device_id, prompt, generated_config, applied_config, status, ai_model, execution_time, created_at, applied_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `, [
-          deviceId,
-          'Initial console configuration',
-          configCommands,
-          result.fullOutput,
-          result.summary.failed > 0 ? 'partial' : 'applied',
-          'console',
-          0
-        ]);
+        const configHistory = new ConfigurationHistory({
+          device_id: deviceId,
+          prompt: 'Initial console configuration',
+          generated_config: configCommands,
+          applied_config: result.fullOutput,
+          status: result.summary.failed > 0 ? 'partial' : 'applied',
+          ai_model: 'console',
+          execution_time: 0,
+          applied_at: new Date()
+        });
+        
+        await configHistory.save();
       } catch (dbError) {
         console.error('⚠️ Failed to save configuration to database:', dbError.message);
       }

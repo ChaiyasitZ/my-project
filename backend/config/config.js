@@ -3,13 +3,9 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const config = {
-  // Database Configuration
+  // MongoDB Configuration
   database: {
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 5432,
-    name: process.env.DB_NAME || 'network_automation',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'admin',
+    mongodb_uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/network_automation'
   },
 
   // Ollama Local AI Configuration

@@ -1,14 +1,16 @@
 import express from 'express';
 import Joi from 'joi';
 import crypto from 'crypto';
-import { query } from '../lib/database.js';
+import Device from '../models/Device.js';
+import ConfigurationBackup from '../models/ConfigurationBackup.js';
+import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import sshService from '../services/sshService.js';
 
 const router = express.Router();
 
 // Validation schemas
 const createBackupSchema = Joi.object({
-  device_id: Joi.number().integer().required(),
+  device_id: Joi.string().required(),
   backup_name: Joi.string().required().min(1).max(255),
   description: Joi.string().max(1000).allow(''),
   backup_type: Joi.string().valid('manual', 'scheduled', 'pre_change').default('manual'),
@@ -17,7 +19,7 @@ const createBackupSchema = Joi.object({
 });
 
 const restoreBackupSchema = Joi.object({
-  backup_id: Joi.number().integer().required(),
+  backup_id: Joi.string().required(),
   restore_type: Joi.string().valid('running', 'startup', 'both').default('running'),
   create_checkpoint: Joi.boolean().default(true)
 });
@@ -34,63 +36,49 @@ router.get('/', async (req, res) => {
       sort_order = 'desc'
     } = req.query;
     
-    let queryText = `
-      SELECT cb.*, d.name as device_name, d.type as device_type, d.ip_address
-      FROM configuration_backups cb
-      JOIN devices d ON cb.device_id = d.id
-      WHERE 1=1
-    `;
-    const queryParams = [];
+    // Build filter
+    const filter = {};
+    if (device_id) filter.device_id = device_id;
+    if (backup_type) filter.backup_type = backup_type;
     
-    if (device_id) {
-      queryParams.push(device_id);
-      queryText += ` AND cb.device_id = $${queryParams.length}`;
-    }
-    
-    if (backup_type) {
-      queryParams.push(backup_type);
-      queryText += ` AND cb.backup_type = $${queryParams.length}`;
-    }
-    
-    // Add sorting
+    // Build sort object
     const allowedSortFields = ['created_at', 'backup_name', 'file_size'];
     const sortField = allowedSortFields.includes(sort_by) ? sort_by : 'created_at';
-    const sortDirection = sort_order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+    const sortDirection = sort_order.toLowerCase() === 'asc' ? 1 : -1;
+    const sortObj = { [sortField]: sortDirection };
     
-    queryParams.push(limit, offset);
-    queryText += ` ORDER BY cb.${sortField} ${sortDirection} LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`;
-    
-    const result = await query(queryText, queryParams);
+    // Get backups with pagination
+    const backups = await ConfigurationBackup.find(filter)
+      .sort(sortObj)
+      .limit(parseInt(limit))
+      .skip(parseInt(offset))
+      .lean();
     
     // Get total count for pagination
-    let countQuery = `
-      SELECT COUNT(*) as total
-      FROM configuration_backups cb
-      JOIN devices d ON cb.device_id = d.id
-      WHERE 1=1
-    `;
-    const countParams = [];
+    const total = await ConfigurationBackup.countDocuments(filter);
     
-    if (device_id) {
-      countParams.push(device_id);
-      countQuery += ` AND cb.device_id = $${countParams.length}`;
-    }
-    
-    if (backup_type) {
-      countParams.push(backup_type);
-      countQuery += ` AND cb.backup_type = $${countParams.length}`;
-    }
-    
-    const countResult = await query(countQuery, countParams);
+    // Enhance backups with device info
+    const enhancedBackups = await Promise.all(
+      backups.map(async (backup) => {
+        const device = await Device.findById(backup.device_id).select('name type ip_address').lean();
+        return {
+          ...backup,
+          id: backup._id, // Add id for compatibility
+          device_name: device?.name,
+          device_type: device?.type,
+          ip_address: device?.ip_address
+        };
+      })
+    );
     
     res.json({
       success: true,
-      backups: result.rows,
+      backups: enhancedBackups,
       pagination: {
-        total: parseInt(countResult.rows[0].total),
+        total,
         limit: parseInt(limit),
         offset: parseInt(offset),
-        hasMore: parseInt(offset) + parseInt(limit) < parseInt(countResult.rows[0].total)
+        hasMore: parseInt(offset) + parseInt(limit) < total
       }
     });
     
@@ -109,33 +97,35 @@ router.get('/:id', async (req, res) => {
     const { id } = req.params;
     const { include_config = 'false' } = req.query;
     
-    let selectFields = `
-      cb.id, cb.device_id, cb.backup_name, cb.description, cb.backup_type,
-      cb.file_size, cb.config_hash, cb.created_by, cb.created_at, cb.is_restore_point, cb.tags,
-      d.name as device_name, d.type as device_type, d.ip_address
-    `;
+    const backup = await ConfigurationBackup.findById(id).lean();
     
-    if (include_config === 'true') {
-      selectFields += ', cb.running_config, cb.startup_config';
-    }
-    
-    const result = await query(`
-      SELECT ${selectFields}
-      FROM configuration_backups cb
-      JOIN devices d ON cb.device_id = d.id
-      WHERE cb.id = $1
-    `, [id]);
-    
-    if (result.rows.length === 0) {
+    if (!backup) {
       return res.status(404).json({
         success: false,
         message: 'Backup not found'
       });
     }
     
+    // Get device info
+    const device = await Device.findById(backup.device_id).select('name type ip_address').lean();
+    
+    const backupResponse = {
+      ...backup,
+      id: backup._id, // Add id for compatibility
+      device_name: device?.name,
+      device_type: device?.type,
+      ip_address: device?.ip_address
+    };
+    
+    // Remove config data if not requested
+    if (include_config !== 'true') {
+      delete backupResponse.running_config;
+      delete backupResponse.startup_config;
+    }
+    
     res.json({
       success: true,
-      backup: result.rows[0]
+      backup: backupResponse
     });
     
   } catch (error) {
@@ -163,16 +153,14 @@ router.post('/', async (req, res) => {
     const { device_id, backup_name, description, backup_type, created_by, tags } = value;
     
     // Get device details
-    const deviceResult = await query('SELECT * FROM devices WHERE id = $1', [device_id]);
+    const device = await Device.findById(device_id);
     
-    if (deviceResult.rows.length === 0) {
+    if (!device) {
       return res.status(404).json({
         success: false,
         message: 'Device not found'
       });
     }
-    
-    const device = deviceResult.rows[0];
     
     // Create backup using SSH service
     console.log(`🚀 Starting backup creation for device ${device.name} (${device.ip_address})`);
@@ -191,49 +179,44 @@ router.post('/', async (req, res) => {
         .digest('hex');
       
       // Check for duplicate backups
-      const duplicateCheck = await query(
-        'SELECT id, backup_name FROM configuration_backups WHERE device_id = $1 AND config_hash = $2',
-        [device_id, configHash]
-      );
+      const duplicateBackup = await ConfigurationBackup.findOne({
+        device_id,
+        config_hash: configHash
+      });
       
-      if (duplicateCheck.rows.length > 0) {
+      if (duplicateBackup) {
         return res.status(409).json({
           success: false,
-          message: `Duplicate backup detected. Same configuration already exists in backup: ${duplicateCheck.rows[0].backup_name}`,
-          duplicate_backup_id: duplicateCheck.rows[0].id
+          message: `Duplicate backup detected. Same configuration already exists in backup: ${duplicateBackup.backup_name}`,
+          duplicate_backup_id: duplicateBackup._id
         });
       }
       
       // Save backup to database
-      const insertResult = await query(`
-        INSERT INTO configuration_backups 
-        (device_id, backup_name, description, running_config, startup_config, backup_type, 
-         file_size, config_hash, created_by, tags)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING *
-      `, [
+      const backup = new ConfigurationBackup({
         device_id,
         backup_name,
         description,
-        backupResult.runningConfig,
-        backupResult.startupConfig,
+        running_config: backupResult.runningConfig,
+        startup_config: backupResult.startupConfig,
         backup_type,
-        backupResult.runningConfigSize + backupResult.startupConfigSize,
-        configHash,
+        file_size: backupResult.runningConfigSize + backupResult.startupConfigSize,
+        config_hash: configHash,
         created_by,
-        JSON.stringify(tags || [])
-      ]);
+        tags: tags || []
+      });
       
-      const backup = insertResult.rows[0];
+      await backup.save();
       
       // Don't include the actual config in the response for performance
-      const { running_config, startup_config, ...backupResponse } = backup;
+      const { running_config, startup_config, ...backupResponse } = backup.toObject();
       
       res.status(201).json({
         success: true,
         message: 'Backup created successfully',
         backup: {
           ...backupResponse,
+          id: backup._id, // Add id for compatibility
           device_name: device.name,
           device_type: device.type,
           device_ip: device.ip_address,
@@ -280,22 +263,23 @@ router.post('/:id/restore', async (req, res) => {
     const { restore_type, create_checkpoint } = value;
     
     // Get backup and device details
-    const backupResult = await query(`
-      SELECT cb.*, d.*
-      FROM configuration_backups cb
-      JOIN devices d ON cb.device_id = d.id
-      WHERE cb.id = $1
-    `, [id]);
+    const backup = await ConfigurationBackup.findById(id);
     
-    if (backupResult.rows.length === 0) {
+    if (!backup) {
       return res.status(404).json({
         success: false,
         message: 'Backup not found'
       });
     }
     
-    const backup = backupResult.rows[0];
-    const device = backup;
+    const device = await Device.findById(backup.device_id);
+    
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
     
     try {
       // Create a pre-restore checkpoint if requested
@@ -309,26 +293,21 @@ router.post('/:id/restore', async (req, res) => {
               .update(checkpointResult.runningConfig)
               .digest('hex');
             
-            const checkpointInsert = await query(`
-              INSERT INTO configuration_backups 
-              (device_id, backup_name, description, running_config, startup_config, backup_type, 
-               file_size, config_hash, created_by, is_restore_point)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-              RETURNING id
-            `, [
-              device.id,
-              `Pre-restore checkpoint - ${new Date().toISOString()}`,
-              `Automatic checkpoint before restoring backup: ${backup.backup_name}`,
-              checkpointResult.runningConfig,
-              checkpointResult.startupConfig,
-              'pre_change',
-              checkpointResult.runningConfigSize + checkpointResult.startupConfigSize,
-              checkpointHash,
-              'system',
-              true
-            ]);
+            const checkpoint = new ConfigurationBackup({
+              device_id: device._id,
+              backup_name: `Pre-restore checkpoint - ${new Date().toISOString()}`,
+              description: `Automatic checkpoint before restoring backup: ${backup.backup_name}`,
+              running_config: checkpointResult.runningConfig,
+              startup_config: checkpointResult.startupConfig,
+              backup_type: 'pre_change',
+              file_size: checkpointResult.runningConfigSize + checkpointResult.startupConfigSize,
+              config_hash: checkpointHash,
+              created_by: 'system',
+              is_restore_point: true
+            });
             
-            checkpointId = checkpointInsert.rows[0].id;
+            await checkpoint.save();
+            checkpointId = checkpoint._id;
             console.log(`✅ Pre-restore checkpoint created with ID: ${checkpointId}`);
           }
         } catch (checkpointError) {
@@ -353,19 +332,18 @@ router.post('/:id/restore', async (req, res) => {
       }
       
       // Record the restore operation in configuration history
-      await query(`
-        INSERT INTO configuration_history 
-        (device_id, prompt, generated_config, applied_config, status, ai_model, execution_time, created_at, applied_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `, [
-        device.id,
-        `Configuration restored from backup: ${backup.backup_name}`,
-        configToRestore,
-        restoreResult.output,
-        'applied',
-        'backup_restore',
-        0
-      ]);
+      const configHistory = new ConfigurationHistory({
+        device_id: device._id,
+        prompt: `Configuration restored from backup: ${backup.backup_name}`,
+        generated_config: configToRestore,
+        applied_config: restoreResult.output,
+        status: 'applied',
+        ai_model: 'backup_restore',
+        execution_time: 0,
+        applied_at: new Date()
+      });
+      
+      await configHistory.save();
       
       res.json({
         success: true,
@@ -406,19 +384,14 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     
     // Check if backup exists and is not a restore point
-    const backupCheck = await query(
-      'SELECT backup_name, is_restore_point FROM configuration_backups WHERE id = $1',
-      [id]
-    );
+    const backup = await ConfigurationBackup.findById(id).select('backup_name is_restore_point');
     
-    if (backupCheck.rows.length === 0) {
+    if (!backup) {
       return res.status(404).json({
         success: false,
         message: 'Backup not found'
       });
     }
-    
-    const backup = backupCheck.rows[0];
     
     if (backup.is_restore_point) {
       return res.status(400).json({
@@ -427,7 +400,7 @@ router.delete('/:id', async (req, res) => {
       });
     }
     
-    const result = await query('DELETE FROM configuration_backups WHERE id = $1 RETURNING *', [id]);
+    await ConfigurationBackup.findByIdAndDelete(id);
     
     res.json({
       success: true,
@@ -450,18 +423,25 @@ router.get('/device/:device_id', async (req, res) => {
     const { device_id } = req.params;
     const { limit = 20, offset = 0 } = req.query;
     
-    const result = await query(`
-      SELECT cb.*, d.name as device_name, d.type as device_type
-      FROM configuration_backups cb
-      JOIN devices d ON cb.device_id = d.id
-      WHERE cb.device_id = $1
-      ORDER BY cb.created_at DESC
-      LIMIT $2 OFFSET $3
-    `, [device_id, limit, offset]);
+    const backups = await ConfigurationBackup.find({ device_id })
+      .sort({ created_at: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset))
+      .lean();
+    
+    // Get device info
+    const device = await Device.findById(device_id).select('name type').lean();
+    
+    const enhancedBackups = backups.map(backup => ({
+      ...backup,
+      id: backup._id, // Add id for compatibility
+      device_name: device?.name,
+      device_type: device?.type
+    }));
     
     res.json({
       success: true,
-      backups: result.rows
+      backups: enhancedBackups
     });
     
   } catch (error) {
@@ -478,14 +458,13 @@ router.post('/:id/set-restore-point', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const result = await query(`
-      UPDATE configuration_backups 
-      SET is_restore_point = TRUE
-      WHERE id = $1
-      RETURNING backup_name
-    `, [id]);
+    const backup = await ConfigurationBackup.findByIdAndUpdate(
+      id,
+      { is_restore_point: true },
+      { new: true }
+    ).select('backup_name');
     
-    if (result.rows.length === 0) {
+    if (!backup) {
       return res.status(404).json({
         success: false,
         message: 'Backup not found'
@@ -495,7 +474,7 @@ router.post('/:id/set-restore-point', async (req, res) => {
     res.json({
       success: true,
       message: 'Backup marked as restore point',
-      backup_name: result.rows[0].backup_name
+      backup_name: backup.backup_name
     });
     
   } catch (error) {

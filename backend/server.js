@@ -2,8 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import mongoose from 'mongoose';
 import { config } from './config/config.js';
-import { pool } from './lib/database.js';
 
 // Import routes
 import devicesRouter from './routes/devices.js';
@@ -45,15 +45,20 @@ app.use(express.urlencoded({ extended: true }));
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
   try {
-    // Test database connection
-    await pool.query('SELECT 1');
+    // Test MongoDB connection
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.connection.db.admin().ping();
+    } else {
+      throw new Error('MongoDB not connected');
+    }
     
     res.json({
       success: true,
       message: 'Server is healthy',
       timestamp: new Date().toISOString(),
       version: '1.0.0',
-      environment: config.server.nodeEnv
+      environment: config.server.nodeEnv,
+      database: 'MongoDB Atlas'
     });
   } catch (error) {
     res.status(503).json({
@@ -74,8 +79,17 @@ app.use('/api/backups', backupsRouter);
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'Network Automation API',
+    message: 'Network Automation API with MongoDB & Raw AI',
     version: '1.0.0',
+    database: 'MongoDB Atlas',
+    features: [
+      '🤖 Raw AI configuration generation',
+      '🍃 MongoDB Atlas cloud database',
+      '⚡ Fast and lightweight',
+      '🎯 Simple and reliable',
+      '📝 Basic validation',
+      '💾 Configuration history'
+    ],
     endpoints: {
       health: '/api/health',
       devices: '/api/devices',
@@ -113,8 +127,8 @@ process.on('SIGTERM', async () => {
   console.log('🛑 SIGTERM received, shutting down gracefully');
   
   try {
-    await pool.end();
-    console.log('✅ Database connections closed');
+    await mongoose.connection.close();
+    console.log('✅ MongoDB connection closed');
     process.exit(0);
   } catch (error) {
     console.error('❌ Error during shutdown:', error);
@@ -126,8 +140,8 @@ process.on('SIGINT', async () => {
   console.log('🛑 SIGINT received, shutting down gracefully');
   
   try {
-    await pool.end();
-    console.log('✅ Database connections closed');
+    await mongoose.connection.close();
+    console.log('✅ MongoDB connection closed');
     process.exit(0);
   } catch (error) {
     console.error('❌ Error during shutdown:', error);
@@ -135,15 +149,29 @@ process.on('SIGINT', async () => {
   }
 });
 
+// Initialize MongoDB connection
+async function connectToMongoDB() {
+  try {
+    await mongoose.connect(config.database.mongodb_uri);
+    console.log('🍃 Connected to MongoDB Atlas');
+  } catch (error) {
+    console.error('❌ Failed to connect to MongoDB:', error);
+    process.exit(1);
+  }
+}
+
 // Start server
 const PORT = config.server.port;
 
-app.listen(PORT, () => {
-  console.log(`🚀 Network Automation API server running on port ${PORT}`);
-  console.log(`🌍 Environment: ${config.server.nodeEnv}`);
-  console.log(`🤖 Ollama Host: ${config.ollama.host}`);
-  console.log(`🧠 AI Model: ${config.ollama.model}`);
-  console.log(`🔗 Frontend URL: ${config.cors.origin}`);
+// Connect to MongoDB first, then start the server
+connectToMongoDB().then(() => {
+  app.listen(PORT, async () => {
+    console.log(`🚀 Network Automation API server running on port ${PORT}`);
+    console.log(`🌍 Environment: ${config.server.nodeEnv}`);
+    console.log(`🤖 Ollama Host: ${config.ollama.host}`);
+    console.log(`🧠 AI Model: ${config.ollama.model}`);
+    console.log(`🔗 Frontend URL: ${config.cors.origin}`);
+  });
 });
 
 export default app; 

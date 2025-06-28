@@ -7,7 +7,8 @@ export class SSHService {
   }
 
   async connect(deviceConfig) {
-    const { id, ip_address, ssh_port, username, password } = deviceConfig;
+    const { id, _id, ip_address, ssh_port, username, password } = deviceConfig;
+    const deviceId = id || _id;
     
     return new Promise((resolve, reject) => {
       const conn = new Client();
@@ -20,7 +21,7 @@ export class SSHService {
       conn.on('ready', () => {
         clearTimeout(timeout);
         console.log(`✅ SSH connected to ${ip_address}`);
-        this.connections.set(id, conn);
+        this.connections.set(deviceId, conn);
         resolve(conn);
       });
 
@@ -47,7 +48,7 @@ export class SSHService {
 
       conn.on('close', () => {
         console.log(`🔌 SSH connection closed for ${ip_address}`);
-        this.connections.delete(id);
+        this.connections.delete(deviceId);
       });
 
       conn.connect({
@@ -117,7 +118,8 @@ export class SSHService {
 
   async executeCommand(deviceConfig, command) {
     try {
-      let conn = this.connections.get(deviceConfig.id);
+      const deviceId = deviceConfig.id || deviceConfig._id;
+      let conn = this.connections.get(deviceId);
       
       if (!conn) {
         conn = await this.connect(deviceConfig);
@@ -164,7 +166,8 @@ export class SSHService {
       console.log(`🔧 Starting configuration deployment to ${deviceConfig.ip_address}`);
       console.log(`📝 Commands to deploy:\n${commands}`);
       
-      let conn = this.connections.get(deviceConfig.id);
+      const deviceId = deviceConfig.id || deviceConfig._id;
+      let conn = this.connections.get(deviceId);
       
       if (!conn) {
         conn = await this.connect(deviceConfig);
@@ -283,15 +286,32 @@ export class SSHService {
   }
 
   async testConnection(deviceConfig) {
+    // Ensure we always return a proper response object
+    const defaultResponse = {
+      success: false,
+      message: 'Connection test failed',
+      originalError: 'Unknown error'
+    };
+    
     try {
       console.log(`🧪 Testing connection to ${deviceConfig.ip_address}`);
+      
+      // Validate device configuration
+      if (!deviceConfig || !deviceConfig.ip_address || !deviceConfig.username || !deviceConfig.password) {
+        return {
+          success: false,
+          message: 'Invalid device configuration - missing required fields',
+          originalError: 'Missing ip_address, username, or password'
+        };
+      }
+      
       const conn = await this.connect(deviceConfig);
       
       // For Cisco devices, try basic commands first
       try {
         // Try show version first (usually works without enable)
         const result = await this.executeCommand(deviceConfig, 'show version | include Software');
-        this.disconnect(deviceConfig.id);
+        this.disconnect(deviceConfig.id || deviceConfig._id);
         
         console.log(`✅ Connection test successful for ${deviceConfig.ip_address}`);
         return {
@@ -305,7 +325,7 @@ export class SSHService {
         console.log(`🔄 Basic command failed, trying with enable mode...`);
         try {
           const enableResult = await this.executeCommandWithEnable(deviceConfig, 'show version | include Software');
-          this.disconnect(deviceConfig.id);
+          this.disconnect(deviceConfig.id || deviceConfig._id);
           
           console.log(`✅ Connection test successful with enable mode for ${deviceConfig.ip_address}`);
           return {
@@ -316,7 +336,7 @@ export class SSHService {
             deviceType: 'cisco'
           };
         } catch (enableError) {
-          this.disconnect(deviceConfig.id);
+          this.disconnect(deviceConfig.id || deviceConfig._id);
           throw new Error(`Both basic and enable mode commands failed: ${enableError.message}`);
         }
       }
@@ -349,7 +369,8 @@ export class SSHService {
 
   async executeCommandWithEnable(deviceConfig, command) {
     try {
-      let conn = this.connections.get(deviceConfig.id);
+      const deviceId = deviceConfig.id || deviceConfig._id;
+      let conn = this.connections.get(deviceId);
       
       if (!conn) {
         conn = await this.connect(deviceConfig);
@@ -417,11 +438,13 @@ export class SSHService {
   }
 
   disconnect(deviceId) {
-    const conn = this.connections.get(deviceId);
+    // Handle both MongoDB ObjectId and regular id formats
+    const actualId = typeof deviceId === 'object' ? deviceId.toString() : deviceId;
+    const conn = this.connections.get(actualId);
     if (conn) {
       conn.end();
-      this.connections.delete(deviceId);
-      console.log(`🔌 Disconnected device ID: ${deviceId}`);
+      this.connections.delete(actualId);
+      console.log(`🔌 Disconnected device ID: ${actualId}`);
     }
   }
 
@@ -566,7 +589,8 @@ export class SSHService {
         createCheckpoint = true 
       } = options;
       
-      let conn = this.connections.get(deviceConfig.id);
+      const deviceId = deviceConfig.id || deviceConfig._id;
+      let conn = this.connections.get(deviceId);
       
       if (!conn) {
         conn = await this.connect(deviceConfig);

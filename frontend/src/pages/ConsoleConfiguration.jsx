@@ -84,14 +84,27 @@ function ConsoleConfiguration() {
         stopBits: connectionSettings.stopBits
       });
 
-      if (response.data.test.success) {
-        console.log('✅ Console connection test successful!');
-        console.log('Response:', response.data.test.output || response.data.test.message);
-        toast.success('Console connection test successful!', { id: toastId });
+      // Add null/undefined checks for nested properties
+      if (response.data && response.data.test) {
+        if (response.data.test.success) {
+          console.log('✅ Console connection test successful!');
+          console.log('Response:', response.data.test.output || response.data.test.message);
+          toast.success('Console connection test successful!', { id: toastId });
+        } else {
+          console.warn('⚠️ Console connection test failed:');
+          console.warn('Error:', response.data.test.message);
+          toast.error(`Connection test failed: ${response.data.test.message}`, { id: toastId });
+        }
+      } else if (response.data && response.data.success !== undefined) {
+        // Handle direct success response format
+        if (response.data.success) {
+          toast.success('Console connection test successful!', { id: toastId });
+        } else {
+          toast.error(`Connection test failed: ${response.data.message || 'Unknown error'}`, { id: toastId });
+        }
       } else {
-        console.warn('⚠️ Console connection test failed:');
-        console.warn('Error:', response.data.test.message);
-        toast.error(`Connection test failed: ${response.data.test.message}`, { id: toastId });
+        console.error('Invalid response format:', response.data);
+        toast.error('Connection test failed: Invalid response from server', { id: toastId });
       }
     } catch (error) {
       console.error('❌ Connection test failed:', error.response?.data?.message || error.message);

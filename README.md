@@ -17,7 +17,7 @@ A comprehensive web application for automating Cisco network device configuratio
 
 ### Backend (Node.js + Express)
 - **API Server**: RESTful API with Express.js
-- **Database**: PostgreSQL for data persistence
+- **Database**: MongoDB Atlas cloud database for data persistence
 - **AI Integration**: Local Ollama service with configurable models
 - **SSH Client**: SSH2 library for device connections
 - **Security**: Rate limiting, CORS, input validation
@@ -33,13 +33,14 @@ A comprehensive web application for automating Cisco network device configuratio
 - **devices**: Store Cisco device information
 - **configuration_history**: Track AI-generated configurations
 - **configuration_templates**: Pre-built configuration templates
+- **configuration_backups**: Store device backup configurations
 
 ## 🛠️ Prerequisites
 
 Before running this application, ensure you have:
 
 - **Node.js** (v18+ recommended)
-- **PostgreSQL** (v12+ recommended)
+- **MongoDB Atlas Account** (free tier available)
 - **Ollama** (for local AI models)
 - **Git** for version control
 
@@ -77,14 +78,13 @@ ollama pull llama3.2:3b    # Lightweight for testing
 ollama pull llama3.1:8b    # Balanced performance
 ```
 
-### 3. Setup PostgreSQL Database
+### 3. Setup MongoDB Atlas Database
 
-Make sure PostgreSQL is running and create the database:
-
-```sql
--- Connect to PostgreSQL as postgres user
-CREATE DATABASE network_automation;
-```
+1. Create a free MongoDB Atlas account at https://www.mongodb.com/atlas
+2. Create a new cluster (free tier M0 is sufficient)
+3. Create a database user with read/write permissions
+4. Configure network access (allow access from anywhere for development: 0.0.0.0/0)
+5. Get your connection string from the "Connect" button
 
 ### 4. Configure Backend
 
@@ -95,89 +95,33 @@ cd backend
 npm install
 ```
 
-The configuration is already set up in `backend/config/config.js` with these defaults:
-- Database: `network_automation`
-- User: `postgres`
-- Password: `admin`
-- Ollama Host: `http://localhost:11434`
-- Default Model: `codellama:13b` (optimized for code generation)
+Create a `.env` file in the backend directory with your MongoDB connection string:
 
-You can customize these settings by creating a `.env` file:
 ```bash
-# Database configuration
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=network_automation
-DB_USER=postgres
-DB_PASSWORD=admin
+# MongoDB Atlas configuration
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/network_automation
 
 # Ollama configuration
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=codellama:13b
+
+# Server configuration
+NODE_ENV=development
+PORT=5000
 ```
 
-### 5. Initialize Database Tables
+### 5. Initialize Database Collections
 
-Since the database tables are required, run this manual setup:
+The application will automatically create collections when needed. You can optionally run the initialization script to populate sample data:
 
 ```bash
 # In the backend directory
-node -e "
-import pg from 'pg';
-const client = new pg.Client({
-  host: 'localhost',
-  port: 5432,
-  user: 'postgres',
-  password: 'admin',
-  database: 'network_automation'
-});
-await client.connect();
-await client.query(\`
-  CREATE TABLE IF NOT EXISTS devices (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    type VARCHAR(50) NOT NULL CHECK (type IN ('switch', 'router')),
-    ip_address INET NOT NULL UNIQUE,
-    ssh_port INTEGER DEFAULT 22,
-    username VARCHAR(255) NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    description TEXT,
-    location VARCHAR(255),
-    model VARCHAR(255),
-    ios_version VARCHAR(255),
-    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'maintenance')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-  );
-  CREATE TABLE IF NOT EXISTS configuration_history (
-    id SERIAL PRIMARY KEY,
-    device_id INTEGER REFERENCES devices(id) ON DELETE CASCADE,
-    prompt TEXT NOT NULL,
-    generated_config TEXT NOT NULL,
-    applied_config TEXT,
-    status VARCHAR(20) DEFAULT 'generated' CHECK (status IN ('generated', 'applied', 'failed', 'rolled_back')),
-    ai_model VARCHAR(255),
-    execution_time INTEGER,
-    error_message TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    applied_at TIMESTAMP WITH TIME ZONE
-  );
-  CREATE TABLE IF NOT EXISTS configuration_templates (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    device_type VARCHAR(50) NOT NULL CHECK (device_type IN ('switch', 'router', 'both')),
-    template_config TEXT NOT NULL,
-    variables JSONB,
-    category VARCHAR(100),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-  );
-\`);
-await client.end();
-console.log('Database tables created successfully!');
-"
+npm run init-db
 ```
+
+This will create:
+- 3 sample devices
+- 3 configuration templates (Basic Switch Setup, Router OSPF, VLAN Configuration)
 
 ### 6. Configure Frontend
 
@@ -263,6 +207,12 @@ The application will be available at:
 - `GET /api/configurations/:id` - Get specific configuration
 - `POST /api/configurations/:id/validate` - Validate configuration
 
+### Backups API
+- `GET /api/backups` - List all backups
+- `POST /api/backups/:deviceId` - Create device backup
+- `GET /api/backups/:deviceId/latest` - Get latest backup for device
+- `POST /api/backups/:backupId/restore` - Restore from backup
+
 ## 🔒 Security Features
 
 - **Input Validation**: All API inputs are validated using Joi
@@ -270,19 +220,22 @@ The application will be available at:
 - **CORS Protection**: Configured for frontend domain only
 - **SSH Security**: Secure SSH connections with timeout handling
 - **Password Security**: Passwords not returned in API responses
+- **MongoDB Security**: Atlas provides built-in security and encryption
 
 ## 🆘 Troubleshooting
 
 ### Common Issues
 
-1. **Database Connection Errors**
-   - Verify PostgreSQL is running
-   - Check database credentials in `backend/config/config.js`
-   - Ensure database exists and user has permissions
+1. **MongoDB Connection Errors**
+   - Verify your MongoDB Atlas connection string is correct
+   - Check network access settings (allow 0.0.0.0/0 for development)
+   - Ensure database user has proper permissions
+   - Verify username and password in connection string
 
-2. **"relation 'devices' does not exist" Error**
-   - Run the manual database table creation script above
-   - Verify tables were created with: `psql -U postgres -d network_automation -c "\dt"`
+2. **"MongoServerError" Connection Issues**
+   - Check if your IP address is whitelisted in Atlas
+   - Verify the cluster is running and accessible
+   - Try connecting using MongoDB Compass to test the connection
 
 3. **SSH Connection Failures**
    - Verify device IP address is reachable
@@ -306,17 +259,19 @@ The application will be available at:
 - Review backend logs for API errors
 - Ensure all dependencies are installed correctly
 - Verify environment variables are set properly
+- Check MongoDB Atlas logs for database connection issues
 
 ## 🎯 Current Status
 
 ✅ **Working Features:**
 - Complete React frontend with modern UI
 - Backend API with all endpoints
-- Database schema and connection
+- MongoDB Atlas cloud database integration
 - Local AI integration with Ollama
 - SSH service for device connections
 - Device management (CRUD operations)
 - Configuration generation and history
+- Backup and restore functionality
 - Real-time dashboard
 
 ## 🎯 Future Enhancements

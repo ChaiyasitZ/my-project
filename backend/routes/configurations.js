@@ -1,6 +1,7 @@
 import express from 'express';
 import Joi from 'joi';
-import { query } from '../lib/database.js';
+import Device from '../models/Device.js';
+import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import aiService from '../services/aiService.js';
 import sshService from '../services/sshService.js';
 
@@ -8,12 +9,19 @@ const router = express.Router();
 
 // Validation schemas
 const generateConfigSchema = Joi.object({
-  device_id: Joi.number().integer().required(),
+  device_id: Joi.string().required(),
   prompt: Joi.string().required().min(10).max(2000)
 });
 
 const applyConfigSchema = Joi.object({
-  configuration_id: Joi.number().integer().required()
+  configuration_id: Joi.string().required()
+});
+
+// Configuration rating schema (simplified for raw AI)
+const rateConfigSchema = Joi.object({
+  configuration_id: Joi.string().required(),
+  user_rating: Joi.number().integer().min(1).max(5).required(),
+  feedback_text: Joi.string().optional().allow('')
 });
 
 // GET /api/configurations/ai-status - Get AI service status
@@ -34,10 +42,231 @@ router.get('/ai-status', async (req, res) => {
   }
 });
 
-// POST /api/configurations/generate - Generate configuration using Raw AI
+// GET /api/configurations/analytics - Get basic generation analytics
+router.get('/analytics', async (req, res) => {
+  try {
+    const { days = 7 } = req.query;
+    
+    // Calculate date threshold
+    const dateThreshold = new Date();
+    dateThreshold.setDate(dateThreshold.getDate() - parseInt(days));
+    
+    // Get comprehensive analytics using MongoDB aggregation
+    const [performanceStats, deviceTypeStats] = await Promise.all([
+      // Performance statistics
+      ConfigurationHistory.aggregate([
+        { $match: { created_at: { $gte: dateThreshold } } },
+        {
+          $group: {
+            _id: null,
+            avg_execution_time: { $avg: '$execution_time' },
+            min_execution_time: { $min: '$execution_time' },
+            max_execution_time: { $max: '$execution_time' },
+            total_generations: { $sum: 1 },
+            successful_applications: {
+              $sum: { $cond: [{ $eq: ['$status', 'applied'] }, 1, 0] }
+            }
+          }
+        }
+      ]),
+      
+      // Device type performance
+      ConfigurationHistory.aggregate([
+        { $match: { created_at: { $gte: dateThreshold } } },
+        {
+          $lookup: {
+            from: 'devices',
+            localField: 'device_id',
+            foreignField: '_id',
+            as: 'device'
+          }
+        },
+        { $unwind: '$device' },
+        {
+          $group: {
+            _id: '$device.type',
+            generation_count: { $sum: 1 },
+            avg_execution_time: { $avg: '$execution_time' },
+            applied_count: {
+              $sum: { $cond: [{ $eq: ['$status', 'applied'] }, 1, 0] }
+            }
+          }
+        },
+        { $sort: { generation_count: -1 } },
+        {
+          $project: {
+            device_type: '$_id',
+            generation_count: 1,
+            avg_execution_time: 1,
+            applied_count: 1,
+            _id: 0
+          }
+        }
+      ])
+    ]);
+
+    res.json({
+      success: true,
+      analytics: {
+        period: `${days} days`,
+        performance: performanceStats[0] || {
+          avg_execution_time: 0,
+          min_execution_time: 0,
+          max_execution_time: 0,
+          total_generations: 0,
+          successful_applications: 0
+        },
+        deviceTypes: deviceTypeStats
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching analytics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch analytics'
+    });
+  }
+});
+
+// POST /api/configurations/generate - Generate configuration using Enhanced AI
 router.post('/generate', async (req, res) => {
   try {
+    console.log('🔄 Configuration generation request received:', {
+      body: req.body,
+      deviceId: req.body.device_id,
+      prompt: req.body.prompt?.substring(0, 100) + '...'
+    });
+
     const { error, value } = generateConfigSchema.validate(req.body);
+    
+    if (error) {
+      console.error('❌ Validation error:', error.details);
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        details: error.details,
+        receivedData: req.body
+      });
+    }
+    
+    const { device_id, prompt } = value;
+    console.log('✅ Validation passed, looking for device:', device_id);
+    
+    // Get device details (with ObjectId validation)
+    let device;
+    try {
+      device = await Device.findById(device_id);
+    } catch (err) {
+      console.error('❌ Invalid device ID format:', device_id, err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid device ID format',
+        device_id: device_id,
+        error: 'Device ID must be a valid MongoDB ObjectId'
+      });
+    }
+    
+    if (!device) {
+      console.error('❌ Device not found:', device_id);
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found',
+        device_id: device_id
+      });
+    }
+    
+    console.log('✅ Device found:', { 
+      name: device.name, 
+      type: device.type, 
+      model: device.model 
+    });
+    
+    // Generate configuration using Enhanced AI
+    const startTime = Date.now();
+    console.log('🤖 Starting AI generation...');
+    
+    let aiResult;
+    try {
+      aiResult = await aiService.generateConfiguration(prompt, device.type, {
+        model: device.model,
+        ios_version: device.ios_version,
+        location: device.location
+      });
+    } catch (aiError) {
+      console.error('❌ AI Service Error:', aiError.message);
+      return res.status(503).json({
+        success: false,
+        message: 'AI service is currently unavailable',
+        error: aiError.message,
+        suggestions: [
+          'Ensure Ollama is running on your system',
+          'Check if the model is downloaded: ollama list',
+          'Verify Ollama is accessible at http://localhost:11434'
+        ]
+      });
+    }
+    const executionTime = Date.now() - startTime;
+    
+    console.log('🤖 AI generation completed:', {
+      success: aiResult.success,
+      executionTime: executionTime,
+      configLength: aiResult.configuration?.length || 0,
+      confidenceScore: aiResult.confidenceScore,
+      error: aiResult.error
+    });
+    
+    if (!aiResult.success) {
+      console.error('❌ AI generation failed:', aiResult.error);
+      return res.status(400).json({
+        success: false,
+        message: 'AI generation failed',
+        error: aiResult.error,
+        executionTime: executionTime
+      });
+    }
+    
+    // Save to configuration history
+    const configuration = new ConfigurationHistory({
+      device_id,
+      prompt,
+      generated_config: aiResult.configuration,
+      ai_model: aiResult.model,
+      execution_time: executionTime,
+      status: 'generated'
+    });
+    
+    await configuration.save();
+    console.log('✅ Configuration saved to history:', configuration._id);
+    
+    res.json({
+      success: true,
+      configuration: {
+        ...configuration.toObject(),
+        id: configuration._id, // Add id for compatibility
+        device_name: device.name,
+        device_type: device.type,
+        validation: aiResult.validation,
+        confidenceScore: aiResult.confidenceScore,
+        recommendations: aiResult.recommendations
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Unexpected error in configuration generation:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate configuration',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// POST /api/configurations/rate - Rate a configuration (simplified for raw AI)
+router.post('/rate', async (req, res) => {
+  try {
+    const { error, value } = rateConfigSchema.validate(req.body);
     
     if (error) {
       return res.status(400).json({
@@ -47,56 +276,32 @@ router.post('/generate', async (req, res) => {
       });
     }
     
-    const { device_id, prompt } = value;
+    const { configuration_id, user_rating, feedback_text } = value;
     
-    // Get device details
-    const deviceResult = await query('SELECT * FROM devices WHERE id = $1', [device_id]);
+    // Update configuration with simple rating
+    const configuration = await ConfigurationHistory.findByIdAndUpdate(
+      configuration_id,
+      { user_rating, feedback_text },
+      { new: true }
+    );
     
-    if (deviceResult.rows.length === 0) {
+    if (!configuration) {
       return res.status(404).json({
         success: false,
-        message: 'Device not found'
+        message: 'Configuration not found'
       });
     }
-    
-    const device = deviceResult.rows[0];
-    
-    // Generate configuration using Raw AI
-    const startTime = Date.now();
-    const aiResult = await aiService.generateConfiguration(prompt, device.type);
-    const executionTime = Date.now() - startTime;
-    
-    if (!aiResult.success) {
-      return res.status(400).json({
-        success: false,
-        message: 'Failed to generate configuration',
-        error: aiResult.error
-      });
-    }
-    
-    // Save to configuration history
-    const configResult = await query(`
-      INSERT INTO configuration_history (device_id, prompt, generated_config, ai_model, execution_time, status)
-      VALUES ($1, $2, $3, $4, $5, 'generated')
-      RETURNING *
-    `, [device_id, prompt, aiResult.configuration, aiResult.model, executionTime]);
-    
-    const configuration = configResult.rows[0];
     
     res.json({
       success: true,
-      configuration: {
-        ...configuration,
-        device_name: device.name,
-        device_type: device.type
-      }
+      message: 'Configuration rated successfully'
     });
     
   } catch (error) {
-    console.error('Error generating configuration:', error);
+    console.error('Error rating configuration:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to generate configuration'
+      message: 'Failed to rate configuration'
     });
   }
 });
@@ -117,32 +322,36 @@ router.post('/apply', async (req, res) => {
     const { configuration_id } = value;
     
     // Get configuration and device details
-    const configResult = await query(`
-      SELECT ch.*, d.* 
-      FROM configuration_history ch
-      JOIN devices d ON ch.device_id = d.id
-      WHERE ch.id = $1 AND ch.status = 'generated'
-    `, [configuration_id]);
+    const configuration = await ConfigurationHistory.findOne({
+      _id: configuration_id,
+      status: 'generated'
+    });
     
-    if (configResult.rows.length === 0) {
+    if (!configuration) {
       return res.status(404).json({
         success: false,
         message: 'Configuration not found or already applied'
       });
     }
     
-    const config = configResult.rows[0];
+    const device = await Device.findById(configuration.device_id);
+    
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
     
     try {
       // Apply configuration via SSH
-      const sshResult = await sshService.sendConfigCommands(config, config.generated_config);
+      const sshResult = await sshService.sendConfigCommands(device, configuration.generated_config);
       
       // Update configuration status
-      await query(`
-        UPDATE configuration_history 
-        SET status = 'applied', applied_config = $1, applied_at = CURRENT_TIMESTAMP
-        WHERE id = $2
-      `, [config.generated_config, configuration_id]);
+      configuration.status = 'applied';
+      configuration.applied_config = configuration.generated_config;
+      configuration.applied_at = new Date();
+      await configuration.save();
       
       res.json({
         success: true,
@@ -152,11 +361,9 @@ router.post('/apply', async (req, res) => {
       
     } catch (sshError) {
       // Update configuration status to failed
-      await query(`
-        UPDATE configuration_history 
-        SET status = 'failed', error_message = $1
-        WHERE id = $2
-      `, [sshError.message, configuration_id]);
+      configuration.status = 'failed';
+      configuration.error_message = sshError.message;
+      await configuration.save();
       
       res.status(500).json({
         success: false,
@@ -180,18 +387,28 @@ router.get('/history/:device_id', async (req, res) => {
     const { device_id } = req.params;
     const { limit = 20, offset = 0 } = req.query;
     
-    const result = await query(`
-      SELECT ch.*, d.name as device_name, d.type as device_type
-      FROM configuration_history ch
-      JOIN devices d ON ch.device_id = d.id
-      WHERE ch.device_id = $1
-      ORDER BY ch.created_at DESC
-      LIMIT $2 OFFSET $3
-    `, [device_id, limit, offset]);
+    const configurations = await ConfigurationHistory.find({ device_id })
+      .sort({ created_at: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset))
+      .lean();
+    
+    // Get device info for each configuration
+    const enhancedConfigurations = await Promise.all(
+      configurations.map(async (config) => {
+        const device = await Device.findById(config.device_id).select('name type').lean();
+        return {
+          ...config,
+          id: config._id, // Add id for compatibility
+          device_name: device?.name,
+          device_type: device?.type
+        };
+      })
+    );
     
     res.json({
       success: true,
-      configurations: result.rows
+      configurations: enhancedConfigurations
     });
     
   } catch (error) {
@@ -203,43 +420,43 @@ router.get('/history/:device_id', async (req, res) => {
   }
 });
 
-// GET /api/configurations/history - Get all configuration history
+// GET /api/configurations/history - Get all configuration history (simplified for raw AI)
 router.get('/history', async (req, res) => {
   try {
     const { limit = 50, offset = 0, status } = req.query;
     
-    let queryText = `
-      SELECT ch.*, d.name as device_name, d.type as device_type, d.ip_address
-      FROM configuration_history ch
-      JOIN devices d ON ch.device_id = d.id
-    `;
-    let countQueryText = `
-      SELECT COUNT(*) as total
-      FROM configuration_history ch
-      JOIN devices d ON ch.device_id = d.id
-    `;
-    const queryParams = [];
-    const countParams = [];
+    // Build filter
+    const filter = {};
+    if (status) filter.status = status;
     
-    if (status) {
-      queryParams.push(status);
-      countParams.push(status);
-      queryText += ` WHERE ch.status = $${queryParams.length}`;
-      countQueryText += ` WHERE ch.status = $${countParams.length}`;
-    }
+    // Get configurations with pagination
+    const configurations = await ConfigurationHistory.find(filter)
+      .sort({ created_at: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset))
+      .lean();
     
-    queryParams.push(limit, offset);
-    queryText += ` ORDER BY ch.created_at DESC LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`;
+    // Get total count
+    const total = await ConfigurationHistory.countDocuments(filter);
     
-    const [result, countResult] = await Promise.all([
-      query(queryText, queryParams),
-      query(countQueryText, countParams)
-    ]);
+    // Enhance configurations with device info
+    const enhancedConfigurations = await Promise.all(
+      configurations.map(async (config) => {
+        const device = await Device.findById(config.device_id).select('name type ip_address').lean();
+        return {
+          ...config,
+          id: config._id, // Add id for compatibility
+          device_name: device?.name,
+          device_type: device?.type,
+          ip_address: device?.ip_address
+        };
+      })
+    );
     
     res.json({
       success: true,
-      configurations: result.rows,
-      total: parseInt(countResult.rows[0].total),
+      configurations: enhancedConfigurations,
+      total,
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
@@ -253,36 +470,40 @@ router.get('/history', async (req, res) => {
   }
 });
 
-// GET /api/configurations/:id - Get specific configuration
+// GET /api/configurations/:id - Get specific configuration (simplified for raw AI)
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const result = await query(`
-      SELECT ch.*, d.name as device_name, d.type as device_type, d.ip_address
-      FROM configuration_history ch
-      JOIN devices d ON ch.device_id = d.id
-      WHERE ch.id = $1
-    `, [id]);
+    const configuration = await ConfigurationHistory.findById(id).lean();
     
-    if (result.rows.length === 0) {
+    if (!configuration) {
       return res.status(404).json({
         success: false,
         message: 'Configuration not found'
       });
     }
     
-    const configuration = result.rows[0];
+    // Get device info
+    const device = await Device.findById(configuration.device_id).select('name type ip_address').lean();
+    
+    const enhancedConfiguration = {
+      ...configuration,
+      id: configuration._id, // Add id for compatibility
+      device_name: device?.name,
+      device_type: device?.type,
+      ip_address: device?.ip_address
+    };
     
     // Get explanation if needed
     if (req.query.explain === 'true') {
       const explanation = await aiService.explainConfiguration(configuration.generated_config);
-      configuration.explanation = explanation;
+      enhancedConfiguration.explanation = explanation;
     }
     
     res.json({
       success: true,
-      configuration
+      configuration: enhancedConfiguration
     });
     
   } catch (error) {
@@ -299,9 +520,9 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const result = await query('DELETE FROM configuration_history WHERE id = $1 RETURNING *', [id]);
+    const configuration = await ConfigurationHistory.findByIdAndDelete(id);
     
-    if (result.rows.length === 0) {
+    if (!configuration) {
       return res.status(404).json({
         success: false,
         message: 'Configuration not found'

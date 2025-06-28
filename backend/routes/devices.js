@@ -1,35 +1,37 @@
 import express from 'express';
 import Joi from 'joi';
-import { query } from '../lib/database.js';
+import Device from '../models/Device.js';
+import ConfigurationHistory from '../models/ConfigurationHistory.js';
+import sshService from '../services/sshService.js';
 
 const router = express.Router();
 
 // Validation schemas
-const createDeviceSchema = Joi.object({
+const deviceSchema = Joi.object({
   name: Joi.string().required().max(255),
-  type: Joi.string().required().max(50),
+  type: Joi.string().valid('router', 'switch', 'firewall').required(),
   ip_address: Joi.string().ip().required(),
   ssh_port: Joi.number().integer().min(1).max(65535).default(22),
   username: Joi.string().required().max(255),
   password: Joi.string().required().max(255),
-  description: Joi.string().max(1000).allow(''),
-  location: Joi.string().max(255).allow(''),
-  model: Joi.string().max(255).allow(''),
-  ios_version: Joi.string().max(255).allow(''),
+  description: Joi.string().allow('').max(1000),
+  location: Joi.string().allow('').max(255),
+  model: Joi.string().allow('').max(255),
+  ios_version: Joi.string().allow('').max(255),
   status: Joi.string().valid('active', 'inactive', 'maintenance', 'error').default('inactive')
 });
 
-const updateDeviceSchema = Joi.object({
+const deviceUpdateSchema = Joi.object({
   name: Joi.string().max(255),
-  type: Joi.string().max(50),
+  type: Joi.string().valid('router', 'switch', 'firewall'),
   ip_address: Joi.string().ip(),
   ssh_port: Joi.number().integer().min(1).max(65535),
   username: Joi.string().max(255),
-  password: Joi.string().max(255),
-  description: Joi.string().max(1000).allow(''),
-  location: Joi.string().max(255).allow(''),
-  model: Joi.string().max(255).allow(''),
-  ios_version: Joi.string().max(255).allow(''),
+  password: Joi.string().max(255).allow(''), // Allow empty string for updates (keep existing password)
+  description: Joi.string().allow('').max(1000),
+  location: Joi.string().allow('').max(255),
+  model: Joi.string().allow('').max(255),
+  ios_version: Joi.string().allow('').max(255),
   status: Joi.string().valid('active', 'inactive', 'maintenance', 'error')
 });
 
@@ -38,52 +40,58 @@ router.get('/', async (req, res) => {
   try {
     const { status, type, limit = 50, offset = 0 } = req.query;
     
-    let queryText = `
-      SELECT d.*, 
-             COUNT(ch.id) as total_configs,
-             COUNT(CASE WHEN ch.status = 'applied' THEN 1 END) as applied_configs,
-             MAX(ch.created_at) as last_config_date
-      FROM devices d
-      LEFT JOIN configuration_history ch ON d.id = ch.device_id
-    `;
+    // Build query filter
+    const filter = {};
+    if (status) filter.status = status;
+    if (type) filter.type = type;
     
-    const queryParams = [];
-    const conditions = [];
-    
-    if (status) {
-      conditions.push(`d.status = $${queryParams.length + 1}`);
-      queryParams.push(status);
-    }
-    
-    if (type) {
-      conditions.push(`d.type = $${queryParams.length + 1}`);
-      queryParams.push(type);
-    }
-    
-    if (conditions.length > 0) {
-      queryText += ` WHERE ${conditions.join(' AND ')}`;
-    }
-    
-    queryText += ` GROUP BY d.id ORDER BY d.created_at DESC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
-    queryParams.push(limit, offset);
-    
-    const result = await query(queryText, queryParams);
+    // Get devices with pagination
+    const devices = await Device.find(filter)
+      .sort({ created_at: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset))
+      .lean();
     
     // Get total count for pagination
-    let countQuery = 'SELECT COUNT(*) as total FROM devices d';
-    let countParams = [];
+    const total = await Device.countDocuments(filter);
     
-    if (conditions.length > 0) {
-      countQuery += ` WHERE ${conditions.join(' AND ')}`;
-      countParams = queryParams.slice(0, -2); // Remove limit and offset
-    }
-    
-    const countResult = await query(countQuery, countParams);
+    // Enhance devices with configuration stats
+    const enhancedDevices = await Promise.all(
+      devices.map(async (device) => {
+        const configStats = await ConfigurationHistory.aggregate([
+          { $match: { device_id: device._id } },
+          {
+            $group: {
+              _id: null,
+              total_configs: { $sum: 1 },
+              applied_configs: {
+                $sum: { $cond: [{ $eq: ['$status', 'applied'] }, 1, 0] }
+              },
+              last_config_date: { $max: '$created_at' }
+            }
+          }
+        ]);
+        
+        const stats = configStats[0] || {
+          total_configs: 0,
+          applied_configs: 0,
+          last_config_date: null
+        };
+        
+        return {
+          ...device,
+          id: device._id, // Add id for compatibility
+          total_configs: stats.total_configs,
+          applied_configs: stats.applied_configs,
+          last_config_date: stats.last_config_date
+        };
+      })
+    );
     
     res.json({
       success: true,
-      devices: result.rows,
-      total: parseInt(countResult.rows[0].total),
+      devices: enhancedDevices,
+      total,
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
@@ -97,32 +105,30 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/devices/:id - Get specific device
+// GET /api/devices/:id - Get single device
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const result = await query(`
-      SELECT d.*, 
-             COUNT(ch.id) as total_configs,
-             COUNT(CASE WHEN ch.status = 'applied' THEN 1 END) as applied_configs,
-             MAX(ch.created_at) as last_config_date
-      FROM devices d
-      LEFT JOIN configuration_history ch ON d.id = ch.device_id
-      WHERE d.id = $1
-      GROUP BY d.id
-    `, [id]);
+    const device = await Device.findById(id).lean();
     
-    if (result.rows.length === 0) {
+    if (!device) {
       return res.status(404).json({
         success: false,
         message: 'Device not found'
       });
     }
     
+    // Add id field for compatibility and exclude password
+    const deviceWithId = {
+      ...device,
+      id: device._id,
+      password: undefined
+    };
+    
     res.json({
       success: true,
-      device: result.rows[0]
+      device: deviceWithId
     });
     
   } catch (error) {
@@ -137,7 +143,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/devices - Create new device
 router.post('/', async (req, res) => {
   try {
-    const { error, value } = createDeviceSchema.validate(req.body);
+    const { error, value } = deviceSchema.validate(req.body);
     
     if (error) {
       return res.status(400).json({
@@ -147,33 +153,37 @@ router.post('/', async (req, res) => {
       });
     }
     
-    const {
-      name, type, ip_address, ssh_port, username, password,
-      description, location, model, ios_version, status
-    } = value;
-    
-    // Check if device name or IP already exists
-    const existingDevice = await query(
-      'SELECT id FROM devices WHERE name = $1 OR ip_address = $2',
-      [name, ip_address]
-    );
-    
-    if (existingDevice.rows.length > 0) {
+    // Check for duplicate IP address
+    const existingDevice = await Device.findOne({ ip_address: value.ip_address });
+    if (existingDevice) {
       return res.status(400).json({
         success: false,
-        message: 'Device with this name or IP address already exists'
+        message: 'Device with this IP address already exists'
       });
     }
     
-    const result = await query(`
-      INSERT INTO devices (name, type, ip_address, ssh_port, username, password, description, location, model, ios_version, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      RETURNING *
-    `, [name, type, ip_address, ssh_port, username, password, description, location, model, ios_version, status]);
+    // Check for duplicate name
+    const existingName = await Device.findOne({ name: value.name });
+    if (existingName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Device with this name already exists'
+      });
+    }
+    
+    const device = new Device(value);
+    await device.save();
+    
+    // Return device without password
+    const deviceResponse = {
+      ...device.toObject(),
+      id: device._id,
+      password: undefined
+    };
     
     res.status(201).json({
       success: true,
-      device: result.rows[0],
+      device: deviceResponse,
       message: 'Device created successfully'
     });
     
@@ -190,7 +200,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { error, value } = updateDeviceSchema.validate(req.body);
+    const { error, value } = deviceUpdateSchema.validate(req.body);
     
     if (error) {
       return res.status(400).json({
@@ -200,61 +210,62 @@ router.put('/:id', async (req, res) => {
       });
     }
     
-    // Check if device exists
-    const existingDevice = await query('SELECT * FROM devices WHERE id = $1', [id]);
+    // Remove empty password field (keep existing password)
+    if (value.password === '') {
+      delete value.password;
+    }
     
-    if (existingDevice.rows.length === 0) {
+    // Check for duplicate IP address (excluding current device)
+    if (value.ip_address) {
+      const existingDevice = await Device.findOne({ 
+        ip_address: value.ip_address,
+        _id: { $ne: id }
+      });
+      if (existingDevice) {
+        return res.status(400).json({
+          success: false,
+          message: 'Device with this IP address already exists'
+        });
+      }
+    }
+    
+    // Check for duplicate name (excluding current device)
+    if (value.name) {
+      const existingName = await Device.findOne({ 
+        name: value.name,
+        _id: { $ne: id }
+      });
+      if (existingName) {
+        return res.status(400).json({
+          success: false,
+          message: 'Device with this name already exists'
+        });
+      }
+    }
+    
+    const device = await Device.findByIdAndUpdate(
+      id, 
+      { ...value, updatedAt: new Date() }, 
+      { new: true, runValidators: true }
+    );
+    
+    if (!device) {
       return res.status(404).json({
         success: false,
         message: 'Device not found'
       });
     }
     
-    const {
-      name, type, ip_address, ssh_port, username, password,
-      description, location, model, ios_version, status
-    } = value;
-    
-    // Check for duplicate name or IP (excluding current device)
-    if (name || ip_address) {
-      const duplicateCheck = await query(
-        'SELECT id FROM devices WHERE (name = $1 OR ip_address = $2) AND id != $3',
-        [name || existingDevice.rows[0].name, ip_address || existingDevice.rows[0].ip_address, id]
-      );
-      
-      if (duplicateCheck.rows.length > 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'Device with this name or IP address already exists'
-        });
-      }
-    }
-    
-    // For security, hash password if it's being updated
-    const finalPassword = password || existingDevice.rows[0].password;
-    
-    const result = await query(`
-      UPDATE devices 
-      SET name = $1, type = $2, ip_address = $3, ssh_port = $4, username = $5, password = $6,
-          description = $7, location = $8, model = $9, ios_version = $10, status = $11, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $12
-      RETURNING *
-    `, [name || existingDevice.rows[0].name, 
-        type || existingDevice.rows[0].type,
-        ip_address || existingDevice.rows[0].ip_address,
-        ssh_port || existingDevice.rows[0].ssh_port,
-        username || existingDevice.rows[0].username,
-        finalPassword,
-        description !== undefined ? description : existingDevice.rows[0].description,
-        location !== undefined ? location : existingDevice.rows[0].location,
-        model !== undefined ? model : existingDevice.rows[0].model,
-        ios_version !== undefined ? ios_version : existingDevice.rows[0].ios_version,
-        status || existingDevice.rows[0].status,
-        id]);
+    // Return device without password
+    const deviceResponse = {
+      ...device.toObject(),
+      id: device._id,
+      password: undefined
+    };
     
     res.json({
       success: true,
-      device: result.rows[0],
+      device: deviceResponse,
       message: 'Device updated successfully'
     });
     
@@ -272,22 +283,18 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Check if device exists
-    const existingDevice = await query('SELECT name FROM devices WHERE id = $1', [id]);
+    const device = await Device.findByIdAndDelete(id);
     
-    if (existingDevice.rows.length === 0) {
+    if (!device) {
       return res.status(404).json({
         success: false,
         message: 'Device not found'
       });
     }
     
-    // Delete device (CASCADE will handle related records)
-    await query('DELETE FROM devices WHERE id = $1', [id]);
-    
     res.json({
       success: true,
-      message: `Device "${existingDevice.rows[0].name}" deleted successfully`
+      message: 'Device deleted successfully'
     });
     
   } catch (error) {
@@ -304,21 +311,20 @@ router.get('/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const result = await query('SELECT id, name, type, ip_address, status FROM devices WHERE id = $1', [id]);
+    const device = await Device.findById(id).select('_id name type ip_address status').lean();
     
-    if (result.rows.length === 0) {
+    if (!device) {
       return res.status(404).json({
         success: false,
         message: 'Device not found'
       });
     }
     
-    const device = result.rows[0];
-    
     res.json({
       success: true,
       device: {
         ...device,
+        id: device._id, // Add id for compatibility
         last_checked: new Date().toISOString(),
         connection_status: device.status
       }
@@ -336,22 +342,48 @@ router.get('/:id/status', async (req, res) => {
 // GET /api/devices/stats/summary - Get devices summary statistics
 router.get('/stats/summary', async (req, res) => {
   try {
-    const stats = await query(`
-      SELECT 
-        COUNT(*) as total_devices,
-        COUNT(CASE WHEN status = 'active' THEN 1 END) as active_devices,
-        COUNT(CASE WHEN status = 'inactive' THEN 1 END) as inactive_devices,
-        COUNT(CASE WHEN status = 'maintenance' THEN 1 END) as maintenance_devices,
-        COUNT(CASE WHEN status = 'error' THEN 1 END) as error_devices,
-        COUNT(CASE WHEN type = 'router' THEN 1 END) as routers,
-        COUNT(CASE WHEN type = 'switch' THEN 1 END) as switches,
-        COUNT(CASE WHEN type = 'firewall' THEN 1 END) as firewalls
-      FROM devices
-    `);
+    const stats = await Device.aggregate([
+      {
+        $group: {
+          _id: null,
+          total_devices: { $sum: 1 },
+          active_devices: {
+            $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] }
+          },
+          inactive_devices: {
+            $sum: { $cond: [{ $eq: ['$status', 'inactive'] }, 1, 0] }
+          },
+          maintenance_devices: {
+            $sum: { $cond: [{ $eq: ['$status', 'maintenance'] }, 1, 0] }
+          },
+          error_devices: {
+            $sum: { $cond: [{ $eq: ['$status', 'error'] }, 1, 0] }
+          },
+          routers: {
+            $sum: { $cond: [{ $eq: ['$type', 'router'] }, 1, 0] }
+          },
+          switches: {
+            $sum: { $cond: [{ $eq: ['$type', 'switch'] }, 1, 0] }
+          },
+          firewalls: {
+            $sum: { $cond: [{ $eq: ['$type', 'firewall'] }, 1, 0] }
+          }
+        }
+      }
+    ]);
     
     res.json({
       success: true,
-      stats: stats.rows[0]
+      stats: stats[0] || {
+        total_devices: 0,
+        active_devices: 0,
+        inactive_devices: 0,
+        maintenance_devices: 0,
+        error_devices: 0,
+        routers: 0,
+        switches: 0,
+        firewalls: 0
+      }
     });
     
   } catch (error) {
@@ -359,6 +391,73 @@ router.get('/stats/summary', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch device statistics'
+    });
+  }
+});
+
+// POST /api/devices/:id/test - Test SSH connection to device
+router.post('/:id/test', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get device from database
+    const device = await Device.findById(id);
+    
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    // Test SSH connection
+    let testResult;
+    try {
+      testResult = await sshService.testConnection(device);
+    } catch (error) {
+      testResult = {
+        success: false,
+        message: error.message
+      };
+    }
+    
+    // Handle case where testResult might be undefined or malformed
+    if (!testResult || typeof testResult !== 'object') {
+      testResult = {
+        success: false,
+        message: 'SSH service returned invalid response'
+      };
+    }
+    
+    // Ensure success property exists
+    if (testResult.success === undefined) {
+      testResult.success = false;
+    }
+    
+    // Update device status based on test result
+    const newStatus = testResult.success ? 'active' : 'error';
+    try {
+      await Device.findByIdAndUpdate(id, { 
+        status: newStatus,
+        updated_at: new Date()
+      });
+    } catch (updateError) {
+      console.warn('Failed to update device status:', updateError.message);
+    }
+    
+    res.json({
+      success: testResult.success,
+      message: testResult.success ? 'SSH connection test successful' : 'SSH connection test failed',
+      connectionTest: testResult,
+      deviceStatus: newStatus
+    });
+    
+  } catch (error) {
+    console.error('Error testing device connection:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to test device connection',
+      error: error.message
     });
   }
 });

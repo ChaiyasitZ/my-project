@@ -107,14 +107,28 @@ function Devices() {
     
     try {
       const response = await axios.post(`/devices/${device.id}/test`);
-      const result = response.data.connectionTest;
       
-      if (result.success) {
-        console.log('✅ SSH Connection successful for', device.name + ':', result.message);
-        toast.success(`SSH connection to ${device.name} successful!`, { id: toastId });
+      // Add null/undefined checks for nested properties
+      if (response.data && response.data.connectionTest) {
+        const result = response.data.connectionTest;
+        
+        if (result.success) {
+          console.log('✅ SSH Connection successful for', device.name + ':', result.message);
+          toast.success(`SSH connection to ${device.name} successful!`, { id: toastId });
+        } else {
+          console.warn('⚠️ SSH Connection failed for', device.name + ':', result.message);
+          toast.error(`SSH connection to ${device.name} failed: ${result.message}`, { id: toastId });
+        }
+      } else if (response.data && response.data.success !== undefined) {
+        // Handle direct success response format
+        if (response.data.success) {
+          toast.success(`SSH connection to ${device.name} successful!`, { id: toastId });
+        } else {
+          toast.error(`SSH connection to ${device.name} failed: ${response.data.message || 'Unknown error'}`, { id: toastId });
+        }
       } else {
-        console.warn('⚠️ SSH Connection failed for', device.name + ':', result.message);
-        toast.error(`SSH connection to ${device.name} failed: ${result.message}`, { id: toastId });
+        console.error('Invalid response format:', response.data);
+        toast.error(`Connection test failed: Invalid response from server`, { id: toastId });
       }
     } catch (error) {
       console.error('❌ SSH Connection test failed for', device.name + ':', error.response?.data?.message || error.message);

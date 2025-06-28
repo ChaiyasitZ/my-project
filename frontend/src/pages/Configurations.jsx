@@ -19,10 +19,11 @@ function Configurations() {
   const [isValidating, setIsValidating] = useState(false);
   const [generatedConfig, setGeneratedConfig] = useState(null);
   const [validation, setValidation] = useState(null);
-
+  const [aiStatus, setAiStatus] = useState(null);
 
   useEffect(() => {
     fetchDevices();
+    checkAiStatus();
   }, []);
 
   const fetchDevices = async () => {
@@ -34,7 +35,16 @@ function Configurations() {
     }
   };
 
-
+  const checkAiStatus = async () => {
+    try {
+      const response = await axios.get('/configurations/ai-status');
+      setAiStatus(response.data.aiService);
+      console.log('🤖 AI Service Status:', response.data.aiService);
+    } catch (error) {
+      console.error('Error checking AI status:', error);
+      setAiStatus({ status: 'error', error: error.message });
+    }
+  };
 
   const handleGenerateConfiguration = async (e) => {
     e.preventDefault();
@@ -45,7 +55,7 @@ function Configurations() {
     
     try {
       const requestData = {
-        device_id: parseInt(selectedDevice),
+        device_id: selectedDevice,
         prompt: prompt
       };
 
@@ -65,29 +75,56 @@ function Configurations() {
         throw new Error(response.data.error || 'No configuration generated');
       }
     } catch (error) {
-      console.error('Error generating configuration:', error);
+      console.error('❌ Error generating configuration:', error);
+      console.error('📊 Error details:', error.response?.data);
       
       let errorMessage = '';
-      if (error.response?.data?.error && error.response.data.error.includes('could not generate')) {
-        // Special handling for generation errors
-        errorMessage = `❌ Configuration Generation Failed\n\n`;
-        errorMessage += `Try being more specific about what you want to configure:\n\n`;
-        errorMessage += `Examples:\n`;
-        errorMessage += `• "interface fe0/1 ip 192.168.1.1/24"\n`;
-        errorMessage += `• "username admin password cisco123"\n`;
-        errorMessage += `• "vlan 100 sales"\n`;
-        errorMessage += `• "hostname Router1"\n\n`;
-        errorMessage += `Use proper Cisco command format.`;
-      } else if (error.response?.data?.details) {
-        // Show validation details
-        const details = error.response.data.details.map(d => d.message).join(', ');
-        errorMessage = 'Validation error: ' + details;
+      let showSuggestions = false;
+      
+      if (error.response?.status === 503) {
+        // AI service unavailable
+        errorMessage = '🤖 AI Service Unavailable';
+        showSuggestions = true;
+      } else if (error.response?.status === 400) {
+        const errorData = error.response.data;
+        
+        if (errorData.details) {
+          // Validation error
+          const details = errorData.details.map(d => d.message).join(', ');
+          errorMessage = `Validation Error: ${details}`;
+        } else if (errorData.error?.includes('ObjectId')) {
+          // Device ID format error
+          errorMessage = 'Invalid device selection. Please refresh the page and try again.';
+        } else if (errorData.message?.includes('AI generation failed')) {
+          // AI generation error
+          errorMessage = 'AI could not generate a valid configuration. Try being more specific.';
+          showSuggestions = true;
+        } else {
+          errorMessage = errorData.message || 'Configuration generation failed';
+        }
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Selected device not found. Please refresh and try again.';
       } else {
-        errorMessage = 'Error: ' + (error.response?.data?.message || error.message);
+        errorMessage = error.response?.data?.message || error.message || 'Network error occurred';
       }
       
       console.warn('⚠️', errorMessage);
-      toast.error(errorMessage, { id: toastId });
+      
+      // Show error with suggestions if applicable
+      if (showSuggestions && error.response?.data?.suggestions) {
+        const suggestions = error.response.data.suggestions.join('\n• ');
+        toast.error(`${errorMessage}\n\nSuggestions:\n• ${suggestions}`, { 
+          id: toastId,
+          duration: 8000 
+        });
+      } else {
+        toast.error(errorMessage, { id: toastId });
+      }
+      
+      // Refresh AI status if it's an AI service error
+      if (error.response?.status === 503) {
+        checkAiStatus();
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -173,13 +210,73 @@ function Configurations() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">AI Configuration Generator</h1>
-        <p className="mt-2 text-gray-600">
-          Generate Cisco device configurations using local AI with Ollama
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">AI Configuration Generator</h1>
+            <p className="mt-2 text-gray-600">
+              Generate Cisco device configurations using local AI with Ollama
+            </p>
+          </div>
+          {/* AI Status Indicator */}
+          {aiStatus && (
+            <div className="flex items-center space-x-2">
+              <div className={`h-3 w-3 rounded-full ${
+                aiStatus.status === 'connected' ? 'bg-green-500' : 
+                aiStatus.status === 'disconnected' ? 'bg-red-500' : 'bg-yellow-500'
+              }`}></div>
+              <span className="text-sm text-gray-600">
+                {aiStatus.status === 'connected' ? 'AI Service Online' : 
+                 aiStatus.status === 'disconnected' ? 'AI Service Offline' : 'AI Service Checking...'}
+              </span>
+              <button
+                onClick={checkAiStatus}
+                className="text-sm text-blue-600 hover:text-blue-800"
+              >
+                Refresh
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
-
+      {/* AI Service Warning */}
+      {aiStatus && aiStatus.status !== 'connected' && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800">
+                AI Service Issue
+              </h3>
+              <div className="mt-2 text-sm text-yellow-700">
+                <p>
+                  {aiStatus.status === 'disconnected' 
+                    ? 'The Ollama AI service is not available. Make sure Ollama is running on your system.'
+                    : 'There was an error connecting to the AI service.'
+                  }
+                </p>
+                {aiStatus.error && (
+                  <p className="mt-1 font-mono text-xs bg-yellow-100 p-2 rounded">
+                    Error: {aiStatus.error}
+                  </p>
+                )}
+                <div className="mt-3">
+                  <p className="font-medium">To fix this:</p>
+                  <ul className="list-disc list-inside mt-1 space-y-1">
+                    <li>Ensure Ollama is installed and running</li>
+                    <li>Check if the service is accessible at http://localhost:11434</li>
+                    <li>Verify the model ({aiStatus.model || 'codellama:13b'}) is downloaded</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Generation Form */}

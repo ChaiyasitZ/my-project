@@ -9,7 +9,8 @@ import {
   TerminalIcon,
   Archive,
   Menu,
-  X
+  X,
+  Activity
 } from 'lucide-react';
 
 const navigation = [
