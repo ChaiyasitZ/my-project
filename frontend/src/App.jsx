@@ -28,6 +28,9 @@ console.log('✅ ConsoleConfiguration imported');
 import BackupManagement from './pages/BackupManagement';
 console.log('✅ BackupManagement imported');
 
+import NetconfManagement from './pages/NetconfManagement';
+console.log('✅ NetconfManagement imported');
+
 import NotFound from './pages/NotFound';
 console.log('✅ NotFound imported');
 
@@ -35,7 +38,7 @@ import './App.css';
 console.log('✅ All imports completed');
 
 // API Configuration
-axios.defaults.baseURL = 'http://localhost:5000/api';
+axios.defaults.baseURL = 'http://localhost:3001/api';
 
 function App() {
   console.log('🏁 App component rendering...');
@@ -79,6 +82,7 @@ function App() {
                 <Route path="/configuration-history" element={<ConfigurationHistory />} />
                 <Route path="/console" element={<ConsoleConfiguration />} />
                 <Route path="/backups" element={<BackupManagement />} />
+                <Route path="/netconf" element={<NetconfManagement />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </div>

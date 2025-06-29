@@ -9,7 +9,8 @@ import {
   EyeIcon,
   TrashIcon,
   FilterIcon,
-  Trash2Icon
+  Trash2Icon,
+  HistoryIcon
 } from 'lucide-react';
 
 function ConfigurationHistory() {
@@ -19,8 +20,6 @@ function ConfigurationHistory() {
   const [filter, setFilter] = useState('all');
   const [selectedConfig, setSelectedConfig] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [loadingDetails, setLoadingDetails] = useState(false);
-  const [configDetails, setConfigDetails] = useState(null);
 
   useEffect(() => {
     fetchConfigurations();
@@ -38,19 +37,13 @@ function ConfigurationHistory() {
     }
   };
 
+  const applyFilters = () => {
+    return configurations;
+  };
+
   const viewDetails = async (config) => {
     setSelectedConfig(config);
-    setLoadingDetails(true);
-    
-    try {
-      const response = await axios.get(`/configurations/${config.id}`);
-      setConfigDetails(response.data.configuration);
-    } catch (error) {
-      console.error('❌ Error loading configuration details:', error.response?.data?.message || error.message);
-      toast.error('Failed to load configuration details');
-    } finally {
-      setLoadingDetails(false);
-    }
+    setShowModal(true);
   };
 
   const deleteConfiguration = async (configId) => {
@@ -61,7 +54,6 @@ function ConfigurationHistory() {
       fetchConfigurations();
       if (selectedConfig?.id === configId) {
         setSelectedConfig(null);
-        setConfigDetails(null);
       }
     } catch (error) {
       console.error('❌ Error deleting configuration:', error.response?.data?.message || error.message);
@@ -79,18 +71,7 @@ function ConfigurationHistory() {
       return;
     }
 
-    // Create detailed summary for the confirmation
-    const deviceBreakdown = configurationsToDelete.reduce((acc, config) => {
-      const deviceName = devices.find(d => d.id === config.device_id)?.name || 'Unknown Device';
-      acc[deviceName] = (acc[deviceName] || 0) + 1;
-      return acc;
-    }, {});
-
-    const summaryText = Object.entries(deviceBreakdown)
-      .map(([device, count]) => `• ${device}: ${count} configuration${count > 1 ? 's' : ''}`)
-      .join('\n');
-
-    const confirmationMessage = `Are you sure you want to delete ${configurationsToDelete.length} configuration${configurationsToDelete.length > 1 ? 's' : ''}?\n\nBreakdown:\n${summaryText}\n\nThis action cannot be undone.`;
+    const confirmationMessage = `Are you sure you want to delete ${configurationsToDelete.length} configuration${configurationsToDelete.length > 1 ? 's' : ''}?\n\nThis action cannot be undone.`;
 
     if (window.confirm(confirmationMessage)) {
       setClearingAll(true);
@@ -111,7 +92,6 @@ function ConfigurationHistory() {
         // Clear selection if it was deleted
         if (selectedConfig && configurationsToDelete.some(c => c.id === selectedConfig.id)) {
           setSelectedConfig(null);
-          setConfigDetails(null);
         }
       } catch (error) {
         console.error('❌ Error clearing configurations:', error.response?.data?.message || error.message);
@@ -167,51 +147,61 @@ function ConfigurationHistory() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Configuration History</h1>
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+            <HistoryIcon className="h-8 w-8 text-blue-600" />
+            Configuration History
+          </h1>
           <p className="mt-2 text-gray-600">
-            View and manage configuration history across all devices
+            View and manage configuration generation history
           </p>
         </div>
+        <button
+          onClick={fetchConfigurations}
+          disabled={loading}
+          className="btn btn-secondary btn-md"
+        >
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
+      </div>
+
+      {/* Controls */}
+      <div className="flex items-center space-x-3">
+        {/* Clear All Button */}
+        {configurations.length > 0 && (
+          <button
+            onClick={handleClearAll}
+            disabled={clearingAll}
+            className="inline-flex items-center px-4 py-2 border border-red-300 rounded-lg text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title={`Clear ${filter === 'all' ? 'all configurations' : `all ${filter} configurations`}`}
+          >
+            {clearingAll ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
+                Clearing...
+              </>
+            ) : (
+              <>
+                <Trash2Icon className="h-4 w-4 mr-2" />
+                Clear All ({configurations.length})
+              </>
+            )}
+          </button>
+        )}
         
-        {/* Controls */}
-        <div className="flex items-center space-x-3">
-          {/* Clear All Button */}
-          {configurations.length > 0 && (
-            <button
-              onClick={handleClearAll}
-              disabled={clearingAll}
-              className="inline-flex items-center px-4 py-2 border border-red-300 rounded-lg text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              title={`Clear ${filter === 'all' ? 'all configurations' : `all ${filter} configurations`}`}
-            >
-              {clearingAll ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
-                  Clearing...
-                </>
-              ) : (
-                <>
-                  <Trash2Icon className="h-4 w-4 mr-2" />
-                  Clear All ({configurations.length})
-                </>
-              )}
-            </button>
-          )}
-          
-          {/* Filter */}
-          <div className="flex items-center space-x-2">
-            <FilterIcon className="h-5 w-5 text-gray-500" />
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="input w-48"
-            >
-              <option value="all">All Configurations</option>
-              <option value="generated">Generated</option>
-              <option value="applied">Applied</option>
-              <option value="failed">Failed</option>
-              <option value="rolled_back">Rolled Back</option>
-            </select>
-          </div>
+        {/* Filter */}
+        <div className="flex items-center space-x-2">
+          <FilterIcon className="h-5 w-5 text-gray-500" />
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="input w-48"
+          >
+            <option value="all">All Configurations</option>
+            <option value="generated">Generated</option>
+            <option value="applied">Applied</option>
+            <option value="failed">Failed</option>
+            <option value="rolled_back">Rolled Back</option>
+          </select>
         </div>
       </div>
 

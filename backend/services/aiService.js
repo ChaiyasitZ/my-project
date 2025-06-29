@@ -1,4 +1,5 @@
 import axios from 'axios';
+import templateService from './templateService.js';
 
 export class AIService {
   constructor() {
@@ -10,6 +11,7 @@ export class AIService {
     });
     
     console.log(`🤖 Enhanced Cisco AI Service initialized with ${this.model} at ${this.host}`);
+    console.log(`🔧 Template-based generation enabled for faster configuration`);
     
     // Strict Cisco IOS command patterns for validation
     this.ciscoPatterns = {
@@ -48,70 +50,226 @@ export class AIService {
     };
   }
 
-  // Enhanced configuration generation with Cisco-specific optimization
+  // Enhanced configuration generation with Template-First approach
   async generateConfiguration(prompt, deviceType, deviceContext = {}) {
     const startTime = Date.now();
     
     try {
-      console.log(`🤖 Enhanced Cisco AI generation for ${deviceType}: "${prompt}"`);
+      console.log(`🤖 Hybrid AI generation for ${deviceType}: "${prompt}"`);
 
-      // Build enhanced Cisco-specific prompt
-      const aiPrompt = this.buildEnhancedCiscoPrompt(prompt, deviceType, deviceContext);
-
-      // Generate with optimized parameters
-      const response = await this.client.post("/api/generate", {
-        model: this.model,
-        prompt: aiPrompt,
-        stream: false,
-        options: {
-          temperature: 0.1, // Low temperature for consistent syntax
-          top_k: 25,
-          top_p: 0.8,
-          num_predict: 1500, // Increased for complex configurations
-          repeat_penalty: 1.1,
-          stop: ["```", "---", "Note:", "Explanation:"] // Stop on common non-config patterns
-        },
-      });
-
-      const rawResponse = response.data.response.trim();
+      // STEP 1: Try template-based generation first (FAST)
+      console.log('🔧 Attempting template-based generation...');
+      const templateResult = await templateService.generateFromTemplate(prompt, deviceType, deviceContext);
       
-      if (!rawResponse || rawResponse.length < 20) {
+      if (templateResult.success && templateResult.confidence > 0.7) {
+        const executionTime = Date.now() - startTime;
+        console.log(`🚀 Template generation successful (${executionTime}ms) - confidence: ${(templateResult.confidence * 100).toFixed(1)}%`);
+        
         return {
-          success: false,
-          error: `AI generated insufficient configuration for ${deviceType}`,
-          configuration: null,
+          success: true,
+          configuration: templateResult.configuration,
+          model: 'template-based',
+          deviceType: deviceType,
+          method: 'template',
+          templateUsed: templateResult.templateUsed,
+          category: templateResult.category,
+          extractedVariables: templateResult.extractedVariables,
+          confidence: templateResult.confidence,
+          executionTime: executionTime,
+          validation: this.advancedCiscoValidation(templateResult.configuration, deviceType),
+          recommendations: this.getConfigurationRecommendations(templateResult.configuration, deviceType)
         };
       }
 
-      // Enhanced configuration processing
-      let processedConfig = this.processConfiguration(rawResponse, deviceType);
-      const validation = this.advancedCiscoValidation(processedConfig, deviceType);
-      const executionTime = Date.now() - startTime;
+      // STEP 2: Fall back to AI generation for complex/unrecognized requests
+      console.log('🤖 Template confidence low, falling back to AI generation...');
+      return await this.generateWithAI(prompt, deviceType, deviceContext, startTime);
 
-      // Calculate confidence score
-      const confidenceScore = this.calculateConfidenceScore(processedConfig, deviceType, validation);
-
-      const result = {
-        success: true,
-        configuration: processedConfig,
-        model: this.model,
-        deviceType: deviceType,
-        processed: processedConfig !== rawResponse,
-        executionTime: executionTime,
-        validation: validation,
-        confidenceScore: confidenceScore,
-        recommendations: this.getConfigurationRecommendations(processedConfig, deviceType)
-      };
-
-      console.log(`🔧 Enhanced Cisco configuration generated successfully (${executionTime}ms, confidence: ${confidenceScore}%)`);
-      return result;
-      
     } catch (error) {
       const executionTime = Date.now() - startTime;
       console.error("❌ AI Service Error:", error.message);
       return {
         success: false,
         error: `AI Service Error: ${error.message}`,
+        configuration: null,
+        executionTime: executionTime
+      };
+    }
+  }
+
+  // Original AI generation method (now private)
+  async generateWithAI(prompt, deviceType, deviceContext, startTime) {
+    console.log(`🧠 Using AI model for complex generation...`);
+
+    // Build enhanced Cisco-specific prompt
+    const aiPrompt = this.buildEnhancedCiscoPrompt(prompt, deviceType, deviceContext);
+
+    // Generate with optimized parameters
+    const response = await this.client.post("/api/generate", {
+      model: this.model,
+      prompt: aiPrompt,
+      stream: false,
+      options: {
+        temperature: 0.1, // Low temperature for consistent syntax
+        top_k: 25,
+        top_p: 0.8,
+        num_predict: 1500, // Increased for complex configurations
+        repeat_penalty: 1.1,
+        stop: ["```", "---", "Note:", "Explanation:"] // Stop on common non-config patterns
+      },
+    });
+
+    const rawResponse = response.data.response.trim();
+    
+    if (!rawResponse || rawResponse.length < 20) {
+      return {
+        success: false,
+        error: `AI generated insufficient configuration for ${deviceType}`,
+        configuration: null,
+      };
+    }
+
+    // Enhanced configuration processing
+    let processedConfig = this.processConfiguration(rawResponse, deviceType);
+    const validation = this.advancedCiscoValidation(processedConfig, deviceType);
+    const executionTime = Date.now() - startTime;
+
+    // Calculate confidence score
+    const confidenceScore = this.calculateConfidenceScore(processedConfig, deviceType, validation);
+
+    const result = {
+      success: true,
+      configuration: processedConfig,
+      model: this.model,
+      deviceType: deviceType,
+      method: 'ai',
+      processed: processedConfig !== rawResponse,
+      executionTime: executionTime,
+      validation: validation,
+      confidenceScore: confidenceScore,
+      recommendations: this.getConfigurationRecommendations(processedConfig, deviceType)
+    };
+
+    console.log(`🔧 AI configuration generated successfully (${executionTime}ms, confidence: ${confidenceScore}%)`);
+    return result;
+  }
+
+  // New method: Get generation method recommendation
+  async getGenerationMethod(prompt, deviceType) {
+    try {
+      const parseResult = templateService.parsePrompt(prompt, deviceType);
+      
+      if (parseResult && parseResult.confidence > 0.7) {
+        return {
+          recommended: 'template',
+          confidence: parseResult.confidence,
+          type: parseResult.type,
+          template: parseResult.template,
+          reason: 'High confidence template match found'
+        };
+      } else if (parseResult && parseResult.confidence > 0.3) {
+        return {
+          recommended: 'hybrid',
+          confidence: parseResult.confidence,
+          type: parseResult.type,
+          template: parseResult.template,
+          reason: 'Moderate template match, will combine with AI'
+        };
+      } else {
+        return {
+          recommended: 'ai',
+          confidence: 0,
+          reason: 'No suitable template found, using AI generation'
+        };
+      }
+    } catch (error) {
+      return {
+        recommended: 'ai',
+        confidence: 0,
+        reason: 'Template service unavailable, using AI generation'
+      };
+    }
+  }
+
+  // Template management methods
+  async getAvailableTemplates(deviceType, category) {
+    try {
+      return await templateService.getAvailableTemplates(deviceType, category);
+    } catch (error) {
+      console.error('❌ Error fetching templates:', error);
+      return { success: false, templates: [], error: error.message };
+    }
+  }
+
+  async getTemplateCategories() {
+    try {
+      return await templateService.getTemplateCategories();
+    } catch (error) {
+      console.error('❌ Error fetching categories:', error);
+      return { success: false, categories: [], error: error.message };
+    }
+  }
+
+  // Enhanced configuration generation with Template + AI hybrid approach
+  async generateConfigurationHybrid(prompt, deviceType, deviceContext = {}) {
+    const startTime = Date.now();
+    
+    try {
+      console.log(`🔀 Hybrid generation for ${deviceType}: "${prompt}"`);
+
+      // Try template-based generation first
+      const templateResult = await templateService.generateFromTemplate(prompt, deviceType, deviceContext);
+      
+      if (templateResult.success && templateResult.confidence > 0.5) {
+        // Use template as base, enhance with AI if needed
+        const baseConfig = templateResult.configuration;
+        
+        if (templateResult.confidence < 0.8) {
+          console.log('🔧 Enhancing template with AI refinements...');
+          
+          const enhancePrompt = `Enhance this Cisco configuration based on the request: "${prompt}"
+          
+Base Configuration:
+${baseConfig}
+
+Only add missing commands or improve the configuration. Keep all existing valid commands.`;
+
+          const aiResult = await this.generateWithAI(enhancePrompt, deviceType, deviceContext, startTime);
+          
+          if (aiResult.success) {
+            return {
+              ...aiResult,
+              method: 'hybrid',
+              templateUsed: templateResult.templateUsed,
+              baseTemplate: baseConfig,
+              confidence: Math.max(templateResult.confidence, aiResult.confidenceScore / 100)
+            };
+          }
+        }
+        
+        // Return template result if AI enhancement fails or not needed
+        const executionTime = Date.now() - startTime;
+        return {
+          success: true,
+          configuration: baseConfig,
+          method: 'template',
+          templateUsed: templateResult.templateUsed,
+          category: templateResult.category,
+          confidence: templateResult.confidence,
+          executionTime: executionTime,
+          validation: this.advancedCiscoValidation(baseConfig, deviceType)
+        };
+      }
+
+      // Fall back to pure AI generation
+      return await this.generateWithAI(prompt, deviceType, deviceContext, startTime);
+
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+      console.error("❌ Hybrid Generation Error:", error.message);
+      return {
+        success: false,
+        error: `Hybrid generation failed: ${error.message}`,
         configuration: null,
         executionTime: executionTime
       };

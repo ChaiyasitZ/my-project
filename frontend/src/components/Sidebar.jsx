@@ -10,13 +10,15 @@ import {
   Archive,
   Menu,
   X,
-  Activity
+  Activity,
+  Network
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
   { name: 'Devices', href: '/devices', icon: ServerIcon },
   { name: 'Configurations', href: '/configurations', icon: CogIcon },
+  { name: 'NETCONF/YANG', href: '/netconf', icon: Network },
   { name: 'Console Setup', href: '/console', icon: TerminalIcon },
   { name: 'History', href: '/configuration-history', icon: ClockIcon },
   { name: 'Backups', href: '/backups', icon: Archive },
@@ -160,7 +162,7 @@ function Sidebar({ serverStatus = 'checking' }) {
                   <span className={`text-sm font-medium ${statusDisplay.textColor}`}>
                     {statusDisplay.text}
                   </span>
-                  <span className="text-xs text-gray-400">v1.0.0</span>
+                  <span className="text-xs text-gray-400">v2.0.0</span>
                 </div>
               </div>
             </div>

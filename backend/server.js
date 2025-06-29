@@ -10,6 +10,12 @@ import devicesRouter from './routes/devices.js';
 import configurationsRouter from './routes/configurations.js';
 import consoleRouter from './routes/console.js';
 import backupsRouter from './routes/backups.js';
+import netconfRouter from './routes/netconf.js';
+import templateRoutes from './routes/templates.js';
+
+// Import services for cleanup
+import netconfService from './services/netconfService.js';
+import mockNetconfService from './services/mockNetconfService.js';
 
 const app = express();
 
@@ -29,7 +35,7 @@ const limiter = rateLimit({
   },
   skip: (req) => {
     // Skip rate limiting for console and health endpoints during development
-    return req.url.includes('/console') || req.url.includes('/health') || req.url.includes('/backups');
+    return req.url.includes('/console') || req.url.includes('/health') || req.url.includes('/backups') || req.url.includes('/netconf');
   }
 });
 
@@ -52,13 +58,19 @@ app.get('/api/health', async (req, res) => {
       throw new Error('MongoDB not connected');
     }
     
+    // Get NETCONF sessions info
+    const netconfSessions = netconfService.getActiveSessions();
+    
     res.json({
       success: true,
       message: 'Server is healthy',
       timestamp: new Date().toISOString(),
-      version: '1.0.0',
+      version: '2.0.0',
       environment: config.server.nodeEnv,
-      database: 'MongoDB Atlas'
+      database: 'MongoDB Atlas',
+      services: {
+        netconf_sessions: netconfSessions.length
+      }
     });
   } catch (error) {
     res.status(503).json({
@@ -74,29 +86,40 @@ app.use('/api/devices', devicesRouter);
 app.use('/api/configurations', configurationsRouter);
 app.use('/api/console', consoleRouter);
 app.use('/api/backups', backupsRouter);
+app.use('/api/netconf', netconfRouter);
+app.use('/api/templates', templateRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'Network Automation API with MongoDB & Raw AI',
-    version: '1.0.0',
+    message: 'Network Automation API with MongoDB, AI & NETCONF/YANG + Template-Based Generation',
+    version: '2.0.0',
     database: 'MongoDB Atlas',
     features: [
-      '🤖 Raw AI configuration generation',
+      '🤖 AI configuration generation (CLI & NETCONF XML)',
+      '🔧 Template-based fast generation (OSPF, EIGRP, BGP, ISIS, RIP)',
       '🍃 MongoDB Atlas cloud database',
-      '⚡ Fast and lightweight',
+      '🔗 NETCONF/YANG support',
+      '⚡ Fast and lightweight with template caching',
       '🎯 Simple and reliable',
-      '📝 Basic validation',
-      '💾 Configuration history'
+      '📝 Configuration validation',
+      '💾 Configuration history',
+      '🔧 Real-time monitoring'
     ],
     endpoints: {
       health: '/api/health',
       devices: '/api/devices',
       configurations: '/api/configurations',
+      templates: '/api/templates',
       console: '/api/console',
-      backups: '/api/backups'
-    }
+      backups: '/api/backups',
+      netconf: '/api/netconf'
+    },
+    protocols: ['SSH', 'Console', 'NETCONF'],
+    yang_support: true,
+    template_support: true,
+    vendors: ['Cisco']
   });
 });
 
@@ -127,8 +150,16 @@ process.on('SIGTERM', async () => {
   console.log('🛑 SIGTERM received, shutting down gracefully');
   
   try {
+    // Cleanup NETCONF sessions
+    await netconfService.cleanup();
+    
+    // Cleanup mock NETCONF sessions
+    await mockNetconfService.mockCleanup();
+    
+    // Close MongoDB connection
     await mongoose.connection.close();
     console.log('✅ MongoDB connection closed');
+    
     process.exit(0);
   } catch (error) {
     console.error('❌ Error during shutdown:', error);
@@ -140,8 +171,16 @@ process.on('SIGINT', async () => {
   console.log('🛑 SIGINT received, shutting down gracefully');
   
   try {
+    // Cleanup NETCONF sessions
+    await netconfService.cleanup();
+    
+    // Cleanup mock NETCONF sessions
+    await mockNetconfService.mockCleanup();
+    
+    // Close MongoDB connection
     await mongoose.connection.close();
     console.log('✅ MongoDB connection closed');
+    
     process.exit(0);
   } catch (error) {
     console.error('❌ Error during shutdown:', error);
@@ -171,6 +210,7 @@ connectToMongoDB().then(() => {
     console.log(`🤖 Ollama Host: ${config.ollama.host}`);
     console.log(`🧠 AI Model: ${config.ollama.model}`);
     console.log(`🔗 Frontend URL: ${config.cors.origin}`);
+    console.log(`📡 NETCONF/YANG Support: Enabled`);
   });
 });
 

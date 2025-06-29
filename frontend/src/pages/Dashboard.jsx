@@ -6,7 +6,8 @@ import {
   CheckCircleIcon, 
   XCircleIcon,
   ClockIcon,
-  ActivityIcon
+  ActivityIcon,
+  ChartBarIcon
 } from 'lucide-react';
 
 function Dashboard() {
@@ -87,7 +88,10 @@ function Dashboard() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+            <ChartBarIcon className="h-8 w-8 text-blue-600" />
+            Dashboard
+          </h1>
           <p className="mt-2 text-gray-600">
             Overview of your network automation system
           </p>

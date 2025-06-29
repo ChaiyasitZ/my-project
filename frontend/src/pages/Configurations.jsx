@@ -5,8 +5,6 @@ import {
   BotIcon, 
   SendIcon, 
   CheckCircleIcon, 
-  PlayIcon,
-  EyeIcon,
   ServerIcon
 } from 'lucide-react';
 
@@ -138,7 +136,7 @@ function Configurations() {
     }
 
     setIsApplying(true);
-    const toastId = toast.loading('Applying configuration...');
+    const toastId = toast.loading('Deploying configuration...');
     
     try {
       await axios.post('/configurations/apply', {
@@ -150,11 +148,10 @@ function Configurations() {
         ...generatedConfig,
         status: 'applied'
       });
-      toast.success('Configuration applied successfully!', { id: toastId });
+      toast.success('Configuration deployed successfully!', { id: toastId });
     } catch (error) {
       console.error('Error applying configuration:', error);
-      console.warn('⚠️', 'Error applying configuration: ' + (error.response?.data?.message || error.message));
-      toast.error('Error applying configuration: ' + (error.response?.data?.message || error.message), { id: toastId });
+      toast.error('Error deploying configuration: ' + (error.response?.data?.message || error.message), { id: toastId });
     } finally {
       setIsApplying(false);
     }
@@ -212,7 +209,10 @@ function Configurations() {
       <div>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">AI Configuration Generator</h1>
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+              <BotIcon className="h-8 w-8 text-blue-600" />
+              AI Configuration Generator
+            </h1>
             <p className="mt-2 text-gray-600">
               Generate Cisco device configurations using local AI with Ollama
             </p>
@@ -376,10 +376,10 @@ function Configurations() {
           </div>
         </div>
 
-        {/* Generated Configuration */}
+        {/* Configuration Preview */}
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-medium text-gray-900">Generated Configuration</h2>
+            <h2 className="text-lg font-medium text-gray-900">Configuration Preview</h2>
             {generatedConfig && (
               <div className="flex space-x-2">
                 <button
@@ -390,7 +390,7 @@ function Configurations() {
                   {isValidating ? (
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
                   ) : (
-                    <EyeIcon className="h-4 w-4 mr-2" />
+                    <CheckCircleIcon className="h-4 w-4 mr-2" />
                   )}
                   {isValidating ? 'Validating...' : 'Validate'}
                 </button>
@@ -403,9 +403,9 @@ function Configurations() {
                     {isApplying ? (
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                     ) : (
-                      <PlayIcon className="h-4 w-4 mr-2" />
+                      <CheckCircleIcon className="h-4 w-4 mr-2" />
                     )}
-                    Apply
+                    {isApplying ? 'Deploying...' : 'Deploy'}
                   </button>
                 )}
               </div>

@@ -18,7 +18,8 @@ import {
   FileTextIcon,
   FilterIcon,
   PlusIcon,
-  SearchIcon
+  SearchIcon,
+  EyeIcon
 } from 'lucide-react';
 
 function BackupManagement() {
@@ -309,30 +310,24 @@ function BackupManagement() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Configuration Backups</h1>
-          <p className="mt-2 text-gray-600 max-w-2xl">
-            Create, manage, and restore device configuration backups
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+            <ShieldIcon className="h-8 w-8 text-blue-600" />
+            Backup Management
+          </h1>
+          <p className="mt-2 text-gray-600">
+            Create, restore, and manage device configuration backups
           </p>
         </div>
-        
-        <div className="flex space-x-3">
-          <button
-            onClick={fetchData}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-          >
-            <RefreshCwIcon className="h-4 w-4 mr-2" />
-            Refresh
-          </button>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-          >
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Create Backup
-          </button>
-        </div>
+        <button
+          onClick={fetchData}
+          disabled={loading}
+          className="btn btn-secondary btn-md"
+        >
+          <RefreshCwIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
       </div>
 
       {/* Statistics Cards */}
