@@ -65,7 +65,7 @@ const deviceSchema = new mongoose.Schema({
 // Indexes for performance (MongoDB will create these automatically)
 deviceSchema.index({ status: 1 });
 deviceSchema.index({ type: 1 });
-deviceSchema.index({ ip_address: 1 });
+// Note: ip_address index created by unique: true above
 
 // Virtual for device summary
 deviceSchema.virtual('device_summary').get(function() {
