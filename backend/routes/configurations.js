@@ -10,7 +10,7 @@ const router = express.Router();
 // Validation schemas
 const generateConfigSchema = Joi.object({
   device_id: Joi.string().required(),
-  prompt: Joi.string().required().min(10).max(2000)
+  prompt: Joi.string().min(10).max(2000).required()
 });
 
 const applyConfigSchema = Joi.object({
@@ -20,8 +20,8 @@ const applyConfigSchema = Joi.object({
 // Configuration rating schema (simplified for raw AI)
 const rateConfigSchema = Joi.object({
   configuration_id: Joi.string().required(),
-  user_rating: Joi.number().integer().min(1).max(5).required(),
-  feedback_text: Joi.string().optional().allow('')
+  user_rating: Joi.number().min(1).max(5).required(),
+  feedback_text: Joi.string().max(1000).optional()
 });
 
 // GET /api/configurations/ai-status - Get AI service status
@@ -33,23 +33,25 @@ router.get('/ai-status', async (req, res) => {
       aiService: status
     });
   } catch (error) {
-    console.error('Error getting AI service status:', error);
+    console.error('Error getting AI status:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to get AI service status',
-      error: error.message
+      message: 'Failed to get AI status',
+      aiService: { 
+        status: 'error', 
+        error: error.message 
+      }
     });
   }
 });
 
-// GET /api/configurations/analytics - Get basic generation analytics
+// GET /api/configurations/analytics - Get configuration analytics (simplified for raw AI)
 router.get('/analytics', async (req, res) => {
   try {
     const { days = 7 } = req.query;
     
-    // Calculate date threshold
-    const dateThreshold = new Date();
-    dateThreshold.setDate(dateThreshold.getDate() - parseInt(days));
+    // Calculate date threshold using timestamp
+    const dateThreshold = Date.now() - (parseInt(days) * 24 * 60 * 60 * 1000);
     
     // Get comprehensive analytics using MongoDB aggregation
     const [performanceStats, deviceTypeStats] = await Promise.all([
@@ -189,6 +191,7 @@ router.post('/generate', async (req, res) => {
     let aiResult;
     try {
       aiResult = await aiService.generateConfiguration(prompt, device.type, {
+        name: device.name,
         model: device.model,
         ios_version: device.ios_version,
         location: device.location
@@ -226,30 +229,37 @@ router.post('/generate', async (req, res) => {
       });
     }
     
-    // Save to configuration history
+    // Save to configuration history with timestamp
+    const currentTimestamp = Date.now();
     const configuration = new ConfigurationHistory({
       device_id,
       prompt,
       generated_config: aiResult.configuration,
       ai_model: aiResult.model,
       execution_time: executionTime,
-      status: 'generated'
+      status: 'generated',
+      created_at: currentTimestamp // Explicitly set timestamp
     });
     
     await configuration.save();
     console.log('✅ Configuration saved to history:', configuration._id);
+    console.log('📅 Created at timestamp:', configuration.created_at, 'Date:', new Date(configuration.created_at));
+    
+    const responseConfig = {
+      ...configuration.toObject(),
+      id: configuration._id, // Add id for compatibility
+      device_name: device.name,
+      device_type: device.type,
+      validation: aiResult.validation,
+      confidenceScore: aiResult.confidenceScore,
+      recommendations: aiResult.recommendations
+    };
+    
+    console.log('📤 Sending response with created_at:', responseConfig.created_at);
     
     res.json({
       success: true,
-      configuration: {
-        ...configuration.toObject(),
-        id: configuration._id, // Add id for compatibility
-        device_name: device.name,
-        device_type: device.type,
-        validation: aiResult.validation,
-        confidenceScore: aiResult.confidenceScore,
-        recommendations: aiResult.recommendations
-      }
+      configuration: responseConfig
     });
     
   } catch (error) {
@@ -347,10 +357,10 @@ router.post('/apply', async (req, res) => {
       // Apply configuration via SSH
       const sshResult = await sshService.sendConfigCommands(device, configuration.generated_config);
       
-      // Update configuration status
+      // Update configuration status with timestamp
       configuration.status = 'applied';
       configuration.applied_config = configuration.generated_config;
-      configuration.applied_at = new Date();
+      configuration.applied_at = Date.now(); // Use timestamp
       await configuration.save();
       
       res.json({

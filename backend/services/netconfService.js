@@ -101,13 +101,37 @@ class NetconfService {
           reject(new Error(`SSH connection failed: ${err.message}`));
         });
 
-        // Connect with SSH
+        // Connect with SSH - Support older Cisco devices
         conn.connect({
           host: ip_address,
           port: 22, // SSH port for NETCONF
           username,
           password,
-          readyTimeout: 30000
+          readyTimeout: 30000,
+          algorithms: {
+            kex: [
+              'diffie-hellman-group14-sha256',
+              'diffie-hellman-group14-sha1',
+              'diffie-hellman-group1-sha1',
+              'diffie-hellman-group-exchange-sha256',
+              'diffie-hellman-group-exchange-sha1'
+            ],
+            cipher: [
+              'aes128-ctr',
+              'aes192-ctr', 
+              'aes256-ctr',
+              'aes128-cbc',
+              'aes192-cbc',
+              'aes256-cbc',
+              '3des-cbc'
+            ],
+            hmac: [
+              'hmac-sha2-256',
+              'hmac-sha2-512',
+              'hmac-sha1',
+              'hmac-sha1-96'
+            ]
+          }
         });
       });
 

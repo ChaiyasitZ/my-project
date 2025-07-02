@@ -12,7 +12,6 @@ import {
   ArrowPathIcon,
   CpuChipIcon,
   CogIcon,
-  BeakerIcon,
   EyeIcon,
   ClipboardDocumentIcon
 } from '@heroicons/react/24/outline';
@@ -30,9 +29,6 @@ const NetconfManagement = () => {
   const [operationalData, setOperationalData] = useState('');
   const [generatedXml, setGeneratedXml] = useState('');
   const [xmlPrompt, setXmlPrompt] = useState('');
-  const [mockMode, setMockMode] = useState(false);
-  const [mockXmlExamples, setMockXmlExamples] = useState({});
-  const [selectedExample, setSelectedExample] = useState('');
 
   const API_BASE_URL = 'http://localhost:3001/api';
 
@@ -40,22 +36,33 @@ const NetconfManagement = () => {
     fetchDevices();
     fetchYangModels();
     fetchActiveSessions();
-    fetchMockXmlExamples();
   }, []);
 
   const fetchDevices = async () => {
     try {
+      console.log(`🔍 Fetching NETCONF-enabled devices from ${API_BASE_URL}/devices`);
       const response = await fetch(`${API_BASE_URL}/devices`);
       const data = await response.json();
-      if (data.success) {
-        // In mock mode, show all devices; in real mode, filter NETCONF-enabled devices
-        const filteredDevices = mockMode 
-          ? data.data.devices 
-          : data.data.devices.filter(device => device.netconf_enabled);
+      console.log('📥 API Response:', data);
+      
+      if (data.success && data.devices) {
+        // Filter for NETCONF-enabled devices only
+        const allDevices = data.devices || [];
+        const filteredDevices = allDevices.filter(device => device.netconf_enabled);
+        
         setDevices(filteredDevices);
+        console.log(`📱 Loaded ${filteredDevices.length} NETCONF-enabled devices (Total: ${allDevices.length})`);
+        
+        if (filteredDevices.length === 0 && allDevices.length > 0) {
+          console.warn('⚠️ No NETCONF-enabled devices found. Consider enabling NETCONF on devices.');
+        }
+      } else {
+        console.error('❌ Invalid API response structure:', data);
+        setDevices([]);
       }
     } catch (error) {
-      console.error('Error fetching devices:', error);
+      console.error('❌ Error fetching devices:', error);
+      setDevices([]);
     }
   };
 
@@ -83,18 +90,6 @@ const NetconfManagement = () => {
     }
   };
 
-  const fetchMockXmlExamples = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/netconf/mock/xml-examples`);
-      const data = await response.json();
-      if (data.success) {
-        setMockXmlExamples(data.data.examples);
-      }
-    } catch (error) {
-      console.error('Error fetching mock XML examples:', error);
-    }
-  };
-
   const testConnection = async (deviceId) => {
     setLoading(true);
     setConnectionResult(null);
@@ -102,7 +97,7 @@ const NetconfManagement = () => {
       const response = await fetch(`${API_BASE_URL}/netconf/test-connection`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_id: deviceId, mock: mockMode })
+        body: JSON.stringify({ device_id: deviceId })
       });
       const data = await response.json();
       setConnectionResult(data);
@@ -127,11 +122,11 @@ const NetconfManagement = () => {
       const response = await fetch(`${API_BASE_URL}/netconf/connect/${deviceId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mock: mockMode })
+        body: JSON.stringify({})
       });
       const data = await response.json();
       if (data.success) {
-        alert(`${data.data.isMock ? 'Mock ' : ''}NETCONF session established successfully!`);
+        alert('NETCONF session established successfully!');
         fetchActiveSessions();
       } else {
         alert(`Connection failed: ${data.message}`);
@@ -139,27 +134,6 @@ const NetconfManagement = () => {
     } catch (error) {
       console.error('Error connecting device:', error);
       alert('Connection failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createDemoSession = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/netconf/mock/demo-session`, {
-        method: 'POST'
-      });
-      const data = await response.json();
-      if (data.success) {
-        alert('Demo mock session created successfully!');
-        fetchActiveSessions();
-      } else {
-        alert(`Failed to create demo session: ${data.message}`);
-      }
-    } catch (error) {
-      console.error('Error creating demo session:', error);
-      alert('Failed to create demo session');
     } finally {
       setLoading(false);
     }
@@ -253,41 +227,12 @@ const NetconfManagement = () => {
     }
   };
 
-  const loadExample = (exampleKey) => {
-    if (mockXmlExamples[exampleKey]) {
-      setGeneratedXml(mockXmlExamples[exampleKey]);
-      setSelectedExample(exampleKey);
-    }
-  };
-
-  const cleanupMockSessions = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/netconf/mock/cleanup`, {
-        method: 'POST'
-      });
-      const data = await response.json();
-      if (data.success) {
-        alert(`Cleaned up ${data.data.cleaned} mock sessions`);
-        fetchActiveSessions();
-      } else {
-        alert(`Cleanup failed: ${data.message}`);
-      }
-    } catch (error) {
-      console.error('Error cleaning up mock sessions:', error);
-      alert('Cleanup failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const tabs = [
     { id: 'sessions', name: 'Active Sessions', icon: WifiIcon },
     { id: 'devices', name: 'NETCONF Devices', icon: CpuChipIcon },
     { id: 'yang', name: 'YANG Models', icon: DocumentTextIcon },
     { id: 'operations', name: 'Operations', icon: CogIcon },
-    { id: 'generator', name: 'XML Generator', icon: CodeBracketIcon },
-    { id: 'demo', name: 'Demo & Examples', icon: BeakerIcon }
+    { id: 'generator', name: 'XML Generator', icon: CodeBracketIcon }
   ];
 
   return (
@@ -299,45 +244,19 @@ const NetconfManagement = () => {
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
               <WifiIcon className="h-8 w-8 text-blue-600" />
               NETCONF/YANG Management
-              {mockMode && (
-                <span className="px-3 py-1 bg-orange-100 text-orange-800 text-sm font-medium rounded-full">
-                  Mock Mode
-                </span>
-              )}
             </h1>
             <p className="mt-2 text-gray-600">
               Manage NETCONF sessions, YANG models, and network configurations
             </p>
           </div>
-          <div className="flex items-center gap-4">
-            {/* Mock Mode Toggle */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Mock Mode</span>
-              <button
-                onClick={() => {
-                  setMockMode(!mockMode);
-                  fetchDevices(); // Refresh devices list based on mode
-                }}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  mockMode ? 'bg-orange-600' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    mockMode ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-            <button
-              onClick={fetchActiveSessions}
-              disabled={loading}
-              className="btn btn-primary btn-md"
-            >
-              <ArrowPathIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
-          </div>
+          <button
+            onClick={fetchActiveSessions}
+            disabled={loading}
+            className="btn btn-primary btn-md"
+          >
+            <ArrowPathIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
         </div>
 
         {/* Tab Navigation */}
@@ -369,16 +288,6 @@ const NetconfManagement = () => {
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-medium text-gray-900">Active NETCONF Sessions</h2>
-            {mockMode && (
-              <button
-                onClick={cleanupMockSessions}
-                disabled={loading}
-                className="btn btn-danger btn-sm"
-              >
-                <XMarkIcon className="h-4 w-4 mr-2" />
-                Cleanup Mock Sessions
-              </button>
-            )}
           </div>
           
           {activeSessions.length === 0 ? (
@@ -386,32 +295,17 @@ const NetconfManagement = () => {
               <WifiIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No active NETCONF sessions</h3>
               <p className="text-gray-500 mb-6">Connect to a device to start a NETCONF session</p>
-              {mockMode && (
-                <button
-                  onClick={createDemoSession}
-                  disabled={loading}
-                  className="btn btn-primary btn-md"
-                >
-                  <BeakerIcon className="h-4 w-4 mr-2" />
-                  Create Demo Session
-                </button>
-              )}
             </div>
           ) : (
             <div className="space-y-4">
               {activeSessions.map((session) => (
-                <div key={session.sessionId} className={`card p-4 ${
-                  session.isMock ? 'border-orange-200 bg-orange-50' : ''
-                }`}>
+                <div key={session.sessionId} className="card p-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-2">
                         <CheckCircleIcon className="h-5 w-5 text-green-500" />
                         <span className="font-medium">{session.ip_address}</span>
                         <span className="text-sm text-gray-500">({session.sessionId})</span>
-                        {session.isMock && (
-                          <span className="badge badge-warning">Mock</span>
-                        )}
                       </div>
                       <div className="text-sm text-gray-600 mt-1">
                         Connected • {session.capabilities?.length || 0} capabilities
@@ -458,9 +352,24 @@ const NetconfManagement = () => {
       {/* NETCONF Devices Tab */}
       {activeTab === 'devices' && (
         <div className="card p-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">
-            {mockMode ? 'All Devices (Mock Mode)' : 'NETCONF-Enabled Devices'}
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-medium text-gray-900">NETCONF-Enabled Devices</h2>
+            <div className="flex items-center gap-2">
+              {devices.length > 0 && (
+                <span className="badge badge-primary">
+                  {devices.length} devices
+                </span>
+              )}
+              <button
+                onClick={fetchDevices}
+                disabled={loading}
+                className="btn btn-secondary btn-sm"
+              >
+                <ArrowPathIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
+          </div>
           
           {connectionResult && (
             <div className={`p-4 rounded-lg mb-4 ${
@@ -475,123 +384,113 @@ const NetconfManagement = () => {
                 <span className={connectionResult.success ? 'text-green-800' : 'text-red-800'}>
                   {connectionResult.message}
                 </span>
-                {connectionResult.data?.isMock && (
-                  <span className="badge badge-warning">Mock</span>
-                )}
               </div>
-              {connectionResult.data?.capabilities && (
-                <div className="mt-2 text-sm text-green-700">
-                  Capabilities: {connectionResult.data.capabilities.length}
-                </div>
-              )}
             </div>
           )}
-
+          
           {devices.length === 0 ? (
             <div className="text-center py-12">
               <CpuChipIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {mockMode ? 'No devices found' : 'No NETCONF-enabled devices found'}
-              </h3>
-              <p className="text-gray-500">
-                {mockMode ? 'Add devices to see them here' : 'Enable NETCONF on devices to see them here'}
-              </p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No NETCONF-enabled devices found</h3>
+              <p className="text-gray-500 mb-6">Enable NETCONF on devices to see them here</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {devices.map((device) => (
-                <div key={device._id} className="card p-4">
-                  <div className="flex items-center justify-between">
+                <div key={device._id} className="card p-4 hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between mb-3">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-3 h-3 rounded-full ${
-                          device.status === 'active' ? 'bg-green-500' : 'bg-gray-400'
-                        }`}></div>
-                        <span className="font-medium">{device.name}</span>
-                        <span className="text-sm text-gray-500">
-                          ({device.ip_address}:{device.netconf_port || 830})
-                        </span>
-                        {mockMode && !device.netconf_enabled && (
-                          <span className="badge badge-warning">NETCONF Disabled</span>
-                        )}
-                      </div>
-                      <div className="text-sm text-gray-600 mt-1">
-                        {device.vendor} {device.model} • {device.type}
-                        {device.netconf_capabilities && (
-                          <span className="ml-2">• {device.netconf_capabilities.length} capabilities</span>
-                        )}
-                      </div>
+                      <h3 className="font-medium text-gray-900">{device.name}</h3>
+                      <p className="text-sm text-gray-600">{device.type} • {device.ip_address}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        NETCONF Port: {device.netconf_port || 830}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => testConnection(device._id)}
-                        disabled={loading}
-                        className="btn btn-secondary btn-sm"
-                      >
-                        <PlayIcon className="h-4 w-4 mr-2" />
-                        Test
-                      </button>
-                      <button
-                        onClick={() => connectDevice(device._id)}
-                        disabled={loading}
-                        className="btn btn-primary btn-sm"
-                      >
-                        <WifiIcon className="h-4 w-4 mr-2" />
-                        Connect
-                      </button>
-                    </div>
+                    <span className={`badge ${
+                      device.status === 'active' ? 'badge-success' : 'badge-warning'
+                    }`}>
+                      {device.status}
+                    </span>
                   </div>
+                  
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => testConnection(device._id)}
+                      disabled={loading}
+                      className="btn btn-secondary btn-sm w-full"
+                    >
+                      <PlayIcon className="h-4 w-4 mr-2" />
+                      Test Connection
+                    </button>
+                    <button
+                      onClick={() => connectDevice(device._id)}
+                      disabled={loading || !device.netconf_enabled}
+                      className="btn btn-primary btn-sm w-full"
+                    >
+                      <WifiIcon className="h-4 w-4 mr-2" />
+                      Connect
+                    </button>
+                  </div>
+                  
+                  {device.netconf_capabilities && device.netconf_capabilities.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <p className="text-xs text-gray-600">
+                        {device.netconf_capabilities.length} capabilities available
+                      </p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
+          
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+            <h4 className="text-sm font-medium text-blue-900 mb-2">Connection Information</h4>
+            <div className="text-sm text-blue-800 space-y-1">
+              <p>• Total Devices: {devices.length}</p>
+              <p>• Active Sessions: {activeSessions.length}</p>
+            </div>
+          </div>
         </div>
       )}
 
       {/* YANG Models Tab */}
       {activeTab === 'yang' && (
         <div className="card p-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">YANG Models</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-medium text-gray-900">YANG Models</h2>
+            <button
+              onClick={fetchYangModels}
+              disabled={loading}
+              className="btn btn-secondary btn-sm"
+            >
+              <ArrowPathIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+          
           {yangModels.length === 0 ? (
             <div className="text-center py-12">
               <DocumentTextIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No YANG models available</h3>
-              <p className="text-gray-500">Import YANG models to see them here</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No YANG models found</h3>
+              <p className="text-gray-500">Load YANG models to see them here</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {yangModels.map((model) => (
-                <div key={model.id} className="card p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{model.name}</span>
-                        {model.revision && (
-                          <span className="text-sm text-gray-500">({model.revision})</span>
-                        )}
-                        <span className={`badge ${
-                          model.vendor === 'ietf' ? 'badge-info' : 
-                          model.vendor === 'cisco' ? 'badge-success' : 
-                          'badge-warning'
-                        }`}>
-                          {model.vendor}
-                        </span>
-                      </div>
-                      <div className="text-sm text-gray-600 mt-1">
-                        {model.namespace} • {model.category}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setSelectedYangModel(model)}
-                      className={`btn btn-sm ${
-                        selectedYangModel?.id === model.id
-                          ? 'btn-primary'
-                          : 'btn-secondary'
-                      }`}
-                    >
-                      {selectedYangModel?.id === model.id ? 'Selected' : 'Select'}
-                    </button>
+                <div key={model._id} className="card p-4">
+                  <h3 className="font-medium text-gray-900 mb-2">{model.name}</h3>
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <p>Vendor: {model.vendor}</p>
+                    <p>Version: {model.revision}</p>
+                    <p>Namespace: {model.namespace}</p>
                   </div>
+                  <button
+                    onClick={() => setSelectedYangModel(model)}
+                    className="btn btn-secondary btn-sm w-full mt-3"
+                  >
+                    Select Model
+                  </button>
                 </div>
               ))}
             </div>
@@ -602,84 +501,82 @@ const NetconfManagement = () => {
       {/* Operations Tab */}
       {activeTab === 'operations' && (
         <div className="space-y-6">
-          {/* Session Selection */}
           <div className="card p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">NETCONF Operations</h2>
+            
             {activeSessions.length === 0 ? (
-              <div className="text-center py-12">
-                <ExclamationTriangleIcon className="h-16 w-16 text-yellow-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No active NETCONF sessions</h3>
-                <p className="text-gray-500 mb-6">Connect to a device first to perform operations</p>
-                {mockMode && (
-                  <button
-                    onClick={createDemoSession}
-                    disabled={loading}
-                    className="btn btn-primary btn-md"
-                  >
-                    <BeakerIcon className="h-4 w-4 mr-2" />
-                    Create Demo Session
-                  </button>
-                )}
+              <div className="text-center py-8">
+                <WifiIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No active sessions. Connect to a device first.</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {activeSessions.map((session) => (
-                  <div key={session.sessionId} className={`card p-4 ${
-                    session.isMock ? 'border-orange-200 bg-orange-50' : ''
-                  }`}>
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <span className="font-medium">{session.ip_address}</span>
-                        <span className="text-sm text-gray-500 ml-2">({session.sessionId})</span>
-                        {session.isMock && (
-                          <span className="ml-2 badge badge-warning">Mock</span>
-                        )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {activeSessions.map((session) => (
+                    <div key={session.sessionId} className="card p-4">
+                      <h3 className="font-medium text-gray-900 mb-2">
+                        {session.ip_address} ({session.sessionId})
+                      </h3>
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => getConfiguration(session.sessionId, 'running')}
+                          disabled={loading}
+                          className="btn btn-secondary btn-sm w-full"
+                        >
+                          <EyeIcon className="h-4 w-4 mr-2" />
+                          Get Running Config
+                        </button>
+                        <button
+                          onClick={() => getOperationalData(session.sessionId)}
+                          disabled={loading}
+                          className="btn btn-secondary btn-sm w-full"
+                        >
+                          <InformationCircleIcon className="h-4 w-4 mr-2" />
+                          Get Operational Data
+                        </button>
                       </div>
                     </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <button
-                        onClick={() => getConfiguration(session.sessionId, 'running')}
-                        disabled={loading}
-                        className="btn btn-primary btn-sm"
-                      >
-                        <DocumentTextIcon className="h-4 w-4 mr-2" />
-                        Get Running Config
-                      </button>
-                      <button
-                        onClick={() => getConfiguration(session.sessionId, 'candidate')}
-                        disabled={loading}
-                        className="btn btn-secondary btn-sm"
-                      >
-                        <DocumentTextIcon className="h-4 w-4 mr-2" />
-                        Get Candidate Config
-                      </button>
-                      <button
-                        onClick={() => getOperationalData(session.sessionId)}
-                        disabled={loading}
-                        className="btn btn-secondary btn-sm"
-                      >
-                        <InformationCircleIcon className="h-4 w-4 mr-2" />
-                        Get Operational Data
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
           </div>
-
+          
           {/* Configuration Data Display */}
-          {(configData || operationalData) && (
+          {configData && (
             <div className="card p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                {configData ? 'Configuration Data' : 'Operational Data'}
-              </h3>
-              <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
-                <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">
-                  {configData || operationalData}
-                </pre>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Configuration Data</h3>
+                <button
+                  onClick={() => navigator.clipboard.writeText(configData)}
+                  className="btn btn-secondary btn-sm"
+                >
+                  <ClipboardDocumentIcon className="h-4 w-4 mr-2" />
+                  Copy
+                </button>
               </div>
+              <pre className="bg-gray-50 p-4 rounded-lg overflow-auto max-h-96 text-sm">
+                <code>{configData}</code>
+              </pre>
+            </div>
+          )}
+          
+          {/* Operational Data Display */}
+          {operationalData && (
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Operational Data</h3>
+                <button
+                  onClick={() => navigator.clipboard.writeText(operationalData)}
+                  className="btn btn-secondary btn-sm"
+                >
+                  <ClipboardDocumentIcon className="h-4 w-4 mr-2" />
+                  Copy
+                </button>
+              </div>
+              <pre className="bg-gray-50 p-4 rounded-lg overflow-auto max-h-96 text-sm">
+                <code>{operationalData}</code>
+              </pre>
             </div>
           )}
         </div>
@@ -687,174 +584,97 @@ const NetconfManagement = () => {
 
       {/* XML Generator Tab */}
       {activeTab === 'generator' && (
-        <div className="card p-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">NETCONF XML Generator</h2>
-          
-          <div className="space-y-6">
-            {/* Device and YANG Model Selection */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Target Device (Optional)
-                </label>
-                <select
-                  value={selectedDevice?._id || ''}
-                  onChange={(e) => setSelectedDevice(devices.find(d => d._id === e.target.value) || null)}
-                  className="input"
-                >
-                  <option value="">Select device...</option>
-                  {devices.map((device) => (
-                    <option key={device._id} value={device._id}>
-                      {device.name} ({device.ip_address})
-                    </option>
-                  ))}
-                </select>
+        <div className="space-y-6">
+          <div className="card p-6">
+            <h2 className="text-lg font-medium text-gray-900 mb-4">NETCONF XML Generator</h2>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Target Device (Optional)
+                  </label>
+                  <select
+                    value={selectedDevice?._id || ''}
+                    onChange={(e) => {
+                      const device = devices.find(d => d._id === e.target.value);
+                      setSelectedDevice(device || null);
+                    }}
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  >
+                    <option value="">Select device...</option>
+                    {devices.map((device) => (
+                      <option key={device._id} value={device._id}>
+                        {device.name} ({device.ip_address})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    YANG Model (Optional)
+                  </label>
+                  <select
+                    value={selectedYangModel?._id || ''}
+                    onChange={(e) => {
+                      const model = yangModels.find(m => m._id === e.target.value);
+                      setSelectedYangModel(model || null);
+                    }}
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  >
+                    <option value="">Select YANG model...</option>
+                    {yangModels.map((model) => (
+                      <option key={model._id} value={model._id}>
+                        {model.name} ({model.vendor})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  YANG Model (Optional)
+                  Configuration Prompt
                 </label>
-                <select
-                  value={selectedYangModel?.id || ''}
-                  onChange={(e) => setSelectedYangModel(yangModels.find(m => m.id === e.target.value) || null)}
-                  className="input"
-                >
-                  <option value="">Select YANG model...</option>
-                  {yangModels.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name} ({model.vendor})
-                    </option>
-                  ))}
-                </select>
+                <textarea
+                  value={xmlPrompt}
+                  onChange={(e) => setXmlPrompt(e.target.value)}
+                  placeholder="Describe the configuration you want to generate... (e.g., 'Configure VLAN 100 with IP 192.168.1.1/24')"
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  rows="4"
+                />
               </div>
+              
+              <button
+                onClick={generateNetconfXml}
+                disabled={loading || !xmlPrompt.trim()}
+                className="btn btn-primary btn-md"
+              >
+                <CodeBracketIcon className="h-4 w-4 mr-2" />
+                {loading ? 'Generating...' : 'Generate NETCONF XML'}
+              </button>
             </div>
-
-            {/* Prompt Input */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Configuration Request
-              </label>
-              <textarea
-                value={xmlPrompt}
-                onChange={(e) => setXmlPrompt(e.target.value)}
-                placeholder="Describe the configuration you want to generate in NETCONF XML format..."
-                rows={4}
-                className="input"
-              />
-            </div>
-
-            {/* Generate Button */}
-            <button
-              onClick={generateNetconfXml}
-              disabled={loading || !xmlPrompt.trim()}
-              className="btn btn-primary btn-md"
-            >
-              <CodeBracketIcon className="h-4 w-4 mr-2" />
-              Generate NETCONF XML
-            </button>
-
-            {/* Generated XML Display */}
-            {generatedXml && (
-              <div className="space-y-4">
+          </div>
+          
+          {/* Generated XML Display */}
+          {generatedXml && (
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">Generated NETCONF XML</h3>
-                <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
-                  <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">
-                    {generatedXml}
-                  </pre>
-                </div>
                 <button
                   onClick={() => navigator.clipboard.writeText(generatedXml)}
                   className="btn btn-secondary btn-sm"
                 >
                   <ClipboardDocumentIcon className="h-4 w-4 mr-2" />
-                  Copy to Clipboard
+                  Copy XML
                 </button>
               </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Demo & Examples Tab */}
-      {activeTab === 'demo' && (
-        <div className="space-y-6">
-          {/* Mock XML Examples */}
-          <div className="card p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
-              <BeakerIcon className="h-6 w-6 text-orange-600" />
-              Mock NETCONF XML Examples
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              {Object.entries(mockXmlExamples).map(([key]) => (
-                <button
-                  key={key}
-                  onClick={() => loadExample(key)}
-                  className={`card p-4 text-left hover:bg-gray-50 ${
-                    selectedExample === key ? 'border-blue-500 bg-blue-50' : ''
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <EyeIcon className="h-4 w-4 text-gray-500" />
-                    <span className="font-medium capitalize">
-                      {key.replace(/([A-Z])/g, ' $1').trim()}
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    {key === 'interfaceConfig' && 'Standard IETF interface configuration'}
-                    {key === 'ciscoNxosConfig' && 'Cisco NX-OS specific configuration'}
-                    {key === 'vrfConfig' && 'VRF configuration example'}
-                  </p>
-                </button>
-              ))}
+              <pre className="bg-gray-50 p-4 rounded-lg overflow-auto max-h-96 text-sm">
+                <code>{generatedXml}</code>
+              </pre>
             </div>
-
-            {generatedXml && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Example XML {selectedExample && `(${selectedExample})`}
-                  </h3>
-                  <button
-                    onClick={() => navigator.clipboard.writeText(generatedXml)}
-                    className="btn btn-secondary btn-sm"
-                  >
-                    <ClipboardDocumentIcon className="h-4 w-4 mr-2" />
-                    Copy
-                  </button>
-                </div>
-                <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
-                  <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">
-                    {generatedXml}
-                  </pre>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Demo Actions */}
-          <div className="card p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Demo Actions</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <button
-                onClick={createDemoSession}
-                disabled={loading}
-                className="btn btn-primary btn-md"
-              >
-                <BeakerIcon className="h-4 w-4 mr-2" />
-                Create Demo Session
-              </button>
-              <button
-                onClick={cleanupMockSessions}
-                disabled={loading}
-                className="btn btn-danger btn-md"
-              >
-                <XMarkIcon className="h-4 w-4 mr-2" />
-                Cleanup Mock Sessions
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       )}
     </div>

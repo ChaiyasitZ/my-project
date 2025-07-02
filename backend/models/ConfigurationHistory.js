@@ -33,15 +33,31 @@ const configurationHistorySchema = new mongoose.Schema({
     max: 5
   },
   feedback_text: String,
-  applied_at: Date
+  created_at: {
+    type: Number,
+    default: () => Date.now()
+  },
+  updated_at: {
+    type: Number,
+    default: () => Date.now()
+  },
+  applied_at: {
+    type: Number
+  }
 }, {
-  timestamps: true // Adds createdAt and updatedAt
+  timestamps: false // Disable automatic timestamps since we're using custom ones
+});
+
+// Update the updated_at field before saving
+configurationHistorySchema.pre('save', function(next) {
+  this.updated_at = Date.now();
+  next();
 });
 
 // Indexes for performance
 configurationHistorySchema.index({ device_id: 1 });
 configurationHistorySchema.index({ status: 1 });
-configurationHistorySchema.index({ createdAt: -1 });
+configurationHistorySchema.index({ created_at: -1 });
 configurationHistorySchema.index({ device_id: 1, status: 1 });
 
 // Virtual to get device info

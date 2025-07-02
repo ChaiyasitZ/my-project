@@ -125,8 +125,19 @@ function ConfigurationHistory() {
     }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString();
+  const formatDate = (dateValue) => {
+    if (!dateValue) return 'Unknown date';
+    
+    try {
+      // Handle both timestamps (numbers) and date strings
+      const date = typeof dateValue === 'number' 
+        ? new Date(dateValue)
+        : new Date(dateValue);
+      
+      return isNaN(date.getTime()) ? 'Invalid date' : date.toLocaleString();
+    } catch {
+      return 'Invalid date';
+    }
   };
 
   if (loading) {
@@ -196,7 +207,7 @@ function ConfigurationHistory() {
             onChange={(e) => setFilter(e.target.value)}
             className="input w-48"
           >
-            <option value="all">All Configurations</option>
+            <option value="all">All</option>
             <option value="generated">Generated</option>
             <option value="applied">Applied</option>
             <option value="failed">Failed</option>

@@ -31,7 +31,7 @@ const configurationBackupSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  is_restored_point: {
+  is_restore_point: {
     type: Boolean,
     default: false
   },
@@ -47,7 +47,7 @@ configurationBackupSchema.index({ device_id: 1, backup_name: 1 }, { unique: true
 configurationBackupSchema.index({ device_id: 1 });
 configurationBackupSchema.index({ createdAt: -1 });
 configurationBackupSchema.index({ backup_type: 1 });
-configurationBackupSchema.index({ is_restored_point: 1 });
+configurationBackupSchema.index({ is_restore_point: 1 });
 
 // Virtual to get device info
 configurationBackupSchema.virtual('device', {

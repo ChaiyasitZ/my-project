@@ -60,6 +60,9 @@ function Configurations() {
       const response = await axios.post('/configurations/generate', requestData);
 
       if (response.data.configuration) {
+        console.log('📥 Received configuration:', response.data.configuration);
+        console.log('📅 Frontend received created_at:', response.data.configuration.created_at, typeof response.data.configuration.created_at);
+        
         setGeneratedConfig(response.data.configuration);
         setValidation(response.data.configuration.validation);
         
@@ -95,7 +98,7 @@ function Configurations() {
           errorMessage = 'Invalid device selection. Please refresh the page and try again.';
         } else if (errorData.message?.includes('AI generation failed')) {
           // AI generation error
-          errorMessage = 'AI could not generate a valid configuration. Try being more specific.';
+          errorMessage = 'LLM could not generate a valid configuration. Try being more specific.';
           showSuggestions = true;
         } else {
           errorMessage = errorData.message || 'Configuration generation failed';
@@ -195,7 +198,6 @@ function Configurations() {
 
   const examplePrompts = [
     "interface fe0/1 ip 192.168.1.1/24",
-    "username admin password cisco123",
     "vlan 100 sales", 
     "hostname Router1",
     "interface ge0/1 switchport mode trunk",
@@ -211,10 +213,10 @@ function Configurations() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
               <BotIcon className="h-8 w-8 text-blue-600" />
-              AI Configuration Generator
+              LLM Configuration Generator
             </h1>
             <p className="mt-2 text-gray-600">
-              Generate Cisco device configurations using local AI with Ollama
+              Generate Cisco device configurations using local LLM with Ollama
             </p>
           </div>
           {/* AI Status Indicator */}
@@ -489,7 +491,35 @@ function Configurations() {
                 </button>
                 
                 <div className="text-xs text-gray-500">
-                  Generated: {new Date(generatedConfig.created_at).toLocaleString()}
+                  Generated: {(() => {
+                    console.log('🔍 Debugging created_at:', generatedConfig.created_at, typeof generatedConfig.created_at);
+                    
+                    if (!generatedConfig.created_at) {
+                      console.log('❌ No created_at field found');
+                      return 'Just now (no timestamp)';
+                    }
+                    
+                    const timestamp = generatedConfig.created_at;
+                    console.log('📅 Processing timestamp:', timestamp);
+                    
+                    try {
+                      // Handle both timestamps (numbers) and date strings
+                      const date = typeof timestamp === 'number' 
+                        ? new Date(timestamp)
+                        : new Date(timestamp);
+                      
+                      console.log('📅 Created date object:', date, 'isValid:', !isNaN(date.getTime()));
+                      
+                      if (isNaN(date.getTime())) {
+                        return `Invalid date (${timestamp})`;
+                      }
+                      
+                      return date.toLocaleString();
+                    } catch (error) {
+                      console.error('❌ Date conversion error:', error);
+                      return `Error: ${timestamp}`;
+                    }
+                  })()}
                 </div>
               </div>
             </div>

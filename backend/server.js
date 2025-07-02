@@ -11,11 +11,11 @@ import configurationsRouter from './routes/configurations.js';
 import consoleRouter from './routes/console.js';
 import backupsRouter from './routes/backups.js';
 import netconfRouter from './routes/netconf.js';
-import templateRoutes from './routes/templates.js';
+
 
 // Import services for cleanup
 import netconfService from './services/netconfService.js';
-import mockNetconfService from './services/mockNetconfService.js';
+
 
 const app = express();
 
@@ -87,21 +87,20 @@ app.use('/api/configurations', configurationsRouter);
 app.use('/api/console', consoleRouter);
 app.use('/api/backups', backupsRouter);
 app.use('/api/netconf', netconfRouter);
-app.use('/api/templates', templateRoutes);
+
 
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'Network Automation API with MongoDB, AI & NETCONF/YANG + Template-Based Generation',
-    version: '2.0.0',
+    message: 'Simple Network Automation API with Raw AI',
+    version: '1.0.0',
     database: 'MongoDB Atlas',
     features: [
-      '🤖 AI configuration generation (CLI & NETCONF XML)',
-      '🔧 Template-based fast generation (OSPF, EIGRP, BGP, ISIS, RIP)',
+      '🤖 Raw AI configuration generation',
       '🍃 MongoDB Atlas cloud database',
       '🔗 NETCONF/YANG support',
-      '⚡ Fast and lightweight with template caching',
+      '⚡ Fast and lightweight',
       '🎯 Simple and reliable',
       '📝 Configuration validation',
       '💾 Configuration history',
@@ -111,14 +110,12 @@ app.get('/', (req, res) => {
       health: '/api/health',
       devices: '/api/devices',
       configurations: '/api/configurations',
-      templates: '/api/templates',
       console: '/api/console',
       backups: '/api/backups',
       netconf: '/api/netconf'
     },
     protocols: ['SSH', 'Console', 'NETCONF'],
     yang_support: true,
-    template_support: true,
     vendors: ['Cisco']
   });
 });
@@ -153,9 +150,6 @@ process.on('SIGTERM', async () => {
     // Cleanup NETCONF sessions
     await netconfService.cleanup();
     
-    // Cleanup mock NETCONF sessions
-    await mockNetconfService.mockCleanup();
-    
     // Close MongoDB connection
     await mongoose.connection.close();
     console.log('✅ MongoDB connection closed');
@@ -173,9 +167,6 @@ process.on('SIGINT', async () => {
   try {
     // Cleanup NETCONF sessions
     await netconfService.cleanup();
-    
-    // Cleanup mock NETCONF sessions
-    await mockNetconfService.mockCleanup();
     
     // Close MongoDB connection
     await mongoose.connection.close();

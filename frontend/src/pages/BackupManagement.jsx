@@ -93,6 +93,8 @@ function BackupManagement() {
       const backupsData = backupsResponse.data?.backups || backupsResponse.data || [];
       const devicesData = devicesResponse.data?.devices || devicesResponse.data || [];
       
+
+      
       console.log('📊 Processed data:', {
         backupsCount: backupsData.length,
         devicesCount: devicesData.length
@@ -242,8 +244,25 @@ function BackupManagement() {
     return `${Math.round(bytes / Math.pow(1024, i) * 100) / 100} ${sizes[i]}`;
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString();
+  const formatDate = (dateValue) => {
+    if (!dateValue || dateValue === undefined || dateValue === null) {
+      return 'No date available';
+    }
+    
+    try {
+      // Handle both timestamps (numbers) and date strings
+      const date = typeof dateValue === 'number' 
+        ? new Date(dateValue)
+        : new Date(dateValue);
+      
+      if (isNaN(date.getTime())) {
+        return 'Invalid date';
+      }
+      
+      return date.toLocaleString();
+    } catch {
+      return 'Date error';
+    }
   };
 
   const getBackupTypeIcon = (type) => {
@@ -320,14 +339,23 @@ function BackupManagement() {
             Create, restore, and manage device configuration backups
           </p>
         </div>
-        <button
-          onClick={fetchData}
-          disabled={loading}
-          className="btn btn-secondary btn-md"
-        >
-          <RefreshCwIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Add Backup
+          </button>
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <RefreshCwIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Statistics Cards */}
@@ -527,7 +555,7 @@ function BackupManagement() {
                   </div>
                   <div className="flex items-center">
                     <ClockIcon className="h-4 w-4 mr-2 text-gray-400" />
-                    <span>{formatDate(backup.created_at)}</span>
+                    <span>{formatDate(backup.createdAt || backup.created_at)}</span>
                   </div>
                   {backup.created_by && (
                     <div className="flex items-center">
@@ -795,7 +823,7 @@ function BackupManagement() {
                     <div className="space-y-1 text-sm text-gray-600">
                       <p><strong>Name:</strong> {selectedBackup.backup_name}</p>
                       <p><strong>Device:</strong> {selectedBackup.device_name} ({selectedBackup.device_type})</p>
-                      <p><strong>Created:</strong> {formatDate(selectedBackup.created_at)}</p>
+                      <p><strong>Created:</strong> {formatDate(selectedBackup.createdAt || selectedBackup.created_at)}</p>
                       <p><strong>Size:</strong> {formatFileSize(selectedBackup.file_size)}</p>
                     </div>
                   </div>

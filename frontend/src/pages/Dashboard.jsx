@@ -7,7 +7,9 @@ import {
   XCircleIcon,
   ClockIcon,
   ActivityIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  NetworkIcon,
+  WifiIcon
 } from 'lucide-react';
 
 function Dashboard() {
@@ -17,6 +19,7 @@ function Dashboard() {
     totalConfigurations: 0,
     recentConfigurations: []
   });
+  const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,13 +33,14 @@ function Dashboard() {
         axios.get('/configurations/history?limit=5')
       ]);
 
-      const devices = devicesResponse.data.devices || [];
+      const devicesData = devicesResponse.data.devices || [];
       const configurations = configurationsResponse.data.configurations || [];
       const totalConfigs = configurationsResponse.data.total || 0;
 
+      setDevices(devicesData);
       setStats({
-        totalDevices: devices.length,
-        activeDevices: devices.filter(d => d.status === 'active').length,
+        totalDevices: devicesData.length,
+        activeDevices: devicesData.filter(d => d.status === 'active').length,
         totalConfigurations: totalConfigs,
         recentConfigurations: configurations
       });
@@ -65,6 +69,26 @@ function Dashboard() {
         return <XCircleIcon className="h-4 w-4 text-red-600" />;
       default:
         return <ClockIcon className="h-4 w-4 text-blue-600" />;
+    }
+  };
+
+  const getDeviceStatusBadge = (status) => {
+    const styles = {
+      active: 'bg-green-100 text-green-800',
+      inactive: 'bg-red-100 text-red-800',
+      maintenance: 'bg-yellow-100 text-yellow-800'
+    };
+    return styles[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getDeviceIcon = (type) => {
+    switch (type?.toLowerCase()) {
+      case 'router':
+        return <NetworkIcon className="h-5 w-5 text-blue-600" />;
+      case 'switch':
+        return <WifiIcon className="h-5 w-5 text-green-600" />;
+      default:
+        return <ServerIcon className="h-5 w-5 text-gray-600" />;
     }
   };
 
@@ -144,6 +168,65 @@ function Dashboard() {
         </div>
       </div>
 
+      {/* Device Overview */}
+      <div className="card">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">Device Overview</h3>
+        </div>
+        <div className="p-6">
+          {devices.length === 0 ? (
+            <div className="text-center py-8">
+              <ServerIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500">No devices found</p>
+              <p className="text-sm text-gray-400 mt-1">
+                Add devices to start monitoring your network
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {devices.map((device) => (
+                <div key={device.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="flex-shrink-0">
+                        {getDeviceIcon(device.device_type)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {device.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {device.device_type || 'Unknown'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getDeviceStatusBadge(device.status)}`}>
+                      {device.status || 'unknown'}
+                    </span>
+                  </div>
+                  <div className="mt-3 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">IP Address:</span>
+                      <span className="text-xs font-medium text-gray-900">
+                        {device.ip_address || 'N/A'}
+                      </span>
+                    </div>
+                    {device.location && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Location:</span>
+                        <span className="text-xs font-medium text-gray-900 truncate ml-2">
+                          {device.location}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Recent Configurations */}
       <div className="card">
         <div className="px-6 py-4 border-b border-gray-200">
@@ -181,7 +264,20 @@ function Dashboard() {
                       {config.status}
                     </span>
                     <span className="text-xs text-gray-400">
-                      {new Date(config.created_at).toLocaleDateString()}
+                      {(() => {
+                        if (!config.created_at) return 'Unknown date';
+                        
+                        try {
+                          // Handle both timestamps (numbers) and date strings
+                          const date = typeof config.created_at === 'number' 
+                            ? new Date(config.created_at)
+                            : new Date(config.created_at);
+                          
+                          return isNaN(date.getTime()) ? 'Unknown date' : date.toLocaleDateString();
+                        } catch {
+                          return 'Unknown date';
+                        }
+                      })()}
                     </span>
                   </div>
                 </div>

@@ -3,20 +3,15 @@ import Device from '../models/Device.js';
 import YangModel from '../models/YangModel.js';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import netconfService from '../services/netconfService.js';
-import mockNetconfService from '../services/mockNetconfService.js';
 import aiService from '../services/aiService.js';
+import yangService from '../services/yangService.js';
 
 const router = express.Router();
 
-// Helper function to determine if mock mode should be used
-const shouldUseMock = (req) => {
-  return req.query.mock === 'true' || req.body?.mock === true;
-};
-
-// Test NETCONF connection (with mock support)
+// Test NETCONF connection
 router.post('/test-connection', async (req, res) => {
   try {
-    const { device_id, mock } = req.body;
+    const { device_id } = req.body;
 
     if (!device_id) {
       return res.status(400).json({
@@ -33,30 +28,19 @@ router.post('/test-connection', async (req, res) => {
       });
     }
 
-    let result;
-    if (mock || shouldUseMock(req)) {
-      // Use mock service
-      result = await mockNetconfService.mockConnect({
-        ip_address: device.ip_address,
-        username: device.username,
-        password: device.password,
-        netconf_port: device.netconf_port
-      });
-    } else {
-      if (!device.netconf_enabled) {
-        return res.status(400).json({
-          success: false,
-          message: 'NETCONF is not enabled for this device'
-        });
-      }
-
-      result = await netconfService.connect({
-        ip_address: device.ip_address,
-        username: device.username,
-        password: device.password,
-        netconf_port: device.netconf_port
+    if (!device.netconf_enabled) {
+      return res.status(400).json({
+        success: false,
+        message: 'NETCONF is not enabled for this device'
       });
     }
+
+    const result = await netconfService.connect({
+      ip_address: device.ip_address,
+      username: device.username,
+      password: device.password,
+      netconf_port: device.netconf_port
+    });
 
     // Update device capabilities if connection successful
     if (result.success && result.capabilities) {
@@ -72,12 +56,11 @@ router.post('/test-connection', async (req, res) => {
 
     res.json({
       success: true,
-      message: `${result.isMock ? 'Mock ' : ''}NETCONF connection test successful`,
+      message: 'NETCONF connection test successful',
       data: {
         sessionId: result.sessionId,
         capabilities: result.capabilities || [],
-        device: device.device_summary,
-        isMock: result.isMock || false
+        device: device.device_summary
       }
     });
 
@@ -91,11 +74,10 @@ router.post('/test-connection', async (req, res) => {
   }
 });
 
-// Connect to device via NETCONF (with mock support)
+// Connect to device via NETCONF
 router.post('/connect/:device_id', async (req, res) => {
   try {
     const { device_id } = req.params;
-    const { mock } = req.body;
 
     const device = await Device.findById(device_id);
     if (!device) {
@@ -105,30 +87,19 @@ router.post('/connect/:device_id', async (req, res) => {
       });
     }
 
-    let result;
-    if (mock || shouldUseMock(req)) {
-      // Use mock service
-      result = await mockNetconfService.mockConnect({
-        ip_address: device.ip_address,
-        username: device.username,
-        password: device.password,
-        netconf_port: device.netconf_port
-      });
-    } else {
-      if (!device.netconf_enabled) {
-        return res.status(400).json({
-          success: false,
-          message: 'NETCONF is not enabled for this device'
-        });
-      }
-
-      result = await netconfService.connect({
-        ip_address: device.ip_address,
-        username: device.username,
-        password: device.password,
-        netconf_port: device.netconf_port
+    if (!device.netconf_enabled) {
+      return res.status(400).json({
+        success: false,
+        message: 'NETCONF is not enabled for this device'
       });
     }
+
+    const result = await netconfService.connect({
+      ip_address: device.ip_address,
+      username: device.username,
+      password: device.password,
+      netconf_port: device.netconf_port
+    });
 
     if (result.success) {
       // Update device with capabilities
@@ -146,12 +117,11 @@ router.post('/connect/:device_id', async (req, res) => {
 
     res.json({
       success: true,
-      message: `${result.isMock ? 'Mock ' : ''}NETCONF session established with ${device.name}`,
+      message: `NETCONF session established with ${device.name}`,
       data: {
         sessionId: result.sessionId,
         capabilities: result.capabilities || device.netconf_capabilities,
-        device: device.device_summary,
-        isMock: result.isMock || false
+        device: device.device_summary
       }
     });
 
@@ -165,21 +135,16 @@ router.post('/connect/:device_id', async (req, res) => {
   }
 });
 
-// Disconnect NETCONF session (with mock support)
+// Disconnect NETCONF session
 router.post('/disconnect/:session_id', async (req, res) => {
   try {
     const { session_id } = req.params;
 
-    let result;
-    if (session_id.startsWith('mock_')) {
-      result = await mockNetconfService.mockDisconnect(session_id);
-    } else {
-      result = await netconfService.disconnect(session_id);
-    }
+    const result = await netconfService.disconnect(session_id);
 
     res.json({
       success: true,
-      message: `${result.isMock ? 'Mock ' : ''}NETCONF session disconnected`,
+      message: 'NETCONF session disconnected',
       data: result
     });
 
@@ -193,28 +158,22 @@ router.post('/disconnect/:session_id', async (req, res) => {
   }
 });
 
-// Get device configuration via NETCONF (with mock support)
+// Get device configuration via NETCONF
 router.get('/config/:session_id', async (req, res) => {
   try {
     const { session_id } = req.params;
     const { datastore = 'running', filter } = req.query;
 
-    let result;
-    if (session_id.startsWith('mock_')) {
-      result = await mockNetconfService.mockGetConfig(session_id, datastore, filter);
-    } else {
-      result = await netconfService.getConfig(session_id, datastore, filter);
-    }
+    const result = await netconfService.getConfig(session_id, datastore, filter);
 
     res.json({
       success: true,
-      message: `${result.isMock ? 'Mock ' : ''}Configuration retrieved successfully`,
+      message: 'Configuration retrieved successfully',
       data: {
         datastore,
         config: result.data,
         operation: result.operation,
-        messageId: result.messageId,
-        isMock: result.isMock || false
+        messageId: result.messageId
       }
     });
 
@@ -228,27 +187,21 @@ router.get('/config/:session_id', async (req, res) => {
   }
 });
 
-// Get operational data via NETCONF (with mock support)
+// Get operational data via NETCONF
 router.get('/operational/:session_id', async (req, res) => {
   try {
     const { session_id } = req.params;
     const { filter } = req.query;
 
-    let result;
-    if (session_id.startsWith('mock_')) {
-      result = await mockNetconfService.mockGet(session_id, filter);
-    } else {
-      result = await netconfService.get(session_id, filter);
-    }
+    const result = await netconfService.get(session_id, filter);
 
     res.json({
       success: true,
-      message: `${result.isMock ? 'Mock ' : ''}Operational data retrieved successfully`,
+      message: 'Operational data retrieved successfully',
       data: {
         operationalData: result.data,
         operation: result.operation,
-        messageId: result.messageId,
-        isMock: result.isMock || false
+        messageId: result.messageId
       }
     });
 
@@ -262,7 +215,7 @@ router.get('/operational/:session_id', async (req, res) => {
   }
 });
 
-// Edit configuration via NETCONF (with mock support)
+// Edit configuration via NETCONF
 router.post('/edit-config/:session_id', async (req, res) => {
   try {
     const { session_id } = req.params;
@@ -275,12 +228,7 @@ router.post('/edit-config/:session_id', async (req, res) => {
       });
     }
 
-    let result;
-    if (session_id.startsWith('mock_')) {
-      result = await mockNetconfService.mockEditConfig(session_id, datastore, config, default_operation);
-    } else {
-      result = await netconfService.editConfig(session_id, datastore, config, default_operation);
-    }
+    const result = await netconfService.editConfig(session_id, datastore, config, default_operation);
 
     // Save configuration history
     if (device_id) {
@@ -290,16 +238,15 @@ router.post('/edit-config/:session_id', async (req, res) => {
           device_id: device._id,
           configuration: typeof config === 'string' ? config : JSON.stringify(config),
           status: result.success ? 'applied' : 'failed',
-          deployment_method: result.isMock ? 'netconf-mock' : 'netconf',
+          deployment_method: 'netconf',
           deployment_target: datastore,
           applied_by: 'netconf-api',
-          applied_at: new Date(),
+          applied_at: Date.now(),
           metadata: {
             session_id,
             operation: 'edit-config',
             default_operation,
-            message_id: result.messageId,
-            is_mock: result.isMock || false
+            message_id: result.messageId
           }
         });
         await configHistory.save();
@@ -308,13 +255,12 @@ router.post('/edit-config/:session_id', async (req, res) => {
 
     res.json({
       success: true,
-      message: `${result.isMock ? 'Mock ' : ''}Configuration applied successfully via NETCONF`,
+      message: 'Configuration applied successfully via NETCONF',
       data: {
         datastore,
         operation: result.operation,
         messageId: result.messageId,
-        response: result.data,
-        isMock: result.isMock || false
+        response: result.data
       }
     });
 
@@ -328,9 +274,9 @@ router.post('/edit-config/:session_id', async (req, res) => {
           device_id: req.body.device_id,
           configuration: typeof req.body.config === 'string' ? req.body.config : JSON.stringify(req.body.config),
           status: 'failed',
-          deployment_method: req.params.session_id.startsWith('mock_') ? 'netconf-mock' : 'netconf',
+          deployment_method: 'netconf',
           applied_by: 'netconf-api',
-          applied_at: new Date(),
+          applied_at: Date.now(),
           error_message: error.message,
           metadata: {
             session_id: req.params.session_id,
@@ -351,26 +297,20 @@ router.post('/edit-config/:session_id', async (req, res) => {
   }
 });
 
-// Commit configuration (with mock support)
+// Commit configuration
 router.post('/commit/:session_id', async (req, res) => {
   try {
     const { session_id } = req.params;
 
-    let result;
-    if (session_id.startsWith('mock_')) {
-      result = await mockNetconfService.mockCommit(session_id);
-    } else {
-      result = await netconfService.commit(session_id);
-    }
+    const result = await netconfService.commit(session_id);
 
     res.json({
       success: true,
-      message: `${result.isMock ? 'Mock ' : ''}Configuration committed successfully`,
+      message: 'Configuration committed successfully',
       data: {
         operation: result.operation,
         messageId: result.messageId,
-        response: result.data,
-        isMock: result.isMock || false
+        response: result.data
       }
     });
 
@@ -384,33 +324,20 @@ router.post('/commit/:session_id', async (req, res) => {
   }
 });
 
-// Discard changes (with mock support)
+// Discard changes
 router.post('/discard-changes/:session_id', async (req, res) => {
   try {
     const { session_id } = req.params;
 
-    let result;
-    if (session_id.startsWith('mock_')) {
-      // Mock service doesn't have discard-changes, simulate with success
-      result = {
-        success: true,
-        operation: 'discard-changes',
-        messageId: Date.now(),
-        data: { ok: {} },
-        isMock: true
-      };
-    } else {
-      result = await netconfService.discardChanges(session_id);
-    }
+    const result = await netconfService.discardChanges(session_id);
 
     res.json({
       success: true,
-      message: `${result.isMock ? 'Mock ' : ''}Changes discarded successfully`,
+      message: 'Changes discarded successfully',
       data: {
         operation: result.operation,
         messageId: result.messageId,
-        response: result.data,
-        isMock: result.isMock || false
+        response: result.data
       }
     });
 
@@ -424,28 +351,22 @@ router.post('/discard-changes/:session_id', async (req, res) => {
   }
 });
 
-// Validate configuration (with mock support)
+// Validate configuration
 router.post('/validate/:session_id', async (req, res) => {
   try {
     const { session_id } = req.params;
     const { datastore = 'candidate' } = req.body;
 
-    let result;
-    if (session_id.startsWith('mock_')) {
-      result = await mockNetconfService.mockValidate(session_id, datastore);
-    } else {
-      result = await netconfService.validate(session_id, datastore);
-    }
+    const result = await netconfService.validate(session_id, datastore);
 
     res.json({
       success: true,
-      message: `${result.isMock ? 'Mock ' : ''}Configuration validation completed`,
+      message: 'Configuration validation completed',
       data: {
         datastore,
         operation: result.operation,
         messageId: result.messageId,
-        response: result.data,
-        isMock: result.isMock || false
+        response: result.data
       }
     });
 
@@ -459,10 +380,10 @@ router.post('/validate/:session_id', async (req, res) => {
   }
 });
 
-// Generate NETCONF XML using LLM
+// Generate NETCONF XML using Enhanced AI
 router.post('/generate-xml', async (req, res) => {
   try {
-    const { prompt, device_id, yang_model } = req.body;
+    const { prompt, device_id, yang_model_id, output_format = 'netconf_xml' } = req.body;
 
     if (!prompt) {
       return res.status(400).json({
@@ -472,69 +393,122 @@ router.post('/generate-xml', async (req, res) => {
     }
 
     let device = null;
+    let yangModel = null;
+
+    // Get device information
     if (device_id) {
       device = await Device.findById(device_id);
+      if (!device) {
+        return res.status(404).json({
+          success: false,
+          message: 'Device not found'
+        });
+      }
     }
 
-    // Enhanced prompt for NETCONF XML generation
-    const netconfPrompt = `Generate NETCONF XML configuration for the following request:
+    // Get YANG model information
+    if (yang_model_id) {
+      yangModel = await yangService.getModelDetails(yang_model_id);
+      if (!yangModel) {
+        return res.status(404).json({
+          success: false,
+          message: 'YANG model not found'
+        });
+      }
+    }
 
-Request: ${prompt}
+    const deviceContext = device ? {
+      name: device.name,
+      model: device.model,
+      ios_version: device.ios_version,
+      location: device.location,
+      vendor: device.vendor
+    } : {};
 
-Requirements:
-- Generate valid NETCONF edit-config XML
-- Use appropriate YANG model structure: ${yang_model || 'cisco-nx-os-device'}
-- Include proper namespaces and XML structure
-- Target datastore: running
-- Default operation: merge
-${device ? `- Target device: ${device.vendor} ${device.model} (${device.ios_version})` : ''}
+    let result;
 
-Generate only the XML configuration without explanations.`;
+    // Choose generation method based on output format
+    if (output_format === 'netconf_xml') {
+      result = await aiService.generateNetconfXml(
+        prompt, 
+        device?.type || 'switch', 
+        deviceContext, 
+        yangModel
+      );
+    } else {
+      // Default to CLI generation
+      result = await aiService.generateConfiguration(
+        prompt, 
+        device?.type || 'switch', 
+        deviceContext
+      );
+    }
 
-    const result = await aiService.generateConfiguration(netconfPrompt, device);
+    // Save to configuration history
+    if (device && result.success) {
+      const configHistory = new ConfigurationHistory({
+        device_id: device._id,
+        prompt: prompt,
+        generated_config: result.configuration,
+        ai_model: result.model,
+        execution_time: result.executionTime,
+        status: 'generated',
+        created_at: Date.now(),
+        metadata: {
+          generation_method: result.method,
+          output_format: result.outputFormat || output_format,
+          yang_model: yangModel?.name || null,
+          confidence_score: result.confidenceScore,
+          validation: result.validation
+        }
+      });
+      await configHistory.save();
+    }
 
     res.json({
       success: true,
-      message: 'NETCONF XML generated successfully',
+      message: `${output_format.toUpperCase()} configuration generated successfully`,
       data: {
         prompt,
         generated_xml: result.configuration,
-        yang_model: yang_model || 'cisco-nx-os-device',
+        generated_config: result.configuration,
+        output_format: result.outputFormat || output_format,
+        execution_time: result.executionTime,
+        confidence_score: result.confidenceScore,
+        validation: result.validation,
+        yang_model: yangModel?.name || null,
         device: device?.device_summary || null,
+        recommendations: result.recommendations || [],
         metadata: {
           model: result.model,
+          method: result.method,
           generated_at: new Date(),
-          type: 'netconf-xml'
+          type: result.outputFormat || output_format
         }
       }
     });
 
   } catch (error) {
-    console.error('❌ NETCONF XML generation error:', error);
+    console.error('❌ Enhanced XML generation error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to generate NETCONF XML',
+      message: 'Failed to generate configuration',
       error: error.message
     });
   }
 });
 
-// Get active NETCONF sessions (including mock sessions)
+// Get active NETCONF sessions
 router.get('/sessions', async (req, res) => {
   try {
-    const realSessions = netconfService.getActiveSessions();
-    const mockSessions = mockNetconfService.getMockActiveSessions();
-    
-    const allSessions = [...realSessions, ...mockSessions];
+    const sessions = netconfService.getActiveSessions();
 
     res.json({
       success: true,
       message: 'Active NETCONF sessions retrieved',
       data: {
-        total_sessions: allSessions.length,
-        real_sessions: realSessions.length,
-        mock_sessions: mockSessions.length,
-        sessions: allSessions
+        total_sessions: sessions.length,
+        sessions: sessions
       }
     });
 
@@ -628,79 +602,206 @@ router.get('/yang-models/:model_id', async (req, res) => {
   }
 });
 
-// Mock-specific endpoints
 
-// Get mock XML examples
-router.get('/mock/xml-examples', async (req, res) => {
+
+// YANG Management Routes
+
+// Parse YANG model content
+router.post('/yang/parse', async (req, res) => {
   try {
-    const examples = mockNetconfService.generateMockXmlExamples();
+    const { yang_content, model_name } = req.body;
+
+    if (!yang_content) {
+      return res.status(400).json({
+        success: false,
+        message: 'YANG content is required'
+      });
+    }
+
+    const parsedTree = yangService.parseYangToTree(yang_content);
 
     res.json({
       success: true,
-      message: 'Mock NETCONF XML examples retrieved',
+      message: 'YANG model parsed successfully',
       data: {
-        examples,
-        total_examples: Object.keys(examples).length
+        model_name: model_name || 'unnamed',
+        parsed_tree: parsedTree,
+        total_containers: Object.keys(parsedTree.containers || {}).length,
+        total_leaves: Object.keys(parsedTree.leaves || {}).length,
+        modules: Object.keys(parsedTree.modules || {})
       }
     });
 
   } catch (error) {
-    console.error('❌ Get mock XML examples error:', error);
+    console.error('❌ YANG parsing error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve mock XML examples',
+      message: 'Failed to parse YANG model',
       error: error.message
     });
   }
 });
 
-// Create demo mock session
-router.post('/mock/demo-session', async (req, res) => {
+// Validate NETCONF XML against YANG model
+router.post('/yang/validate-xml', async (req, res) => {
   try {
-    const demoDevice = {
-      ip_address: '192.168.1.100',
-      username: 'admin',
-      password: 'demo',
-      netconf_port: 830
-    };
+    const { xml_content, yang_model_id } = req.body;
 
-    const result = await mockNetconfService.mockConnect(demoDevice);
+    if (!xml_content || !yang_model_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'XML content and YANG model ID are required'
+      });
+    }
+
+    const yangModel = await yangService.getModelDetails(yang_model_id);
+    if (!yangModel) {
+      return res.status(404).json({
+        success: false,
+        message: 'YANG model not found'
+      });
+    }
+
+    const validation = yangService.validateXmlAgainstYang(xml_content, yangModel);
 
     res.json({
       success: true,
-      message: 'Demo mock NETCONF session created',
+      message: 'XML validation completed',
       data: {
-        ...result,
-        note: 'This is a demo session for testing purposes'
+        validation: validation,
+        yang_model: yangModel.name,
+        xml_valid: validation.isValid,
+        error_count: validation.errors.length,
+        warning_count: validation.warnings.length
       }
     });
 
   } catch (error) {
-    console.error('❌ Create demo session error:', error);
+    console.error('❌ XML validation error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to create demo session',
+      message: 'Failed to validate XML',
       error: error.message
     });
   }
 });
 
-// Cleanup all mock sessions
-router.post('/mock/cleanup', async (req, res) => {
+// Generate XML template from YANG model
+router.post('/yang/generate-template/:model_id', async (req, res) => {
   try {
-    const result = await mockNetconfService.mockCleanup();
+    const { model_id } = req.params;
+    const { operation = 'edit-config' } = req.body;
+
+    const yangModel = await yangService.getModelDetails(model_id);
+    if (!yangModel) {
+      return res.status(404).json({
+        success: false,
+        message: 'YANG model not found'
+      });
+    }
+
+    const template = yangService.generateXmlTemplate(yangModel, operation);
 
     res.json({
       success: true,
-      message: 'Mock NETCONF sessions cleaned up',
-      data: result
+      message: 'XML template generated successfully',
+      data: {
+        yang_model: yangModel.name,
+        operation: operation,
+        template: template,
+        example_count: Object.keys(template.examples || {}).length
+      }
     });
 
   } catch (error) {
-    console.error('❌ Mock cleanup error:', error);
+    console.error('❌ Template generation error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to cleanup mock sessions',
+      message: 'Failed to generate XML template',
+      error: error.message
+    });
+  }
+});
+
+// Search YANG models
+router.get('/yang/search', async (req, res) => {
+  try {
+    const { q, vendor, category, limit = 20 } = req.query;
+
+    const filters = {};
+    if (vendor) filters.vendor = vendor;
+    if (category) filters.category = category;
+
+    const results = await yangService.searchModels(q, filters);
+    const limitedResults = results.slice(0, parseInt(limit));
+
+    res.json({
+      success: true,
+      message: 'YANG models search completed',
+      data: {
+        query: q || '',
+        filters: filters,
+        total_results: results.length,
+        returned_results: limitedResults.length,
+        models: limitedResults
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ YANG search error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to search YANG models',
+      error: error.message
+    });
+  }
+});
+
+// Get YANG statistics
+router.get('/yang/statistics', async (req, res) => {
+  try {
+    const stats = await yangService.getYangStatistics();
+
+    res.json({
+      success: true,
+      message: 'YANG statistics retrieved',
+      data: {
+        statistics: stats,
+        last_updated: new Date()
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ YANG statistics error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve YANG statistics',
+      error: error.message
+    });
+  }
+});
+
+// Get YANG models by vendor
+router.get('/yang/vendor/:vendor', async (req, res) => {
+  try {
+    const { vendor } = req.params;
+    const models = await yangService.getModelsByVendor(vendor);
+
+    res.json({
+      success: true,
+      message: `YANG models for vendor '${vendor}' retrieved`,
+      data: {
+        vendor: vendor,
+        total_models: models.length,
+        models: models
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Get models by vendor error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve models by vendor',
       error: error.message
     });
   }
