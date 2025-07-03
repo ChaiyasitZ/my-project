@@ -18,7 +18,8 @@ import {
   FileTextIcon,
   FilterIcon,
   PlusIcon,
-  SearchIcon
+  SearchIcon,
+  EyeIcon
 } from 'lucide-react';
 
 function BackupManagement() {
@@ -91,6 +92,8 @@ function BackupManagement() {
       // Ensure we have proper data structure
       const backupsData = backupsResponse.data?.backups || backupsResponse.data || [];
       const devicesData = devicesResponse.data?.devices || devicesResponse.data || [];
+      
+
       
       console.log('📊 Processed data:', {
         backupsCount: backupsData.length,
@@ -241,8 +244,25 @@ function BackupManagement() {
     return `${Math.round(bytes / Math.pow(1024, i) * 100) / 100} ${sizes[i]}`;
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString();
+  const formatDate = (dateValue) => {
+    if (!dateValue || dateValue === undefined || dateValue === null) {
+      return 'No date available';
+    }
+    
+    try {
+      // Handle both timestamps (numbers) and date strings
+      const date = typeof dateValue === 'number' 
+        ? new Date(dateValue)
+        : new Date(dateValue);
+      
+      if (isNaN(date.getTime())) {
+        return 'Invalid date';
+      }
+      
+      return date.toLocaleString();
+    } catch {
+      return 'Date error';
+    }
   };
 
   const getBackupTypeIcon = (type) => {
@@ -309,28 +329,31 @@ function BackupManagement() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Configuration Backups</h1>
-          <p className="mt-2 text-gray-600 max-w-2xl">
-            Create, manage, and restore device configuration backups
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+            <ShieldIcon className="h-8 w-8 text-blue-600" />
+            Backup Management
+          </h1>
+          <p className="mt-2 text-gray-600">
+            Create, restore, and manage device configuration backups
           </p>
         </div>
-        
-        <div className="flex space-x-3">
-          <button
-            onClick={fetchData}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-          >
-            <RefreshCwIcon className="h-4 w-4 mr-2" />
-            Refresh
-          </button>
+        <div className="flex items-center space-x-3">
           <button
             onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
             <PlusIcon className="h-4 w-4 mr-2" />
-            Create Backup
+            Add Backup
+          </button>
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <RefreshCwIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
           </button>
         </div>
       </div>
@@ -532,7 +555,7 @@ function BackupManagement() {
                   </div>
                   <div className="flex items-center">
                     <ClockIcon className="h-4 w-4 mr-2 text-gray-400" />
-                    <span>{formatDate(backup.created_at)}</span>
+                    <span>{formatDate(backup.createdAt || backup.created_at)}</span>
                   </div>
                   {backup.created_by && (
                     <div className="flex items-center">
@@ -800,7 +823,7 @@ function BackupManagement() {
                     <div className="space-y-1 text-sm text-gray-600">
                       <p><strong>Name:</strong> {selectedBackup.backup_name}</p>
                       <p><strong>Device:</strong> {selectedBackup.device_name} ({selectedBackup.device_type})</p>
-                      <p><strong>Created:</strong> {formatDate(selectedBackup.created_at)}</p>
+                      <p><strong>Created:</strong> {formatDate(selectedBackup.createdAt || selectedBackup.created_at)}</p>
                       <p><strong>Size:</strong> {formatFileSize(selectedBackup.file_size)}</p>
                     </div>
                   </div>

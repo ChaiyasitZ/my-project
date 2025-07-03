@@ -16,7 +16,7 @@ export const config = {
 
   // Server Configuration
   server: {
-    port: process.env.PORT || 5000,
+    port: process.env.PORT || 3001,
     jwtSecret: process.env.JWT_SECRET || 'network_automation_jwt_secret_2025',
     nodeEnv: process.env.NODE_ENV || 'development',
   },

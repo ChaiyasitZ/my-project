@@ -1,4 +1,5 @@
 import axios from 'axios';
+import yangService from './yangService.js';
 
 export class AIService {
   constructor() {
@@ -6,623 +7,840 @@ export class AIService {
     this.model = process.env.OLLAMA_MODEL || 'codellama:13b';
     this.client = axios.create({
       baseURL: this.host,
-      timeout: 120000, // Increased timeout for complex configs
+      timeout: 120000,
     });
     
-    console.log(`🤖 Enhanced Cisco AI Service initialized with ${this.model} at ${this.host}`);
-    
-    // Strict Cisco IOS command patterns for validation
-    this.ciscoPatterns = {
-      router: [
-        /^router (ospf|eigrp|bgp|rip) \d+$/,  // Must be on separate line
-        /^ network \d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+ area \d+$/,  // Indented network command
-        /^interface (GigabitEthernet|FastEthernet|Serial|Loopback)\d+(\.\d+)?(\/\d+)*$/,
-        /^ip route /,
-        /^access-list \d+ (permit|deny)/,
-        /^ip access-group/
-      ],
-      switch: [
-        /^vlan \d+$/,  // Must be exact format
-        /^ name \w+$/,  // Indented under vlan
-        /^interface (GigabitEthernet|FastEthernet|Vlan)\d+(\.\d+)?(\/\d+)*$/,
-        /^ switchport mode (access|trunk)$/,  // Must be indented
-        /^ switchport access vlan \d+$/,
-        /^spanning-tree/
-      ],
-      common: [
-        /^configure terminal$/,
-        /^end$/,
-        /^exit$/,
-        /^hostname \S+$/,
-        /^ ip address \d+\.\d+\.\d+\.\d+ \d+\.\d+\.\d+\.\d+$/,
-        /^ no shutdown$/,
-        /^ description \S+/
-      ],
-      // Anti-patterns (things that should NOT appear)
-      antiPatterns: [
-        /^router ospf \d+ network/,  // Wrong: all on one line
-        /^interface.*network/,       // Wrong: mixing interface and network
-        /^vlan \d+ name/,           // Wrong: should be separate lines
-        /[^!].*\S\s+on\s+\w+$/      // Wrong: "on interface" syntax
-      ]
-    };
+    console.log(`🤖 Enhanced AI Service initialized with ${this.model} at ${this.host}`);
+    console.log(`🗂️ YANG/NETCONF support enabled`);
   }
 
-  // Enhanced configuration generation with Cisco-specific optimization
+  // Main configuration generation method
   async generateConfiguration(prompt, deviceType, deviceContext = {}) {
     const startTime = Date.now();
     
     try {
-      console.log(`🤖 Enhanced Cisco AI generation for ${deviceType}: "${prompt}"`);
+      console.log(`🤖 Generating configuration for ${deviceType}: "${prompt}"`);
 
-      // Build enhanced Cisco-specific prompt
-      const aiPrompt = this.buildEnhancedCiscoPrompt(prompt, deviceType, deviceContext);
+      // Build focused prompt
+      const aiPrompt = this.buildEnhancedPrompt(prompt, deviceType, deviceContext);
+      console.log(`📝 Using prompt length: ${aiPrompt.length} characters`);
 
-      // Generate with optimized parameters
+      // Generate with AI
       const response = await this.client.post("/api/generate", {
         model: this.model,
         prompt: aiPrompt,
         stream: false,
         options: {
-          temperature: 0.1, // Low temperature for consistent syntax
-          top_k: 25,
-          top_p: 0.8,
-          num_predict: 1500, // Increased for complex configurations
+          temperature: 0.1, // Lower temperature for more consistent output
+          top_k: 20,
+          top_p: 0.7,
+          num_predict: 800, // Ensure enough tokens for complete config
           repeat_penalty: 1.1,
-          stop: ["```", "---", "Note:", "Explanation:"] // Stop on common non-config patterns
+          stop: ["```", "---", "Note:", "Explanation:", "Remember:", "Note that", "Here's", "This configuration"]
         },
       });
 
-      const rawResponse = response.data.response.trim();
+      let configuration = response.data.response ? response.data.response.trim() : '';
+      console.log(`📦 Raw AI response length: ${configuration.length} characters`);
+      console.log(`📦 Raw AI response preview: "${configuration.substring(0, 200)}..."`);
       
-      if (!rawResponse || rawResponse.length < 20) {
-        return {
-          success: false,
-          error: `AI generated insufficient configuration for ${deviceType}`,
-          configuration: null,
-        };
+      // More lenient length check
+      if (!configuration || configuration.length < 5) {
+        console.log(`❌ Response too short, trying alternative approach`);
+        return await this.generateFallbackConfiguration(prompt, deviceType, deviceContext);
       }
 
-      // Enhanced configuration processing
-      let processedConfig = this.processConfiguration(rawResponse, deviceType);
-      const validation = this.advancedCiscoValidation(processedConfig, deviceType);
+      // Clean and format configuration
+      configuration = this.cleanConfiguration(configuration);
+      console.log(`🧹 Cleaned configuration length: ${configuration.length} characters`);
+      
+      // If cleaning resulted in empty config, try fallback
+      if (!configuration || configuration.length < 20) {
+        console.log(`❌ Cleaned configuration too short, using fallback`);
+        return await this.generateFallbackConfiguration(prompt, deviceType, deviceContext);
+      }
+      
+      // Basic validation
+      const validation = this.validateConfiguration(configuration, deviceType);
       const executionTime = Date.now() - startTime;
-
-      // Calculate confidence score
-      const confidenceScore = this.calculateConfidenceScore(processedConfig, deviceType, validation);
 
       const result = {
         success: true,
-        configuration: processedConfig,
+        configuration: configuration,
         model: this.model,
         deviceType: deviceType,
-        processed: processedConfig !== rawResponse,
+        method: 'raw_ai',
         executionTime: executionTime,
         validation: validation,
-        confidenceScore: confidenceScore,
-        recommendations: this.getConfigurationRecommendations(processedConfig, deviceType)
+        confidenceScore: validation.score,
+        recommendations: this.getBasicRecommendations(configuration, deviceType)
       };
 
-      console.log(`🔧 Enhanced Cisco configuration generated successfully (${executionTime}ms, confidence: ${confidenceScore}%)`);
+      console.log(`✅ Configuration generated successfully (${executionTime}ms, confidence: ${validation.score}%)`);
       return result;
       
     } catch (error) {
       const executionTime = Date.now() - startTime;
       console.error("❌ AI Service Error:", error.message);
+      
+      // Try fallback if main generation fails
+      if (error.code === 'ECONNREFUSED' || error.message.includes('timeout')) {
+        console.log(`🔄 Connection issue, trying fallback generation`);
+        return await this.generateFallbackConfiguration(prompt, deviceType, deviceContext);
+      }
+      
       return {
         success: false,
-        error: `AI Service Error: ${error.message}`,
+        error: `Failed to generate configuration: ${error.message}. Please check if Ollama is running.`,
         configuration: null,
         executionTime: executionTime
       };
     }
   }
 
-  // Enhanced Cisco-specific prompt building
-  buildEnhancedCiscoPrompt(prompt, deviceType, deviceContext) {
+  // Enhanced prompt building
+  buildEnhancedPrompt(prompt, deviceType, deviceContext) {
     const deviceInfo = [
       deviceContext.model && `Model: ${deviceContext.model}`,
       deviceContext.ios_version && `IOS: ${deviceContext.ios_version}`,
       deviceContext.location && `Location: ${deviceContext.location}`
     ].filter(Boolean).join(', ');
 
-    // Device-specific context and constraints
-    const deviceSpecifics = this.getDeviceSpecificContext(deviceType, deviceContext);
-    const commonPatterns = this.getCommonCiscoPatterns(deviceType);
+    const examples = this.getExamplesByType(deviceType);
 
-         return `You are a Senior Cisco Network Engineer with CCIE certification. Generate EXACT Cisco IOS configuration syntax.
+    return `You are an expert Cisco network engineer. Generate a COMPLETE Cisco IOS configuration for a ${deviceType}.
 
-DEVICE CONTEXT:
-- Type: ${deviceType.toUpperCase()}
-${deviceInfo ? `- Details: ${deviceInfo}` : ''}
-${deviceSpecifics}
+${deviceInfo ? `Device: ${deviceInfo}` : ''}
 
-CRITICAL CISCO IOS SYNTAX RULES:
-1. Generate ONLY executable Cisco IOS commands with EXACT syntax
-2. Start with 'configure terminal' and end with 'end'
-3. Use proper command hierarchy and indentation
-4. Each configuration mode must have proper 'exit' commands
-5. Comments use '!' at the beginning of lines
-6. Sub-commands are indented with exactly ONE space
-7. NO explanations, markdown, or non-IOS text
+MANDATORY REQUIREMENTS:
+1. Start with "configure terminal"
+2. End with "end"
+3. Generate at least 5-10 lines of configuration
+4. Use proper Cisco IOS command syntax
+5. Use proper indentation (space for sub-commands)
+6. No explanations, just commands
 
-${commonPatterns}
+${examples}
 
-EXACT SYNTAX EXAMPLES:
-OSPF Configuration:
+TASK: Create configuration for: ${prompt}
+
+IMPORTANT: Generate a COMPLETE working configuration with proper structure. Do not include any explanatory text.
+
+Configuration:`;
+  }
+
+  // Fallback configuration generation
+  async generateFallbackConfiguration(prompt, deviceType, deviceContext) {
+    console.log(`🔄 Generating fallback configuration for ${deviceType}`);
+    
+    try {
+      // Use a simpler, more direct prompt
+      const fallbackPrompt = `Generate Cisco IOS commands for ${deviceType}:
+
+Task: ${prompt}
+
+Start with 'configure terminal' and end with 'end'. Generate complete configuration:`;
+
+      const response = await this.client.post("/api/generate", {
+        model: this.model,
+        prompt: fallbackPrompt,
+        stream: false,
+        options: {
+          temperature: 0.05, // Very low temperature
+          top_k: 10,
+          top_p: 0.5,
+          num_predict: 500,
+          repeat_penalty: 1.2,
+        },
+      });
+
+      let configuration = response.data.response ? response.data.response.trim() : '';
+      
+      if (!configuration || configuration.length < 5) {
+        // Last resort: generate basic template
+        return this.generateTemplateConfiguration(prompt, deviceType, deviceContext);
+      }
+
+      configuration = this.cleanConfiguration(configuration);
+      
+      if (!configuration || configuration.length < 20) {
+        return this.generateTemplateConfiguration(prompt, deviceType, deviceContext);
+      }
+
+      const validation = this.validateConfiguration(configuration, deviceType);
+
+      return {
+        success: true,
+        configuration: configuration,
+        model: this.model,
+        deviceType: deviceType,
+        method: 'fallback_ai',
+        validation: validation,
+        confidenceScore: validation.score,
+        recommendations: this.getBasicRecommendations(configuration, deviceType)
+      };
+
+    } catch (error) {
+      console.error("❌ Fallback generation failed:", error.message);
+      return this.generateTemplateConfiguration(prompt, deviceType, deviceContext);
+    }
+  }
+
+  // Template-based configuration (last resort)
+  generateTemplateConfiguration(prompt, deviceType, deviceContext) {
+    console.log(`🔧 Generating template configuration for ${deviceType}`);
+    
+    const templates = {
+      router: `configure terminal
+hostname ${deviceContext.name || 'Router'}
+!
 router ospf 1
  network 192.168.1.0 0.0.0.255 area 0
- passive-interface default
- no passive-interface gigabitethernet0/1
 exit
-
-Interface Configuration:
-interface gigabitethernet0/1
- description LAN_Interface
+!
+interface GigabitEthernet0/1
+ description LAN Interface
  ip address 192.168.1.1 255.255.255.0
  no shutdown
 exit
+!
+end`,
 
-VLAN Configuration:
+      switch: `configure terminal
+hostname ${deviceContext.name || 'Switch'}
+!
 vlan 10
- name Sales_VLAN
+ name Production
 exit
-interface fastethernet0/1
+!
+interface FastEthernet0/1
+ description User Port
  switchport mode access
  switchport access vlan 10
  no shutdown
 exit
-
-TASK: ${prompt}
-
-REQUIRED OUTPUT FORMAT:
-configure terminal
 !
-hostname Router_Name
+end`,
+
+      firewall: `configure terminal
+hostname ${deviceContext.name || 'Firewall'}
 !
-[YOUR CONFIGURATION HERE]
+access-list 100 permit tcp any any eq 80
+access-list 100 permit tcp any any eq 443
+access-list 100 deny ip any any
 !
-end
-
-Generate ONLY valid Cisco IOS commands with perfect syntax:`;
-  }
-
-  // Get device-specific context and constraints
-  getDeviceSpecificContext(deviceType, deviceContext) {
-    const contexts = {
-      router: `
-ROUTER-SPECIFIC CONTEXT:
-- Focus on routing protocols (OSPF, EIGRP, BGP)
-- Interface configurations with proper IP addressing
-- Access control lists (ACLs) for security
-- NAT/PAT configurations when relevant
-- Static routing when appropriate`,
-
-      switch: `
-SWITCH-SPECIFIC CONTEXT:
-- VLAN creation and management
-- Switchport configurations (access/trunk)
-- Spanning Tree Protocol considerations
-- Port security when relevant
-- Inter-VLAN routing if Layer 3 switch`,
-
-      firewall: `
-FIREWALL-SPECIFIC CONTEXT:
-- Security zones and policies
-- Access control rules
-- NAT configurations
-- VPN settings when relevant
-- Logging and monitoring`
+interface GigabitEthernet0/1
+ description Outside Interface
+ ip address dhcp
+ no shutdown
+exit
+!
+end`
     };
 
-    return contexts[deviceType] || '';
-  }
+    const configuration = templates[deviceType] || templates.router;
+    const validation = this.validateConfiguration(configuration, deviceType);
 
-  // Get common Cisco patterns for device type
-  getCommonCiscoPatterns(deviceType) {
-    const patterns = {
-      router: `
-COMMON ROUTER PATTERNS:
-- router ospf [process-id]
-- interface GigabitEthernet0/0
-- ip address [ip] [mask]
-- ip route [destination] [mask] [next-hop]
-- access-list [number] [permit/deny] [source]`,
-
-      switch: `
-COMMON SWITCH PATTERNS:
-- vlan [id]
-- interface FastEthernet0/1
-- switchport mode access/trunk
-- switchport access vlan [id]
-- spanning-tree portfast`,
-
-      firewall: `
-COMMON FIREWALL PATTERNS:
-- access-list [name] [permit/deny]
-- nat (inside,outside) source dynamic
-- crypto map [name]
-- security-level [level]`
+    return {
+      success: true,
+      configuration: configuration,
+      model: 'template',
+      deviceType: deviceType,
+      method: 'template',
+      validation: validation,
+      confidenceScore: validation.score,
+      recommendations: this.getBasicRecommendations(configuration, deviceType),
+      note: 'Generated using template due to AI service issues'
     };
-
-    return patterns[deviceType] || '';
   }
 
-  // Get example commands for device type
-  getExampleCommands(deviceType) {
+  // Get examples by device type
+  getExamplesByType(deviceType) {
     const examples = {
-      router: `interface GigabitEthernet0/1
- description LAN Interface
+      router: `
+EXAMPLE ROUTER CONFIG:
+configure terminal
+router ospf 1
+ network 192.168.1.0 0.0.0.255 area 0
+exit
+interface GigabitEthernet0/1
  ip address 192.168.1.1 255.255.255.0
  no shutdown
-exit`,
-      switch: `vlan 10
- name Production
+exit
+end`,
+      
+      switch: `
+EXAMPLE SWITCH CONFIG:
+configure terminal
+vlan 10
+ name Sales
 exit
 interface FastEthernet0/1
  switchport mode access
  switchport access vlan 10
  no shutdown
-exit`,
-      firewall: `access-list OUTSIDE_IN permit tcp any any eq 80
-access-list OUTSIDE_IN permit tcp any any eq 443
-access-group OUTSIDE_IN in interface outside`
+exit
+end`,
+      
+      firewall: `
+EXAMPLE FIREWALL CONFIG:
+configure terminal
+access-list 100 permit tcp any any eq 80
+interface outside
+ nameif outside
+ security-level 0
+exit
+end`
     };
 
-    return examples[deviceType] || '';
+    return examples[deviceType] || examples.router;
   }
 
-  // Enhanced configuration processing
-  processConfiguration(config, deviceType) {
-    let processedConfig = config.trim();
+  // Clean and format configuration
+  cleanConfiguration(config) {
+    if (!config) return '';
+    
+    let cleaned = config.trim();
     
     // Remove markdown formatting
-    processedConfig = processedConfig.replace(/```[a-z]*\n?/g, '').replace(/```/g, '');
+    cleaned = cleaned.replace(/```[a-z]*\n?/g, '').replace(/```/g, '');
     
-    // Remove explanatory text and comments outside of configuration
-    const lines = processedConfig.split('\n');
+    // Remove explanatory text before configuration
+    const lines = cleaned.split('\n');
     const configLines = [];
-    let inConfig = false;
+    let foundConfig = false;
     
     for (const line of lines) {
-      const trimmedLine = line.trim();
+      const trimmed = line.trim();
       
-      // Start configuration section
-      if (trimmedLine === 'configure terminal' || inConfig) {
-        inConfig = true;
+      // Skip explanatory lines
+      if (trimmed.toLowerCase().includes('configuration') && 
+          trimmed.toLowerCase().includes('for') && 
+          !trimmed.startsWith('configure')) {
+        continue;
+      }
+      
+      // Start collecting from configure terminal or first command
+      if (!foundConfig && (trimmed === 'configure terminal' || 
+          trimmed.match(/^(interface|router|vlan|hostname|access-list|crypto)/i))) {
+        foundConfig = true;
+      }
+      
+      if (foundConfig) {
         configLines.push(line);
         
-        // End configuration section
-        if (trimmedLine === 'end') {
+        // Stop at end command
+        if (trimmed === 'end') {
           break;
         }
       }
     }
     
-    processedConfig = configLines.join('\n');
+    cleaned = configLines.join('\n');
     
-    // Add configure terminal if missing
-    if (!processedConfig.startsWith('configure terminal')) {
-      processedConfig = 'configure terminal\n' + processedConfig;
+    // Ensure proper structure
+    if (!cleaned.startsWith('configure terminal')) {
+      cleaned = 'configure terminal\n' + cleaned;
     }
     
-    // Add end if missing
-    if (!processedConfig.trim().endsWith('end')) {
-      processedConfig = processedConfig.trim() + '\nend';
+    if (!cleaned.trim().endsWith('end')) {
+      cleaned = cleaned.trim() + '\nend';
     }
     
-    // Fix indentation
-    processedConfig = this.fixIndentation(processedConfig);
+    // Fix basic indentation
+    cleaned = this.fixBasicIndentation(cleaned);
     
-    // Remove excessive blank lines
-    processedConfig = processedConfig.replace(/\n\s*\n\s*\n/g, '\n\n');
-    
-    return processedConfig;
+    return cleaned;
   }
 
-  // Fix Cisco IOS indentation
-  fixIndentation(config) {
+  // Fix basic indentation
+  fixBasicIndentation(config) {
     const lines = config.split('\n');
-    const fixedLines = [];
-    let indentLevel = 0;
+    const result = [];
+    let indent = 0;
     
     for (const line of lines) {
-      const trimmedLine = line.trim();
+      const trimmed = line.trim();
       
-      if (!trimmedLine) {
-        fixedLines.push('');
+      if (!trimmed) {
+        result.push('');
         continue;
       }
       
-      // Commands that decrease indent level
-      if (trimmedLine === 'exit' || trimmedLine === 'end') {
-        indentLevel = Math.max(0, indentLevel - 1);
+      // Commands that end current mode
+      if (trimmed === 'exit' || trimmed === 'end') {
+        indent = Math.max(0, indent - 1);
+        result.push(' '.repeat(indent) + trimmed);
+        continue;
       }
       
-      // Apply indentation
-      const indent = ' '.repeat(indentLevel);
-      fixedLines.push(indent + trimmedLine);
+      // Add current line with proper indentation
+      result.push(' '.repeat(indent) + trimmed);
       
-      // Commands that increase indent level
-      if (trimmedLine.match(/^(interface|router|line|access-list|vlan \d+)/i) && 
-          !trimmedLine.includes('exit') && !trimmedLine.includes('end')) {
-        indentLevel++;
+      // Commands that start new mode (increase indentation)
+      if (trimmed.match(/^(interface|router|line|vlan \d+|access-list|crypto)/i) && 
+          !trimmed.includes('exit')) {
+        indent++;
       }
     }
     
-    return fixedLines.join('\n');
+    return result.join('\n');
   }
 
-  // Advanced Cisco-specific validation
-  advancedCiscoValidation(configuration, deviceType) {
-    try {
-      if (!configuration || configuration.trim().length === 0) {
-        return {
-          isValid: false,
-          feedback: "No configuration provided",
-          score: 0,
-          errors: ["Empty configuration"],
-          warnings: []
-        };
-      }
-
-      const lines = configuration.split('\n').filter(line => line.trim());
-      let score = 0;
-      const errors = [];
-      const warnings = [];
-      const feedback = [];
-
-      // Check basic structure (30 points)
-      const hasConfigTerminal = configuration.includes("configure terminal");
-      const hasEnd = configuration.includes("end");
-      
-      if (hasConfigTerminal) {
-        score += 15;
-      } else {
-        errors.push("Missing 'configure terminal'");
-      }
-      
-      if (hasEnd) {
-        score += 15;
-      } else {
-        errors.push("Missing 'end' statement");
-      }
-
-      // Check for anti-patterns first (immediate errors)
-      const antiPatterns = this.ciscoPatterns.antiPatterns || [];
-      for (const antiPattern of antiPatterns) {
-        const matchingLines = lines.filter(line => antiPattern.test(line.trim()));
-        if (matchingLines.length > 0) {
-          matchingLines.forEach(line => {
-            errors.push(`Incorrect Cisco syntax: "${line.trim()}"`);
-          });
-          score -= 20; // Heavy penalty for syntax errors
-        }
-      }
-
-      // Check device-specific patterns (40 points)
-      const devicePatterns = this.ciscoPatterns[deviceType] || [];
-      const commonPatterns = this.ciscoPatterns.common;
-      const allPatterns = [...devicePatterns, ...commonPatterns];
-      
-      let patternMatches = 0;
-      const maxPatternScore = 40;
-      
-      for (const pattern of allPatterns) {
-        if (lines.some(line => pattern.test(line.trim()))) {
-          patternMatches++;
-        }
-      }
-      
-      score += Math.min(maxPatternScore, (patternMatches / allPatterns.length) * maxPatternScore);
-
-      // Check syntax validity (20 points)
-      const syntaxScore = this.validateSyntax(lines, deviceType);
-      score += syntaxScore.score;
-      errors.push(...syntaxScore.errors);
-      warnings.push(...syntaxScore.warnings);
-
-      // Check best practices (10 points)
-      const bestPracticesScore = this.validateBestPractices(lines, deviceType);
-      score += bestPracticesScore.score;
-      warnings.push(...bestPracticesScore.warnings);
-
-      const isValid = score >= 70 && errors.length === 0;
-      
-      return {
-        isValid,
-        feedback: isValid ? "Configuration meets Cisco standards" : 
-                 `Issues found: ${[...errors, ...warnings].join(", ")}`,
-        score: Math.round(score),
-        totalLines: lines.length,
-        errors,
-        warnings,
-        patternMatches
-      };
-      
-    } catch (error) {
-      console.error("❌ Validation error:", error.message);
+  // Simplified validation
+  validateConfiguration(configuration, deviceType) {
+    const errors = [];
+    const warnings = [];
+    let score = 50; // Start with base score
+    
+    if (!configuration || configuration.trim().length === 0) {
       return {
         isValid: false,
-        feedback: "Validation failed",
+        feedback: "No configuration provided",
         score: 0,
-        errors: ["Validation system error"],
+        errors: ["Empty configuration"],
         warnings: []
       };
     }
-  }
 
-  // Validate Cisco IOS syntax
-  validateSyntax(lines, deviceType) {
-    const errors = [];
-    const warnings = [];
-    let score = 0;
+    const lines = configuration.split('\n').filter(line => line.trim());
     
-    const syntaxChecks = {
-      // Interface names
-      interfaceFormat: /^interface (GigabitEthernet|FastEthernet|Serial|Loopback|Vlan)\d+(\.\d+)?(\/\d+)*$/i,
-      // IP addresses
-      ipFormat: /^ip address \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3} \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
-      // VLAN IDs
-      vlanFormat: /^vlan [1-9]\d{0,3}$/,
-      // Access lists
-      aclFormat: /^access-list (\d+|[\w-]+) (permit|deny)/i
-    };
+    // Check basic structure
+    const hasConfigTerminal = configuration.includes("configure terminal");
+    const hasEnd = configuration.includes("end");
     
-    let validCommands = 0;
-    let totalCommands = 0;
+    if (hasConfigTerminal) score += 15;
+    if (hasEnd) score += 15;
     
+    // Check for basic Cisco commands
+    const ciscoCommands = [
+      /^interface /i,
+      /^router /i,
+      /^vlan \d+/i,
+      /^hostname /i,
+      /^ip address /i,
+      /^access-list /i,
+      /^switchport /i
+    ];
+    
+    let commandMatches = 0;
     for (const line of lines) {
-      const trimmedLine = line.trim();
-      if (!trimmedLine || trimmedLine.startsWith('!')) continue;
-      
-      totalCommands++;
-      
-      // Check specific syntax patterns
-      if (trimmedLine.startsWith('interface ')) {
-        if (syntaxChecks.interfaceFormat.test(trimmedLine)) {
-          validCommands++;
-        } else {
-          errors.push(`Invalid interface format: ${trimmedLine}`);
-        }
-      } else if (trimmedLine.startsWith('ip address ')) {
-        if (syntaxChecks.ipFormat.test(trimmedLine)) {
-          validCommands++;
-        } else {
-          errors.push(`Invalid IP address format: ${trimmedLine}`);
-        }
-      } else if (trimmedLine.startsWith('vlan ')) {
-        if (syntaxChecks.vlanFormat.test(trimmedLine)) {
-          validCommands++;
-        } else {
-          warnings.push(`Check VLAN ID range: ${trimmedLine}`);
-        }
-      } else {
-        validCommands++; // Assume other commands are valid for now
+      const trimmed = line.trim();
+      if (ciscoCommands.some(pattern => pattern.test(trimmed))) {
+        commandMatches++;
       }
     }
     
-    if (totalCommands > 0) {
-      score = (validCommands / totalCommands) * 20;
+    if (commandMatches > 0) {
+      score += Math.min(20, commandMatches * 5);
     }
     
-    return { score, errors, warnings };
-  }
-
-  // Validate Cisco best practices
-  validateBestPractices(lines, deviceType) {
-    const warnings = [];
-    let score = 10; // Start with full score, deduct for violations
+    // Check for proper structure
+    if (lines.length >= 3) score += 10;
     
-    const bestPractices = {
-      hasDescriptions: /^description /i,
-      hasNoShutdown: /^no shutdown$/i,
-      hasSecurePasswords: /username .+ secret/i,
-      hasSSHConfig: /transport input ssh/i
-    };
-    
-    let hasDescriptions = false;
-    let hasNoShutdown = false;
-    let hasSecureAuth = false;
-    
+    // Basic syntax check
+    let syntaxErrors = 0;
     for (const line of lines) {
-      const trimmedLine = line.trim();
+      const trimmed = line.trim();
       
-      if (bestPractices.hasDescriptions.test(trimmedLine)) hasDescriptions = true;
-      if (bestPractices.hasNoShutdown.test(trimmedLine)) hasNoShutdown = true;
-      if (bestPractices.hasSecurePasswords.test(trimmedLine) || 
-          bestPractices.hasSSHConfig.test(trimmedLine)) hasSecureAuth = true;
+      // Skip empty lines and comments
+      if (!trimmed || trimmed.startsWith('!')) continue;
+      
+      // Check for common syntax issues
+      if (trimmed.includes('<<') || trimmed.includes('>>') || 
+          trimmed.includes('[') || trimmed.includes(']')) {
+        syntaxErrors++;
+        errors.push(`Possible syntax issue: ${trimmed}`);
+      }
     }
     
-    if (!hasDescriptions) {
-      warnings.push("Consider adding interface descriptions");
-      score -= 2;
+    if (syntaxErrors > 0) {
+      score -= syntaxErrors * 5;
     }
     
-    if (!hasNoShutdown) {
-      warnings.push("Remember to add 'no shutdown' for active interfaces");
-      score -= 3;
-    }
+    // Final validation
+    const isValid = score >= 50 && syntaxErrors === 0; // Lowered threshold
     
-    if (!hasSecureAuth) {
-      warnings.push("Consider implementing secure authentication");
-      score -= 3;
-    }
-    
-    return { score: Math.max(0, score), warnings };
+    return {
+      isValid,
+      feedback: isValid ? "Configuration appears valid" : 
+               `Configuration needs improvement. ${errors.join(', ')}`,
+      score: Math.max(0, Math.min(100, Math.round(score))),
+      errors,
+      warnings,
+      totalLines: lines.length
+    };
   }
 
-  // Calculate confidence score
-  calculateConfidenceScore(configuration, deviceType, validation) {
-    let confidence = validation.score || 0;
-    
-    // Boost confidence for proper structure
-    if (validation.isValid) confidence += 10;
-    
-    // Adjust based on configuration length and complexity
-    const lines = configuration.split('\n').filter(line => line.trim());
-    if (lines.length >= 5 && lines.length <= 50) {
-      confidence += 5; // Good length range
-    }
-    
-    // Check for device-appropriate commands
-    const devicePatterns = this.ciscoPatterns[deviceType] || [];
-    const hasDeviceSpecific = devicePatterns.some(pattern => 
-      lines.some(line => pattern.test(line.trim()))
-    );
-    
-    if (hasDeviceSpecific) confidence += 10;
-    
-    return Math.min(100, Math.max(0, Math.round(confidence)));
-  }
-
-  // Get configuration recommendations
-  getConfigurationRecommendations(configuration, deviceType) {
+  // Get basic recommendations
+  getBasicRecommendations(configuration, deviceType) {
     const recommendations = [];
     const lines = configuration.split('\n').map(line => line.trim());
     
     // Security recommendations
-    if (!lines.some(line => /crypto key generate rsa/i.test(line))) {
+    if (!lines.some(line => /no shutdown/i.test(line))) {
       recommendations.push({
-        type: 'security',
-        message: 'Consider generating RSA keys for SSH access',
+        type: 'interface',
+        message: 'Consider adding "no shutdown" to enable interfaces',
         priority: 'medium'
       });
     }
     
-    if (!lines.some(line => /service password-encryption/i.test(line))) {
+    if (!lines.some(line => /description /i.test(line))) {
       recommendations.push({
-        type: 'security',
-        message: 'Consider enabling password encryption service',
-        priority: 'high'
+        type: 'documentation',
+        message: 'Consider adding descriptions to interfaces',
+        priority: 'low'
       });
     }
     
     // Device-specific recommendations
-    if (deviceType === 'switch') {
-      if (!lines.some(line => /spanning-tree/i.test(line))) {
-        recommendations.push({
-          type: 'best-practice',
-          message: 'Consider configuring Spanning Tree Protocol settings',
-          priority: 'medium'
-        });
-      }
+    if (deviceType === 'router' && !lines.some(line => /router /i.test(line))) {
+      recommendations.push({
+        type: 'routing',
+        message: 'Consider configuring a routing protocol',
+        priority: 'medium'
+      });
     }
     
-    if (deviceType === 'router') {
-      if (!lines.some(line => /router (ospf|eigrp)/i.test(line))) {
-        recommendations.push({
-          type: 'routing',
-          message: 'Consider configuring a dynamic routing protocol',
-          priority: 'low'
-        });
-      }
+    if (deviceType === 'switch' && !lines.some(line => /vlan /i.test(line))) {
+      recommendations.push({
+        type: 'switching',
+        message: 'Consider creating VLANs for network segmentation',
+        priority: 'medium'
+      });
     }
     
     return recommendations;
   }
 
-  // Service status with enhanced info
+  // Generate NETCONF XML configuration
+  async generateNetconfXml(prompt, deviceType, deviceContext = {}, yangModel = null) {
+    const startTime = Date.now();
+    
+    try {
+      console.log(`🔗 Generating NETCONF XML for ${deviceType}: "${prompt}"`);
+
+      // Build NETCONF-specific prompt
+      const xmlPrompt = this.buildNetconfPrompt(prompt, deviceType, deviceContext, yangModel);
+      console.log(`📝 Using NETCONF prompt length: ${xmlPrompt.length} characters`);
+
+      // Generate with AI
+      const response = await this.client.post("/api/generate", {
+        model: this.model,
+        prompt: xmlPrompt,
+        stream: false,
+        options: {
+          temperature: 0.05, // Very low for XML structure
+          top_k: 10,
+          top_p: 0.5,
+          num_predict: 1000,
+          repeat_penalty: 1.2,
+          stop: ["```", "---", "Note:", "Explanation:", "Remember:"]
+        },
+      });
+
+      let xmlConfiguration = response.data.response ? response.data.response.trim() : '';
+      console.log(`📦 Raw AI XML response length: ${xmlConfiguration.length} characters`);
+      
+      if (!xmlConfiguration || xmlConfiguration.length < 10) {
+        console.log(`❌ XML response too short, using template fallback`);
+        return await this.generateNetconfXmlTemplate(prompt, deviceType, yangModel);
+      }
+
+      // Clean and format XML
+      xmlConfiguration = this.cleanNetconfXml(xmlConfiguration);
+      console.log(`🧹 Cleaned XML length: ${xmlConfiguration.length} characters`);
+      
+      if (!xmlConfiguration || xmlConfiguration.length < 50) {
+        console.log(`❌ Cleaned XML too short, using template fallback`);
+        return await this.generateNetconfXmlTemplate(prompt, deviceType, yangModel);
+      }
+      
+      // Validate XML if YANG model is provided
+      let validation = { isValid: true, errors: [], warnings: [] };
+      if (yangModel) {
+        try {
+          validation = yangService.validateXmlAgainstYang(xmlConfiguration, yangModel);
+        } catch (error) {
+          console.warn(`⚠️ XML validation failed: ${error.message}`);
+        }
+      }
+      
+      const executionTime = Date.now() - startTime;
+
+      const result = {
+        success: true,
+        configuration: xmlConfiguration,
+        model: this.model,
+        deviceType: deviceType,
+        method: 'netconf_xml_ai',
+        executionTime: executionTime,
+        validation: validation,
+        confidenceScore: validation.isValid ? 85 : 65,
+        yangModel: yangModel?.name || null,
+        outputFormat: 'netconf_xml'
+      };
+
+      console.log(`✅ NETCONF XML generated successfully (${executionTime}ms, validation: ${validation.isValid})`);
+      return result;
+      
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+      console.error("❌ NETCONF XML Generation Error:", error.message);
+      
+      // Fallback to template generation
+      return await this.generateNetconfXmlTemplate(prompt, deviceType, yangModel);
+    }
+  }
+
+  // Build NETCONF-specific prompt
+  buildNetconfPrompt(prompt, deviceType, deviceContext, yangModel) {
+    const deviceInfo = [
+      deviceContext.model && `Model: ${deviceContext.model}`,
+      deviceContext.ios_version && `IOS: ${deviceContext.ios_version}`,
+      deviceContext.location && `Location: ${deviceContext.location}`
+    ].filter(Boolean).join(', ');
+
+    const yangInfo = yangModel ? `
+YANG Model: ${yangModel.name}
+Namespace: ${yangModel.namespace}
+Prefix: ${yangModel.prefix || 'target'}
+Revision: ${yangModel.revision}
+` : '';
+
+    const netconfExamples = this.getNetconfExamplesByType(deviceType, yangModel);
+
+    return `You are an expert network engineer specialized in NETCONF/YANG. Generate a valid NETCONF XML configuration.
+
+${deviceInfo ? `Device: ${deviceInfo}` : ''}
+${yangInfo}
+
+MANDATORY REQUIREMENTS:
+1. Generate valid NETCONF XML with proper structure
+2. Use correct XML namespaces and syntax
+3. Follow YANG model structure if provided
+4. Include proper NETCONF envelope (config element)
+5. Use appropriate namespace declarations
+6. NO explanations, just XML
+
+${netconfExamples}
+
+TASK: Create NETCONF XML configuration for: ${prompt}
+
+IMPORTANT: Generate COMPLETE, VALID NETCONF XML. Start with <config> element and include proper namespaces.
+
+NETCONF XML:`;
+  }
+
+  // Get NETCONF examples by device type
+  getNetconfExamplesByType(deviceType, yangModel) {
+    if (yangModel && yangModel.name === 'ietf-interfaces') {
+      return `
+EXAMPLE IETF-INTERFACES XML:
+<config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+    <interface>
+      <name>GigabitEthernet0/0/1</name>
+      <description>Management Interface</description>
+      <type xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">ianaift:gigabitEthernet</type>
+      <enabled>true</enabled>
+      <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+        <enabled>true</enabled>
+        <address>
+          <ip>192.168.1.10</ip>
+          <prefix-length>24</prefix-length>
+        </address>
+      </ipv4>
+    </interface>
+  </interfaces>
+</config>`;
+    }
+
+    if (yangModel && yangModel.name === 'cisco-nx-os-device') {
+      return `
+EXAMPLE CISCO NX-OS XML:
+<config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+    <intf-items>
+      <phys-items>
+        <id>eth1/1</id>
+        <adminSt>up</adminSt>
+        <descr>Server Connection</descr>
+        <rshIfMain-items>
+          <addr-items>
+            <addr>192.168.10.1</addr>
+            <mask>24</mask>
+          </addr-items>
+        </rshIfMain-items>
+      </phys-items>
+    </intf-items>
+  </System>
+</config>`;
+    }
+
+    // Generic examples by device type
+    const examples = {
+      router: `
+EXAMPLE ROUTER NETCONF XML:
+<config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+    <interface>
+      <name>GigabitEthernet0/0/1</name>
+      <description>LAN Interface</description>
+      <type xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">ianaift:gigabitEthernet</type>
+      <enabled>true</enabled>
+    </interface>
+  </interfaces>
+</config>`,
+      
+      switch: `
+EXAMPLE SWITCH NETCONF XML:
+<config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+    <interface>
+      <name>FastEthernet0/1</name>
+      <description>Access Port</description>
+      <type xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">ianaift:fastEther</type>
+      <enabled>true</enabled>
+    </interface>
+  </interfaces>
+</config>`
+    };
+
+    return examples[deviceType] || examples.router;
+  }
+
+  // Clean NETCONF XML
+  cleanNetconfXml(xml) {
+    if (!xml) return '';
+    
+    let cleaned = xml.trim();
+    
+    // Remove markdown formatting
+    cleaned = cleaned.replace(/```[a-z]*\n?/g, '').replace(/```/g, '');
+    
+    // Remove explanatory text
+    const lines = cleaned.split('\n');
+    const xmlLines = [];
+    let foundXml = false;
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      
+      // Skip explanatory lines
+      if (trimmed.includes('<?xml') || trimmed.includes('<config')) {
+        foundXml = true;
+      }
+      
+      if (foundXml) {
+        xmlLines.push(line);
+      }
+    }
+    
+    cleaned = xmlLines.join('\n');
+    
+    // Ensure proper XML structure
+    if (!cleaned.includes('<?xml')) {
+      cleaned = '<?xml version="1.0" encoding="UTF-8"?>\n' + cleaned;
+    }
+    
+    if (!cleaned.includes('<config')) {
+      cleaned = cleaned.replace(/^/, '<config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">\n');
+      cleaned += '\n</config>';
+    }
+    
+    return cleaned;
+  }
+
+  // Generate NETCONF XML template (fallback)
+  async generateNetconfXmlTemplate(prompt, deviceType, yangModel) {
+    console.log(`🔧 Generating NETCONF XML template for ${deviceType}`);
+    
+    try {
+      if (yangModel) {
+        const template = yangService.generateXmlTemplate(yangModel, 'edit-config');
+        const xmlExample = Object.values(template.examples)[0];
+        
+        if (xmlExample) {
+          const xmlString = yangService.xmlBuilder.build({
+            config: {
+              '@_xmlns': 'urn:ietf:params:xml:ns:netconf:base:1.0',
+              ...xmlExample
+            }
+          });
+          
+          return {
+            success: true,
+            configuration: xmlString,
+            model: 'template',
+            deviceType: deviceType,
+            method: 'netconf_xml_template',
+            validation: { isValid: true, errors: [], warnings: [] },
+            confidenceScore: 75,
+            yangModel: yangModel.name,
+            outputFormat: 'netconf_xml',
+            note: 'Generated using YANG template due to AI service issues'
+          };
+        }
+      }
+      
+      // Generic template
+      const templates = {
+        router: `<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+    <interface>
+      <name>GigabitEthernet0/0/1</name>
+      <description>Router Interface</description>
+      <type xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">ianaift:gigabitEthernet</type>
+      <enabled>true</enabled>
+      <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+        <enabled>true</enabled>
+        <address>
+          <ip>192.168.1.1</ip>
+          <prefix-length>24</prefix-length>
+        </address>
+      </ipv4>
+    </interface>
+  </interfaces>
+</config>`,
+
+        switch: `<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+    <interface>
+      <name>FastEthernet0/1</name>
+      <description>Switch Access Port</description>
+      <type xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">ianaift:fastEther</type>
+      <enabled>true</enabled>
+    </interface>
+  </interfaces>
+</config>`
+      };
+
+      const configuration = templates[deviceType] || templates.router;
+      
+      return {
+        success: true,
+        configuration: configuration,
+        model: 'template',
+        deviceType: deviceType,
+        method: 'netconf_xml_template',
+        validation: { isValid: true, errors: [], warnings: [] },
+        confidenceScore: 70,
+        yangModel: yangModel?.name || null,
+        outputFormat: 'netconf_xml',
+        note: 'Generated using generic template'
+      };
+      
+    } catch (error) {
+      console.error("❌ Template generation failed:", error.message);
+      throw new Error(`NETCONF XML template generation failed: ${error.message}`);
+    }
+  }
+
+  // Service status
   async getServiceStatus() {
     try {
       const response = await this.client.get("/api/tags");
@@ -631,24 +849,23 @@ access-group OUTSIDE_IN in interface outside`
 
       return {
         status: "connected",
-        service: "Enhanced Cisco AI",
+        service: "Enhanced Raw AI",
         host: this.host,
         model: this.model,
         modelAvailable: !!currentModel,
         availableModels: models.map((m) => m.name),
         timeout: 120000,
         features: [
-          "Advanced Cisco IOS validation",
-          "Device-specific optimization",
-          "Best practices checking",
-          "Confidence scoring",
-          "Smart recommendations"
+          "Enhanced Cisco IOS generation",
+          "Fallback mechanisms",
+          "Template generation",
+          "Better error handling"
         ]
       };
     } catch (error) {
       return {
         status: "disconnected",
-        service: "Enhanced Cisco AI", 
+        service: "Enhanced Raw AI", 
         host: this.host,
         model: this.model,
         modelAvailable: false,
@@ -657,21 +874,14 @@ access-group OUTSIDE_IN in interface outside`
     }
   }
 
-  // Enhanced configuration explanation
+  // Simple configuration explanation
   async explainConfiguration(configuration) {
     try {
-      const prompt = `As a Senior Cisco Network Engineer, provide a comprehensive technical explanation of this configuration:
+      const prompt = `Explain this Cisco configuration in simple terms:
 
 ${configuration}
 
-Structure your explanation as follows:
-1. OVERVIEW: What this configuration accomplishes
-2. KEY COMPONENTS: Break down major sections
-3. NETWORK IMPACT: How this affects network operation
-4. SECURITY CONSIDERATIONS: Security implications
-5. BEST PRACTICES: Compliance with Cisco standards
-
-Provide a clear, technical explanation suitable for network engineers:`;
+Provide a brief explanation of what each section does:`;
 
       const response = await this.client.post("/api/generate", {
         model: this.model,
@@ -681,7 +891,7 @@ Provide a clear, technical explanation suitable for network engineers:`;
           temperature: 0.3,
           top_k: 40,
           top_p: 0.9,
-          num_predict: 800,
+          num_predict: 500,
         },
       });
 

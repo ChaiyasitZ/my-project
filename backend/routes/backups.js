@@ -340,7 +340,7 @@ router.post('/:id/restore', async (req, res) => {
         status: 'applied',
         ai_model: 'backup_restore',
         execution_time: 0,
-        applied_at: new Date()
+                  applied_at: Date.now()
       });
       
       await configHistory.save();

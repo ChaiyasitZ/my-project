@@ -7,7 +7,7 @@ const router = express.Router();
 
 // Validation schemas
 const consoleConnectionSchema = Joi.object({
-  deviceId: Joi.string().required(),
+  deviceId: Joi.string().allow('').default(''),
   portPath: Joi.string().required(),
   baudRate: Joi.number().valid(300, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200).default(9600),
   dataBits: Joi.number().valid(5, 6, 7, 8).default(8),
@@ -70,13 +70,19 @@ router.post('/connect', async (req, res) => {
       });
     }
 
-    console.log(`🔌 Console connection request for port ${value.portPath}`);
+    // Use portPath as device ID if not provided
+    if (!value.deviceId || value.deviceId.trim() === '') {
+      value.deviceId = `port_${value.portPath.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    }
+
+    console.log(`🔌 Console connection request for port ${value.portPath} (Device ID: ${value.deviceId})`);
     const result = await consoleService.connectConsole(value);
     
     res.json({
       success: true,
       message: 'Console connected successfully',
-      connection: result
+      connection: result,
+      deviceId: value.deviceId
     });
   } catch (error) {
     console.error('Console connection error:', error);
@@ -91,16 +97,22 @@ router.post('/connect', async (req, res) => {
 // POST /api/console/disconnect - Disconnect console
 router.post('/disconnect', async (req, res) => {
   try {
-    const { deviceId } = req.body;
+    const { deviceId, portPath } = req.body;
     
-    if (!deviceId) {
+    // Accept either deviceId or portPath
+    let finalDeviceId = deviceId;
+    if (!finalDeviceId && portPath) {
+      finalDeviceId = `port_${portPath.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    }
+    
+    if (!finalDeviceId) {
       return res.status(400).json({
         success: false,
-        message: 'Device ID is required'
+        message: 'Device ID or Port Path is required'
       });
     }
 
-    await consoleService.disconnectConsole(deviceId);
+    await consoleService.disconnectConsole(finalDeviceId);
     
     res.json({
       success: true,
@@ -129,12 +141,18 @@ router.post('/test', async (req, res) => {
       });
     }
 
-    console.log(`🧪 Testing console connection for port ${value.portPath}`);
+    // Use portPath as device ID if not provided
+    if (!value.deviceId || value.deviceId.trim() === '') {
+      value.deviceId = `test_${value.portPath.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}`;
+    }
+
+    console.log(`🧪 Testing console connection for port ${value.portPath} (Device ID: ${value.deviceId})`);
     const result = await consoleService.testConsoleConnection(value);
     
     res.json({
       success: true,
-      test: result
+      test: result,
+      deviceId: value.deviceId
     });
   } catch (error) {
     console.error('Console test error:', error);
@@ -208,7 +226,7 @@ router.post('/initial-config', async (req, res) => {
           status: result.summary.failed > 0 ? 'partial' : 'applied',
           ai_model: 'console',
           execution_time: 0,
-          applied_at: new Date()
+                      applied_at: Date.now()
         });
         
         await configHistory.save();

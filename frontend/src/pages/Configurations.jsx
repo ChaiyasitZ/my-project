@@ -5,8 +5,6 @@ import {
   BotIcon, 
   SendIcon, 
   CheckCircleIcon, 
-  PlayIcon,
-  EyeIcon,
   ServerIcon
 } from 'lucide-react';
 
@@ -62,6 +60,9 @@ function Configurations() {
       const response = await axios.post('/configurations/generate', requestData);
 
       if (response.data.configuration) {
+        console.log('📥 Received configuration:', response.data.configuration);
+        console.log('📅 Frontend received created_at:', response.data.configuration.created_at, typeof response.data.configuration.created_at);
+        
         setGeneratedConfig(response.data.configuration);
         setValidation(response.data.configuration.validation);
         
@@ -97,7 +98,7 @@ function Configurations() {
           errorMessage = 'Invalid device selection. Please refresh the page and try again.';
         } else if (errorData.message?.includes('AI generation failed')) {
           // AI generation error
-          errorMessage = 'AI could not generate a valid configuration. Try being more specific.';
+          errorMessage = 'LLM could not generate a valid configuration. Try being more specific.';
           showSuggestions = true;
         } else {
           errorMessage = errorData.message || 'Configuration generation failed';
@@ -138,7 +139,7 @@ function Configurations() {
     }
 
     setIsApplying(true);
-    const toastId = toast.loading('Applying configuration...');
+    const toastId = toast.loading('Deploying configuration...');
     
     try {
       await axios.post('/configurations/apply', {
@@ -150,11 +151,10 @@ function Configurations() {
         ...generatedConfig,
         status: 'applied'
       });
-      toast.success('Configuration applied successfully!', { id: toastId });
+      toast.success('Configuration deployed successfully!', { id: toastId });
     } catch (error) {
       console.error('Error applying configuration:', error);
-      console.warn('⚠️', 'Error applying configuration: ' + (error.response?.data?.message || error.message));
-      toast.error('Error applying configuration: ' + (error.response?.data?.message || error.message), { id: toastId });
+      toast.error('Error deploying configuration: ' + (error.response?.data?.message || error.message), { id: toastId });
     } finally {
       setIsApplying(false);
     }
@@ -198,7 +198,6 @@ function Configurations() {
 
   const examplePrompts = [
     "interface fe0/1 ip 192.168.1.1/24",
-    "username admin password cisco123",
     "vlan 100 sales", 
     "hostname Router1",
     "interface ge0/1 switchport mode trunk",
@@ -212,9 +211,12 @@ function Configurations() {
       <div>
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">AI Configuration Generator</h1>
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+              <BotIcon className="h-8 w-8 text-blue-600" />
+              LLM Configuration Generator
+            </h1>
             <p className="mt-2 text-gray-600">
-              Generate Cisco device configurations using local AI with Ollama
+              Generate Cisco device configurations using local LLM with Ollama
             </p>
           </div>
           {/* AI Status Indicator */}
@@ -376,10 +378,10 @@ function Configurations() {
           </div>
         </div>
 
-        {/* Generated Configuration */}
+        {/* Configuration Preview */}
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-medium text-gray-900">Generated Configuration</h2>
+            <h2 className="text-lg font-medium text-gray-900">Configuration Preview</h2>
             {generatedConfig && (
               <div className="flex space-x-2">
                 <button
@@ -390,7 +392,7 @@ function Configurations() {
                   {isValidating ? (
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
                   ) : (
-                    <EyeIcon className="h-4 w-4 mr-2" />
+                    <CheckCircleIcon className="h-4 w-4 mr-2" />
                   )}
                   {isValidating ? 'Validating...' : 'Validate'}
                 </button>
@@ -403,9 +405,9 @@ function Configurations() {
                     {isApplying ? (
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                     ) : (
-                      <PlayIcon className="h-4 w-4 mr-2" />
+                      <CheckCircleIcon className="h-4 w-4 mr-2" />
                     )}
-                    Apply
+                    {isApplying ? 'Deploying...' : 'Deploy'}
                   </button>
                 )}
               </div>
@@ -489,7 +491,35 @@ function Configurations() {
                 </button>
                 
                 <div className="text-xs text-gray-500">
-                  Generated: {new Date(generatedConfig.created_at).toLocaleString()}
+                  Generated: {(() => {
+                    console.log('🔍 Debugging created_at:', generatedConfig.created_at, typeof generatedConfig.created_at);
+                    
+                    if (!generatedConfig.created_at) {
+                      console.log('❌ No created_at field found');
+                      return 'Just now (no timestamp)';
+                    }
+                    
+                    const timestamp = generatedConfig.created_at;
+                    console.log('📅 Processing timestamp:', timestamp);
+                    
+                    try {
+                      // Handle both timestamps (numbers) and date strings
+                      const date = typeof timestamp === 'number' 
+                        ? new Date(timestamp)
+                        : new Date(timestamp);
+                      
+                      console.log('📅 Created date object:', date, 'isValid:', !isNaN(date.getTime()));
+                      
+                      if (isNaN(date.getTime())) {
+                        return `Invalid date (${timestamp})`;
+                      }
+                      
+                      return date.toLocaleString();
+                    } catch (error) {
+                      console.error('❌ Date conversion error:', error);
+                      return `Error: ${timestamp}`;
+                    }
+                  })()}
                 </div>
               </div>
             </div>

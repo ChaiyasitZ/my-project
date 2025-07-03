@@ -529,6 +529,22 @@ write memory`
     };
   }
 
+  // Function to convert CIDR prefix to subnet mask
+  cidrToSubnetMask(prefix) {
+    const prefixNum = parseInt(prefix.replace('/', ''));
+    if (isNaN(prefixNum) || prefixNum < 0 || prefixNum > 32) {
+      return null;
+    }
+    
+    const mask = (0xFFFFFFFF << (32 - prefixNum)) >>> 0;
+    return [
+      (mask >>> 24) & 0xFF,
+      (mask >>> 16) & 0xFF,
+      (mask >>> 8) & 0xFF,
+      mask & 0xFF
+    ].join('.');
+  }
+
   // Process template with IP configuration method
   processTemplateWithIPConfig(templateKey, variables) {
     const templates = this.getInitialConfigTemplates();
@@ -550,7 +566,15 @@ write memory`
     } else {
       // Manual IP Configuration
       variables.interface_description_suffix = '';
-      variables.ip_configuration = ` ip address ${variables.management_ip || '{{management_ip}}'} ${variables.management_mask || '{{management_mask}}'}`;
+      
+      // Convert CIDR to subnet mask if needed
+      let subnetMask = variables.management_mask || '{{management_mask}}';
+      if (subnetMask.startsWith('/')) {
+        const converted = this.cidrToSubnetMask(subnetMask);
+        subnetMask = converted || subnetMask;
+      }
+      
+      variables.ip_configuration = ` ip address ${variables.management_ip || '{{management_ip}}'} ${subnetMask}`;
     }
 
     // Replace all variables in the template
