@@ -189,14 +189,14 @@ function Dashboard() {
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-3">
                       <div className="flex-shrink-0">
-                        {getDeviceIcon(device.device_type)}
+                        {getDeviceIcon(device.type)}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-gray-900 truncate">
                           {device.name}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {device.device_type || 'Unknown'}
+                          {device.type ? device.type.charAt(0).toUpperCase() + device.type.slice(1) : 'Unknown'}
                         </p>
                       </div>
                     </div>
@@ -251,7 +251,7 @@ function Dashboard() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-900">
-                        {config.device_name} ({config.device_type})
+                        {config.device_name} ({config.device_type ? config.device_type.charAt(0).toUpperCase() + config.device_type.slice(1) : 'Unknown'})
                       </p>
                       <p className="text-sm text-gray-500">
                         {config.prompt.substring(0, 100)}

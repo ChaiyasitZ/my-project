@@ -553,4 +553,234 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// 🆕 POST /api/configurations/generate-multi - Generate configurations for multiple devices
+router.post('/generate-multi', async (req, res) => {
+  try {
+    const { device_ids, prompt, topology_hints } = req.body;
+    
+    // Validation
+    if (!device_ids || !Array.isArray(device_ids) || device_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'device_ids array is required'
+      });
+    }
+    
+    if (!prompt || prompt.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Prompt is required'
+      });
+    }
+    
+    if (device_ids.length > 10) {
+      return res.status(400).json({
+        success: false,
+        message: 'Maximum 10 devices allowed per request'
+      });
+    }
+    
+    console.log(`🤖 Multi-device generation request for ${device_ids.length} devices: "${prompt}"`);
+    
+    // Get all devices
+    const devices = await Device.find({ _id: { $in: device_ids } });
+    
+    if (devices.length !== device_ids.length) {
+      return res.status(404).json({
+        success: false,
+        message: 'One or more devices not found'
+      });
+    }
+    
+    // Check AI service status
+    const aiStatus = await aiService.getServiceStatus();
+    if (aiStatus.status === "disconnected") {
+      return res.status(503).json({
+        success: false,
+        message: 'AI service is not available. Please check if Ollama is running.',
+        aiStatus: aiStatus
+      });
+    }
+    
+    // Generate multi-device configuration
+    const result = await aiService.generateMultiDeviceConfiguration(
+      devices, 
+      prompt, 
+      topology_hints || {}
+    );
+    
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        message: result.error || 'Failed to generate multi-device configuration',
+        results: result.results || []
+      });
+    }
+    
+    // Save successful configurations to database
+    const savedConfigurations = [];
+    
+    for (const deviceResult of result.results) {
+      if (deviceResult.success) {
+        try {
+          const configuration = new ConfigurationHistory({
+            device_id: deviceResult.device_id,
+            prompt: prompt,
+            generated_config: deviceResult.configuration,
+            method: 'multi_device_ai',
+            model: result.model || aiStatus.model,
+            status: 'generated',
+            validation_result: deviceResult.validation,
+            multi_device_session: true,
+            topology_data: result.topology
+          });
+          
+          await configuration.save();
+          savedConfigurations.push({
+            ...deviceResult,
+            configuration_id: configuration._id
+          });
+        } catch (saveError) {
+          console.error(`Failed to save configuration for device ${deviceResult.device_name}:`, saveError);
+          savedConfigurations.push({
+            ...deviceResult,
+            success: false,
+            error: 'Failed to save configuration'
+          });
+        }
+      } else {
+        savedConfigurations.push(deviceResult);
+      }
+    }
+    
+    console.log(`✅ Multi-device generation completed: ${result.summary.successfulDevices}/${result.summary.totalDevices} devices`);
+    
+    res.json({
+      success: true,
+      message: `Generated configurations for ${result.summary.successfulDevices}/${result.summary.totalDevices} devices`,
+      results: savedConfigurations,
+      topology: result.topology,
+      cross_validation: result.crossValidation,
+      execution_time: result.executionTime,
+      summary: result.summary,
+      ai_status: aiStatus
+    });
+    
+  } catch (error) {
+    console.error('Multi-device generation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error during multi-device generation',
+      error: error.message
+    });
+  }
+});
+
+// 🆕 POST /api/configurations/apply-multi - Apply multiple configurations
+router.post('/apply-multi', async (req, res) => {
+  try {
+    const { configuration_ids } = req.body;
+    
+    if (!configuration_ids || !Array.isArray(configuration_ids) || configuration_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'configuration_ids array is required'
+      });
+    }
+    
+    console.log(`📡 Applying configurations to ${configuration_ids.length} devices`);
+    
+    const results = [];
+    
+    for (const configId of configuration_ids) {
+      try {
+        // Get configuration and device
+        const configuration = await ConfigurationHistory.findOne({
+          _id: configId,
+          status: 'generated'
+        });
+        
+        if (!configuration) {
+          results.push({
+            configuration_id: configId,
+            success: false,
+            error: 'Configuration not found or already applied'
+          });
+          continue;
+        }
+        
+        const device = await Device.findById(configuration.device_id);
+        
+        if (!device) {
+          results.push({
+            configuration_id: configId,
+            device_name: 'Unknown',
+            success: false,
+            error: 'Device not found'
+          });
+          continue;
+        }
+        
+        // Apply configuration via SSH
+        const sshResult = await sshService.sendConfigCommands(device, configuration.generated_config);
+        
+        // Update configuration status
+        configuration.status = 'applied';
+        configuration.applied_config = configuration.generated_config;
+        configuration.applied_at = Date.now();
+        await configuration.save();
+        
+        results.push({
+          configuration_id: configId,
+          device_name: device.name,
+          success: true,
+          output: sshResult.output
+        });
+        
+      } catch (error) {
+        console.error(`Failed to apply configuration ${configId}:`, error);
+        
+        // Update configuration status to failed
+        try {
+          await ConfigurationHistory.findByIdAndUpdate(configId, {
+            status: 'failed',
+            error_message: error.message
+          });
+        } catch (updateError) {
+          console.error('Failed to update configuration status:', updateError);
+        }
+        
+        results.push({
+          configuration_id: configId,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+    
+    const successCount = results.filter(r => r.success).length;
+    
+    console.log(`✅ Multi-device apply completed: ${successCount}/${configuration_ids.length} successful`);
+    
+    res.json({
+      success: successCount > 0,
+      message: `Applied configurations to ${successCount}/${configuration_ids.length} devices`,
+      results: results,
+      summary: {
+        total: configuration_ids.length,
+        successful: successCount,
+        failed: configuration_ids.length - successCount
+      }
+    });
+    
+  } catch (error) {
+    console.error('Multi-device apply error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error during multi-device application',
+      error: error.message
+    });
+  }
+});
+
 export default router; 

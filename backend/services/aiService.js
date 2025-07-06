@@ -98,6 +98,424 @@ export class AIService {
     }
   }
 
+  // 🆕 Multi-Device Configuration Generation
+  async generateMultiDeviceConfiguration(devices, prompt, topologyHints = {}) {
+    const startTime = Date.now();
+    
+    try {
+      console.log(`🤖 Generating multi-device configuration for ${devices.length} devices: "${prompt}"`);
+
+      const results = [];
+      const deviceConfigs = [];
+
+      // Phase 1: Analyze topology and build relationships
+      const topology = this.analyzeTopology(devices, topologyHints);
+      console.log(`🔗 Detected topology:`, topology);
+
+      // Phase 2: Generate configuration for each device with topology awareness
+      for (let i = 0; i < devices.length; i++) {
+        const device = devices[i];
+        const devicePosition = i + 1;
+        const totalDevices = devices.length;
+        
+        console.log(`🔄 Generating config ${devicePosition}/${totalDevices} for ${device.name} (${device.type})`);
+
+        // Build topology-aware prompt for this device
+        const devicePrompt = this.buildMultiDevicePrompt(
+          prompt, 
+          device, 
+          devices, 
+          topology, 
+          devicePosition
+        );
+
+        // Generate configuration
+        const deviceResult = await this.generateConfiguration(
+          devicePrompt, 
+          device.type, 
+          {
+            ...device,
+            isMultiDevice: true,
+            position: devicePosition,
+            totalDevices: totalDevices,
+            peers: topology.peers[device.id] || []
+          }
+        );
+
+        if (deviceResult.success) {
+          deviceConfigs.push({
+            device: device,
+            config: deviceResult.configuration,
+            validation: deviceResult.validation,
+            recommendations: deviceResult.recommendations
+          });
+          
+          results.push({
+            device_id: device.id,
+            device_name: device.name,
+            success: true,
+            configuration: deviceResult.configuration,
+            validation: deviceResult.validation
+          });
+        } else {
+          results.push({
+            device_id: device.id,
+            device_name: device.name,
+            success: false,
+            error: deviceResult.error
+          });
+        }
+      }
+
+      // Phase 3: Cross-validate configurations for consistency
+      const crossValidation = this.validateMultiDeviceConsistency(deviceConfigs, topology);
+
+      const executionTime = Date.now() - startTime;
+      const successCount = results.filter(r => r.success).length;
+
+      console.log(`✅ Multi-device generation completed: ${successCount}/${devices.length} successful (${executionTime}ms)`);
+
+      return {
+        success: successCount > 0,
+        results: results,
+        topology: topology,
+        crossValidation: crossValidation,
+        executionTime: executionTime,
+        summary: {
+          totalDevices: devices.length,
+          successfulDevices: successCount,
+          failedDevices: devices.length - successCount
+        }
+      };
+
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+      console.error("❌ Multi-Device AI Service Error:", error.message);
+      
+      return {
+        success: false,
+        error: `Failed to generate multi-device configuration: ${error.message}`,
+        results: [],
+        executionTime: executionTime
+      };
+    }
+  }
+
+  // Analyze topology relationships between devices
+  analyzeTopology(devices, hints) {
+    const topology = {
+      devices: devices.map(d => ({
+        id: d.id,
+        name: d.name,
+        type: d.type,
+        role: this.inferDeviceRole(d, devices)
+      })),
+      peers: {},
+      networks: []
+    };
+
+    // Build peer relationships (simplified - assumes sequential connectivity)
+    devices.forEach((device, index) => {
+      topology.peers[device.id] = [];
+      
+      // Connect to previous device
+      if (index > 0) {
+        topology.peers[device.id].push({
+          peer_id: devices[index - 1].id,
+          peer_name: devices[index - 1].name,
+          connection_type: 'primary'
+        });
+      }
+      
+      // Connect to next device
+      if (index < devices.length - 1) {
+        topology.peers[device.id].push({
+          peer_id: devices[index + 1].id,
+          peer_name: devices[index + 1].name,
+          connection_type: 'secondary'
+        });
+      }
+    });
+
+    // Generate network ranges
+    topology.networks = this.generateNetworkRanges(devices.length);
+
+    return topology;
+  }
+
+  // Infer device role in topology
+  inferDeviceRole(device, allDevices) {
+    const index = allDevices.findIndex(d => d.id === device.id);
+    const total = allDevices.length;
+    
+    if (total === 1) return 'standalone';
+    if (index === 0) return 'edge';
+    if (index === total - 1) return 'edge';
+    return 'intermediate';
+  }
+
+  // Generate network ranges for inter-device connectivity
+  generateNetworkRanges(deviceCount) {
+    const networks = [];
+    let networkBase = 192;
+    let subnetIndex = 1;
+
+    for (let i = 0; i < deviceCount - 1; i++) {
+      networks.push({
+        network: `192.168.${subnetIndex}.0/30`,
+        device1_ip: `192.168.${subnetIndex}.1`,
+        device2_ip: `192.168.${subnetIndex}.2`,
+        description: `Link between device ${i + 1} and device ${i + 2}`
+      });
+      subnetIndex += 1;
+    }
+
+    return networks;
+  }
+
+  // Build multi-device aware prompt
+  buildMultiDevicePrompt(originalPrompt, currentDevice, allDevices, topology, position) {
+    const deviceInfo = `${currentDevice.name} (${currentDevice.type})`;
+    const peers = topology.peers[currentDevice.id] || [];
+    const networks = topology.networks;
+    
+    // Find relevant networks for this device
+    const deviceNetworks = networks.filter((net, index) => 
+      index === position - 2 || index === position - 1
+    );
+
+    let connectivityInfo = '';
+    if (peers.length > 0) {
+      connectivityInfo = `
+DEVICE CONNECTIVITY:
+- This device connects to: ${peers.map(p => p.peer_name).join(', ')}
+- Position in topology: ${position} of ${allDevices.length}`;
+
+      if (deviceNetworks.length > 0) {
+        connectivityInfo += `
+- Network assignments: ${deviceNetworks.map(net => net.network).join(', ')}`;
+      }
+    }
+
+    // Build topology-aware examples
+    const topologyExamples = this.getTopologyExamples(originalPrompt, currentDevice.type, position, allDevices.length);
+
+    return `You are an expert Cisco network engineer. Generate configuration for ${deviceInfo} as part of a ${allDevices.length}-device topology.
+
+${connectivityInfo}
+
+TASK: ${originalPrompt}
+
+${topologyExamples}
+
+IMPORTANT: 
+1. Consider this device's position in the topology
+2. Use appropriate interface addressing for connectivity
+3. Ensure routing/switching protocols are compatible with other devices
+4. Generate complete, functional configuration
+
+Configuration for ${deviceInfo}:`;
+  }
+
+  // Get topology-specific examples
+  getTopologyExamples(prompt, deviceType, position, totalDevices) {
+    const isOSPF = prompt.toLowerCase().includes('ospf');
+    const isEIGRP = prompt.toLowerCase().includes('eigrp');
+    const isBGP = prompt.toLowerCase().includes('bgp');
+    const isVLAN = prompt.toLowerCase().includes('vlan');
+
+    if (isOSPF && deviceType === 'router') {
+      return this.getOSPFTopologyExample(position, totalDevices);
+    }
+    
+    if (isEIGRP && deviceType === 'router') {
+      return this.getEIGRPTopologyExample(position, totalDevices);
+    }
+    
+    if (isBGP && deviceType === 'router') {
+      return this.getBGPTopologyExample(position, totalDevices);
+    }
+    
+    if (isVLAN && deviceType === 'switch') {
+      return this.getVLANTopologyExample(position, totalDevices);
+    }
+
+    return this.getGenericTopologyExample(deviceType, position, totalDevices);
+  }
+
+  // OSPF topology examples
+  getOSPFTopologyExample(position, total) {
+    if (position === 1) {
+      return `
+EXAMPLE OSPF CONFIG (First Router):
+configure terminal
+router ospf 10
+ router-id 1.1.1.1
+ network 192.168.1.0 0.0.0.3 area 0
+exit
+interface GigabitEthernet0/1
+ ip address 192.168.1.1 255.255.255.252
+ description to-Router2
+ no shutdown
+exit
+end`;
+    } else if (position === total) {
+      return `
+EXAMPLE OSPF CONFIG (Last Router):
+configure terminal
+router ospf 10
+ router-id ${position}.${position}.${position}.${position}
+ network 192.168.${position-1}.0 0.0.0.3 area 0
+exit
+interface GigabitEthernet0/0
+ ip address 192.168.${position-1}.2 255.255.255.252
+ description from-Router${position-1}
+ no shutdown
+exit
+end`;
+    } else {
+      return `
+EXAMPLE OSPF CONFIG (Middle Router):
+configure terminal
+router ospf 10
+ router-id ${position}.${position}.${position}.${position}
+ network 192.168.${position-1}.0 0.0.0.3 area 0
+ network 192.168.${position}.0 0.0.0.3 area 0
+exit
+interface GigabitEthernet0/0
+ ip address 192.168.${position-1}.2 255.255.255.252
+ description from-Router${position-1}
+ no shutdown
+exit
+interface GigabitEthernet0/1
+ ip address 192.168.${position}.1 255.255.255.252
+ description to-Router${position+1}
+ no shutdown
+exit
+end`;
+    }
+  }
+
+  // EIGRP topology examples
+  getEIGRPTopologyExample(position, total) {
+    return `
+EXAMPLE EIGRP CONFIG:
+configure terminal
+router eigrp 100
+ network 192.168.${position}.0 0.0.0.255
+ no auto-summary
+exit
+interface GigabitEthernet0/1
+ ip address 192.168.${position}.1 255.255.255.252
+ no shutdown
+exit
+end`;
+  }
+
+  // BGP topology examples  
+  getBGPTopologyExample(position, total) {
+    const asn = 65000 + position;
+    return `
+EXAMPLE BGP CONFIG:
+configure terminal
+router bgp ${asn}
+ bgp router-id ${position}.${position}.${position}.${position}
+ neighbor 192.168.${position}.2 remote-as ${asn + 1}
+ network 10.${position}.0.0 mask 255.255.0.0
+exit
+end`;
+  }
+
+  // VLAN topology examples
+  getVLANTopologyExample(position, total) {
+    return `
+EXAMPLE VLAN CONFIG:
+configure terminal
+vlan ${10 + position}
+ name Department${position}
+exit
+interface range FastEthernet0/1-24
+ switchport mode access
+ switchport access vlan ${10 + position}
+ no shutdown
+exit
+end`;
+  }
+
+  // Generic topology example
+  getGenericTopologyExample(deviceType, position, total) {
+    return `
+EXAMPLE ${deviceType.toUpperCase()} CONFIG:
+configure terminal
+hostname ${deviceType.charAt(0).toUpperCase() + deviceType.slice(1)}${position}
+interface GigabitEthernet0/1
+ description Connection-${position}
+ ip address 192.168.${position}.1 255.255.255.252
+ no shutdown
+exit
+end`;
+  }
+
+  // Validate multi-device consistency
+  validateMultiDeviceConsistency(deviceConfigs, topology) {
+    const issues = [];
+    const warnings = [];
+    
+    // Check for IP addressing conflicts
+    const ipAddresses = new Set();
+    deviceConfigs.forEach(config => {
+      const ips = this.extractIPAddresses(config.config);
+      ips.forEach(ip => {
+        if (ipAddresses.has(ip)) {
+          issues.push(`IP address conflict: ${ip} used on multiple devices`);
+        }
+        ipAddresses.add(ip);
+      });
+    });
+
+    // Check for routing protocol consistency
+    const routingProtocols = deviceConfigs.map(config => {
+      return this.detectRoutingProtocols(config.config);
+    });
+    
+    const uniqueProtocols = [...new Set(routingProtocols.flat())];
+    if (uniqueProtocols.length > 1) {
+      warnings.push(`Multiple routing protocols detected: ${uniqueProtocols.join(', ')}`);
+    }
+
+    return {
+      isConsistent: issues.length === 0,
+      issues: issues,
+      warnings: warnings,
+      summary: `${issues.length} conflicts, ${warnings.length} warnings`
+    };
+  }
+
+  // Extract IP addresses from configuration
+  extractIPAddresses(config) {
+    const ipRegex = /ip address (\d+\.\d+\.\d+\.\d+)/g;
+    const ips = [];
+    let match;
+    
+    while ((match = ipRegex.exec(config)) !== null) {
+      ips.push(match[1]);
+    }
+    
+    return ips;
+  }
+
+  // Detect routing protocols in configuration
+  detectRoutingProtocols(config) {
+    const protocols = [];
+    
+    if (config.includes('router ospf')) protocols.push('OSPF');
+    if (config.includes('router eigrp')) protocols.push('EIGRP');
+    if (config.includes('router bgp')) protocols.push('BGP');
+    if (config.includes('router rip')) protocols.push('RIP');
+    
+    return protocols;
+  }
+
   // Enhanced prompt building
   buildEnhancedPrompt(prompt, deviceType, deviceContext) {
     const deviceInfo = [

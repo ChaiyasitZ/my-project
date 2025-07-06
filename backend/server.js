@@ -39,7 +39,10 @@ const limiter = rateLimit({
   }
 });
 
-// app.use('/api/', limiter); // Disabled for development
+// Enable rate limiting but with lenient settings for development
+if (config.server.nodeEnv === 'production') {
+  app.use('/api/', limiter);
+}
 
 // CORS
 app.use(cors(config.cors));

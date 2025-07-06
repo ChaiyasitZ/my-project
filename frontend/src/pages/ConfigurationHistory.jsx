@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { 
@@ -21,11 +21,7 @@ function ConfigurationHistory() {
   const [selectedConfig, setSelectedConfig] = useState(null);
   const [showModal, setShowModal] = useState(false);
 
-  useEffect(() => {
-    fetchConfigurations();
-  }, [filter]);
-
-  const fetchConfigurations = async () => {
+  const fetchConfigurations = useCallback(async () => {
     try {
       const url = filter === 'all' ? '/configurations/history' : `/configurations/history?status=${filter}`;
       const response = await axios.get(url);
@@ -35,7 +31,11 @@ function ConfigurationHistory() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
+
+  useEffect(() => {
+    fetchConfigurations();
+  }, [fetchConfigurations]);
 
   const applyFilters = () => {
     return configurations;
