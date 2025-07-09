@@ -115,7 +115,8 @@ app.get('/', (req, res) => {
       configurations: '/api/configurations',
       console: '/api/console',
       backups: '/api/backups',
-      netconf: '/api/netconf'
+      netconf: '/api/netconf',
+      compliance: '/api/compliance'
     },
     protocols: ['SSH', 'Console', 'NETCONF'],
     yang_support: true,

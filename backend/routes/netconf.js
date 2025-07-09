@@ -1,4 +1,6 @@
 import express from 'express';
+import crypto from 'crypto';
+import xml2js from 'xml2js';
 import Device from '../models/Device.js';
 import YangModel from '../models/YangModel.js';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
@@ -7,6 +9,36 @@ import aiService from '../services/aiService.js';
 import yangService from '../services/yangService.js';
 
 const router = express.Router();
+
+// Get active NETCONF sessions
+router.get('/sessions', async (req, res) => {
+  try {
+    const sessions = netconfService.getActiveSessions();
+    
+    res.json({
+      success: true,
+      message: 'Active NETCONF sessions retrieved',
+      data: {
+        sessions: sessions.map(session => ({
+          sessionId: session.sessionId,
+          ip_address: session.ip_address,
+          connected_at: session.connected_at,
+          capabilities: session.capabilities || [],
+          status: session.status || 'connected'
+        })),
+        total_sessions: sessions.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Get sessions error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve active sessions',
+      error: error.message
+    });
+  }
+});
 
 // Test NETCONF connection
 router.post('/test-connection', async (req, res) => {
@@ -375,6 +407,111 @@ router.post('/validate/:session_id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Configuration validation failed',
+      error: error.message
+    });
+  }
+});
+
+// Validate XML configuration
+router.post('/validate-config', async (req, res) => {
+  try {
+    const { session_id, xml_config } = req.body;
+
+    if (!session_id || !xml_config) {
+      return res.status(400).json({
+        success: false,
+        message: 'Session ID and XML configuration are required'
+      });
+    }
+
+    // First validate the XML structure
+    try {
+      // Basic XML validation using xml2js
+      const parser = new xml2js.Parser();
+      await parser.parseStringPromise(xml_config);
+    } catch (xmlError) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid XML format',
+        error: xmlError.message
+      });
+    }
+
+    // Validate against NETCONF session
+    const result = await netconfService.validateXmlConfig(session_id, xml_config);
+
+    res.json({
+      success: true,
+      message: 'XML configuration validation completed',
+      data: {
+        valid: result.valid,
+        session_id,
+        validation_result: result.validation_result,
+        warnings: result.warnings || [],
+        errors: result.errors || []
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ XML config validation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'XML configuration validation failed',
+      error: error.message
+    });
+  }
+});
+
+// Deploy XML configuration
+router.post('/deploy-config', async (req, res) => {
+  try {
+    const { session_id, xml_config, datastore = 'running', validate = true, commit = true } = req.body;
+
+    if (!session_id || !xml_config) {
+      return res.status(400).json({
+        success: false,
+        message: 'Session ID and XML configuration are required'
+      });
+    }
+
+    // Validate XML first if requested
+    if (validate) {
+      try {
+        const parser = new xml2js.Parser();
+        await parser.parseStringPromise(xml_config);
+      } catch (xmlError) {
+        return res.status(400).json({
+          success: false,
+          message: 'XML validation failed',
+          error: xmlError.message
+        });
+      }
+    }
+
+    // Deploy the configuration
+    const result = await netconfService.deployXmlConfig(session_id, xml_config, {
+      datastore,
+      validate,
+      commit
+    });
+
+    res.json({
+      success: true,
+      message: 'Configuration deployed successfully',
+      data: {
+        session_id,
+        datastore,
+        deployment_result: result,
+        validated: validate,
+        committed: commit
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ XML config deployment error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Configuration deployment failed',
       error: error.message
     });
   }
@@ -806,5 +943,342 @@ router.get('/yang/vendor/:vendor', async (req, res) => {
     });
   }
 });
+
+// Add/Upload new YANG model
+router.post('/yang-models', async (req, res) => {
+  try {
+    const {
+      name,
+      namespace,
+      prefix,
+      revision,
+      description,
+      organization,
+      contact,
+      yang_content,
+      vendor = 'custom',
+      category = 'other',
+      supported_devices = []
+    } = req.body;
+
+    // Validate required fields
+    if (!name || !namespace || !prefix || !yang_content) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: name, namespace, prefix, yang_content'
+      });
+    }
+
+    // Check if model with same name already exists
+    const existingModel = await YangModel.findOne({ name, namespace });
+    if (existingModel) {
+      return res.status(409).json({
+        success: false,
+        message: `YANG model '${name}' with namespace '${namespace}' already exists`
+      });
+    }
+
+    // Parse YANG content to extract structure (basic parsing)
+    let parsed_structure = {};
+    try {
+      // Simple parsing - in production you'd use a proper YANG parser
+      parsed_structure = parseBasicYangStructure(yang_content);
+    } catch (parseError) {
+      console.warn('⚠️ Failed to parse YANG structure:', parseError.message);
+      parsed_structure = { containers: {}, leaves: {}, note: 'Structure parsing failed' };
+    }
+
+    // Create new YANG model
+    const yangModel = new YangModel({
+      name,
+      namespace,
+      prefix,
+      revision,
+      description,
+      organization,
+      contact,
+      yang_content,
+      parsed_structure,
+      vendor: vendor.toLowerCase(),
+      category,
+      status: 'active',
+      supported_devices,
+      file_size: yang_content.length,
+      checksum: crypto.createHash('sha256').update(yang_content).digest('hex')
+    });
+
+    await yangModel.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'YANG model uploaded successfully',
+      data: {
+        model: yangModel.model_summary,
+        parsed_containers: Object.keys(parsed_structure.containers || {}).length,
+        parsed_leaves: Object.keys(parsed_structure.leaves || {}).length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Upload YANG model error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload YANG model',
+      error: error.message
+    });
+  }
+});
+
+// Update existing YANG model
+router.put('/yang-models/:model_id', async (req, res) => {
+  try {
+    const { model_id } = req.params;
+    const updateData = { ...req.body };
+    
+    // Remove fields that shouldn't be updated
+    delete updateData._id;
+    delete updateData.__v;
+    delete updateData.createdAt;
+
+    const model = await YangModel.findById(model_id);
+    if (!model) {
+      return res.status(404).json({
+        success: false,
+        message: 'YANG model not found'
+      });
+    }
+
+    // If yang_content is updated, reparse structure
+    if (updateData.yang_content && updateData.yang_content !== model.yang_content) {
+      try {
+        updateData.parsed_structure = parseBasicYangStructure(updateData.yang_content);
+        updateData.file_size = updateData.yang_content.length;
+        updateData.checksum = crypto.createHash('sha256').update(updateData.yang_content).digest('hex');
+      } catch (parseError) {
+        console.warn('⚠️ Failed to parse updated YANG structure:', parseError.message);
+      }
+    }
+
+    Object.assign(model, updateData);
+    await model.save();
+
+    res.json({
+      success: true,
+      message: 'YANG model updated successfully',
+      data: {
+        model: model.model_summary
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Update YANG model error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update YANG model',
+      error: error.message
+    });
+  }
+});
+
+// Delete YANG model
+router.delete('/yang-models/:model_id', async (req, res) => {
+  try {
+    const { model_id } = req.params;
+    
+    console.log(`🗑️ Attempting to delete YANG model with ID: ${model_id}`);
+
+    // Validate model_id format
+    if (!model_id || model_id.length !== 24) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid model ID format'
+      });
+    }
+
+    // Find the model first
+    const model = await YangModel.findById(model_id);
+    if (!model) {
+      console.log(`❌ YANG model not found: ${model_id}`);
+      return res.status(404).json({
+        success: false,
+        message: 'YANG model not found'
+      });
+    }
+
+    console.log(`📋 Found model to delete: ${model.name} (${model.vendor})`);
+
+    // Check if model is being used by any active sessions or configurations
+    // This is a placeholder - you might want to check for actual dependencies
+    const isModelInUse = false; // You can implement this check based on your business logic
+    
+    if (isModelInUse) {
+      return res.status(409).json({
+        success: false,
+        message: `Cannot delete YANG model '${model.name}' because it is currently in use`,
+        details: 'Model is referenced by active configurations or sessions'
+      });
+    }
+
+    // Perform the deletion
+    const deletedModel = await YangModel.findByIdAndDelete(model_id);
+    
+    if (!deletedModel) {
+      console.error(`❌ Failed to delete model: ${model_id} - Model not found during deletion`);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to delete YANG model - model not found during deletion'
+      });
+    }
+
+    console.log(`✅ Successfully deleted YANG model: ${model.name}`);
+
+    res.json({
+      success: true,
+      message: `YANG model '${model.name}' deleted successfully`,
+      data: {
+        deleted_model: {
+          id: deletedModel._id,
+          name: deletedModel.name,
+          vendor: deletedModel.vendor,
+          category: deletedModel.category
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Delete YANG model error:', error);
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to delete YANG model';
+    let statusCode = 500;
+    
+    if (error.name === 'CastError') {
+      errorMessage = 'Invalid model ID format';
+      statusCode = 400;
+    } else if (error.name === 'ValidationError') {
+      errorMessage = 'Validation error during deletion';
+      statusCode = 400;
+    } else if (error.code === 11000) {
+      errorMessage = 'Database constraint violation';
+      statusCode = 409;
+    }
+    
+    res.status(statusCode).json({
+      success: false,
+      message: errorMessage,
+      error: error.message,
+      details: {
+        error_type: error.name,
+        error_code: error.code,
+        model_id: req.params.model_id
+      }
+    });
+  }
+});
+
+// Helper function for basic YANG parsing
+function parseBasicYangStructure(yangContent) {
+  const structure = {
+    containers: {},
+    leaves: {},
+    lists: {},
+    modules: {}
+  };
+
+  try {
+    const lines = yangContent.split('\n');
+    let currentContainer = null;
+    let currentList = null;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      
+      // Parse containers
+      if (trimmed.startsWith('container ')) {
+        const containerName = trimmed.split(' ')[1].replace('{', '').trim();
+        currentContainer = containerName;
+        structure.containers[containerName] = {
+          type: 'container',
+          leaves: [],
+          lists: {},
+          description: ''
+        };
+      }
+      
+      // Parse lists
+      else if (trimmed.startsWith('list ')) {
+        const listName = trimmed.split(' ')[1].replace('{', '').trim();
+        currentList = listName;
+        if (currentContainer) {
+          structure.containers[currentContainer].lists[listName] = {
+            type: 'list',
+            leaves: [],
+            key: ''
+          };
+        } else {
+          structure.lists[listName] = {
+            type: 'list',
+            leaves: [],
+            key: ''
+          };
+        }
+      }
+      
+      // Parse leaves
+      else if (trimmed.startsWith('leaf ')) {
+        const leafName = trimmed.split(' ')[1].replace('{', '').trim();
+        const leafInfo = {
+          name: leafName,
+          type: 'string', // Default type
+          mandatory: false,
+          description: ''
+        };
+        
+        if (currentList && currentContainer) {
+          structure.containers[currentContainer].lists[currentList].leaves.push(leafInfo);
+        } else if (currentContainer) {
+          structure.containers[currentContainer].leaves.push(leafInfo);
+        } else {
+          structure.leaves[leafName] = leafInfo;
+        }
+      }
+      
+      // Parse key
+      else if (trimmed.startsWith('key ')) {
+        const keyValue = trimmed.replace('key', '').replace(/[";]/g, '').trim();
+        if (currentList && currentContainer) {
+          structure.containers[currentContainer].lists[currentList].key = keyValue;
+        }
+      }
+      
+      // Parse type
+      else if (trimmed.startsWith('type ')) {
+        const typeValue = trimmed.replace('type', '').replace(/[";]/g, '').trim();
+        // Update the last leaf's type (simplified approach)
+        // In production, you'd use a proper YANG parser
+      }
+      
+      // Parse description
+      else if (trimmed.startsWith('description ')) {
+        const descValue = trimmed.replace('description', '').replace(/[";]/g, '').trim();
+        // Update description for current context
+      }
+      
+      // Reset context when closing braces
+      else if (trimmed === '}') {
+        // Simple context reset - in production use proper parsing
+        if (currentList) {
+          currentList = null;
+        } else if (currentContainer) {
+          currentContainer = null;
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('Basic YANG parsing failed:', error.message);
+  }
+
+  return structure;
+}
 
 export default router; 

@@ -277,6 +277,105 @@ class NetconfService {
     return this.sendRpc(session, 'validate', rpcContent);
   }
 
+  // Validate XML configuration
+  async validateXmlConfig(sessionId, xmlConfig) {
+    const session = this.sessions.get(sessionId);
+    if (!session || !session.isConnected) {
+      throw new Error('NETCONF session not available');
+    }
+
+    return new Promise((resolve, reject) => {
+      this.parser.parseString(xmlConfig, (err, result) => {
+        if (err) {
+          resolve({
+            valid: false,
+            validation_result: {
+              structure: 'invalid',
+              error: err.message
+            },
+            warnings: [],
+            errors: [err.message]
+          });
+          return;
+        }
+
+        // Basic validation - check if it's a valid NETCONF structure
+        const warnings = [];
+        const errors = [];
+        
+        // Check for common NETCONF elements
+        if (!result.config && !result['rpc-reply'] && !result.rpc) {
+          warnings.push('XML does not appear to be a standard NETCONF configuration');
+        }
+        
+        resolve({
+          valid: errors.length === 0,
+          validation_result: {
+            structure: 'valid',
+            parsed: result
+          },
+          warnings,
+          errors
+        });
+      });
+    });
+  }
+
+  // Deploy XML configuration
+  async deployXmlConfig(sessionId, xmlConfig, options = {}) {
+    const { datastore = 'running', validate = true, commit = true } = options;
+    
+    const session = this.sessions.get(sessionId);
+    if (!session || !session.isConnected) {
+      throw new Error('NETCONF session not available');
+    }
+
+    try {
+      // Parse the XML config
+      const parsedConfig = await new Promise((resolve, reject) => {
+        this.parser.parseString(xmlConfig, (err, result) => {
+          if (err) {
+            reject(new Error(`XML parsing failed: ${err.message}`));
+          } else {
+            resolve(result);
+          }
+        });
+      });
+      
+      // If validation is requested, validate first
+      if (validate) {
+        const validationResult = await this.validateXmlConfig(sessionId, xmlConfig);
+        if (!validationResult.valid) {
+          throw new Error(`Configuration validation failed: ${validationResult.errors.join(', ')}`);
+        }
+      }
+      
+      // Deploy the configuration using edit-config
+      const editResult = await this.editConfig(sessionId, datastore, parsedConfig, 'merge');
+      
+      // If commit is requested and we're using candidate datastore
+      if (commit && datastore === 'candidate') {
+        const commitResult = await this.commit(sessionId);
+        return {
+          edit_result: editResult,
+          commit_result: commitResult,
+          deployed: true,
+          committed: true
+        };
+      }
+      
+      return {
+        edit_result: editResult,
+        deployed: true,
+        committed: datastore === 'running' // running datastore is automatically committed
+      };
+      
+    } catch (error) {
+      console.error(`❌ Error deploying XML config:`, error);
+      throw new Error(`Configuration deployment failed: ${error.message}`);
+    }
+  }
+
   // Get active sessions
   getActiveSessions() {
     const sessions = [];
