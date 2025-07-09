@@ -64,6 +64,7 @@ const NetconfManagement = () => {
   const { confirmationState, showConfirmation } = useConfirmation();
   const [deployingXml, setDeployingXml] = useState(false);
   const [deployResult, setDeployResult] = useState(null);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
   useEffect(() => {
     fetchDevices();
@@ -109,6 +110,14 @@ const NetconfManagement = () => {
       if (data.success) {
         console.log('✅ YANG models structure:', data.data.models);
         console.log('🔍 First model example:', data.data.models[0]);
+        
+        // Log what fields are available in each model
+        if (data.data.models.length > 0) {
+          const sampleModel = data.data.models[0];
+          console.log('📊 Available fields in model:', Object.keys(sampleModel));
+          console.log('🔍 Has yang_content?', 'yang_content' in sampleModel);
+        }
+        
         setYangModels(data.data.models);
       }
     } catch (error) {
@@ -291,7 +300,43 @@ const NetconfManagement = () => {
       const data = await response.json();
       if (data.success) {
         setGeneratedXml(data.data.generated_xml);
-        toast.success('NETCONF XML generated successfully!', { id: toastId });
+        
+        // Show success animation
+        setShowSuccessAnimation(true);
+        
+        // Enhanced success notification with details
+        const xmlLength = data.data.generated_xml.length;
+        const lineCount = data.data.generated_xml.split('\n').length;
+        
+        toast.success(
+          `🎉 NETCONF XML Generated Successfully!\n` +
+          `📄 ${lineCount} lines of XML configuration\n` +
+          `📊 ${Math.round(xmlLength / 1024 * 10) / 10} KB generated\n` +
+          `✅ Ready for validation and deployment`,
+          { 
+            id: toastId,
+            duration: 4000,
+            style: {
+              background: '#10B981',
+              color: 'white',
+              fontWeight: '500'
+            }
+          }
+        );
+        
+        // Auto-scroll to generated XML section
+        setTimeout(() => {
+          const xmlSection = document.querySelector('[data-xml-output]');
+          if (xmlSection) {
+            xmlSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 500);
+        
+        // Hide success animation after 3 seconds
+        setTimeout(() => {
+          setShowSuccessAnimation(false);
+        }, 3000);
+        
       } else {
         toast.error(`Failed to generate XML: ${data.message}`, { id: toastId });
       }
@@ -303,7 +348,7 @@ const NetconfManagement = () => {
     }
   };
 
-  const deployXmlToDevice = async (sessionId, xmlConfig) => {
+  const deployXmlToNexusDevice = async (sessionId, xmlConfig, options = {}) => {
     if (!sessionId || !xmlConfig) {
       toast.error('Please select a session and ensure XML is generated');
       return;
@@ -315,9 +360,22 @@ const NetconfManagement = () => {
       return;
     }
 
+    const { 
+      datastore = 'running', 
+      validate = true, 
+      commit = true, 
+      rollback_on_error = true 
+    } = options;
+
+    // Enhanced confirmation for Cisco Nexus
     const confirmed = await showConfirmation({
-      title: 'Deploy XML Configuration',
-      message: `Are you sure you want to deploy this XML configuration to ${session.ip_address}?\n\nThis will modify the device configuration and cannot be easily undone.`,
+      title: 'Deploy XML to Cisco Nexus Device',
+      message: `Are you sure you want to deploy this configuration to ${session.ip_address}?\n\n` +
+               `🎯 Target: ${datastore} datastore\n` +
+               `🔍 Validation: ${validate ? 'Enabled' : 'Disabled'}\n` +
+               `💾 Auto-commit: ${commit ? 'Yes' : 'No'}\n` +
+               `🔄 Rollback on error: ${rollback_on_error ? 'Yes' : 'No'}\n\n` +
+               `⚠️ This will modify the device configuration.`,
       confirmText: 'Deploy Configuration',
       cancelText: 'Cancel',
       type: 'warning'
@@ -327,7 +385,7 @@ const NetconfManagement = () => {
 
     setDeployingXml(true);
     setDeployResult(null);
-    const toastId = toast.loading(`Deploying XML configuration to ${session.ip_address}...`);
+    const toastId = toast.loading(`🚀 Deploying to Nexus ${session.ip_address}...`);
     
     try {
       const response = await fetch(`${API_BASE_URL}/netconf/deploy-config`, {
@@ -336,9 +394,11 @@ const NetconfManagement = () => {
         body: JSON.stringify({
           session_id: sessionId,
           xml_config: xmlConfig,
-          datastore: 'running', // or 'candidate'
-          validate: true,
-          commit: true
+          datastore,
+          validate,
+          commit,
+          rollback_on_error,
+          device_type: 'cisco_nexus' // Help backend understand device type
         })
       });
       
@@ -348,33 +408,54 @@ const NetconfManagement = () => {
         setDeployResult({
           success: true,
           message: data.message,
-          details: data.details,
-          session: session.ip_address
+          details: data.data.deployment_result,
+          session: session.ip_address,
+          datastore,
+          committed: data.data.committed,
+          validated: data.data.validated
         });
-        toast.success(`Configuration deployed successfully to ${session.ip_address}!`, { id: toastId });
+        
+        // Enhanced success notification for Nexus
+        toast.success(
+          `🎉 Nexus Configuration Deployed!\n` +
+          `📍 Device: ${session.ip_address}\n` +
+          `💾 Datastore: ${datastore}\n` +
+          `✅ Status: ${data.data.committed ? 'Committed' : 'Staged'}`,
+          { 
+            id: toastId,
+            duration: 5000,
+            style: {
+              background: '#059669',
+              color: 'white',
+              fontWeight: '500'
+            }
+          }
+        );
         
         // Refresh operational data after deployment
         setTimeout(() => {
           getOperationalData(sessionId);
         }, 2000);
+        
       } else {
         setDeployResult({
           success: false,
           message: data.message,
           error: data.error,
-          session: session.ip_address
+          session: session.ip_address,
+          datastore
         });
-        toast.error(`Deployment failed: ${data.message}`, { id: toastId });
+        toast.error(`❌ Nexus Deployment Failed: ${data.message}`, { id: toastId });
       }
     } catch (error) {
-      console.error('Error deploying XML:', error);
+      console.error('Error deploying XML to Nexus:', error);
       setDeployResult({
         success: false,
         message: 'Network error occurred',
         error: error.message,
         session: session.ip_address
       });
-      toast.error('Failed to deploy XML: ' + error.message, { id: toastId });
+      toast.error('Failed to deploy to Nexus: ' + error.message, { id: toastId });
     } finally {
       setDeployingXml(false);
     }
@@ -763,8 +844,34 @@ const NetconfManagement = () => {
     }
   };
 
-  const previewYangModel = (model) => {
-    setPreviewModel(model);
+  const previewYangModel = async (model) => {
+    if (model.yang_content) {
+      // If content is already available, show it directly
+      setPreviewModel(model);
+      return;
+    }
+
+    // Fetch full model details including yang_content
+    setLoading(true);
+    const toastId = toast.loading('Loading model content...');
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/netconf/yang-models/${model.id}`);
+      const data = await response.json();
+      
+      if (data.success && data.data.model) {
+        const fullModel = data.data.model;
+        setPreviewModel(fullModel);
+        toast.success('Model content loaded successfully!', { id: toastId });
+      } else {
+        toast.error(`Failed to load model content: ${data.message}`, { id: toastId });
+      }
+    } catch (error) {
+      console.error('Error fetching YANG model details:', error);
+      toast.error('Failed to load model content: ' + error.message, { id: toastId });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filteredYangModels = yangModels.filter(model => {
@@ -1421,9 +1528,22 @@ const NetconfManagement = () => {
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
                   {searchTerm || modelFilter !== 'all' ? 'No models match your filter' : 'No YANG models found'}
                 </h3>
-                <p className="text-gray-500">
+                <p className="text-gray-500 mb-4">
                   {searchTerm || modelFilter !== 'all' ? 'Try adjusting your search or filter' : 'Upload YANG models to see them here'}
                 </p>
+                
+                {/* Troubleshooting info when no models exist */}
+                {yangModels.length === 0 && !searchTerm && modelFilter === 'all' && (
+                  <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-left max-w-md mx-auto">
+                    <h4 className="text-sm font-medium text-blue-900 mb-2">Getting Started with YANG Models</h4>
+                    <div className="text-sm text-blue-800 space-y-1">
+                      <p>• Click "Add Model" to upload your first YANG model</p>
+                      <p>• Support for .yang file uploads or manual entry</p>
+                      <p>• Auto-detection of vendor and category</p>
+                      <p>• Built-in validation and syntax checking</p>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1449,10 +1569,15 @@ const NetconfManagement = () => {
                       <div className="flex items-center space-x-1">
                         <button
                           onClick={() => previewYangModel(model)}
+                          disabled={loading}
                           className="p-1 text-gray-400 hover:text-gray-600"
                           title="Preview model"
                         >
-                          <EyeIcon className="h-4 w-4" />
+                          {loading ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+                          ) : (
+                            <EyeIcon className="h-4 w-4" />
+                          )}
                         </button>
                         <button
                           onClick={() => editYangModel(model)}
@@ -1502,9 +1627,14 @@ const NetconfManagement = () => {
                       </button>
                       <button
                         onClick={() => previewYangModel(model)}
+                        disabled={loading}
                         className="btn btn-secondary btn-sm"
                       >
-                        <EyeIcon className="h-4 w-4" />
+                        {loading ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                        ) : (
+                          <EyeIcon className="h-4 w-4" />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -1580,16 +1710,38 @@ const NetconfManagement = () => {
               <div>
                 <h4 className="text-sm font-medium text-gray-700 mb-2">YANG Content</h4>
                 <div className="bg-gray-900 text-green-400 p-4 rounded-lg overflow-auto max-h-96">
-                  <pre className="text-sm font-mono whitespace-pre-wrap">
-                    {previewModel.yang_content}
-                  </pre>
+                  {previewModel.yang_content ? (
+                    <pre className="text-sm font-mono whitespace-pre-wrap">
+                      {previewModel.yang_content}
+                    </pre>
+                  ) : (
+                    <div className="text-center py-8">
+                      <DocumentTextIcon className="h-12 w-12 text-gray-500 mx-auto mb-4" />
+                      <p className="text-gray-400 text-sm">
+                        {loading ? 'Loading YANG content...' : 'YANG content not available'}
+                      </p>
+                      {loading && (
+                        <div className="mt-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-400 mx-auto"></div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
             
             <div className="flex justify-end space-x-3 p-4 border-t">
               <button
-                onClick={() => navigator.clipboard.writeText(previewModel.yang_content)}
+                onClick={() => {
+                  if (previewModel.yang_content) {
+                    navigator.clipboard.writeText(previewModel.yang_content);
+                    toast.success('YANG content copied to clipboard!');
+                  } else {
+                    toast.error('No YANG content available to copy');
+                  }
+                }}
+                disabled={!previewModel.yang_content}
                 className="btn btn-secondary btn-sm"
               >
                 <ClipboardDocumentIcon className="h-4 w-4 mr-2" />
@@ -1809,101 +1961,96 @@ const NetconfManagement = () => {
 
           {/* Example Prompts */}
           <div className="card p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Example Prompts</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Cisco Nexus Example Prompts</h3>
+            <div className="space-y-3">
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Interface Configuration</h4>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">🔧 Nexus Configuration Examples</h4>
                 <div className="space-y-2">
                   {[
-                    "Configure interface GigabitEthernet0/1 with IP 192.168.1.1/24",
-                    "Set interface FastEthernet0/2 to trunk mode with VLANs 10,20,30",
-                    "Enable interface GigabitEthernet0/3 and set description 'Server Link'"
+                    "Configure interface Ethernet1/1 as access port for VLAN 100 with description 'Server-01'",
+                    "Create VLAN 200 named 'Production' and assign interface Ethernet1/5-10 as trunk",
+                    "Configure OSPF area 0 on interface loopback0 with IP 10.1.1.1/32",
+                    "Set up port-channel 10 with interfaces Ethernet1/15-16 using LACP mode active"
                   ].map((example, index) => (
                     <button
                       key={index}
                       onClick={() => setXmlPrompt(example)}
-                      className="text-left text-sm text-blue-600 hover:text-blue-800 block w-full p-2 hover:bg-blue-50 rounded"
+                      className="text-left text-sm text-blue-600 hover:text-blue-800 block w-full p-3 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors"
                     >
-                      • {example}
+                      <span className="font-medium">• {example}</span>
                     </button>
                   ))}
                 </div>
-              </div>
-              
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">VLAN & Routing</h4>
-                <div className="space-y-2">
-                  {[
-                    "Create VLAN 100 named 'Sales' with IP 10.0.100.1/24",
-                    "Configure OSPF area 0 on interfaces Gi0/1 and Gi0/2",
-                    "Set up BGP AS 65001 with neighbor 192.168.1.2"
-                  ].map((example, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setXmlPrompt(example)}
-                      className="text-left text-sm text-blue-600 hover:text-blue-800 block w-full p-2 hover:bg-blue-50 rounded"
-                    >
-                      • {example}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Security & ACL</h4>
-                <div className="space-y-2">
-                  {[
-                    "Create access-list 100 to deny HTTP from 192.168.10.0/24",
-                    "Configure SSH access with username admin and enable secret",
-                    "Set up port security on interface FastEthernet0/1"
-                  ].map((example, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setXmlPrompt(example)}
-                      className="text-left text-sm text-blue-600 hover:text-blue-800 block w-full p-2 hover:bg-blue-50 rounded"
-                    >
-                      • {example}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">System Configuration</h4>
-                <div className="space-y-2">
-                  {[
-                    "Set hostname to 'CoreSwitch01' and domain name 'company.com'",
-                    "Configure NTP server 192.168.1.100 and timezone EST",
-                    "Enable SNMP community 'public' with read-only access"
-                  ].map((example, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setXmlPrompt(example)}
-                      className="text-left text-sm text-blue-600 hover:text-blue-800 block w-full p-2 hover:bg-blue-50 rounded"
-                    >
-                      • {example}
-                    </button>
-                  ))}
-                </div>
+                
+                {/* Advanced Nexus Examples */}
+                <details className="mt-4">
+                  <summary className="cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900">
+                    📋 Advanced Nexus Configurations (Click to expand)
+                  </summary>
+                  <div className="mt-3 space-y-2">
+                    {[
+                      "Configure VRF 'MGMT' with route-distinguisher 65001:100 and import/export targets",
+                      "Set up BGP AS 65001 with neighbor 192.168.1.10 in VRF Production",
+                      "Create SVI interface for VLAN 100 with HSRP group 1 priority 110",
+                      "Configure NX-API with HTTP server and certificate authentication"
+                    ].map((example, index) => (
+                      <button
+                        key={`advanced-${index}`}
+                        onClick={() => setXmlPrompt(example)}
+                        className="text-left text-sm text-purple-600 hover:text-purple-800 block w-full p-3 hover:bg-purple-50 rounded-lg border border-purple-200 transition-colors"
+                      >
+                        <span className="font-medium">🚀 {example}</span>
+                      </button>
+                    ))}
+                  </div>
+                </details>
               </div>
             </div>
           </div>
           
           {/* Generated XML Display */}
           {generatedXml && (
-            <div className="card p-6">
+            <div className="card p-6" data-xml-output>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Generated NETCONF XML</h3>
+                <div className="flex items-center gap-3">
+                  <h3 className="text-lg font-medium text-gray-900">Generated NETCONF XML</h3>
+                  {showSuccessAnimation && (
+                    <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm animate-pulse">
+                      <CheckCircleIcon className="h-4 w-4" />
+                      <span className="font-medium">Successfully Generated</span>
+                    </div>
+                  )}
+                </div>
                 <div className="flex space-x-2">
                   <button
-                    onClick={() => navigator.clipboard.writeText(generatedXml)}
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedXml);
+                      toast.success('🎯 XML copied to clipboard!', {
+                        duration: 2000,
+                        style: {
+                          background: '#3B82F6',
+                          color: 'white'
+                        }
+                      });
+                    }}
                     className="btn btn-secondary btn-sm"
                   >
                     <ClipboardDocumentIcon className="h-4 w-4 mr-2" />
                     Copy XML
                   </button>
                   <button
-                    onClick={() => setGeneratedXml('')}
+                    onClick={() => {
+                      setGeneratedXml('');
+                      setShowSuccessAnimation(false);
+                      setDeployResult(null);
+                      toast.success('🗑️ XML cleared successfully!', {
+                        duration: 1500,
+                        style: {
+                          background: '#6B7280',
+                          color: 'white'
+                        }
+                      });
+                    }}
                     className="btn btn-secondary btn-sm"
                   >
                     <XMarkIcon className="h-4 w-4 mr-2" />
@@ -1928,23 +2075,78 @@ const NetconfManagement = () => {
               {/* Deploy Actions */}
               {activeSessions.length > 0 && (
                 <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h4 className="text-sm font-medium text-blue-900 mb-3">Deploy to Device</h4>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Select Active NETCONF Session
-                      </label>
-                      <select
-                        id="deploySession"
-                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                      >
-                        <option value="">Choose session...</option>
-                        {activeSessions.map((session) => (
-                          <option key={session.sessionId} value={session.sessionId}>
-                            {session.ip_address} (Session: {session.sessionId})
-                          </option>
-                        ))}
-                      </select>
+                  <h4 className="text-sm font-medium text-blue-900 mb-3">Deploy to Cisco Nexus Device</h4>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Select Active NETCONF Session
+                        </label>
+                        <select
+                          id="deploySession"
+                          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        >
+                          <option value="">Choose session...</option>
+                          {activeSessions.map((session) => (
+                            <option key={session.sessionId} value={session.sessionId}>
+                              {session.ip_address} (Session: {session.sessionId})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Target Datastore
+                        </label>
+                        <select
+                          id="targetDatastore"
+                          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                          defaultValue="running"
+                        >
+                          <option value="running">Running Config (Direct Apply)</option>
+                          <option value="candidate">Candidate Config (Safe Mode)</option>
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Candidate allows validation before commit
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Cisco Nexus Deployment Options */}
+                    <div className="bg-white p-3 rounded border border-gray-200">
+                      <h5 className="text-sm font-medium text-gray-800 mb-2">🔧 Cisco Nexus Options</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="validateConfig"
+                            defaultChecked
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">Validate Before Deploy</span>
+                        </label>
+                        
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="autoCommit"
+                            defaultChecked
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">Auto-Commit Changes</span>
+                        </label>
+                        
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id="rollbackOnError"
+                            defaultChecked
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">Rollback on Error</span>
+                        </label>
+                      </div>
                     </div>
                     
                     <div className="flex space-x-3">
@@ -1968,9 +2170,22 @@ const NetconfManagement = () => {
                       <button
                         onClick={() => {
                           const sessionSelect = document.getElementById('deploySession');
+                          const datastoreSelect = document.getElementById('targetDatastore');
+                          const validateConfig = document.getElementById('validateConfig');
+                          const autoCommit = document.getElementById('autoCommit');
+                          const rollbackOnError = document.getElementById('rollbackOnError');
+                          
                           const sessionId = sessionSelect.value;
+                          const datastore = datastoreSelect.value;
+                          const options = {
+                            datastore,
+                            validate: validateConfig.checked,
+                            commit: autoCommit.checked,
+                            rollback_on_error: rollbackOnError.checked
+                          };
+                          
                           if (sessionId) {
-                            deployXmlToDevice(sessionId, generatedXml);
+                            deployXmlToNexusDevice(sessionId, generatedXml, options);
                           } else {
                             toast.error('Please select a session first');
                           }
@@ -1986,9 +2201,32 @@ const NetconfManagement = () => {
                         ) : (
                           <>
                             <CloudArrowUpIcon className="h-4 w-4 mr-2" />
-                            Deploy to Device
+                            Deploy to Nexus
                           </>
                         )}
+                      </button>
+                      
+                      {/* Quick Deploy for Running Config */}
+                      <button
+                        onClick={() => {
+                          const sessionSelect = document.getElementById('deploySession');
+                          const sessionId = sessionSelect.value;
+                          
+                          if (sessionId) {
+                            deployXmlToNexusDevice(sessionId, generatedXml, {
+                              datastore: 'running',
+                              validate: true,
+                              commit: true,
+                              rollback_on_error: true
+                            });
+                          } else {
+                            toast.error('Please select a session first');
+                          }
+                        }}
+                        disabled={deployingXml || loading}
+                        className="btn btn-success btn-sm"
+                      >
+                        🚀 Quick Deploy
                       </button>
                     </div>
                   </div>
@@ -2012,13 +2250,49 @@ const NetconfManagement = () => {
                       <h4 className={`text-sm font-medium ${
                         deployResult.success ? 'text-green-900' : 'text-red-900'
                       }`}>
-                        {deployResult.success ? 'Deployment Successful' : 'Deployment Failed'}
+                        {deployResult.success ? '🎉 Nexus Deployment Successful' : '❌ Nexus Deployment Failed'}
                       </h4>
                       <p className={`text-sm mt-1 ${
                         deployResult.success ? 'text-green-800' : 'text-red-800'
                       }`}>
                         {deployResult.message}
                       </p>
+                      
+                      {/* Nexus-specific deployment details */}
+                      {deployResult.success && (
+                        <div className="mt-3 p-3 bg-white rounded border border-green-300">
+                          <h5 className="text-xs font-medium text-green-900 mb-2">📋 Deployment Details:</h5>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                            <div>
+                              <span className="font-medium text-gray-600">Target Device:</span>
+                              <br />
+                              <span className="text-gray-900">{deployResult.session}</span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-gray-600">Datastore:</span>
+                              <br />
+                              <span className={`${deployResult.datastore === 'running' ? 'text-green-700' : 'text-blue-700'}`}>
+                                {deployResult.datastore || 'running'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-gray-600">Validation:</span>
+                              <br />
+                              <span className={`${deployResult.validated ? 'text-green-700' : 'text-yellow-700'}`}>
+                                {deployResult.validated ? '✅ Passed' : '⚠️ Skipped'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-gray-600">Commit Status:</span>
+                              <br />
+                              <span className={`${deployResult.committed ? 'text-green-700' : 'text-blue-700'}`}>
+                                {deployResult.committed ? '💾 Committed' : '📝 Staged'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
                       {deployResult.session && (
                         <p className="text-xs text-gray-600 mt-1">
                           Target: {deployResult.session}
@@ -2028,7 +2302,7 @@ const NetconfManagement = () => {
                         <div className="mt-2">
                           <details className="text-xs">
                             <summary className="cursor-pointer font-medium">
-                              View Details
+                              View Deployment Details
                             </summary>
                             <pre className="mt-1 p-2 bg-gray-100 rounded text-xs overflow-auto">
                               {JSON.stringify(deployResult.details, null, 2)}
@@ -2056,14 +2330,41 @@ const NetconfManagement = () => {
               
               {/* Usage Instructions */}
               <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Deployment Options:</h4>
-                <div className="text-sm text-gray-700 space-y-1">
-                  <p><strong>1. Validate XML:</strong> Check configuration syntax before deployment</p>
-                  <p><strong>2. Deploy to Device:</strong> Apply configuration directly to running datastore</p>
-                  <p><strong>3. Manual Copy:</strong> Copy XML for use in external NETCONF clients</p>
-                  <p className="text-xs text-orange-600 mt-2">
-                    ⚠️ Always validate configuration before deployment to avoid device issues
-                  </p>
+                <h4 className="text-sm font-medium text-gray-900 mb-2">🔧 Cisco Nexus Deployment Guide:</h4>
+                <div className="text-sm text-gray-700 space-y-2">
+                  <div>
+                    <strong>1. Datastore Options:</strong>
+                    <ul className="ml-4 mt-1 space-y-1">
+                      <li>• <span className="font-medium text-green-700">Running Config:</span> Direct deployment, changes take effect immediately</li>
+                      <li>• <span className="font-medium text-blue-700">Candidate Config:</span> Safe mode - validate first, then commit manually</li>
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <strong>2. Nexus NETCONF Requirements:</strong>
+                    <ul className="ml-4 mt-1 space-y-1">
+                      <li>• NETCONF must be enabled: <code className="bg-gray-200 px-1 rounded text-xs">feature netconf</code></li>
+                      <li>• SSH key exchange: <code className="bg-gray-200 px-1 rounded text-xs">ssh key dsa 1024</code></li>
+                      <li>• Management interface must be configured</li>
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <strong>3. XML Format for Nexus:</strong>
+                    <ul className="ml-4 mt-1 space-y-1">
+                      <li>• Use Cisco YANG models when available</li>
+                      <li>• Native configuration wrapped in <code className="bg-gray-200 px-1 rounded text-xs">&lt;config&gt;</code> tags</li>
+                      <li>• Proper namespace declarations required</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="flex items-start mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                    <span className="text-yellow-600 mr-2">⚠️</span>
+                    <div>
+                      <span className="font-medium text-yellow-800">Best Practice:</span>
+                      <span className="text-yellow-700 ml-1">Always validate configuration before deployment to avoid device issues. Use candidate datastore for complex changes.</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2084,6 +2385,72 @@ const NetconfManagement = () => {
         loading={confirmationState.loading}
         loadingText={confirmationState.loadingText}
       />
+
+      {/* Nexus XML Format Example */}
+      <div className="card p-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">📄 Cisco Nexus NETCONF XML Format</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Understanding the proper XML format for Cisco Nexus NETCONF operations helps ensure successful deployments.
+        </p>
+        
+        <details className="mb-4">
+          <summary className="cursor-pointer text-sm font-medium text-blue-700 hover:text-blue-900">
+            👁️ View Example: Interface Configuration XML
+          </summary>
+          <div className="mt-3 bg-gray-900 text-green-400 p-4 rounded-lg text-xs font-mono overflow-x-auto">
+            <pre>{`<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+    <intf-items>
+      <phys-items>
+        <PhysIf-list>
+          <id>eth1/1</id>
+          <adminSt>up</adminSt>
+          <descr>Server-01 Connection</descr>
+          <layer>Layer2</layer>
+          <mode>access</mode>
+          <accessVlan>100</accessVlan>
+        </PhysIf-list>
+      </phys-items>
+    </intf-items>
+  </System>
+</config>`}</pre>
+          </div>
+        </details>
+        
+        <details>
+          <summary className="cursor-pointer text-sm font-medium text-blue-700 hover:text-blue-900">
+            👁️ View Example: VLAN Configuration XML
+          </summary>
+          <div className="mt-3 bg-gray-900 text-green-400 p-4 rounded-lg text-xs font-mono overflow-x-auto">
+            <pre>{`<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+    <bd-items>
+      <bd-items>
+        <BD-list>
+          <fabEncap>vlan-200</fabEncap>
+          <name>Production</name>
+          <adminSt>active</adminSt>
+          <accEncap>vlan-200</accEncap>
+        </BD-list>
+      </bd-items>
+    </bd-items>
+  </System>
+</config>`}</pre>
+          </div>
+        </details>
+        
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <h4 className="text-sm font-medium text-blue-900 mb-2">💡 Key Points for Nexus XML:</h4>
+          <ul className="text-sm text-blue-800 space-y-1">
+            <li>• Use Cisco NX-OS YANG namespace: <code className="bg-blue-100 px-1 rounded text-xs">http://cisco.com/ns/yang/cisco-nx-os-device</code></li>
+            <li>• Interface names follow Nexus format: <code className="bg-blue-100 px-1 rounded text-xs">eth1/1</code>, <code className="bg-blue-100 px-1 rounded text-xs">lo0</code>, etc.</li>
+            <li>• Always include proper NETCONF base namespace</li>
+            <li>• Use structured hierarchy matching Nexus YANG models</li>
+          </ul>
+        </div>
+      </div>
     </div>
   );
 };
