@@ -39,7 +39,10 @@ const limiter = rateLimit({
   }
 });
 
-// app.use('/api/', limiter); // Disabled for development
+// Enable rate limiting but with lenient settings for development
+if (config.server.nodeEnv === 'production') {
+  app.use('/api/', limiter);
+}
 
 // CORS
 app.use(cors(config.cors));
@@ -112,7 +115,8 @@ app.get('/', (req, res) => {
       configurations: '/api/configurations',
       console: '/api/console',
       backups: '/api/backups',
-      netconf: '/api/netconf'
+      netconf: '/api/netconf',
+      compliance: '/api/compliance'
     },
     protocols: ['SSH', 'Console', 'NETCONF'],
     yang_support: true,

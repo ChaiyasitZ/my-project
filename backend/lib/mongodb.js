@@ -4,11 +4,7 @@ import { config } from '../config/config.js';
 // MongoDB connection configuration
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(config.database.mongodb_uri, {
-      // Modern MongoDB connection options
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    const conn = await mongoose.connect(config.database.mongodb_uri);
 
     console.log(`✅ Connected to MongoDB: ${conn.connection.host}`);
     return conn;

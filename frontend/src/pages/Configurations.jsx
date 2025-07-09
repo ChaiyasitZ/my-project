@@ -7,17 +7,24 @@ import {
   CheckCircleIcon, 
   ServerIcon
 } from 'lucide-react';
+import ConfirmationModal from '../components/ConfirmationModal';
+import { useConfirmation } from '../hooks/useConfirmation';
 
 function Configurations() {
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState('');
+  const [selectedDevices, setSelectedDevices] = useState([]);
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [generatedConfig, setGeneratedConfig] = useState(null);
+  const [generatedConfigs, setGeneratedConfigs] = useState([]);
   const [validation, setValidation] = useState(null);
   const [aiStatus, setAiStatus] = useState(null);
+  const [multiDeviceMode, setMultiDeviceMode] = useState(false);
+
+  const { confirmationState, showConfirmation } = useConfirmation();
 
   useEffect(() => {
     fetchDevices();
@@ -134,9 +141,15 @@ function Configurations() {
   const handleApplyConfiguration = async () => {
     if (!generatedConfig) return;
 
-    if (!window.confirm('Are you sure you want to apply this configuration to the device?')) {
-      return;
-    }
+    const confirmed = await showConfirmation({
+      title: 'Deploy Configuration',
+      message: 'Are you sure you want to apply this configuration to the device?\n\nThis action will modify the device configuration.',
+      confirmText: 'Deploy',
+      cancelText: 'Cancel',
+      type: 'warning'
+    });
+
+    if (!confirmed) return;
 
     setIsApplying(true);
     const toastId = toast.loading('Deploying configuration...');
@@ -179,11 +192,196 @@ function Configurations() {
     }
   };
 
+  // ฟังก์ชันสำหรับ multi-device
+  const addDeviceToSelection = (deviceId) => {
+    if (deviceId && !selectedDevices.find(d => d.id === deviceId)) {
+      const device = devices.find(d => d.id === deviceId);
+      if (device) {
+        setSelectedDevices([...selectedDevices, device]);
+      }
+    }
+  };
+
+  const removeDeviceFromSelection = (deviceId) => {
+    setSelectedDevices(selectedDevices.filter(d => d.id !== deviceId));
+  };
+
+  const handleMultiDeviceGeneration = async () => {
+    if (selectedDevices.length === 0 || !prompt) return;
+
+    setIsGenerating(true);
+    setGeneratedConfigs([]);
+    const toastId = toast.loading(`Generating configurations for ${selectedDevices.length} devices...`);
+    
+    try {
+      console.log('🚀 Starting multi-device generation for:', selectedDevices.map(d => d.name));
+      
+      // Call the new multi-device API endpoint
+      const response = await axios.post('/configurations/generate-multi', {
+        device_ids: selectedDevices.map(d => d.id),
+        prompt: prompt,
+        topology_hints: {
+          connection_type: 'sequential', // Router1 -> Router2 -> Router3
+          network_base: '192.168.0.0'
+        }
+      });
+      
+      if (response.data.success) {
+        // Transform API response to match frontend format
+        const configs = response.data.results.map((result, index) => {
+          const device = selectedDevices.find(d => d.id === result.device_id);
+          return {
+            device: device,
+            config: result.success ? result.configuration : null,
+            success: result.success,
+            error: result.success ? null : result.error,
+            order: index + 1,
+            configuration_id: result.configuration_id,
+            validation: result.validation
+          };
+        });
+        
+        setGeneratedConfigs(configs);
+        
+        const successCount = response.data.summary.successfulDevices;
+        const totalCount = response.data.summary.totalDevices;
+        
+        if (successCount === totalCount) {
+          toast.success(`🎉 Generated all ${totalCount} configurations successfully!`, { id: toastId });
+        } else if (successCount > 0) {
+          toast.success(`Generated ${successCount}/${totalCount} configurations`, { id: toastId });
+        } else {
+          toast.error(`Failed to generate any configurations`, { id: toastId });
+        }
+        
+        // Log topology information
+        if (response.data.topology) {
+          console.log('📡 Generated topology:', response.data.topology);
+        }
+        
+        // Log cross-validation results
+        if (response.data.cross_validation) {
+          console.log('✅ Cross-validation:', response.data.cross_validation);
+          if (!response.data.cross_validation.isConsistent) {
+            toast.warning(`⚠️ Configuration consistency issues detected`);
+          }
+        }
+        
+      } else {
+        throw new Error(response.data.message || 'Multi-device generation failed');
+      }
+      
+    } catch (error) {
+      console.error('❌ Multi-device generation error:', error);
+      const errorMessage = error.response?.data?.message || error.message;
+      toast.error(`Failed to generate configurations: ${errorMessage}`, { id: toastId });
+      
+      // Show individual device errors if available
+      if (error.response?.data?.results) {
+        error.response.data.results.forEach(result => {
+          if (!result.success) {
+            console.error(`❌ ${result.device_name}: ${result.error}`);
+          }
+        });
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleMultiDeviceDeployment = async (configResult) => {
+    if (!configResult || !configResult.configuration_id) return;
+
+    const confirmed = await showConfirmation({
+      title: 'Deploy Configuration',
+      message: `Are you sure you want to deploy this configuration to ${configResult.device.name}?\n\nThis action will modify the device configuration.`,
+      confirmText: 'Deploy',
+      cancelText: 'Cancel',
+      type: 'warning'
+    });
+
+    if (!confirmed) return;
+
+    const toastId = toast.loading(`Deploying configuration to ${configResult.device.name}...`);
+    
+    try {
+      await axios.post('/configurations/apply', {
+        configuration_id: configResult.configuration_id
+      });
+
+      // Update the config status in the UI
+      setGeneratedConfigs(prevConfigs => 
+        prevConfigs.map(config => 
+          config.configuration_id === configResult.configuration_id
+            ? { ...config, status: 'applied' }
+            : config
+        )
+      );
+
+      console.log(`✅ Configuration deployed successfully to ${configResult.device.name}!`);
+      toast.success(`Configuration deployed successfully to ${configResult.device.name}!`, { id: toastId });
+    } catch (error) {
+      console.error('Error deploying configuration:', error);
+      toast.error(`Error deploying to ${configResult.device.name}: ${error.response?.data?.message || error.message}`, { id: toastId });
+    }
+  };
+
+  const handleDeployAll = async () => {
+    if (!generatedConfigs.length) return;
+
+    const confirmed = await showConfirmation({
+      title: 'Deploy All Configurations',
+      message: `Are you sure you want to deploy configurations to all ${generatedConfigs.length} devices?\n\nThis action will modify all selected device configurations.`,
+      confirmText: 'Deploy All',
+      cancelText: 'Cancel',
+      type: 'warning'
+    });
+
+    if (!confirmed) return;
+
+    const toastId = toast.loading(`Deploying configurations to all devices...`);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const config of generatedConfigs) {
+      if (!config.success || !config.configuration_id) continue;
+
+      try {
+        await axios.post('/configurations/apply', {
+          configuration_id: config.configuration_id
+        });
+
+        // Update individual config status
+        setGeneratedConfigs(prevConfigs => 
+          prevConfigs.map(c => 
+            c.configuration_id === config.configuration_id
+              ? { ...c, status: 'applied' }
+              : c
+          )
+        );
+
+        successCount++;
+      } catch (error) {
+        console.error(`Error deploying to ${config.device.name}:`, error);
+        failCount++;
+      }
+    }
+
+    if (failCount === 0) {
+      toast.success(`Successfully deployed to all ${successCount} devices!`, { id: toastId });
+    } else {
+      toast.error(`Deployed to ${successCount} devices, failed on ${failCount} devices.`, { id: toastId });
+    }
+  };
+
   const resetForm = () => {
     setSelectedDevice('');
+    setSelectedDevices([]);
     setPrompt('');
     setGeneratedConfig(null);
+    setGeneratedConfigs([]);
     setValidation(null);
+    setMultiDeviceMode(false);
   };
 
   const getValidationColor = (isValid) => {
@@ -202,7 +400,10 @@ function Configurations() {
     "hostname Router1",
     "interface ge0/1 switchport mode trunk",
     "router ospf 1 network 192.168.1.0 0.0.0.255 area 0",
-    "access-list 100 deny tcp 192.168.10.0 0.0.0.255 any eq 80"
+    "access-list 100 deny tcp 192.168.10.0 0.0.0.255 any eq 80",
+    "Configure OSPF area 10 for all routers",
+    "Setup EIGRP AS 100 topology",
+    "Configure BGP AS 65001 peering"
   ];
 
   return (
@@ -288,25 +489,94 @@ function Configurations() {
             <h2 className="text-lg font-medium text-gray-900">Generate Configuration</h2>
           </div>
 
-          <form onSubmit={handleGenerateConfiguration} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Device
+          {/* Mode Selection */}
+          <div className="mb-4">
+            <div className="flex items-center space-x-4">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  checked={!multiDeviceMode}
+                  onChange={() => setMultiDeviceMode(false)}
+                  className="mr-2"
+                />
+                <span className="text-sm font-medium">Single Device</span>
               </label>
-              <select
-                value={selectedDevice}
-                onChange={(e) => setSelectedDevice(e.target.value)}
-                className="input"
-                required
-              >
-                <option value="">Choose a device...</option>
-                {devices.map((device) => (
-                  <option key={device.id} value={device.id}>
-                    {device.name} ({device.type}) - {device.ip_address}
-                  </option>
-                ))}
-              </select>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  checked={multiDeviceMode}
+                  onChange={() => setMultiDeviceMode(true)}
+                  className="mr-2"
+                />
+                <span className="text-sm font-medium">Multiple Devices</span>
+              </label>
             </div>
+          </div>
+
+          <form onSubmit={multiDeviceMode ? (e) => { e.preventDefault(); handleMultiDeviceGeneration(); } : handleGenerateConfiguration} className="space-y-4">
+            {!multiDeviceMode ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Device
+                </label>
+                <select
+                  value={selectedDevice}
+                  onChange={(e) => setSelectedDevice(e.target.value)}
+                  className="input"
+                  required
+                >
+                  <option value="">Choose a device...</option>
+                  {devices.map((device) => (
+                    <option key={device.id} value={device.id}>
+                      {device.name} ({device.type}) - {device.ip_address}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Multiple Devices
+                </label>
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      addDeviceToSelection(e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                  className="input mb-3"
+                >
+                  <option value="">Add device...</option>
+                  {devices.filter(d => !selectedDevices.find(sd => sd.id === d.id)).map((device) => (
+                    <option key={device.id} value={device.id}>
+                      {device.name} ({device.type}) - {device.ip_address}
+                    </option>
+                  ))}
+                </select>
+                
+                {/* Selected Devices List */}
+                {selectedDevices.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-700">Selected Devices ({selectedDevices.length}):</p>
+                    {selectedDevices.map((device, index) => (
+                      <div key={device.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                        <span className="text-sm">
+                          {index + 1}. {device.name} ({device.type}) - {device.ip_address}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeDeviceFromSelection(device.id)}
+                          className="text-red-600 hover:text-red-800 text-sm"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -336,7 +606,7 @@ function Configurations() {
 
             <button
               type="submit"
-              disabled={isGenerating || !selectedDevice || !prompt || prompt.length < 10}
+              disabled={isGenerating || (multiDeviceMode ? selectedDevices.length === 0 : !selectedDevice) || !prompt || prompt.length < 10}
               className="btn btn-primary btn-md w-full"
             >
               {isGenerating ? (
@@ -414,15 +684,109 @@ function Configurations() {
             )}
           </div>
 
-          {!generatedConfig ? (
+          {/* No Configuration Display */}
+          {!generatedConfig && generatedConfigs.length === 0 && (
             <div className="text-center py-12">
               <BotIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500">No configuration generated yet</p>
               <p className="text-sm text-gray-400 mt-1">
-                Select a device and enter a prompt to get started
+                {multiDeviceMode ? 'Select devices and enter a prompt to get started' : 'Select a device and enter a prompt to get started'}
               </p>
             </div>
-          ) : (
+          )}
+
+          {/* Multi-Device Configurations Display */}
+          {generatedConfigs.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-md font-medium text-gray-900">
+                  Generated Configurations ({generatedConfigs.length} devices)
+                </h3>
+                <button
+                  onClick={handleDeployAll}
+                  className="btn btn-primary btn-sm"
+                >
+                  Deploy All Configurations
+                </button>
+              </div>
+              {generatedConfigs.map((configResult, index) => (
+                <div key={index} className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center">
+                      <ServerIcon className="h-5 w-5 text-gray-600 mr-2" />
+                      <span className="font-medium">
+                        {configResult.device.name} ({configResult.device.type})
+                      </span>
+                      <span className="ml-2 text-sm text-gray-500">
+                        Order: {configResult.order}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className={`badge ${
+                        configResult.status === 'applied' ? 'badge-success' : 
+                        configResult.success ? 'badge-info' : 'badge-danger'
+                      }`}>
+                        {configResult.status === 'applied' ? 'Deployed' : 
+                         configResult.success ? 'Generated' : 'Failed'}
+                      </span>
+                      {configResult.success && !configResult.status && (
+                        <button
+                          onClick={() => handleMultiDeviceDeployment(configResult)}
+                          className="btn btn-primary btn-sm"
+                        >
+                          Deploy
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {configResult.success ? (
+                    <>
+                      {configResult.validation && (
+                        <div className="mb-3 p-2 bg-gray-100 rounded text-sm">
+                          <div className="flex items-center">
+                            <CheckCircleIcon className={`h-4 w-4 mr-2 ${
+                              configResult.validation.isValid ? 'text-green-600' : 'text-red-600'
+                            }`} />
+                            <span className={configResult.validation.isValid ? 'text-green-700' : 'text-red-700'}>
+                              {configResult.validation.feedback}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="bg-gray-900 rounded-lg p-3 overflow-x-auto">
+                        <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">
+                          {configResult.config}
+                        </pre>
+                      </div>
+                      
+                      <div className="mt-2 text-xs text-gray-500">
+                        Configuration #{configResult.order}
+                        {configResult.configuration_id && ` • ID: ${configResult.configuration_id.slice(-8)}`}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-red-600 text-sm">
+                      Error: {configResult.error}
+                    </div>
+                  )}
+                </div>
+              ))}
+              
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={resetForm}
+                  className="btn btn-secondary btn-sm"
+                >
+                  Generate New
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Single Device Configuration Display */}
+          {generatedConfig && (
             <div className="space-y-4">
               {/* Device Info */}
               <div className="bg-gray-50 p-3 rounded-lg">
@@ -491,35 +855,7 @@ function Configurations() {
                 </button>
                 
                 <div className="text-xs text-gray-500">
-                  Generated: {(() => {
-                    console.log('🔍 Debugging created_at:', generatedConfig.created_at, typeof generatedConfig.created_at);
-                    
-                    if (!generatedConfig.created_at) {
-                      console.log('❌ No created_at field found');
-                      return 'Just now (no timestamp)';
-                    }
-                    
-                    const timestamp = generatedConfig.created_at;
-                    console.log('📅 Processing timestamp:', timestamp);
-                    
-                    try {
-                      // Handle both timestamps (numbers) and date strings
-                      const date = typeof timestamp === 'number' 
-                        ? new Date(timestamp)
-                        : new Date(timestamp);
-                      
-                      console.log('📅 Created date object:', date, 'isValid:', !isNaN(date.getTime()));
-                      
-                      if (isNaN(date.getTime())) {
-                        return `Invalid date (${timestamp})`;
-                      }
-                      
-                      return date.toLocaleString();
-                    } catch (error) {
-                      console.error('❌ Date conversion error:', error);
-                      return `Error: ${timestamp}`;
-                    }
-                  })()}
+                  Generated: {generatedConfig.created_at ? new Date(generatedConfig.created_at).toLocaleString() : 'Just now'}
                 </div>
               </div>
             </div>
@@ -548,6 +884,20 @@ function Configurations() {
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmationState.isOpen}
+        onClose={confirmationState.onCancel}
+        onConfirm={confirmationState.onConfirm}
+        title={confirmationState.title}
+        message={confirmationState.message}
+        confirmText={confirmationState.confirmText}
+        cancelText={confirmationState.cancelText}
+        type={confirmationState.type}
+        loading={confirmationState.loading}
+        loadingText={confirmationState.loadingText}
+      />
     </div>
   );
 }
