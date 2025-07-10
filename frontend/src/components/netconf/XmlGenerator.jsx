@@ -24,13 +24,11 @@ const XmlGenerator = ({
   
   const {
     loading,
-    deployingXml,
     deployResult,
     generatedXml,
     showSuccessAnimation,
     generateNetconfXml,
     validateXmlConfiguration,
-    deployXmlToNexusDevice,
     quickDeploy,
     setDeployResult,
     setGeneratedXml,
@@ -45,52 +43,17 @@ const XmlGenerator = ({
     {
       category: "🏗️ VLAN",
       prompt: "Create VLAN 200 named 'Production-Web' and assign interfaces Ethernet1/5-10 as trunk with native VLAN 1"
-    },
-    {
-      category: "📡 L3",
-      prompt: "Configure SVI interface VLAN 100 with IP 192.168.100.1/24 and enable HSRP group 1 priority 110"
-    },
-    {
-      category: "🔗 Port-Channel",
-      prompt: "Create port-channel 10 with interfaces Ethernet1/15-16 using LACP mode active for server uplink"
     }
   ];
 
-  const advancedExamples = [
+  const deleteExamples = [
     {
-      category: "🌐 VRF",
-      prompt: "Configure VRF 'TENANT-A' with route-distinguisher 65001:100 and import/export route-targets"
+      category: "🗑️ Remove Interface",
+      prompt: "Delete interface Ethernet1/10 configuration and remove all VLAN assignments from this interface"
     },
     {
-      category: "🔄 BGP",
-      prompt: "Configure BGP AS 65001 with EVPN address-family and neighbor 10.1.1.2 for spine connection"
-    },
-    {
-      category: "🛡️ Security",
-      prompt: "Create ACL 'WEB-SERVERS' permitting HTTP/HTTPS from subnet 10.0.0.0/24 to web VLAN"
-    },
-    {
-      category: "📊 QoS",
-      prompt: "Configure QoS policy 'DATACENTER-QOS' with voice priority and data best-effort classes"
-    }
-  ];
-
-  const nexusSpecificExamples = [
-    {
-      category: "🔧 NX-API",
-      prompt: "Enable NX-API with HTTPS server, certificate authentication and sandbox access"
-    },
-    {
-      category: "🐍 Python",
-      prompt: "Configure Python scripting environment and enable EEM for automation scripts"
-    },
-    {
-      category: "📡 VXLAN",
-      prompt: "Configure VXLAN VTEP with loopback0 source and VLAN-to-VNI mapping for overlay network"
-    },
-    {
-      category: "🏢 Fabric",
-      prompt: "Configure EVPN fabric with spine-leaf topology and BGP route-reflector settings"
+      category: "🗑️ Remove VLAN",
+      prompt: "Delete VLAN 150 and remove all interface assignments associated with this VLAN"
     }
   ];
 
@@ -373,51 +336,31 @@ const XmlGenerator = ({
           
           <div>
             <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-              <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs font-semibold mr-2">
-                DATACENTER
+              <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-semibold mr-2">
+                DELETE CONFIG
               </span>
-              Advanced Datacenter Features
+              Configuration Removal Examples
             </h4>
             <div className="space-y-2">
-              {advancedExamples.map((example, index) => (
+              {deleteExamples.map((example, index) => (
                 <button
                   key={`advanced-${index}`}
                   onClick={() => setXmlPrompt(example.prompt)}
-                  className="text-left w-full p-3 hover:bg-purple-50 rounded-lg border border-purple-200 transition-colors"
+                  className="text-left w-full p-3 hover:bg-red-50 rounded-lg border border-red-200 transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="text-xs font-medium text-purple-600">{example.category}</span>
+                      <span className="text-xs font-medium text-red-600">{example.category}</span>
                       <div className="text-sm text-gray-700 mt-1">{example.prompt}</div>
                     </div>
-                    <span className="text-purple-400 text-xs">Click to use</span>
+                    <span className="text-red-400 text-xs">Click to use</span>
                   </div>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Nexus 9000v Specific Features */}
-          <details className="mt-4">
-            <summary className="cursor-pointer text-sm font-medium text-gray-700 hover:text-gray-900 flex items-center">
-              <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold mr-2">
-                NEXUS 9000v
-              </span>
-              Nexus 9000v Specific Features (Click to expand)
-            </summary>
-            <div className="mt-3 space-y-2">
-              {nexusSpecificExamples.map((example, index) => (
-                <button
-                  key={`nexus-${index}`}
-                  onClick={() => setXmlPrompt(example.prompt)}
-                  className="text-left w-full p-3 hover:bg-green-50 rounded-lg border border-green-200 transition-colors"
-                >
-                  <span className="text-xs font-medium text-green-600">{example.category}</span>
-                  <div className="text-sm text-gray-700 mt-1">🚀 {example.prompt}</div>
-                </button>
-              ))}
-            </div>
-          </details>
+          {/* Removed Nexus 9000v Specific Features section */}
         </div>
       </div>
 
