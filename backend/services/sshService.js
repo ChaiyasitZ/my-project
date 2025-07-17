@@ -416,51 +416,74 @@ export class SSHService {
               
               // For show running-config, disable paging to get full output
               if (command.includes('running-config') || command.includes('startup-config')) {
+                console.log(`📺 Disabling terminal paging for ${deviceConfig.ip_address}`);
                 stream.write('terminal length 0\r\n');
-                // Wait a moment for the length command to process
+                // Wait longer for the terminal command to process completely
                 setTimeout(() => {
+                  console.log(`📝 Now sending main command: ${command}`);
                   stream.write(command + '\r\n');
-                }, 500);
+                }, 1500); // Increased from 500ms to 1.5 seconds
               } else {
                 stream.write(command + '\r\n');
               }
-            } else if (chunk.includes('--More--')) {
+            } else if (chunk.includes('--More--') || chunk.includes('-- More --') || chunk.includes('More')) {
               // Handle paged output by sending space to continue
               console.log(`📄 Handling paged output for ${deviceConfig.ip_address}`);
               stream.write(' ');
             } else if (commandSent && !configurationComplete) {
-              // Check for command completion markers
+              // Check for command completion markers - improved detection
               const lines = chunk.split('\n');
               const lastLine = lines[lines.length - 1] || lines[lines.length - 2] || '';
               
-              // Look for completion patterns (device prompt after configuration)
-              if (lastLine.match(/^[\w-]+#\s*$/) && 
-                  (output.includes('Building configuration') || 
-                   output.includes('Current configuration') ||
-                   output.includes('version ') ||
-                   output.includes('hostname ') ||
-                   command.includes('version'))) {
-                
-                // Wait a bit more to ensure we got everything
-                setTimeout(() => {
-                  configurationComplete = true;
-                  clearTimeout(timeout);
-                  stream.end();
+              // For show running-config/startup-config, look for "end" keyword and device prompt
+              if (command.includes('running-config') || command.includes('startup-config')) {
+                // Check if we have both "end" keyword and device prompt indicating completion
+                if (output.includes('\nend\n') || output.includes('\nend\r')) {
+                  const promptMatch = lastLine.match(/^[\w-]+#\s*$/);
+                  if (promptMatch) {
+                    console.log(`🎯 Configuration end marker found, completing for ${deviceConfig.ip_address}`);
+                    configurationComplete = true;
+                    clearTimeout(timeout);
+                    stream.end();
+                    
+                    console.log(`✅ Command completed for ${deviceConfig.ip_address}, output length: ${output.length}`);
+                    resolve({
+                      success: true,
+                      output: output.trim()
+                    });
+                    return;
+                  }
+                }
+              } else {
+                // For other commands, use original logic
+                if (lastLine.match(/^[\w-]+#\s*$/) && 
+                    (output.includes('Building configuration') || 
+                     output.includes('Current configuration') ||
+                     output.includes('version ') ||
+                     output.includes('hostname ') ||
+                     command.includes('version'))) {
                   
-                  console.log(`✅ Command completed for ${deviceConfig.ip_address}, output length: ${output.length}`);
-                  resolve({
-                    success: true,
-                    output: output.trim()
-                  });
-                }, 1000);
+                  setTimeout(() => {
+                    configurationComplete = true;
+                    clearTimeout(timeout);
+                    stream.end();
+                    
+                    console.log(`✅ Command completed for ${deviceConfig.ip_address}, output length: ${output.length}`);
+                    resolve({
+                      success: true,
+                      output: output.trim()
+                    });
+                  }, 1000);
+                }
               }
             }
           });
 
-          // Fallback completion check - if no activity for 5 seconds after command sent
+          // Fallback completion check - increased timeout for large configurations
           const inactivityCheck = setInterval(() => {
-            if (commandSent && (Date.now() - lastActivity > 5000)) {
-              console.log(`⏰ No activity for 5 seconds, completing command for ${deviceConfig.ip_address}`);
+            if (commandSent && (Date.now() - lastActivity > 15000)) { // Increased from 5 to 15 seconds
+              console.log(`⏰ No activity for 15 seconds, completing command for ${deviceConfig.ip_address}`);
+              console.log(`📊 Final output length: ${output.length} characters`);
               configurationComplete = true;
               clearTimeout(timeout);
               clearInterval(inactivityCheck);
@@ -471,7 +494,7 @@ export class SSHService {
                 output: output.trim()
               });
             }
-          }, 1000);
+          }, 2000); // Check every 2 seconds instead of 1
 
           stream.on('close', () => {
             clearTimeout(timeout);
@@ -576,28 +599,44 @@ export class SSHService {
         config = lines.slice(configStart, configEnd).join('\n');
       }
       
-      // Clean up remaining unwanted lines while preserving config
+      // Clean up remaining unwanted lines while preserving config - less aggressive
       const cleanLines = config.split('\n').filter(line => {
         const trimmed = line.trim();
-        // Keep all lines except specific unwanted patterns
+        // Only remove very specific unwanted patterns, keep everything else
         return !(
-          trimmed.match(/^[\w-]+[>#]\s*$/) || // Device prompts only
-          trimmed.includes('terminal length') || // Our terminal commands
-          trimmed.includes('show running-config') || // Command echo
-          (trimmed.includes('#') && trimmed.length < 10) // Short lines with just prompts
+          trimmed.match(/^[\w-]+[>#]\s*$/) || // Device prompts only (standalone)
+          trimmed === 'terminal length 0' || // Our exact terminal command
+          trimmed === 'show running-config' || // Our exact command echo
+          trimmed === 'show startup-config' || // Our exact command echo
+          (trimmed.includes('Building configuration') && trimmed.length < 50) // Short building messages
         );
       });
       
       config = cleanLines.join('\n').trim();
       
-      // Ensure we have a reasonable configuration
-      if (config.length < 50 || !config.includes('version')) {
-        console.warn(`⚠️ Configuration seems incomplete, length: ${config.length}`);
-        console.warn(`⚠️ Config preview: ${config.substring(0, 200)}`);
+      // Analyze configuration completeness
+      const configLines = config.split('\n').length;
+      const hasVersion = config.includes('version');
+      const hasEnd = config.includes('end');
+      const hasHostname = config.includes('hostname');
+      const hasInterfaces = config.includes('interface');
+      
+      console.log(`📊 Configuration analysis for ${deviceConfig.ip_address}:`);
+      console.log(`   📏 Total length: ${config.length} characters`);
+      console.log(`   📝 Total lines: ${configLines}`);
+      console.log(`   ✅ Has version: ${hasVersion}`);
+      console.log(`   ✅ Has hostname: ${hasHostname}`);  
+      console.log(`   ✅ Has interfaces: ${hasInterfaces}`);
+      console.log(`   ✅ Has end marker: ${hasEnd}`);
+      
+      if (config.length < 200 || configLines < 20) {
+        console.warn(`⚠️ Configuration seems incomplete for a typical Cisco device!`);
+        console.warn(`⚠️ Raw output length was: ${result.output.length} characters`);
+        console.warn(`⚠️ First 500 chars of raw output: ${result.output.substring(0, 500)}`);
       }
       
-      console.log(`✅ Successfully retrieved running config from ${deviceConfig.ip_address} (${config.length} characters)`);
-      console.log(`📋 Final config preview: ${config.substring(0, 200)}...`);
+      console.log(`✅ Successfully retrieved running config from ${deviceConfig.ip_address}`);
+      console.log(`📋 Final config preview (first 300 chars): ${config.substring(0, 300)}...`);
       
       return {
         success: true,
