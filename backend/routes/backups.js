@@ -91,6 +91,81 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/backups/:id/preview - Preview backup configuration content
+router.get('/:id/preview', async (req, res) => {
+  try {
+    console.log('🔍 PREVIEW ENDPOINT HIT - Route params:', req.params);
+    console.log('🔍 PREVIEW ENDPOINT HIT - Full URL:', req.url);
+    
+    const { id } = req.params;
+    
+    console.log(`🔍 Previewing backup configuration: ${id}`);
+    
+    // Get backup details
+    const backup = await ConfigurationBackup.findById(id);
+    
+    if (!backup) {
+      return res.status(404).json({
+        success: false,
+        message: 'Backup not found'
+      });
+    }
+    
+    console.log(`📋 Found backup: ${backup.backup_name} (${backup.file_size} bytes)`);
+    
+    try {
+      // Return backup configuration content with metadata
+      const response = {
+        success: true,
+        backup: {
+          id: backup._id,
+          backup_name: backup.backup_name,
+          device_name: backup.device_name,
+          device_type: backup.device_type,
+          backup_type: backup.backup_type,
+          file_size: backup.file_size,
+          created_at: backup.createdAt,
+          created_by: backup.created_by,
+          description: backup.description,
+          is_restore_point: backup.is_restore_point
+        },
+        content: {
+          running_config: backup.running_config || 'No running configuration available',
+          startup_config: backup.startup_config || 'No startup configuration available',
+          has_running_config: !!backup.running_config,
+          has_startup_config: !!backup.startup_config
+        },
+        preview: {
+          running_config_lines: backup.running_config ? backup.running_config.split('\n').length : 0,
+          startup_config_lines: backup.startup_config ? backup.startup_config.split('\n').length : 0,
+          running_config_preview: backup.running_config ? backup.running_config.substring(0, 500) + (backup.running_config.length > 500 ? '...' : '') : '',
+          startup_config_preview: backup.startup_config ? backup.startup_config.substring(0, 500) + (backup.startup_config.length > 500 ? '...' : '') : ''
+        }
+      };
+      
+      console.log(`✅ Preview generated successfully - Running: ${response.preview.running_config_lines} lines, Startup: ${response.preview.startup_config_lines} lines`);
+      
+      res.json(response);
+      
+    } catch (configError) {
+      console.error('❌ Error reading backup configuration:', configError);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to read backup configuration',
+        error: configError.message
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error previewing backup:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
+
 // GET /api/backups/:id - Get specific backup
 router.get('/:id', async (req, res) => {
   try {
@@ -482,6 +557,118 @@ router.post('/:id/set-restore-point', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to set restore point'
+    });
+  }
+});
+
+// GET /api/backups/test/:device_id - Test backup configuration retrieval
+router.get('/test/:device_id', async (req, res) => {
+  try {
+    const { device_id } = req.params;
+    
+    // Get device details
+    const device = await Device.findById(device_id);
+    
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    console.log(`🧪 Testing backup configuration retrieval for ${device.name} (${device.ip_address})`);
+    
+    try {
+      // Test connection first
+      const connectionTest = await sshService.testConnection(device);
+      
+      if (!connectionTest.success) {
+        return res.json({
+          success: false,
+          message: 'Connection test failed',
+          error: connectionTest.message,
+          device_name: device.name,
+          device_ip: device.ip_address
+        });
+      }
+      
+      // Test running config retrieval
+      const runningConfigResult = await sshService.getRunningConfig(device);
+      
+      // Test startup config retrieval (optional, might fail on some devices)
+      let startupConfigResult = null;
+      try {
+        startupConfigResult = await sshService.getStartupConfig(device);
+      } catch (startupError) {
+        console.warn(`⚠️ Startup config retrieval failed (this is normal for some devices): ${startupError.message}`);
+        startupConfigResult = { 
+          success: false, 
+          error: startupError.message,
+          config: null,
+          size: 0 
+        };
+      }
+      
+      res.json({
+        success: true,
+        message: 'Backup test completed successfully',
+        test_results: {
+          connection: {
+            success: true,
+            message: connectionTest.message,
+            device_type: connectionTest.deviceType,
+            requires_enable: connectionTest.requiresEnable || false
+          },
+          running_config: {
+            success: runningConfigResult.success,
+            size: runningConfigResult.size,
+            length: runningConfigResult.config.length,
+            preview: runningConfigResult.config.substring(0, 300) + '...',
+            has_version: runningConfigResult.config.includes('version'),
+            has_hostname: runningConfigResult.config.includes('hostname'),
+            has_interfaces: runningConfigResult.config.includes('interface'),
+            line_count: runningConfigResult.config.split('\n').length
+          },
+          startup_config: startupConfigResult ? {
+            success: startupConfigResult.success,
+            size: startupConfigResult.size || 0,
+            length: startupConfigResult.config ? startupConfigResult.config.length : 0,
+            preview: startupConfigResult.config ? 
+              startupConfigResult.config.substring(0, 300) + '...' : 
+              'Not available',
+            error: startupConfigResult.error || null
+          } : null
+        },
+        device_info: {
+          name: device.name,
+          type: device.type,
+          ip_address: device.ip_address,
+          model: device.model,
+          ios_version: device.ios_version
+        },
+        summary: {
+          total_config_size: runningConfigResult.size + (startupConfigResult?.size || 0),
+          running_config_lines: runningConfigResult.config.split('\n').length,
+          startup_available: startupConfigResult?.success || false
+        }
+      });
+      
+    } catch (backupError) {
+      console.error('Backup test error:', backupError.message);
+      res.status(500).json({
+        success: false,
+        message: 'Backup test failed',
+        error: backupError.message,
+        device_name: device.name,
+        device_ip: device.ip_address
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error running backup test:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to run backup test'
     });
   }
 });

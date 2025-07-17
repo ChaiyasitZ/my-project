@@ -302,3 +302,40 @@ For issues or questions about the template system:
 4. Check logs for template matching confidence scores
 
 **Template system provides 10-100x faster generation for standard network configurations while maintaining AI flexibility for complex scenarios.** 
+
+## Quick Start
+
+### Backend Setup
+```bash
+cd backend
+npm install
+npm start  # Server should start on port 3001
+```
+
+### Frontend Setup  
+```bash
+cd frontend
+npm install
+npm run dev  # Frontend should start on port 5173
+```
+
+## Troubleshooting Preview Functionality
+
+If backup preview is not working:
+
+1. **Check Backend Server**: Ensure backend is running on port 3001
+   ```bash
+   curl http://localhost:3001/api/backups
+   ```
+
+2. **Check Browser Console**: Look for 404 errors or connectivity issues
+
+3. **Verify API Routes**: Backend should log preview requests when clicked
+
+4. **Backend Logs**: Check backend terminal for route hit confirmations
+
+## Common Issues
+
+- **404 on Preview**: Backend server not running
+- **Tags Parsing Error**: Fixed - now handles empty arrays properly  
+- **Excessive Re-renders**: Reduced console logging 

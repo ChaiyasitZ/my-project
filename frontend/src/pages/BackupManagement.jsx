@@ -19,7 +19,8 @@ import {
   FilterIcon,
   PlusIcon,
   SearchIcon,
-  EyeIcon
+  EyeIcon,
+  WifiIcon
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useConfirmation } from '../hooks/useConfirmation';
@@ -28,14 +29,19 @@ function BackupManagement() {
   // Helper function to safely parse JSON tags
   const parseTagsSafely = (tags) => {
     if (!tags) return [];
-    try {
-      return JSON.parse(tags);
-    } catch (error) {
-      console.warn('Failed to parse tags:', tags, error);
-      return [];
+    if (Array.isArray(tags)) return tags;
+    if (typeof tags === 'string') {
+      if (tags.trim() === '') return [];
+      try {
+        return JSON.parse(tags);
+      } catch (error) {
+        console.warn('Failed to parse tags:', tags, error);
+        return [];
+      }
     }
+    return [];
   };
-  console.log('🚀 BackupManagement component rendering...');
+  // Removed excessive console logging to reduce re-render noise
   
   const [backups, setBackups] = useState([]);
   const [devices, setDevices] = useState([]);
@@ -43,7 +49,11 @@ function BackupManagement() {
   const [selectedDevice, setSelectedDevice] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [selectedBackup, setSelectedBackup] = useState(null);
+  const [previewData, setPreviewData] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('running');
   const [creating, setCreating] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [filter, setFilter] = useState('all');
@@ -78,10 +88,8 @@ function BackupManagement() {
 
   // Define fetchData before using it in useEffect
   const fetchData = useCallback(async () => {
-    console.log('📡 fetchData started...');
     try {
       setLoading(true);
-      console.log('📞 Making API calls to /backups and /devices...');
       
       const [backupsResponse, devicesResponse] = await Promise.all([
         axios.get('/backups', {
@@ -94,19 +102,9 @@ function BackupManagement() {
         axios.get('/devices?status=active')
       ]);
 
-      console.log('✅ API responses received:', {
-        backups: backupsResponse.data,
-        devices: devicesResponse.data
-      });
-
       // Ensure we have proper data structure
       const backupsData = backupsResponse.data?.backups || backupsResponse.data || [];
       const devicesData = devicesResponse.data?.devices || devicesResponse.data || [];
-      
-      console.log('📊 Processed data:', {
-        backupsCount: backupsData.length,
-        devicesCount: devicesData.length
-      });
       
       setBackups(Array.isArray(backupsData) ? backupsData : []);
       setDevices(Array.isArray(devicesData) ? devicesData : []);
@@ -114,20 +112,17 @@ function BackupManagement() {
       console.error('❌ Error fetching data:', error);
       // Don't show toast during silent refresh after backup creation
       if (!creating) {
-        console.log('⚠️ Error fetching data:', error.response?.data?.message || error.message);
         toast.error('Failed to load data: ' + (error.response?.data?.message || error.message));
       }
       // Set empty arrays as fallback
       setBackups([]);
       setDevices([]);
     } finally {
-      console.log('✅ fetchData completed, setting loading to false');
       setLoading(false);
     }
   }, [selectedDevice, filter, creating]);
 
   useEffect(() => {
-    console.log('🔄 useEffect triggered, calling fetchData...');
     fetchData();
   }, [fetchData]);
 
@@ -421,6 +416,92 @@ function BackupManagement() {
     setSelectedDevices(selectedDevices.filter(d => d.id !== deviceId));
   };
 
+  const handleTestBackup = async (device) => {
+    setLoading(true);
+    const toastId = toast.loading(`Testing backup for ${device.name}...`);
+    
+    try {
+      const response = await axios.get(`/backups/test/${device.id}`);
+      
+      if (response.data.success) {
+        const results = response.data.test_results;
+        
+        toast.success(
+          `✅ Backup test successful!\n` +
+          `📊 Running config: ${results.running_config.line_count} lines (${results.running_config.size} bytes)\n` +
+          `💾 Startup config: ${results.startup_config?.success ? 'Available' : 'Not available'}\n` +
+          `🔍 Contains: ${results.running_config.has_version ? 'Version ✓' : ''} ${results.running_config.has_hostname ? 'Hostname ✓' : ''} ${results.running_config.has_interfaces ? 'Interfaces ✓' : ''}`,
+          { 
+            id: toastId,
+            duration: 8000
+          }
+        );
+        
+        console.log('🧪 Backup test results:', response.data);
+        
+        // Show detailed results in console for debugging
+        console.log('📋 Running config preview:', results.running_config.preview);
+        if (results.startup_config?.preview) {
+          console.log('💾 Startup config preview:', results.startup_config.preview);
+        }
+        
+      } else {
+        toast.error(`❌ Backup test failed: ${response.data.error}`, { id: toastId });
+      }
+      
+    } catch (error) {
+      console.error('❌ Backup test error:', error);
+      toast.error(`Backup test failed: ${error.response?.data?.message || error.message}`, { id: toastId });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePreviewBackup = async (backup) => {
+    console.log('🔍 Preview button clicked for backup:', backup.backup_name);
+    console.log('🔍 Backup ID:', backup.id);
+    console.log('🔍 Full API URL will be:', `/backups/${backup.id}/preview`);
+    
+    // Test backend connectivity first
+    try {
+      console.log('🧪 Testing backend connectivity...');
+      const healthCheck = await axios.get('/backups');
+      console.log('✅ Backend is accessible, backups response:', healthCheck.status);
+    } catch (healthError) {
+      console.error('❌ Backend connectivity test failed:', healthError);
+      toast.error('Backend server is not accessible. Please start the server.');
+      return;
+    }
+    
+    setPreviewLoading(true);
+    setShowPreviewModal(true);
+    setPreviewData(null);
+    setActiveTab('running');
+    
+    const toastId = toast.loading(`Loading preview for ${backup.backup_name}...`);
+    
+    try {
+      console.log('🚀 Making API request to:', `/backups/${backup.id}/preview`);
+      const response = await axios.get(`/backups/${backup.id}/preview`);
+      
+      if (response.data.success) {
+        setPreviewData(response.data);
+        toast.success(`Preview loaded successfully!`, { id: toastId });
+        console.log('🔍 Preview data:', response.data);
+      } else {
+        toast.error(`Failed to load preview: ${response.data.message}`, { id: toastId });
+        setShowPreviewModal(false);
+      }
+      
+    } catch (error) {
+      console.error('❌ Preview error:', error);
+      toast.error(`Failed to load preview: ${error.response?.data?.message || error.message}`, { id: toastId });
+      setShowPreviewModal(false);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -696,6 +777,13 @@ function BackupManagement() {
                   </button>
                   
                   <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handlePreviewBackup(backup)}
+                      title="Preview Configuration"
+                      className="inline-flex items-center px-3 py-1.5 border border-blue-300 text-xs font-medium rounded text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <EyeIcon className="h-3 w-3" />
+                    </button>
                     {!backup.is_restore_point && (
                       <>
                         <button
@@ -782,6 +870,24 @@ function BackupManagement() {
                             </option>
                           ))}
                         </select>
+                        
+                        {/* Test Backup Button */}
+                        {backupForm.device_id && (
+                          <div className="mt-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const device = devices.find(d => d.id === backupForm.device_id);
+                                if (device) handleTestBackup(device);
+                              }}
+                              disabled={loading}
+                              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                            >
+                              <WifiIcon className="h-4 w-4 mr-2" />
+                              Test Backup Connection
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       <div>
@@ -1014,6 +1120,158 @@ function BackupManagement() {
                   className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preview Modal */}
+      {showPreviewModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowPreviewModal(false)}></div>
+
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-6xl sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center">
+                    <EyeIcon className="h-5 w-5 text-blue-600 mr-2" />
+                    Configuration Preview
+                  </h3>
+                  <button
+                    onClick={() => setShowPreviewModal(false)}
+                    className="rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <XCircleIcon className="h-6 w-6" />
+                  </button>
+                </div>
+
+                {previewLoading ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading configuration preview...</p>
+                  </div>
+                ) : previewData ? (
+                  <div className="space-y-6">
+                    {/* Backup Info */}
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Backup Details</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                        <div>
+                          <span className="font-medium">Name:</span> {previewData.backup.backup_name}
+                        </div>
+                        <div>
+                          <span className="font-medium">Device:</span> {previewData.backup.device_name}
+                        </div>
+                        <div>
+                          <span className="font-medium">Type:</span> {previewData.backup.backup_type}
+                        </div>
+                        <div>
+                          <span className="font-medium">Size:</span> {formatFileSize(previewData.backup.file_size)}
+                        </div>
+                        <div>
+                          <span className="font-medium">Created:</span> {formatDate(previewData.backup.created_at)}
+                        </div>
+                        <div>
+                          <span className="font-medium">Created by:</span> {previewData.backup.created_by || 'System'}
+                        </div>
+                        <div>
+                          <span className="font-medium">Running lines:</span> {previewData.preview.running_config_lines}
+                        </div>
+                        <div>
+                          <span className="font-medium">Startup lines:</span> {previewData.preview.startup_config_lines}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Configuration Tabs */}
+                    <div className="border-b border-gray-200">
+                      <nav className="-mb-px flex space-x-8">
+                        <button
+                          onClick={() => setActiveTab('running')}
+                          className={`py-2 px-1 border-b-2 font-medium text-sm ${ 
+                            activeTab === 'running' 
+                              ? 'border-blue-500 text-blue-600' 
+                              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          }`}
+                        >
+                          Running Configuration ({previewData.preview.running_config_lines} lines)
+                        </button>
+                        {previewData.content.has_startup_config && (
+                          <button
+                            onClick={() => setActiveTab('startup')}
+                            className={`py-2 px-1 border-b-2 font-medium text-sm ${ 
+                              activeTab === 'startup' 
+                                ? 'border-blue-500 text-blue-600' 
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                          >
+                            Startup Configuration ({previewData.preview.startup_config_lines} lines)
+                          </button>
+                        )}
+                      </nav>
+                    </div>
+
+                    {/* Configuration Content */}
+                    <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm overflow-auto max-h-96">
+                      <pre className="whitespace-pre-wrap">
+                        {activeTab === 'running' 
+                          ? previewData.content.running_config 
+                          : previewData.content.startup_config
+                        }
+                      </pre>
+                    </div>
+                    
+                    {/* Download Options */}
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                      <div className="text-sm text-gray-600">
+                        💡 Tip: You can download individual configs or copy text directly from the preview above
+                      </div>
+                      <div className="flex space-x-3">
+                        <button
+                          onClick={() => {
+                            const config = activeTab === 'running' 
+                              ? previewData.content.running_config 
+                              : previewData.content.startup_config;
+                            const filename = `${previewData.backup.backup_name}_${activeTab}_config.txt`;
+                            
+                            const blob = new Blob([config], { type: 'text/plain' });
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = filename;
+                            document.body.appendChild(a);
+                            a.click();
+                            window.URL.revokeObjectURL(url);
+                            document.body.removeChild(a);
+                            
+                            toast.success(`Downloaded ${activeTab} configuration!`);
+                          }}
+                          className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                          <DownloadIcon className="h-4 w-4 mr-2" />
+                          Download {activeTab === 'running' ? 'Running' : 'Startup'} Config
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <XCircleIcon className="h-12 w-12 text-red-400 mx-auto mb-4" />
+                    <p className="text-gray-600">Failed to load configuration preview</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={() => setShowPreviewModal(false)}
+                  className="w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Close
                 </button>
               </div>
             </div>
