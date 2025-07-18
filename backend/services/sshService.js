@@ -10,24 +10,38 @@ export class SSHService {
     const { id, _id, ip_address, ssh_port, username, password } = deviceConfig;
     const deviceId = id || _id;
     
+    // Always clean up any existing connection for this device first
+    this.disconnect(deviceId);
+    
     return new Promise((resolve, reject) => {
       const conn = new Client();
       
       const timeout = setTimeout(() => {
         conn.end();
         reject(new Error('SSH connection timeout'));
-      }, 30000); // 30 second timeout for legacy devices
+      }, 45000); // Increased timeout for problematic devices
 
       conn.on('ready', () => {
         clearTimeout(timeout);
         console.log(`✅ SSH connected to ${ip_address}`);
-        this.connections.set(deviceId, conn);
+        
+        // Mark connection as ready and stable
+        conn._isReady = true;
+        
+        this.connections.set(deviceId, {
+          connection: conn,
+          createdAt: Date.now(),
+          lastUsed: Date.now(),
+          isReady: true
+        });
         resolve(conn);
       });
 
       conn.on('error', (err) => {
         clearTimeout(timeout);
         console.error(`❌ SSH connection error for ${ip_address}:`, err.message);
+        conn._isReady = false;
+        this.connections.delete(deviceId);
         reject(err);
       });
 
@@ -48,6 +62,7 @@ export class SSHService {
 
       conn.on('close', () => {
         console.log(`🔌 SSH connection closed for ${ip_address}`);
+        conn._isReady = false;
         this.connections.delete(deviceId);
       });
 
@@ -56,12 +71,12 @@ export class SSHService {
         port: ssh_port || 22,
         username,
         password,
-        readyTimeout: 30000,
+        readyTimeout: 45000, // Increased timeout
         authTimeout: 30000,
         tryKeyboard: true, // Enable keyboard-interactive authentication
         // Add specific options for Cisco devices
-        keepaliveInterval: 30000,
-        keepaliveCountMax: 3,
+        keepaliveInterval: 15000, // More frequent keepalives
+        keepaliveCountMax: 5, // More attempts
         // Disable strict host key checking for lab environments
         hostVerifier: () => true,
         algorithms: {
@@ -119,10 +134,14 @@ export class SSHService {
   async executeCommand(deviceConfig, command) {
     try {
       const deviceId = deviceConfig.id || deviceConfig._id;
-      let conn = this.connections.get(deviceId);
+      let connObj = this.connections.get(deviceId);
+      let conn = connObj ? connObj.connection : null;
       
       if (!conn) {
         conn = await this.connect(deviceConfig);
+      } else {
+        // Update last used timestamp
+        connObj.lastUsed = Date.now();
       }
 
       return new Promise((resolve, reject) => {
@@ -167,10 +186,14 @@ export class SSHService {
       console.log(`📝 Commands to deploy:\n${commands}`);
       
       const deviceId = deviceConfig.id || deviceConfig._id;
-      let conn = this.connections.get(deviceId);
+      let connObj = this.connections.get(deviceId);
+      let conn = connObj ? connObj.connection : null;
       
       if (!conn) {
         conn = await this.connect(deviceConfig);
+      } else {
+        // Update last used timestamp
+        connObj.lastUsed = Date.now();
       }
 
       return new Promise((resolve, reject) => {
@@ -370,34 +393,54 @@ export class SSHService {
   async executeCommandWithEnable(deviceConfig, command) {
     try {
       const deviceId = deviceConfig.id || deviceConfig._id;
-      let conn = this.connections.get(deviceId);
       
-      if (!conn) {
-        conn = await this.connect(deviceConfig);
-      }
+      // For critical operations like backup, always use a fresh connection
+      console.log(`🔌 Creating fresh connection for ${deviceConfig.ip_address} for command: ${command}`);
+      const conn = await this.connect(deviceConfig);
+      
+      // Log connection state immediately after connect
+      console.log(`🔍 Connection state after connect: ready=${conn._isReady}, sock=${!!conn._sock}, state=${conn._sock?.readyState}`);
 
       return new Promise((resolve, reject) => {
+        // Check if connection is healthy before creating shell
+        if (!this.isConnectionHealthy(conn)) {
+          console.error(`❌ Connection not healthy for ${deviceConfig.ip_address}: ready=${conn._isReady}, sock=${!!conn._sock}, state=${conn._sock?.readyState}`);
+          reject(new Error(`Connection not healthy for shell creation`));
+          return;
+        }
+        
         conn.shell({ pty: true }, (err, stream) => {
           if (err) {
+            console.error(`❌ Shell creation failed for ${deviceConfig.ip_address}:`, err.message);
             reject(new Error(`Failed to create shell: ${err.message}`));
             return;
           }
-
-          let output = '';
-          let commandSent = false;
-          let enableSent = false;
-          let configurationComplete = false;
-          let lastActivity = Date.now();
           
-          const timeout = setTimeout(() => {
-            stream.end();
-            reject(new Error('Command execution timeout'));
-          }, 90000); // Increased timeout for large configurations
+          console.log(`✅ Shell created successfully for ${deviceConfig.ip_address}`);
+
+            let output = '';
+            let commandSent = false;
+            let enableSent = false;
+            let configurationComplete = false;
+            let lastActivity = Date.now();
+            
+            const timeout = setTimeout(() => {
+              console.log(`⏰ Command timeout after 180 seconds for ${deviceConfig.ip_address}`);
+              console.log(`📊 Output received so far: ${output.length} characters`);
+              console.log(`🔍 Last 200 chars: ${output.slice(-200)}`);
+              stream.end();
+              reject(new Error('Command execution timeout after 180 seconds'));
+            }, 180000); // Increased timeout to 3 minutes for very large configurations
 
           stream.on('data', (data) => {
             const chunk = data.toString();
             output += chunk;
             lastActivity = Date.now();
+            
+            // Progress tracking for long operations
+            if (commandSent && (output.length % 10000 === 0)) { // Every 10KB
+              console.log(`📊 Progress for ${deviceConfig.ip_address}: ${output.length} bytes received...`);
+            }
             
             // Handle different Cisco prompts
             if (chunk.includes('>') && !enableSent) {
@@ -521,12 +564,21 @@ export class SSHService {
     }
   }
 
+  isConnectionHealthy(conn) {
+    return conn && 
+           conn._isReady === true && 
+           conn._sock && 
+           conn._sock.readyState === 'open' &&
+           !conn._sock.destroyed;
+  }
+
   disconnect(deviceId) {
     // Handle both MongoDB ObjectId and regular id formats
     const actualId = typeof deviceId === 'object' ? deviceId.toString() : deviceId;
-    const conn = this.connections.get(actualId);
-    if (conn) {
-      conn.end();
+    const connObj = this.connections.get(actualId);
+    if (connObj) {
+      connObj.connection._isReady = false;
+      connObj.connection.end(); // End the actual connection object
       this.connections.delete(actualId);
       console.log(`🔌 Disconnected device ID: ${actualId}`);
     }
@@ -535,15 +587,38 @@ export class SSHService {
   disconnectAll() {
     console.log(`🔌 Disconnecting all SSH connections (${this.connections.size} active)`);
     for (const [deviceId, conn] of this.connections) {
-      conn.end();
+      conn.connection.end(); // End the actual connection object
     }
     this.connections.clear();
   }
 
   // Backup and Restore Methods
-  async getRunningConfig(deviceConfig) {
+  async getRunningConfig(deviceConfig, retryCount = 0) {
+    const maxRetries = 3; // Increased from 2 to 3
+    
     try {
-      console.log(`📋 Getting running configuration from ${deviceConfig.ip_address}`);
+      console.log(`📋 Getting running configuration from ${deviceConfig.ip_address} (attempt ${retryCount + 1}/${maxRetries + 1})`);
+      
+      // Force disconnect any existing stale connections
+      console.log(`🔌 Cleaning up any existing connections for ${deviceConfig.ip_address}`);
+      this.disconnect(deviceConfig.id || deviceConfig._id);
+      
+      // Add a delay between attempts for device recovery
+      if (retryCount > 0) {
+        console.log(`⏳ Waiting ${3 + retryCount * 2} seconds for device recovery...`);
+        await new Promise(resolve => setTimeout(resolve, (3 + retryCount * 2) * 1000));
+      }
+      
+      // Test connection health before attempting backup
+      const connectionHealth = await this.testConnection(deviceConfig);
+      if (!connectionHealth.success) {
+        throw new Error(`Connection health check failed: ${connectionHealth.message}`);
+      }
+      
+      // Run performance diagnostics on first attempt
+      if (retryCount === 0) {
+        await this.checkDevicePerformance(deviceConfig);
+      }
       
       const result = await this.executeCommandWithEnable(deviceConfig, 'show running-config');
       
@@ -645,14 +720,56 @@ export class SSHService {
       };
       
     } catch (error) {
-      console.error(`❌ Failed to get running config from ${deviceConfig.ip_address}:`, error.message);
+      console.error(`❌ Failed to get running config from ${deviceConfig.ip_address} (attempt ${retryCount + 1}):`, error.message);
+      
+      // Cleanup connection on any error
+      this.disconnect(deviceConfig.id || deviceConfig._id);
+      
+      // Retry logic for timeout and connection errors
+      if (retryCount < maxRetries && 
+          (error.message.includes('timeout') || 
+           error.message.includes('Connection') || 
+           error.message.includes('ECONNRESET') ||
+           error.message.includes('ECONNABORTED') ||
+           error.message.includes('No response from server') ||
+           error.message.includes('Failed to create shell') ||
+           error.message.includes('EPIPE'))) {
+        
+        console.log(`🔄 Retrying backup for ${deviceConfig.ip_address}...`);
+        
+        return this.getRunningConfig(deviceConfig, retryCount + 1);
+      }
+      
+      // If all retries failed due to timeout, try segmented approach
+      if (error.message.includes('timeout')) {
+        console.log(`🔄 Standard backup failed, trying segmented approach for ${deviceConfig.ip_address}...`);
+        try {
+          return await this.getRunningConfigSegmented(deviceConfig);
+        } catch (segmentedError) {
+          console.error(`❌ Both standard and segmented backup failed for ${deviceConfig.ip_address}`);
+          throw new Error(`All backup methods failed: ${error.message}. Segmented attempt: ${segmentedError.message}`);
+        }
+      }
+      
       throw new Error(`Failed to get running configuration: ${error.message}`);
     }
   }
 
-  async getStartupConfig(deviceConfig) {
+  async getStartupConfig(deviceConfig, retryCount = 0) {
+    const maxRetries = 3; // Increased from 2 to 3
+    
     try {
-      console.log(`📋 Getting startup configuration from ${deviceConfig.ip_address}`);
+      console.log(`📋 Getting startup configuration from ${deviceConfig.ip_address} (attempt ${retryCount + 1}/${maxRetries + 1})`);
+      
+      // Force disconnect any existing stale connections
+      console.log(`🔌 Cleaning up any existing connections for ${deviceConfig.ip_address}`);
+      this.disconnect(deviceConfig.id || deviceConfig._id);
+      
+      // Add a delay between attempts for device recovery
+      if (retryCount > 0) {
+        console.log(`⏳ Waiting ${3 + retryCount * 2} seconds for device recovery...`);
+        await new Promise(resolve => setTimeout(resolve, (3 + retryCount * 2) * 1000));
+      }
       
       const result = await this.executeCommandWithEnable(deviceConfig, 'show startup-config');
       
@@ -727,7 +844,26 @@ export class SSHService {
       };
       
     } catch (error) {
-      console.error(`❌ Failed to get startup config from ${deviceConfig.ip_address}:`, error.message);
+      console.error(`❌ Failed to get startup config from ${deviceConfig.ip_address} (attempt ${retryCount + 1}):`, error.message);
+      
+      // Cleanup connection on any error
+      this.disconnect(deviceConfig.id || deviceConfig._id);
+      
+      // Retry logic for timeout and connection errors
+      if (retryCount < maxRetries && 
+          (error.message.includes('timeout') || 
+           error.message.includes('Connection') || 
+           error.message.includes('ECONNRESET') ||
+           error.message.includes('ECONNABORTED') ||
+           error.message.includes('No response from server') ||
+           error.message.includes('Failed to create shell') ||
+           error.message.includes('EPIPE'))) {
+        
+        console.log(`🔄 Retrying startup config backup for ${deviceConfig.ip_address}...`);
+        
+        return this.getStartupConfig(deviceConfig, retryCount + 1);
+      }
+      
       throw new Error(`Failed to get startup configuration: ${error.message}`);
     }
   }
@@ -909,6 +1045,122 @@ export class SSHService {
     } catch (error) {
       console.error(`❌ Failed to apply backup configuration to ${deviceConfig.ip_address}:`, error.message);
       throw new Error(`Failed to apply backup configuration: ${error.message}`);
+    }
+  }
+
+  // Alternative backup method for devices with very large configs or timeout issues
+  async getRunningConfigSegmented(deviceConfig) {
+    try {
+      console.log(`📋 Getting running configuration in segments from ${deviceConfig.ip_address}`);
+      
+      const segments = [
+        'show running-config | section ^version',
+        'show running-config | section ^hostname',
+        'show running-config | section ^service',
+        'show running-config | section ^platform',
+        'show running-config | section ^interface',
+        'show running-config | section ^router',
+        'show running-config | section ^ip route',
+        'show running-config | section ^access-list',
+        'show running-config | section ^line',
+        'show running-config | section ^end'
+      ];
+      
+      let fullConfig = '';
+      
+      for (const command of segments) {
+        try {
+          console.log(`📝 Getting segment: ${command}`);
+          const result = await this.executeCommandWithEnable(deviceConfig, command);
+          
+          if (result.success && result.output.trim()) {
+            fullConfig += result.output.trim() + '\n';
+          }
+          
+          // Small delay between segments
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+        } catch (segmentError) {
+          console.warn(`⚠️ Failed to get segment ${command}: ${segmentError.message}`);
+          // Continue with other segments
+        }
+      }
+      
+      if (fullConfig.length < 100) {
+        throw new Error('Segmented backup failed - insufficient data retrieved');
+      }
+      
+      console.log(`✅ Segmented backup completed for ${deviceConfig.ip_address} (${fullConfig.length} characters)`);
+      
+      return {
+        success: true,
+        config: fullConfig.trim(),
+        size: Buffer.byteLength(fullConfig, 'utf8'),
+        method: 'segmented'
+      };
+      
+    } catch (error) {
+      console.error(`❌ Segmented backup failed for ${deviceConfig.ip_address}:`, error.message);
+      throw error;
+    }
+  }
+
+  // Diagnostic method to check device performance before backup
+  async checkDevicePerformance(deviceConfig) {
+    try {
+      console.log(`🔍 Running performance diagnostics for ${deviceConfig.ip_address}`);
+      
+      const diagnostics = {};
+      
+      // Check CPU utilization
+      try {
+        const cpuResult = await this.executeCommandWithEnable(deviceConfig, 'show processes cpu | include CPU');
+        diagnostics.cpu = cpuResult.success ? cpuResult.output.trim() : 'Unable to get CPU info';
+      } catch (error) {
+        diagnostics.cpu = `Error: ${error.message}`;
+      }
+      
+      // Check memory utilization
+      try {
+        const memResult = await this.executeCommandWithEnable(deviceConfig, 'show memory summary');
+        diagnostics.memory = memResult.success ? memResult.output.trim() : 'Unable to get memory info';
+      } catch (error) {
+        diagnostics.memory = `Error: ${error.message}`;
+      }
+      
+      // Estimate config size
+      try {
+        const sizeResult = await this.executeCommandWithEnable(deviceConfig, 'show running-config | count');
+        diagnostics.configLines = sizeResult.success ? sizeResult.output.trim() : 'Unable to count lines';
+      } catch (error) {
+        diagnostics.configLines = `Error: ${error.message}`;
+      }
+      
+      // Check device uptime
+      try {
+        const uptimeResult = await this.executeCommandWithEnable(deviceConfig, 'show version | include uptime');
+        diagnostics.uptime = uptimeResult.success ? uptimeResult.output.trim() : 'Unable to get uptime';
+      } catch (error) {
+        diagnostics.uptime = `Error: ${error.message}`;
+      }
+      
+      console.log(`📊 Performance diagnostics for ${deviceConfig.ip_address}:`);
+      console.log(`   💾 CPU: ${diagnostics.cpu}`);
+      console.log(`   🧠 Memory: ${diagnostics.memory}`);
+      console.log(`   📝 Config lines: ${diagnostics.configLines}`);
+      console.log(`   ⏰ Uptime: ${diagnostics.uptime}`);
+      
+      return {
+        success: true,
+        diagnostics
+      };
+      
+    } catch (error) {
+      console.warn(`⚠️ Performance diagnostics failed for ${deviceConfig.ip_address}: ${error.message}`);
+      return {
+        success: false,
+        error: error.message
+      };
     }
   }
 }

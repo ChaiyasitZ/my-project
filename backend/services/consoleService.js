@@ -177,6 +177,9 @@ export class ConsoleService {
             config: serialConfig
           });
 
+          // Handle initial configuration dialog automatically
+          this.handleInitialConfigDialog(deviceId);
+
           resolve({
             success: true,
             message: `Console connected via ${portPath}`,
@@ -199,6 +202,64 @@ export class ConsoleService {
     } catch (error) {
       console.error('❌ Console connection error:', error.message);
       throw new Error(`Console connection failed: ${error.message}`);
+    }
+  }
+
+  // Handle initial configuration dialog automatically
+  async handleInitialConfigDialog(deviceId) {
+    try {
+      const connection = this.connections.get(deviceId);
+      if (!connection) {
+        console.log(`⚠️ No connection found for device ${deviceId} to handle initial dialog`);
+        return;
+      }
+
+      const { parser, port } = connection;
+      
+      console.log(`🤖 Setting up automatic initial configuration dialog handler for device ${deviceId}`);
+      
+      // Set up a listener for initial configuration dialog
+      const dialogHandler = (data) => {
+        const response = data.toString().toLowerCase();
+        console.log(`📥 Received from device: ${data}`);
+        
+        // Check for initial configuration dialog prompt
+        if (response.includes('would you like to enter the initial configuration dialog') && 
+            (response.includes('[yes/no]') || response.includes('(yes/no)'))) {
+          console.log(`🚫 Auto-responding 'no' to initial configuration dialog for device ${deviceId}`);
+          port.write('no\r\n');
+        }
+        // Handle follow-up questions
+        else if (response.includes('would you like to terminate autoinstall') && 
+                 (response.includes('[yes]') || response.includes('(yes)'))) {
+          console.log(`✅ Auto-responding 'yes' to terminate autoinstall for device ${deviceId}`);
+          port.write('yes\r\n');
+        }
+        // Handle any other yes/no prompts during startup
+        else if (response.includes('press enter to continue') || 
+                 response.includes('press return to get started')) {
+          console.log(`⏎ Auto-pressing Enter to continue for device ${deviceId}`);
+          port.write('\r\n');
+        }
+      };
+
+      // Add the handler for initial setup
+      parser.on('data', dialogHandler);
+      
+      // Remove the handler after 60 seconds to avoid interfering with normal operation
+      setTimeout(() => {
+        parser.removeListener('data', dialogHandler);
+        console.log(`⏰ Removed initial configuration dialog handler for device ${deviceId} after 60 seconds`);
+      }, 60000);
+
+      // Send an initial carriage return to trigger any waiting prompts
+      setTimeout(() => {
+        console.log(`⏎ Sending initial carriage return to device ${deviceId}`);
+        port.write('\r\n');
+      }, 2000);
+
+    } catch (error) {
+      console.error(`❌ Error setting up initial dialog handler for device ${deviceId}:`, error.message);
     }
   }
 
@@ -496,12 +557,13 @@ export class ConsoleService {
     return {
       ssh_configuration: {
         name: 'SSH Configuration',
-        description: 'ตั้งค่า SSH สำหรับอุปกรณ์ Cisco รองรับ Manual IP และ DHCP',
+        description: 'Configure SSH for Cisco devices with Manual IP and DHCP support',
         config: `enable
 configure terminal
 hostname {{hostname}}
 username {{username}} secret {{user_password}}
 username {{username}} privilege 15
+no ip domain-lookup
 ip domain-name {{domain}}
 crypto key generate rsa modulus {{rsa_key_size}}
 ip ssh version 2
