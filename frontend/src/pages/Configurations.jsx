@@ -17,7 +17,6 @@ function Configurations() {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
-  const [isValidating, setIsValidating] = useState(false);
   const [generatedConfig, setGeneratedConfig] = useState(null);
   const [generatedConfigs, setGeneratedConfigs] = useState([]);
   const [validation, setValidation] = useState(null);
@@ -173,24 +172,7 @@ function Configurations() {
     }
   };
 
-  const handleValidateConfiguration = async () => {
-    if (!generatedConfig) return;
 
-    setIsValidating(true);
-    const toastId = toast.loading('Validating configuration...');
-    
-    try {
-      const response = await axios.post(`/configurations/${generatedConfig.id}/validate`);
-      setValidation(response.data.validation);
-      toast.success('Configuration validated successfully!', { id: toastId });
-    } catch (error) {
-      console.error('Error validating configuration:', error);
-      console.warn('⚠️', 'Error validating configuration: ' + (error.response?.data?.message || error.message));
-      toast.error('Error validating configuration: ' + (error.response?.data?.message || error.message), { id: toastId });
-    } finally {
-      setIsValidating(false);
-    }
-  };
 
   // ฟังก์ชันสำหรับ multi-device
   const addDeviceToSelection = (deviceId) => {
@@ -652,34 +634,20 @@ function Configurations() {
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-medium text-gray-900">Configuration Preview</h2>
-            {generatedConfig && (
+            {generatedConfig && generatedConfig.status === 'generated' && (
               <div className="flex space-x-2">
                 <button
-                  onClick={handleValidateConfiguration}
-                  disabled={isValidating}
-                  className="btn btn-secondary btn-sm"
+                  onClick={handleApplyConfiguration}
+                  disabled={isApplying}
+                  className="btn btn-primary btn-sm"
                 >
-                  {isValidating ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                  {isApplying ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                   ) : (
                     <CheckCircleIcon className="h-4 w-4 mr-2" />
                   )}
-                  {isValidating ? 'Validating...' : 'Validate'}
+                  {isApplying ? 'Deploying...' : 'Deploy'}
                 </button>
-                {generatedConfig.status === 'generated' && (
-                  <button
-                    onClick={handleApplyConfiguration}
-                    disabled={isApplying}
-                    className="btn btn-primary btn-sm"
-                  >
-                    {isApplying ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    ) : (
-                      <CheckCircleIcon className="h-4 w-4 mr-2" />
-                    )}
-                    {isApplying ? 'Deploying...' : 'Deploy'}
-                  </button>
-                )}
               </div>
             )}
           </div>
