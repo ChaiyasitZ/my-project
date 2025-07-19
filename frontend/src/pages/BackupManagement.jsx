@@ -67,7 +67,7 @@ function BackupManagement() {
     backup_name: '',
     description: '',
     backup_type: 'manual',
-    created_by: '',
+    config_type: 'running-config',
     tags: []
   });
   
@@ -75,7 +75,7 @@ function BackupManagement() {
     backup_name_prefix: '',
     description: '',
     backup_type: 'manual',
-    created_by: '',
+    config_type: 'running-config',
     tags: []
   });
 
@@ -149,7 +149,7 @@ function BackupManagement() {
         backup_name: '',
         description: '',
         backup_type: 'manual',
-        created_by: '',
+        config_type: 'running-config',
         tags: []
       });
 
@@ -191,7 +191,6 @@ function BackupManagement() {
           backup_name: `${multiBackupForm.backup_name_prefix}_${device.name}`,
           description: multiBackupForm.description || `Multi-device backup for ${device.name}`,
           backup_type: multiBackupForm.backup_type,
-          created_by: multiBackupForm.created_by,
           tags: multiBackupForm.tags.filter(tag => tag.trim() !== '')
         });
       });
@@ -209,7 +208,6 @@ function BackupManagement() {
         backup_name_prefix: '',
         description: '',
         backup_type: 'manual',
-        created_by: '',
         tags: []
       });
       setSelectedDevices([]);
@@ -733,11 +731,6 @@ function BackupManagement() {
                     <ClockIcon className="h-4 w-4 mr-2 text-gray-400" />
                     <span>{formatDate(backup.createdAt || backup.created_at)}</span>
                   </div>
-                  {backup.created_by && (
-                    <div className="flex items-center">
-                      <span className="text-xs">Created by {backup.created_by}</span>
-                    </div>
-                  )}
                 </div>
 
                 {/* Tags */}
@@ -1009,24 +1002,7 @@ function BackupManagement() {
                       </select>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Created By
-                      </label>
-                      <input
-                        type="text"
-                        value={multiDeviceMode ? multiBackupForm.created_by : backupForm.created_by}
-                        onChange={(e) => {
-                          if (multiDeviceMode) {
-                            setMultiBackupForm({ ...multiBackupForm, created_by: e.target.value });
-                          } else {
-                            setBackupForm({ ...backupForm, created_by: e.target.value });
-                          }
-                        }}
-                        placeholder="Your name"
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
+
                   </div>
 
                   <div>
@@ -1173,9 +1149,6 @@ function BackupManagement() {
                         </div>
                         <div>
                           <span className="font-medium">Created:</span> {formatDate(previewData.backup.created_at)}
-                        </div>
-                        <div>
-                          <span className="font-medium">Created by:</span> {previewData.backup.created_by || 'System'}
                         </div>
                         <div>
                           <span className="font-medium">Running lines:</span> {previewData.preview.running_config_lines}
