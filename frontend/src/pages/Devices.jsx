@@ -8,15 +8,22 @@ import {
   TestTubeIcon,
   ServerIcon,
   WifiIcon,
-  AlertCircleIcon
+  FunnelIcon,
+  SearchIcon
 } from 'lucide-react';
 
 function Devices() {
   const [devices, setDevices] = useState([]);
+  const [filteredDevices, setFilteredDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingDevice, setEditingDevice] = useState(null);
   const [testingDevice, setTestingDevice] = useState(null);
+  
+  // Filter states
+  const [selectedFilter, setSelectedFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  
   const [formData, setFormData] = useState({
     name: '',
     type: 'switch',
@@ -35,6 +42,11 @@ function Devices() {
     fetchDevices();
   }, []);
 
+  // Filter devices whenever devices, selectedFilter, or searchTerm changes
+  useEffect(() => {
+    filterDevices();
+  }, [devices, selectedFilter, searchTerm]);
+
   const fetchDevices = async () => {
     try {
       const response = await axios.get('/devices');
@@ -43,6 +55,49 @@ function Devices() {
       console.error('Error fetching devices:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const filterDevices = () => {
+    let filtered = [...devices];
+
+    // Filter by device type
+    if (selectedFilter !== 'all') {
+      filtered = filtered.filter(device => device.type === selectedFilter);
+    }
+
+    // Filter by search term
+    if (searchTerm.trim()) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter(device => 
+        device.name.toLowerCase().includes(search) ||
+        device.ip_address.toLowerCase().includes(search) ||
+        (device.location && device.location.toLowerCase().includes(search)) ||
+        (device.model && device.model.toLowerCase().includes(search)) ||
+        (device.description && device.description.toLowerCase().includes(search))
+      );
+    }
+
+    setFilteredDevices(filtered);
+  };
+
+  const getFilterCounts = () => {
+    const counts = {
+      all: devices.length,
+      switch: devices.filter(d => d.type === 'switch').length,
+      router: devices.filter(d => d.type === 'router').length
+    };
+    return counts;
+  };
+
+  const getFilterIcon = (type) => {
+    switch (type) {
+      case 'switch':
+        return <ServerIcon className="h-4 w-4" />;
+      case 'router':
+        return <WifiIcon className="h-4 w-4" />;
+      default:
+        return <FunnelIcon className="h-4 w-4" />;
     }
   };
 
@@ -164,7 +219,12 @@ function Devices() {
   };
 
   const getDeviceIcon = (type) => {
-    return type === 'router' ? <WifiIcon className="h-5 w-5" /> : <ServerIcon className="h-5 w-5" />;
+    switch (type) {
+      case 'router':
+        return <WifiIcon className="h-5 w-5" />;
+      default:
+        return <ServerIcon className="h-5 w-5" />;
+    }
   };
 
   if (loading) {
@@ -179,6 +239,8 @@ function Devices() {
       </div>
     );
   }
+
+  const filterCounts = getFilterCounts();
 
   return (
     <div className="space-y-6">
@@ -206,27 +268,129 @@ function Devices() {
         </button>
       </div>
 
+      {/* Search and Filters */}
+      <div className="card p-4">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          {/* Search */}
+          <div className="relative flex-1 max-w-md">
+            <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search devices..."
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          {/* Filter Buttons */}
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: 'all', label: 'All', count: filterCounts.all },
+              { key: 'switch', label: 'Switches', count: filterCounts.switch },
+              { key: 'router', label: 'Routers', count: filterCounts.router }
+            ].map(filter => (
+              <button
+                key={filter.key}
+                onClick={() => setSelectedFilter(filter.key)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  selectedFilter === filter.key
+                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
+                }`}
+              >
+                {getFilterIcon(filter.key)}
+                {filter.label}
+                <span className={`px-2 py-0.5 rounded-full text-xs ${
+                  selectedFilter === filter.key
+                    ? 'bg-blue-200 text-blue-800'
+                    : 'bg-gray-200 text-gray-600'
+                }`}>
+                  {filter.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Active filters indicator */}
+        {(selectedFilter !== 'all' || searchTerm) && (
+          <div className="mt-3 pt-3 border-t border-gray-200">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <span>Active filters:</span>
+              {selectedFilter !== 'all' && (
+                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs">
+                  Type: {selectedFilter}
+                </span>
+              )}
+              {searchTerm && (
+                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs">
+                  Search: "{searchTerm}"
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  setSelectedFilter('all');
+                  setSearchTerm('');
+                }}
+                className="text-blue-600 hover:text-blue-800 text-xs underline"
+              >
+                Clear all
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Results Summary */}
+      <div className="text-sm text-gray-600">
+        Showing {filteredDevices.length} of {devices.length} devices
+        {selectedFilter !== 'all' && ` (${selectedFilter}s only)`}
+        {searchTerm && ` matching "${searchTerm}"`}
+      </div>
+
       {/* Devices List */}
-      {devices.length === 0 ? (
+      {filteredDevices.length === 0 ? (
         <div className="card p-12 text-center">
-          <ServerIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No devices found</h3>
-          <p className="text-gray-500 mb-6">Get started by adding your first network device</p>
-          <button
-            onClick={() => {
-              resetForm();
-              setEditingDevice(null);
-              setShowModal(true);
-            }}
-            className="btn btn-primary btn-md"
-          >
-            <PlusIcon className="h-4 w-4 mr-2" />
-            Add First Device
-          </button>
+          {devices.length === 0 ? (
+            <>
+              <ServerIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No devices found</h3>
+              <p className="text-gray-500 mb-6">Get started by adding your first network device</p>
+              <button
+                onClick={() => {
+                  resetForm();
+                  setEditingDevice(null);
+                  setShowModal(true);
+                }}
+                className="btn btn-primary btn-md"
+              >
+                <PlusIcon className="h-4 w-4 mr-2" />
+                Add First Device
+              </button>
+            </>
+          ) : (
+            <>
+              <FunnelIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No devices match your filters</h3>
+              <p className="text-gray-500 mb-6">
+                Try adjusting your search term or filter selection
+              </p>
+              <button
+                onClick={() => {
+                  setSelectedFilter('all');
+                  setSearchTerm('');
+                }}
+                className="btn btn-secondary btn-md"
+              >
+                Clear Filters
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <div className="grid gap-6">
-          {devices.map((device) => (
+          {filteredDevices.map((device) => (
             <div key={device.id} className="card p-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
@@ -263,8 +427,6 @@ function Devices() {
                         <TestTubeIcon className="h-4 w-4" />
                       )}
                     </button>
-
-
                     
                     <button
                       onClick={() => handleEdit(device)}
@@ -454,7 +616,6 @@ function Devices() {
                     <option value="maintenance">Maintenance</option>
                   </select>
                 </div>
-
 
               </div>
               
