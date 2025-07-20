@@ -14,7 +14,8 @@ const createBackupSchema = Joi.object({
   backup_name: Joi.string().required().min(1).max(255),
   description: Joi.string().max(1000).allow(''),
   backup_type: Joi.string().valid('manual', 'scheduled', 'pre_change').default('manual'),
-  created_by: Joi.string().max(255).allow(''),
+  config_type: Joi.string().valid('running-config', 'startup-config', 'both').default('running-config'),
+  created_by: Joi.string().max(255).allow('').default('system'),
   tags: Joi.array().items(Joi.string()).optional()
 });
 
@@ -225,7 +226,7 @@ router.post('/', async (req, res) => {
       });
     }
     
-    const { device_id, backup_name, description, backup_type, created_by, tags } = value;
+    const { device_id, backup_name, description, backup_type, config_type, created_by, tags } = value;
     
     // Get device details
     const device = await Device.findById(device_id);
@@ -241,16 +242,17 @@ router.post('/', async (req, res) => {
     console.log(`🚀 Starting backup creation for device ${device.name} (${device.ip_address})`);
     
     try {
-      const backupResult = await sshService.createFullBackup(device);
+      const backupResult = await sshService.createFullBackup(device, { config_type });
       
       if (!backupResult.success) {
         throw new Error('Failed to create backup');
       }
       
       // Calculate hash for duplicate detection
+      const configForHash = backupResult.runningConfig || backupResult.startupConfig || '';
       const configHash = crypto
         .createHash('sha256')
-        .update(backupResult.runningConfig)
+        .update(configForHash)
         .digest('hex');
       
       // Check for duplicate backups
@@ -275,9 +277,10 @@ router.post('/', async (req, res) => {
         running_config: backupResult.runningConfig,
         startup_config: backupResult.startupConfig,
         backup_type,
-        file_size: backupResult.runningConfigSize + backupResult.startupConfigSize,
+        config_type,
+        file_size: (backupResult.runningConfigSize || 0) + (backupResult.startupConfigSize || 0),
         config_hash: configHash,
-        created_by,
+        created_by: created_by || 'system',
         tags: tags || []
       });
       

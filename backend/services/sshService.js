@@ -868,25 +868,47 @@ export class SSHService {
     }
   }
 
-  async createFullBackup(deviceConfig) {
+  async createFullBackup(deviceConfig, options = {}) {
     try {
-      console.log(`💾 Creating full backup for ${deviceConfig.ip_address}`);
+      const { config_type = 'running-config' } = options;
+      console.log(`💾 Creating ${config_type} backup for ${deviceConfig.ip_address}`);
       
-      const [runningResult, startupResult] = await Promise.all([
-        this.getRunningConfig(deviceConfig).catch(err => ({ success: false, error: err.message })),
-        this.getStartupConfig(deviceConfig).catch(err => ({ success: false, error: err.message }))
-      ]);
+      let runningResult = { success: false, error: 'Not requested' };
+      let startupResult = { success: false, error: 'Not requested' };
       
-      if (!runningResult.success) {
-        throw new Error(`Failed to get running config: ${runningResult.error}`);
+      // Fetch configurations based on config_type
+      if (config_type === 'running-config' || config_type === 'both') {
+        runningResult = await this.getRunningConfig(deviceConfig).catch(err => ({ success: false, error: err.message }));
+      }
+      
+      if (config_type === 'startup-config' || config_type === 'both') {
+        startupResult = await this.getStartupConfig(deviceConfig).catch(err => ({ success: false, error: err.message }));
+      }
+      
+      // Check if we got at least one successful config based on what was requested
+      const hasRequiredConfig = 
+        (config_type === 'running-config' && runningResult.success) ||
+        (config_type === 'startup-config' && startupResult.success) ||
+        (config_type === 'both' && (runningResult.success || startupResult.success));
+      
+      if (!hasRequiredConfig) {
+        const errors = [];
+        if ((config_type === 'running-config' || config_type === 'both') && !runningResult.success) {
+          errors.push(`Running config: ${runningResult.error}`);
+        }
+        if ((config_type === 'startup-config' || config_type === 'both') && !startupResult.success) {
+          errors.push(`Startup config: ${startupResult.error}`);
+        }
+        throw new Error(`Failed to get required configurations: ${errors.join(', ')}`);
       }
       
       const backup = {
         success: true,
-        runningConfig: runningResult.config,
-        runningConfigSize: runningResult.size,
+        runningConfig: runningResult.success ? runningResult.config : null,
+        runningConfigSize: runningResult.success ? runningResult.size : 0,
         startupConfig: startupResult.success ? startupResult.config : null,
         startupConfigSize: startupResult.success ? startupResult.size : 0,
+        configType: config_type,
         timestamp: new Date().toISOString(),
         deviceInfo: {
           name: deviceConfig.name,
@@ -897,11 +919,11 @@ export class SSHService {
         }
       };
       
-      console.log(`✅ Full backup completed for ${deviceConfig.ip_address}`);
+      console.log(`✅ ${config_type} backup completed for ${deviceConfig.ip_address}`);
       return backup;
       
     } catch (error) {
-      console.error(`❌ Full backup failed for ${deviceConfig.ip_address}:`, error.message);
+      console.error(`❌ Backup failed for ${deviceConfig.ip_address}:`, error.message);
       throw error;
     }
   }

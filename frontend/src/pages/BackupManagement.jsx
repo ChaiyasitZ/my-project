@@ -57,6 +57,7 @@ function BackupManagement() {
   const [creating, setCreating] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [configFilter, setConfigFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [multiDeviceMode, setMultiDeviceMode] = useState(false);
   const [selectedDevices, setSelectedDevices] = useState([]);
@@ -139,7 +140,8 @@ function BackupManagement() {
     try {
       await axios.post('/backups', {
         ...backupForm,
-        tags: backupForm.tags.filter(tag => tag.trim() !== '')
+        tags: backupForm.tags.filter(tag => tag.trim() !== ''),
+        config_type: backupForm.config_type
       });
 
       // Close modal and reset form first
@@ -191,6 +193,7 @@ function BackupManagement() {
           backup_name: `${multiBackupForm.backup_name_prefix}_${device.name}`,
           description: multiBackupForm.description || `Multi-device backup for ${device.name}`,
           backup_type: multiBackupForm.backup_type,
+          config_type: multiBackupForm.config_type,
           tags: multiBackupForm.tags.filter(tag => tag.trim() !== '')
         });
       });
@@ -208,6 +211,7 @@ function BackupManagement() {
         backup_name_prefix: '',
         description: '',
         backup_type: 'manual',
+        config_type: 'running-config',
         tags: []
       });
       setSelectedDevices([]);
@@ -385,12 +389,20 @@ function BackupManagement() {
     });
   };
 
-  // Filter backups based on search term - ensure backups is always an array
-  const filteredBackups = (backups || []).filter(backup => 
-    backup?.backup_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    backup?.device_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (backup?.description && backup.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Filter backups based on search term and config type - ensure backups is always an array
+  const filteredBackups = (backups || []).filter(backup => {
+    // Search term filter
+    const matchesSearch = !searchTerm || (
+      backup?.backup_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      backup?.device_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (backup?.description && backup.description.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+    
+    // Configuration type filter
+    const matchesConfigType = configFilter === 'all' || backup?.config_type === configFilter;
+    
+    return matchesSearch && matchesConfigType;
+  });
 
   // Calculate statistics - ensure safe array operations
   const stats = {
@@ -398,6 +410,9 @@ function BackupManagement() {
     manual: (backups || []).filter(b => b?.backup_type === 'manual').length,
     scheduled: (backups || []).filter(b => b?.backup_type === 'scheduled').length,
     restorePoints: (backups || []).filter(b => b?.is_restore_point).length,
+    runningOnly: (backups || []).filter(b => b?.config_type === 'running-config').length,
+    startupOnly: (backups || []).filter(b => b?.config_type === 'startup-config').length,
+    bothConfigs: (backups || []).filter(b => b?.config_type === 'both').length,
     totalSize: (backups || []).reduce((sum, b) => sum + (b?.file_size || 0), 0)
   };
 
@@ -642,6 +657,20 @@ function BackupManagement() {
                 <option value="pre_change">Pre-Change</option>
               </select>
             </div>
+
+            {/* Config Type Filter */}
+            <div className="flex-1 max-w-xs">
+              <select
+                value={configFilter}
+                onChange={(e) => setConfigFilter(e.target.value)}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Configs</option>
+                <option value="running-config">Running Only</option>
+                <option value="startup-config">Startup Only</option>
+                <option value="both">Both Configs</option>
+              </select>
+            </div>
           </div>
 
           <div className="text-sm text-gray-500">
@@ -707,6 +736,13 @@ function BackupManagement() {
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getBackupTypeBadge(backup.backup_type)}`}>
                     {backup.backup_type.replace('_', ' ')}
                   </span>
+                  {backup.config_type && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                      {backup.config_type === 'running-config' ? 'Running' : 
+                       backup.config_type === 'startup-config' ? 'Startup' : 
+                       backup.config_type === 'both' ? 'Both' : backup.config_type}
+                    </span>
+                  )}
                 </div>
 
                 {backup.description && (
@@ -1002,7 +1038,38 @@ function BackupManagement() {
                       </select>
                     </div>
 
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Configuration Type
+                      </label>
+                      <select
+                        value={multiDeviceMode ? multiBackupForm.config_type : backupForm.config_type}
+                        onChange={(e) => {
+                          if (multiDeviceMode) {
+                            setMultiBackupForm({ ...multiBackupForm, config_type: e.target.value });
+                          } else {
+                            setBackupForm({ ...backupForm, config_type: e.target.value });
+                          }
+                        }}
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="running-config">Running Config Only</option>
+                        <option value="startup-config">Startup Config Only</option>
+                        <option value="both">Both Running & Startup</option>
+                      </select>
+                    </div>
+                  </div>
 
+                  {/* Configuration Type Info */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="text-sm text-blue-800">
+                      <h5 className="font-medium mb-2">Configuration Types:</h5>
+                      <div className="space-y-1 text-xs">
+                        <p><strong>Running Config:</strong> Current active configuration in memory</p>
+                        <p><strong>Startup Config:</strong> Configuration saved to NVRAM (loads on boot)</p>
+                        <p><strong>Both:</strong> Creates backup of both running and startup configurations</p>
+                      </div>
+                    </div>
                   </div>
 
                   <div>

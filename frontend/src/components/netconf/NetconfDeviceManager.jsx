@@ -71,7 +71,30 @@ const NetconfDeviceManager = ({
     try {
       setLoading(true);
       const response = await axios.get('/devices');
-      setDevices(response.data.devices || []);
+      const devicesData = response.data.devices || [];
+      
+      // Fetch real-time session status for each NETCONF device
+      const devicesWithSessionStatus = await Promise.all(
+        devicesData.map(async (device) => {
+          if (device.netconf_enabled) {
+            try {
+              const sessionResponse = await axios.get(`/netconf/device-session-status/${device.id}`);
+              if (sessionResponse.data.success) {
+                return {
+                  ...device,
+                  real_time_session_status: sessionResponse.data.data.real_time_status,
+                  session_info: sessionResponse.data.data.session_info
+                };
+              }
+            } catch (sessionError) {
+              console.warn(`Failed to get session status for ${device.name}:`, sessionError.message);
+            }
+          }
+          return device;
+        })
+      );
+      
+      setDevices(devicesWithSessionStatus);
     } catch (error) {
       console.error('Error fetching devices:', error);
       toast.error('Failed to fetch devices');
@@ -87,8 +110,8 @@ const NetconfDeviceManager = ({
     // Apply additional filters on NETCONF devices
     if (selectedFilter === 'active_sessions') {
       filtered = filtered.filter(device => 
-        device.last_connection?.type === 'netconf' && 
-        device.last_connection?.status === 'success'
+        device.real_time_session_status === 'connected' || 
+        (device.last_connection?.type === 'netconf' && device.last_connection?.status === 'success')
       );
     } else if (selectedFilter === 'switch') {
       filtered = filtered.filter(device => device.type === 'switch');
@@ -116,8 +139,8 @@ const NetconfDeviceManager = ({
     const counts = {
       all: netconfDevices.length,
       active_sessions: netconfDevices.filter(d => 
-        d.last_connection?.type === 'netconf' && 
-        d.last_connection?.status === 'success'
+        d.real_time_session_status === 'connected' || 
+        (d.last_connection?.type === 'netconf' && d.last_connection?.status === 'success')
       ).length,
       switch: netconfDevices.filter(d => d.type === 'switch').length,
       router: netconfDevices.filter(d => d.type === 'router').length
@@ -297,8 +320,15 @@ const NetconfDeviceManager = ({
 
   const getStatusBadge = (device) => {
     if (device.netconf_enabled) {
-      if (device.last_connection?.type === 'netconf' && device.last_connection?.status === 'success') {
+      // Check real-time session status if available
+      if (device.real_time_session_status === 'connected') {
         return 'badge-success';
+      } else if (device.real_time_session_status === 'disconnected') {
+        return 'badge-primary';
+      } else if (device.last_connection?.type === 'netconf' && device.last_connection?.status === 'success') {
+        return 'badge-success';
+      } else if (device.last_connection?.type === 'netconf' && device.last_connection?.status === 'disconnected') {
+        return 'badge-primary';
       }
       return 'badge-primary';
     }
@@ -307,8 +337,15 @@ const NetconfDeviceManager = ({
 
   const getStatusText = (device) => {
     if (device.netconf_enabled) {
-      if (device.last_connection?.type === 'netconf' && device.last_connection?.status === 'success') {
+      // Check real-time session status if available
+      if (device.real_time_session_status === 'connected') {
         return 'Connected';
+      } else if (device.real_time_session_status === 'disconnected') {
+        return 'NETCONF Ready';
+      } else if (device.last_connection?.type === 'netconf' && device.last_connection?.status === 'success') {
+        return 'Connected';
+      } else if (device.last_connection?.type === 'netconf' && device.last_connection?.status === 'disconnected') {
+        return 'NETCONF Ready';
       }
       return 'NETCONF Ready';
     }
@@ -560,7 +597,8 @@ const NetconfDeviceManager = ({
                           <WifiIcon className="h-4 w-4" />
                         </button>
                         
-                        {device.last_connection?.type === 'netconf' && device.last_connection?.status === 'success' && (
+                        {((device.real_time_session_status === 'connected') || 
+                          (device.last_connection?.type === 'netconf' && device.last_connection?.status === 'success')) && (
                           <button
                             onClick={() => handleDisconnect(device)}
                             className="btn btn-warning btn-sm"

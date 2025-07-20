@@ -40,6 +40,51 @@ router.get('/sessions', async (req, res) => {
   }
 });
 
+// Get device session status (check if device has active NETCONF session)
+router.get('/device-session-status/:device_id', async (req, res) => {
+  try {
+    const { device_id } = req.params;
+    
+    const device = await Device.findById(device_id);
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+
+    // Check if there's an active session for this device
+    const sessionId = `${device.ip_address}:${device.netconf_port || 830}`;
+    const isSessionActive = netconfService.isSessionHealthy(sessionId);
+    
+    // Get session info if active
+    const sessions = netconfService.getActiveSessions();
+    const activeSession = sessions.find(s => s.sessionId === sessionId);
+    
+    res.json({
+      success: true,
+      data: {
+        device_id: device._id,
+        device_name: device.name,
+        ip_address: device.ip_address,
+        session_id: sessionId,
+        has_active_session: isSessionActive,
+        session_info: activeSession || null,
+        last_connection: device.last_connection,
+        real_time_status: isSessionActive ? 'connected' : 'disconnected'
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Get device session status error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get device session status',
+      error: error.message
+    });
+  }
+});
+
 // Test NETCONF connection
 router.post('/test-connection', async (req, res) => {
   try {
@@ -180,6 +225,28 @@ router.post('/disconnect/:session_id', async (req, res) => {
     const { session_id } = req.params;
 
     const result = await netconfService.disconnect(session_id);
+
+    // Update device last_connection status when session is disconnected
+    if (result.success) {
+      // Extract IP address from session_id (format: "ip_address:port")
+      const [ip_address] = session_id.split(':');
+      
+      try {
+        const device = await Device.findOne({ ip_address });
+        if (device && device.last_connection?.type === 'netconf') {
+          device.last_connection = {
+            type: 'netconf',
+            timestamp: new Date(),
+            status: 'disconnected',
+            session_id: null
+          };
+          await device.save();
+          console.log(`✅ Updated device ${device.name} status to disconnected`);
+        }
+      } catch (deviceUpdateError) {
+        console.warn(`⚠️ Failed to update device status for ${ip_address}:`, deviceUpdateError.message);
+      }
+    }
 
     res.json({
       success: true,

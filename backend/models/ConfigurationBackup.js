@@ -19,6 +19,11 @@ const configurationBackupSchema = new mongoose.Schema({
     enum: ['manual', 'scheduled', 'pre_change', 'post_change'],
     default: 'manual'
   },
+  config_type: {
+    type: String,
+    enum: ['running-config', 'startup-config', 'both'],
+    default: 'running-config'
+  },
   file_size: {
     type: Number,
     min: 0 // in bytes
@@ -29,7 +34,8 @@ const configurationBackupSchema = new mongoose.Schema({
   },
   created_by: {
     type: String,
-    required: true
+    required: false,
+    default: 'system'
   },
   is_restore_point: {
     type: Boolean,

@@ -58,9 +58,25 @@ export const useNetconf = () => {
       const data = await response.json();
       if (data.success) {
         setActiveSessions(data.data.sessions);
+        console.log(`📊 Loaded ${data.data.sessions.length} active NETCONF sessions`);
       }
     } catch (error) {
       console.error('Error fetching active sessions:', error);
+    }
+  }, []);
+
+  // Check device session status (real-time)
+  const checkDeviceSessionStatus = useCallback(async (deviceId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/netconf/device-session-status/${deviceId}`);
+      const data = await response.json();
+      if (data.success) {
+        return data.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error checking device session status:', error);
+      return null;
     }
   }, []);
 
@@ -181,6 +197,7 @@ export const useNetconf = () => {
     testConnection,
     connectDevice,
     disconnectSession,
+    checkDeviceSessionStatus,
     
     // Setters for external updates
     setDevices,
