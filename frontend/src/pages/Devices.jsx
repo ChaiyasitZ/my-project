@@ -34,7 +34,6 @@ function Devices() {
     description: '',
     location: '',
     model: '',
-    ios_version: '',
     status: 'active'
   });
 
@@ -136,7 +135,6 @@ function Devices() {
       description: device.description || '',
       location: device.location || '',
       model: device.model || '',
-      ios_version: device.ios_version || '',
       status: device.status
     });
     setShowModal(true);
@@ -204,7 +202,6 @@ function Devices() {
       description: '',
       location: '',
       model: '',
-      ios_version: '',
       status: 'active'
     });
   };
@@ -447,21 +444,13 @@ function Devices() {
                 </div>
               </div>
               
-              {(device.model || device.ios_version) && (
+              {device.model && (
                 <div className="mt-4 pt-4 border-t border-gray-200">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    {device.model && (
-                      <div>
-                        <span className="text-gray-500">Model:</span>
-                        <span className="ml-2 text-gray-900">{device.model}</span>
-                      </div>
-                    )}
-                    {device.ios_version && (
-                      <div>
-                        <span className="text-gray-500">IOS Version:</span>
-                        <span className="ml-2 text-gray-900">{device.ios_version}</span>
-                      </div>
-                    )}
+                  <div className="grid grid-cols-1 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">Model:</span>
+                      <span className="ml-2 text-gray-900">{device.model}</span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -569,7 +558,7 @@ function Devices() {
                   />
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Location</label>
                     <input
@@ -589,17 +578,6 @@ function Devices() {
                       className="input mt-1"
                       value={formData.model}
                       onChange={(e) => setFormData({...formData, model: e.target.value})}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">IOS Version</label>
-                    <input
-                      type="text"
-                      placeholder="15.2(4)S7"
-                      className="input mt-1"
-                      value={formData.ios_version}
-                      onChange={(e) => setFormData({...formData, ios_version: e.target.value})}
                     />
                   </div>
                 </div>
