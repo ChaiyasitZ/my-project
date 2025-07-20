@@ -10,7 +10,7 @@ const deviceSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['router', 'switch', 'firewall'],
+    enum: ['router', 'switch'],
     maxlength: 50
   },
   ip_address: {

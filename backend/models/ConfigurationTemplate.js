@@ -11,7 +11,7 @@ const configurationTemplateSchema = new mongoose.Schema({
   device_type: {
     type: String,
     required: true,
-    enum: ['router', 'switch', 'firewall', 'general'],
+    enum: ['router', 'switch'],
     maxlength: 50
   },
   template_config: {

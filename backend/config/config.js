@@ -11,7 +11,7 @@ export const config = {
   // Ollama Local AI Configuration
   ollama: {
     host: process.env.OLLAMA_HOST || 'http://localhost:11434',
-    model: process.env.OLLAMA_MODEL || 'codellama:7b',
+    model: process.env.OLLAMA_MODEL || 'qwen2.5-coder:3b',
   },
 
   // Server Configuration

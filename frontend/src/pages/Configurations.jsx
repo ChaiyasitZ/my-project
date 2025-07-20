@@ -573,17 +573,6 @@ function Configurations() {
                 required
                 minLength="10"
               />
-              <div className="flex justify-between items-center mt-1">
-                <p className="text-sm text-gray-500">
-                  Enter the configuration you want. Use standard Cisco command format.
-                </p>
-                <p className={`text-sm ${
-                  prompt.length < 10 ? 'text-red-500' : 
-                  prompt.length > 2000 ? 'text-red-500' : 'text-green-500'
-                }`}>
-                  {prompt.length}/2000 chars {prompt.length < 10 ? '(min 10)' : ''}
-                </p>
-              </div>
             </div>
 
             <button
@@ -603,14 +592,6 @@ function Configurations() {
                 </>
               )}
             </button>
-            
-            {prompt.length > 0 && prompt.length < 10 && (
-              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-700">
-                  Prompt must be at least 10 characters long. Currently: {prompt.length} characters.
-                </p>
-              </div>
-            )}
           </form>
 
           {/* Example Prompts */}
