@@ -123,25 +123,36 @@ export const useNetconf = () => {
 
   // Disconnect session
   const disconnectSession = useCallback(async (sessionId) => {
+    console.log(`🔌 Attempting to disconnect NETCONF session: ${sessionId}`);
     setLoading(true);
     const toastId = toast.loading('Disconnecting NETCONF session...');
     
     try {
-      const response = await fetch(`${API_BASE_URL}/netconf/disconnect/${sessionId}`, {
-        method: 'POST'
+      const url = `${API_BASE_URL}/netconf/disconnect/${encodeURIComponent(sessionId)}`;
+      console.log(`📤 POST to: ${url}`);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
+      
+      console.log(`📥 Response status: ${response.status}`);
       const data = await response.json();
+      console.log(`📄 Response data:`, data);
       
       if (data.success) {
         toast.success('NETCONF session disconnected successfully!', { id: toastId });
         fetchActiveSessions();
         return { success: true };
       } else {
+        console.error(`❌ Disconnect failed:`, data);
         toast.error(`Disconnect failed: ${data.message}`, { id: toastId });
         return { success: false, message: data.message };
       }
     } catch (error) {
-      console.error('Error disconnecting session:', error);
+      console.error('❌ Error disconnecting session:', error);
       toast.error('Disconnect failed: ' + error.message, { id: toastId });
       return { success: false, error: error.message };
     } finally {

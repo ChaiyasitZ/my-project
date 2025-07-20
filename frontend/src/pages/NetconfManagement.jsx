@@ -104,6 +104,7 @@ const NetconfManagement = () => {
           loading={loading}
           onTestConnection={testConnection}
           onConnect={connectDevice}
+          onDisconnect={disconnectSession}
           onRefresh={fetchDevices}
         />
       )}

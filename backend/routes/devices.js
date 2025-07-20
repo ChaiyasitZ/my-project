@@ -9,7 +9,7 @@ const router = express.Router();
 // Validation schemas
 const deviceSchema = Joi.object({
   name: Joi.string().required().max(255),
-  type: Joi.string().valid('router', 'switch', 'firewall').required(),
+  type: Joi.string().valid('router', 'switch').required(),
   ip_address: Joi.string().ip().required(),
   ssh_port: Joi.number().integer().min(1).max(65535).default(22),
   username: Joi.string().required().max(255),
@@ -17,13 +17,18 @@ const deviceSchema = Joi.object({
   description: Joi.string().allow('').max(1000),
   location: Joi.string().allow('').max(255),
   model: Joi.string().allow('').max(255),
-  ios_version: Joi.string().allow('').max(255),
-  status: Joi.string().valid('active', 'inactive', 'maintenance', 'error').default('inactive')
+  status: Joi.string().valid('active', 'inactive', 'maintenance', 'error').default('active'),
+  // NETCONF fields
+  netconf_enabled: Joi.boolean().default(false),
+  netconf_port: Joi.number().integer().min(1).max(65535).default(830),
+  netconf_capabilities: Joi.array().items(Joi.string()).default([]),
+  yang_models: Joi.array().default([]),
+  preferred_connection: Joi.string().valid('netconf', 'ssh', 'console').default('ssh')
 });
 
 const deviceUpdateSchema = Joi.object({
   name: Joi.string().max(255),
-  type: Joi.string().valid('router', 'switch', 'firewall'),
+  type: Joi.string().valid('router', 'switch'),
   ip_address: Joi.string().ip(),
   ssh_port: Joi.number().integer().min(1).max(65535),
   username: Joi.string().max(255),
@@ -31,8 +36,13 @@ const deviceUpdateSchema = Joi.object({
   description: Joi.string().allow('').max(1000),
   location: Joi.string().allow('').max(255),
   model: Joi.string().allow('').max(255),
-  ios_version: Joi.string().allow('').max(255),
-  status: Joi.string().valid('active', 'inactive', 'maintenance', 'error')
+  status: Joi.string().valid('active', 'inactive', 'maintenance', 'error'),
+  // NETCONF fields
+  netconf_enabled: Joi.boolean(),
+  netconf_port: Joi.number().integer().min(1).max(65535),
+  netconf_capabilities: Joi.array().items(Joi.string()),
+  yang_models: Joi.array(),
+  preferred_connection: Joi.string().valid('netconf', 'ssh', 'console')
 });
 
 // GET /api/devices - Get all devices

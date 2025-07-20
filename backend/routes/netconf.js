@@ -67,32 +67,39 @@ router.post('/test-connection', async (req, res) => {
       });
     }
 
-    const result = await netconfService.connect({
+    const result = await netconfService.testConnection({
       ip_address: device.ip_address,
       username: device.username,
       password: device.password,
       netconf_port: device.netconf_port
     });
 
-    // Update device capabilities if connection successful
+    // Update device capabilities and connection status
     if (result.success && result.capabilities) {
       device.netconf_capabilities = result.capabilities;
       device.last_connection = {
         type: 'netconf',
         timestamp: new Date(),
-        status: 'success',
-        session_id: result.sessionId
+        status: 'success'
+      };
+      await device.save();
+    } else {
+      device.last_connection = {
+        type: 'netconf',
+        timestamp: new Date(),
+        status: 'failed'
       };
       await device.save();
     }
 
     res.json({
-      success: true,
-      message: 'NETCONF connection test successful',
+      success: result.success,
+      message: result.message,
       data: {
-        sessionId: result.sessionId,
         capabilities: result.capabilities || [],
-        device: device.device_summary
+        device: device.device_summary,
+        connectionTime: result.connectionTime,
+        error: result.error
       }
     });
 

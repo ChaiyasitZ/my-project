@@ -7,6 +7,7 @@ class NetconfService {
     this.sessions = new Map(); // Store active NETCONF sessions
     this.builder = new xml2js.Builder({ rootName: 'rpc' });
     this.parser = new xml2js.Parser({ explicitArray: false });
+    this.debugMode = true; // Enable detailed debugging
   }
 
   // Connect to device via NETCONF
@@ -46,9 +47,17 @@ class NetconfService {
               messageId: () => messageId++
             };
 
+            // Connection timeout for hello exchange
+            const connectionTimeout = setTimeout(() => {
+              console.error(`❌ NETCONF hello timeout for ${ip_address}`);
+              reject(new Error('NETCONF hello exchange timeout'));
+            }, 30000);
+
             // Handle incoming data
             stream.on('data', (data) => {
-              buffer += data.toString();
+              const chunk = data.toString();
+              buffer += chunk;
+              console.log(`📥 Setup data: ${chunk.length} bytes - ${chunk.substring(0, 100)}${chunk.length > 100 ? '...' : ''}`);
               
               // Check for complete messages (ending with ]]>]]>)
               const messages = buffer.split(']]>]]>');
@@ -56,7 +65,17 @@ class NetconfService {
               
               messages.forEach(message => {
                 if (message.trim()) {
+                  console.log(`🔄 Processing setup message: ${message.substring(0, 200)}...`);
                   this.handleNetconfMessage(message + ']]>]]>', session);
+                  
+                  // If this was a hello response, resolve the connection
+                  if (message.includes('</hello>') && session.capabilities && session.capabilities.length > 0) {
+                    clearTimeout(connectionTimeout);
+                    this.sessions.set(sessionId, session);
+                    session.connected_at = new Date();
+                    console.log(`✅ NETCONF session established for ${ip_address} with ${session.capabilities.length} capabilities`);
+                    resolve(session);
+                  }
                 }
               });
             });
@@ -376,6 +395,60 @@ class NetconfService {
     }
   }
 
+  // Test NETCONF connection
+  async testConnection(deviceConfig) {
+    try {
+      console.log(`🧪 Testing NETCONF connection to ${deviceConfig.ip_address}:${deviceConfig.netconf_port || 830}`);
+      
+      const session = await this.connect(deviceConfig);
+      console.log(`✅ NETCONF session established, testing basic operations...`);
+      
+      // Try a simple get-config operation with timeout
+      const testPromise = this.sendRpc(session, 'get-config', {
+        source: { running: {} }
+      });
+      
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Connection test timeout')), 30000);
+      });
+      
+      const result = await Promise.race([testPromise, timeoutPromise]);
+      console.log(`✅ NETCONF test operation successful`);
+      
+      // Close the test connection
+      this.disconnect(session.sessionId);
+      
+      return {
+        success: true,
+        message: 'NETCONF connection and basic operations successful',
+        capabilities: session.capabilities,
+        connectionTime: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error(`❌ NETCONF connection test failed: ${error.message}`);
+      return {
+        success: false,
+        message: `NETCONF connection test failed: ${error.message}`,
+        error: error.message
+      };
+    }
+  }
+
+  // Check if session is healthy
+  isSessionHealthy(sessionId) {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      return false;
+    }
+    
+    return session.isConnected && 
+           session.stream && 
+           !session.stream.destroyed && 
+           session.conn && 
+           session.conn._sock && 
+           session.conn._sock.readable;
+  }
+
   // Get active sessions
   getActiveSessions() {
     const sessions = [];
@@ -427,44 +500,177 @@ class NetconfService {
   // Send RPC and wait for response
   async sendRpc(session, operation, content) {
     return new Promise((resolve, reject) => {
+      // Check if session is still connected
+      if (!session.isConnected) {
+        reject(new Error('NETCONF session is not connected'));
+        return;
+      }
+
       const messageId = session.messageId();
       const rpc = this.buildRpc(operation, content, messageId);
       
       console.log(`📤 Sending NETCONF RPC: ${operation} (message-id: ${messageId})`);
+      console.log(`🔍 RPC Content: ${rpc.substring(0, 200)}...`);
       
-      // Set up response handler
+      // Increase timeout for slower devices and add connection check
       const timeout = setTimeout(() => {
-        reject(new Error(`NETCONF RPC timeout for ${operation}`));
-      }, 30000);
+        console.log(`⏰ NETCONF RPC timeout for ${operation} on ${session.ip_address}`);
+        reject(new Error(`NETCONF RPC timeout for ${operation} after 60 seconds`));
+      }, 60000); // Increased to 60 seconds
 
+      let responseBuffer = '';
+      
       const responseHandler = (data) => {
         try {
-          if (data.includes(`message-id="${messageId}"`)) {
-            clearTimeout(timeout);
-            this.parser.parseString(data.replace(']]>]]>', ''), (err, result) => {
-              if (err) {
-                reject(new Error(`XML parsing error: ${err.message}`));
-                return;
+          const chunk = data.toString();
+          responseBuffer += chunk;
+          console.log(`📥 Received NETCONF data chunk: ${chunk.length} bytes`);
+          console.log(`🔍 Chunk content: ${chunk.substring(0, 200)}${chunk.length > 200 ? '...' : ''}`);
+          console.log(`📊 Total buffer size: ${responseBuffer.length} bytes`);
+          
+          // Check if we have a complete response (ends with ]]>]]>)
+          if (responseBuffer.includes(']]>]]>')) {
+            console.log(`✅ Found complete NETCONF response with ]]>]]> terminator`);
+            
+            // Extract the message for this specific messageId (try both formats)
+            const messageIdPatterns = [
+              `message-id="${messageId}"`,
+              `message-id='${messageId}'`,
+              `message-id=${messageId}`
+            ];
+            
+            let foundMessageId = false;
+            for (const pattern of messageIdPatterns) {
+              if (responseBuffer.includes(pattern)) {
+                foundMessageId = true;
+                console.log(`✅ Found matching message ID with pattern: ${pattern}`);
+                break;
               }
-              resolve({
-                success: true,
-                operation,
-                messageId,
-                data: result
+            }
+            
+            if (foundMessageId) {
+              clearTimeout(timeout);
+              session.stream.removeListener('data', responseHandler);
+              
+              // Clean up the response - extract everything before ]]>]]>
+              const terminatorIndex = responseBuffer.indexOf(']]>]]>');
+              const cleanResponse = responseBuffer.substring(0, terminatorIndex);
+              
+              console.log(`🧹 Cleaned response: ${cleanResponse.substring(0, 300)}${cleanResponse.length > 300 ? '...' : ''}`);
+              
+              this.parser.parseString(cleanResponse, (err, result) => {
+                if (err) {
+                  console.error(`❌ XML parsing error: ${err.message}`);
+                  console.error(`❌ Failed XML content: ${cleanResponse.substring(0, 500)}`);
+                  reject(new Error(`XML parsing error: ${err.message}`));
+                  return;
+                }
+                
+                // Check for NETCONF errors
+                if (result.rpc && result.rpc['rpc-error']) {
+                  const error = result.rpc['rpc-error'];
+                  const errorMsg = error['error-message'] || 'Unknown NETCONF error';
+                  console.error(`❌ NETCONF RPC error: ${errorMsg}`);
+                  reject(new Error(`NETCONF RPC error: ${errorMsg}`));
+                  return;
+                }
+                
+                console.log(`✅ NETCONF RPC ${operation} completed successfully`);
+                resolve({
+                  success: true,
+                  operation,
+                  messageId,
+                  data: result
+                });
               });
-            });
+            } else {
+              console.log(`⚠️ Complete response found but no matching message ID for ${messageId}`);
+              console.log(`🔍 Response preview: ${responseBuffer.substring(0, 500)}`);
+            }
+          } else {
+            // Log buffer content for debugging when we get stuck
+            if (this.debugMode && responseBuffer.length >= 300) {
+              console.log(`🔍 DEBUG: Current buffer content (${responseBuffer.length} bytes):`);
+              console.log(`📄 Raw buffer: ${JSON.stringify(responseBuffer.substring(0, 800))}`);
+              console.log(`🔍 Looking for patterns:`);
+              console.log(`   - Contains ]]>]]>: ${responseBuffer.includes(']]>]]>')}`);
+              console.log(`   - Contains </rpc-reply>: ${responseBuffer.includes('</rpc-reply>')}`);
+              console.log(`   - Contains <rpc-error>: ${responseBuffer.includes('<rpc-error>')}`);
+              console.log(`   - Message ID ${messageId}: ${responseBuffer.includes(`message-id="${messageId}"`)}`);
+            }
+            
+            // Check if this might be an error response or incomplete
+            if (responseBuffer.includes('<rpc-error>') || responseBuffer.includes('</rpc-reply>')) {
+              console.log(`⚠️ Potential complete response without ]]>]]> terminator detected`);
+              console.log(`🔍 Response content: ${responseBuffer.substring(0, 500)}`);
+              
+              // Try to parse anyway if we have a complete rpc-reply
+              if (responseBuffer.includes('</rpc-reply>')) {
+                console.log(`🔄 Attempting to parse response without ]]>]]> terminator`);
+                
+                clearTimeout(timeout);
+                session.stream.removeListener('data', responseHandler);
+                
+                this.parser.parseString(responseBuffer, (err, result) => {
+                  if (err) {
+                    console.error(`❌ XML parsing error: ${err.message}`);
+                    reject(new Error(`XML parsing error: ${err.message}`));
+                    return;
+                  }
+                  
+                  // Check for NETCONF errors
+                  if (result['rpc-reply'] && result['rpc-reply']['rpc-error']) {
+                    const error = result['rpc-reply']['rpc-error'];
+                    const errorMsg = error['error-message'] || 'Unknown NETCONF error';
+                    console.error(`❌ NETCONF RPC error: ${errorMsg}`);
+                    reject(new Error(`NETCONF RPC error: ${errorMsg}`));
+                    return;
+                  }
+                  
+                  console.log(`✅ NETCONF RPC ${operation} completed successfully (no terminator)`);
+                  resolve({
+                    success: true,
+                    operation,
+                    messageId,
+                    data: result
+                  });
+                });
+              }
+            }
           }
         } catch (error) {
           clearTimeout(timeout);
+          session.stream.removeListener('data', responseHandler);
+          console.error(`❌ Error processing NETCONF response: ${error.message}`);
           reject(error);
         }
       };
 
-      // Temporary response handler
-      session.stream.once('data', responseHandler);
+      // Add response handler
+      session.stream.on('data', responseHandler);
+      
+      // Handle stream errors
+      const errorHandler = (error) => {
+        clearTimeout(timeout);
+        session.stream.removeListener('data', responseHandler);
+        session.stream.removeListener('error', errorHandler);
+        console.error(`❌ NETCONF stream error: ${error.message}`);
+        reject(new Error(`NETCONF stream error: ${error.message}`));
+      };
+      
+      session.stream.once('error', errorHandler);
       
       // Send RPC
-      session.stream.write(rpc);
+      try {
+        session.stream.write(rpc);
+        console.log(`📤 RPC sent to ${session.ip_address}`);
+      } catch (writeError) {
+        clearTimeout(timeout);
+        session.stream.removeListener('data', responseHandler);
+        session.stream.removeListener('error', errorHandler);
+        console.error(`❌ Error writing RPC: ${writeError.message}`);
+        reject(new Error(`Error writing RPC: ${writeError.message}`));
+      }
     });
   }
 

@@ -16,13 +16,15 @@ import {
   ExclamationTriangleIcon,
   CogIcon,
   LinkIcon,
-  CloudArrowUpIcon
+  CloudArrowUpIcon,
+  StopIcon
 } from '@heroicons/react/24/outline';
 import { useConfirmation } from '../../hooks/useConfirmation';
 
 const NetconfDeviceManager = ({ 
   onTestConnection, 
-  onConnect
+  onConnect,
+  onDisconnect
 }) => {
   const [devices, setDevices] = useState([]);
   const [filteredDevices, setFilteredDevices] = useState([]);
@@ -33,7 +35,7 @@ const NetconfDeviceManager = ({
   const [connectionResult, setConnectionResult] = useState(null);
   
   // Filter states
-  const [selectedFilter, setSelectedFilter] = useState('netconf_enabled');
+  const [selectedFilter, setSelectedFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   
   const { showConfirmation } = useConfirmation();
@@ -79,22 +81,21 @@ const NetconfDeviceManager = ({
   };
 
   const filterDevices = () => {
-    let filtered = [...devices];
+    // Always start with only NETCONF-enabled devices
+    let filtered = devices.filter(device => device.netconf_enabled);
 
-    // Filter by NETCONF capabilities
-    if (selectedFilter === 'netconf_enabled') {
-      filtered = filtered.filter(device => device.netconf_enabled);
-    } else if (selectedFilter === 'netconf_disabled') {
-      filtered = filtered.filter(device => !device.netconf_enabled);
-    } else if (selectedFilter === 'active_sessions') {
+    // Apply additional filters on NETCONF devices
+    if (selectedFilter === 'active_sessions') {
       filtered = filtered.filter(device => 
-        device.netconf_enabled && 
         device.last_connection?.type === 'netconf' && 
         device.last_connection?.status === 'success'
       );
-    } else if (selectedFilter !== 'all') {
-      filtered = filtered.filter(device => device.type === selectedFilter);
+    } else if (selectedFilter === 'switch') {
+      filtered = filtered.filter(device => device.type === 'switch');
+    } else if (selectedFilter === 'router') {
+      filtered = filtered.filter(device => device.type === 'router');
     }
+    // 'all' means all NETCONF devices, no additional filtering needed
 
     // Filter by search term
     if (searchTerm.trim()) {
@@ -103,8 +104,7 @@ const NetconfDeviceManager = ({
         device.name.toLowerCase().includes(search) ||
         device.ip_address.toLowerCase().includes(search) ||
         (device.location && device.location.toLowerCase().includes(search)) ||
-        (device.model && device.model.toLowerCase().includes(search)) ||
-        (device.vendor && device.vendor.toLowerCase().includes(search))
+        (device.model && device.model.toLowerCase().includes(search))
       );
     }
 
@@ -112,27 +112,23 @@ const NetconfDeviceManager = ({
   };
 
   const getFilterCounts = () => {
+    const netconfDevices = devices.filter(d => d.netconf_enabled);
     const counts = {
-      all: devices.length,
-      netconf_enabled: devices.filter(d => d.netconf_enabled).length,
-      netconf_disabled: devices.filter(d => !d.netconf_enabled).length,
-      active_sessions: devices.filter(d => 
-        d.netconf_enabled && 
+      all: netconfDevices.length,
+      active_sessions: netconfDevices.filter(d => 
         d.last_connection?.type === 'netconf' && 
         d.last_connection?.status === 'success'
       ).length,
-      switch: devices.filter(d => d.type === 'switch').length,
-      router: devices.filter(d => d.type === 'router').length
+      switch: netconfDevices.filter(d => d.type === 'switch').length,
+      router: netconfDevices.filter(d => d.type === 'router').length
     };
     return counts;
   };
 
   const getFilterIcon = (type) => {
     switch (type) {
-      case 'netconf_enabled':
+      case 'all':
         return <WifiIcon className="h-4 w-4" />;
-      case 'netconf_disabled':
-        return <CpuChipIcon className="h-4 w-4" />;
       case 'active_sessions':
         return <LinkIcon className="h-4 w-4" />;
       case 'switch':
@@ -148,7 +144,7 @@ const NetconfDeviceManager = ({
     e.preventDefault();
     try {
       if (editingDevice) {
-        await axios.put(`/devices/${editingDevice._id}`, formData);
+        await axios.put(`/devices/${editingDevice.id}`, formData);
         console.log('✅ NETCONF Device updated successfully:', formData.name);
         toast.success(`NETCONF Device "${formData.name}" updated successfully!`);
       } else {
@@ -190,6 +186,8 @@ const NetconfDeviceManager = ({
   };
 
   const handleDelete = async (device) => {
+    console.log('🗑️ Attempting to delete NETCONF device:', device.name, 'ID:', device.id);
+    
     const confirmed = await showConfirmation({
       title: 'Delete NETCONF Device',
       message: `Are you sure you want to delete ${device.name}? This action cannot be undone.`,
@@ -200,23 +198,29 @@ const NetconfDeviceManager = ({
 
     if (confirmed) {
       try {
-        await axios.delete(`/devices/${device._id}`);
+        console.log(`📤 DELETE request to: /devices/${device.id}`);
+        const response = await axios.delete(`/devices/${device.id}`);
+        console.log('📥 Delete response:', response.data);
         console.log('✅ NETCONF Device deleted successfully:', device.name);
         toast.success(`NETCONF Device "${device.name}" deleted successfully!`);
         fetchDevices();
       } catch (error) {
-        console.error('❌ Error deleting NETCONF device:', error.response?.data?.message || error.message);
+        console.error('❌ Error deleting NETCONF device:', error);
+        console.error('❌ Error response:', error.response?.data);
+        console.error('❌ Error status:', error.response?.status);
         toast.error('Error deleting device: ' + (error.response?.data?.message || error.message));
       }
+    } else {
+      console.log('❌ Device deletion cancelled by user');
     }
   };
 
   const handleTestConnection = async (device) => {
-    setTestingDevice(device._id);
+    setTestingDevice(device.id);
     setConnectionResult(null);
     
     try {
-      const result = await onTestConnection(device._id);
+      const result = await onTestConnection(device.id);
       setConnectionResult(result);
     } catch (error) {
       setConnectionResult({
@@ -239,11 +243,34 @@ const NetconfDeviceManager = ({
 
     if (confirmed) {
       try {
-        await onConnect(device._id);
+        await onConnect(device.id);
         toast.success(`NETCONF session established with ${device.name}`);
         fetchDevices(); // Refresh to show updated connection status
       } catch (error) {
         toast.error(`Failed to connect to ${device.name}: ${error.message}`);
+      }
+    }
+  };
+
+  const handleDisconnect = async (device) => {
+    // Find the session ID for this device
+    const sessionId = `${device.ip_address}:${device.netconf_port || 830}`;
+    
+    const confirmed = await showConfirmation({
+      title: 'Disconnect NETCONF Session',
+      message: `Are you sure you want to disconnect the NETCONF session with ${device.name}?`,
+      confirmText: 'Disconnect',
+      cancelText: 'Cancel',
+      type: 'warning'
+    });
+
+    if (confirmed) {
+      try {
+        await onDisconnect(sessionId);
+        toast.success(`NETCONF session disconnected from ${device.name}`);
+        fetchDevices(); // Refresh to show updated connection status
+      } catch (error) {
+        toast.error(`Failed to disconnect from ${device.name}: ${error.message}`);
       }
     }
   };
@@ -372,10 +399,10 @@ const NetconfDeviceManager = ({
         {/* Filter Buttons */}
         <div className="flex flex-wrap gap-2 mt-4">
           {[
-            { key: 'netconf_enabled', label: 'NETCONF Enabled', count: filterCounts.netconf_enabled },
+            { key: 'all', label: 'All NETCONF Devices', count: filterCounts.all },
             { key: 'active_sessions', label: 'Active Sessions', count: filterCounts.active_sessions },
-            { key: 'netconf_disabled', label: 'NETCONF Disabled', count: filterCounts.netconf_disabled },
-            { key: 'all', label: 'All Devices', count: filterCounts.all }
+            { key: 'switch', label: 'Switches', count: filterCounts.switch },
+            { key: 'router', label: 'Routers', count: filterCounts.router }
           ].map(filter => (
             <button
               key={filter.key}
@@ -400,15 +427,15 @@ const NetconfDeviceManager = ({
         </div>
 
         {/* Active filters indicator */}
-        {(selectedFilter !== 'netconf_enabled' || searchTerm) && (
+        {(selectedFilter !== 'all' || searchTerm) && (
           <div className="mt-3 pt-3 border-t border-gray-200">
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <span>Active filters:</span>
-              {selectedFilter !== 'netconf_enabled' && (
+              {selectedFilter !== 'all' && (
                 <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs">
-                  {selectedFilter === 'all' ? 'All devices' : 
-                   selectedFilter === 'active_sessions' ? 'Active NETCONF sessions' :
-                   selectedFilter === 'netconf_disabled' ? 'NETCONF disabled' :
+                  {selectedFilter === 'active_sessions' ? 'Active NETCONF sessions' :
+                   selectedFilter === 'switch' ? 'Switches only' :
+                   selectedFilter === 'router' ? 'Routers only' :
                    `Type: ${selectedFilter}`}
                 </span>
               )}
@@ -419,7 +446,7 @@ const NetconfDeviceManager = ({
               )}
               <button
                 onClick={() => {
-                  setSelectedFilter('netconf_enabled');
+                  setSelectedFilter('all');
                   setSearchTerm('');
                 }}
                 className="text-blue-600 hover:text-blue-800 text-xs underline"
@@ -433,8 +460,8 @@ const NetconfDeviceManager = ({
 
       {/* Results Summary */}
       <div className="text-sm text-gray-600">
-        Showing {filteredDevices.length} of {devices.length} devices
-        {selectedFilter !== 'all' && selectedFilter !== 'netconf_enabled' && (
+        Showing {filteredDevices.length} of {getFilterCounts().all} NETCONF devices
+        {selectedFilter !== 'all' && (
           ` (${selectedFilter.replace('_', ' ')} only)`
         )}
         {searchTerm && ` matching "${searchTerm}"`}
@@ -443,9 +470,9 @@ const NetconfDeviceManager = ({
       {/* Devices List */}
       {filteredDevices.length === 0 ? (
         <div className="card p-12 text-center">
-          {devices.length === 0 ? (
+          {getFilterCounts().all === 0 ? (
             <>
-              <CpuChipIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <WifiIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No NETCONF devices found</h3>
               <p className="text-gray-500 mb-6">
                 Get started by adding your first NETCONF-enabled device
@@ -462,33 +489,16 @@ const NetconfDeviceManager = ({
                 Add First NETCONF Device
               </button>
             </>
-          ) : selectedFilter === 'netconf_enabled' && filterCounts.netconf_enabled === 0 ? (
-            <>
-              <WifiIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No NETCONF-enabled devices</h3>
-              <p className="text-gray-500 mb-6">
-                Enable NETCONF on your devices to manage them here
-              </p>
-              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-left max-w-md mx-auto">
-                <h4 className="text-sm font-medium text-blue-900 mb-2">Enable NETCONF on Cisco devices:</h4>
-                <div className="text-sm text-blue-800 space-y-1 font-mono">
-                  <p>configure terminal</p>
-                  <p>feature netconf</p>
-                  <p>ssh key rsa 2048</p>
-                  <p>copy run start</p>
-                </div>
-              </div>
-            </>
           ) : (
             <>
               <FunnelIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No devices match your filters</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No NETCONF devices match your filters</h3>
               <p className="text-gray-500 mb-6">
                 Try adjusting your search term or filter selection
               </p>
               <button
                 onClick={() => {
-                  setSelectedFilter('netconf_enabled');
+                  setSelectedFilter('all');
                   setSearchTerm('');
                 }}
                 className="btn btn-secondary btn-md"
@@ -501,7 +511,7 @@ const NetconfDeviceManager = ({
       ) : (
         <div className="grid gap-6">
           {filteredDevices.map((device) => (
-            <div key={device._id} className="card p-6">
+            <div key={device.id} className="card p-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <div className="flex-shrink-0 text-gray-600">
@@ -531,11 +541,11 @@ const NetconfDeviceManager = ({
                       <>
                         <button
                           onClick={() => handleTestConnection(device)}
-                          disabled={testingDevice === device._id}
+                          disabled={testingDevice === device.id}
                           className="btn btn-secondary btn-sm"
                           title="Test NETCONF Connection"
                         >
-                          {testingDevice === device._id ? (
+                          {testingDevice === device.id ? (
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
                           ) : (
                             <PlayIcon className="h-4 w-4" />
@@ -549,6 +559,16 @@ const NetconfDeviceManager = ({
                         >
                           <WifiIcon className="h-4 w-4" />
                         </button>
+                        
+                        {device.last_connection?.type === 'netconf' && device.last_connection?.status === 'success' && (
+                          <button
+                            onClick={() => handleDisconnect(device)}
+                            className="btn btn-warning btn-sm"
+                            title="Disconnect NETCONF Session"
+                          >
+                            <StopIcon className="h-4 w-4" />
+                          </button>
+                        )}
                       </>
                     )}
                     
@@ -610,20 +630,20 @@ const NetconfDeviceManager = ({
         <h4 className="text-sm font-medium text-blue-900 mb-2">NETCONF Device Summary</h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-blue-800">
           <div>
-            <span className="font-medium">Total Devices:</span>
-            <span className="ml-2">{devices.length}</span>
-          </div>
-          <div>
-            <span className="font-medium">NETCONF Enabled:</span>
-            <span className="ml-2">{filterCounts.netconf_enabled}</span>
+            <span className="font-medium">Total NETCONF Devices:</span>
+            <span className="ml-2">{filterCounts.all}</span>
           </div>
           <div>
             <span className="font-medium">Active Sessions:</span>
             <span className="ml-2">{filterCounts.active_sessions}</span>
           </div>
           <div>
-            <span className="font-medium">Ready to Enable:</span>
-            <span className="ml-2">{filterCounts.netconf_disabled}</span>
+            <span className="font-medium">Switches:</span>
+            <span className="ml-2">{filterCounts.switch}</span>
+          </div>
+          <div>
+            <span className="font-medium">Routers:</span>
+            <span className="ml-2">{filterCounts.router}</span>
           </div>
         </div>
       </div>
