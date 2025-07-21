@@ -236,6 +236,25 @@ const YangModelManager = ({
     setEditingModel(null);
   };
 
+  const handlePreviewModel = async (model) => {
+    const toastId = toast.loading('Loading YANG model details...');
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/netconf/yang-models/${model.id || model._id}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setPreviewModel(data.data.model);
+        toast.success('YANG model loaded successfully!', { id: toastId });
+      } else {
+        toast.error(`Failed to load YANG model: ${data.message}`, { id: toastId });
+      }
+    } catch (error) {
+      console.error('Error loading YANG model details:', error);
+      toast.error('Failed to load YANG model: ' + error.message, { id: toastId });
+    }
+  };
+
   const deleteYangModel = async (modelId) => {
     const toastId = toast.loading('Deleting YANG model...');
     
@@ -347,7 +366,7 @@ const YangModelManager = ({
                   </div>
                   <div className="flex items-center space-x-1">
                     <button
-                      onClick={() => setPreviewModel(model)}
+                      onClick={() => handlePreviewModel(model)}
                       className="p-1 text-gray-400 hover:text-gray-600"
                       title="Preview model"
                     >

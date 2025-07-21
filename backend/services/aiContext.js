@@ -67,7 +67,7 @@ CRITICAL REQUIREMENTS:
 - Start directly with configuration commands
 - Use proper Cisco IOS syntax only
 
-⚠️ CIDR TO WILDCARD MASK CONVERSION - USE EXACT VALUES:
+CIDR TO WILDCARD MASK CONVERSION - USE EXACT VALUES:
 /8 = 0.255.255.255
 /16 = 0.0.255.255
 /24 = 0.0.0.255
@@ -83,9 +83,9 @@ EXAMPLE FORMATS:
 - For /25: network 192.168.1.0 0.0.0.127 area 0
 - For /30: network 192.168.1.0 0.0.0.3 area 0
 
-⚠️ ROUTING PROTOCOL EXAMPLES WITH CIDR CONVERSION:
+ROUTING PROTOCOL EXAMPLES WITH CIDR CONVERSION:
 
-🔸 OSPF EXAMPLES:
+OSPF EXAMPLES:
 configure terminal
 router ospf 1
 network 192.168.1.0 0.0.0.255 area 0
@@ -99,7 +99,7 @@ network 172.16.0.0 0.0.255.255 area 1
 network 192.168.10.0 0.0.0.127 area 0
 end
 
-🔸 EIGRP EXAMPLES:
+EIGRP EXAMPLES:
 configure terminal
 router eigrp 100
 network 192.168.1.0 0.0.0.255
@@ -113,7 +113,7 @@ network 172.16.0.0 0.0.255.255
 network 192.168.0.0 0.0.255.255
 end
 
-🔸 RIPv2 EXAMPLES:
+RIPv2 EXAMPLES:
 configure terminal
 router rip
 version 2
@@ -129,7 +129,7 @@ network 172.16.0.0
 network 192.168.0.0
 end
 
-🔸 BGP EXAMPLES:
+BGP EXAMPLES:
 configure terminal
 router bgp 65001
 network 192.168.1.0 mask 255.255.255.0
@@ -144,7 +144,7 @@ neighbor 192.168.1.2 remote-as 65200
 neighbor 192.168.1.2 update-source loopback0
 end
 
-🔸 ISIS EXAMPLES:
+ISIS EXAMPLES:
 configure terminal
 router isis AREA1
 net 49.0001.1921.6800.1001.00

@@ -195,101 +195,101 @@ const XmlGenerator = ({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* XML Generator Form */}
-        <div className="card p-6">
+      {/* XML Generator Form */}
+      <div className="card p-6">
           <div className="flex items-center mb-4">
             <CodeBracketIcon className="h-6 w-6 text-blue-600 mr-2" />
             <h2 className="text-lg font-medium text-gray-900">NETCONF XML Generator</h2>
           </div>
-          <p className="text-sm text-gray-600 mb-6">
+        <p className="text-sm text-gray-600 mb-6">
             Generate NETCONF XML configurations using natural language prompts.
-          </p>
-          
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Target Device (Optional)
-                </label>
-                <select
-                  value={selectedDevice?._id || ''}
-                  onChange={(e) => {
-                    const device = devices.find(d => d._id === e.target.value);
-                    onDeviceSelect(device || null);
-                  }}
+        </p>
+        
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Target Device (Optional)
+              </label>
+              <select
+                value={selectedDevice?._id || ''}
+                onChange={(e) => {
+                  const device = devices.find(d => d._id === e.target.value);
+                  onDeviceSelect(device || null);
+                }}
                   className="input"
-                >
-                  <option value="">Select device...</option>
-                  {devices.map((device) => (
-                    <option key={device._id} value={device._id}>
-                      {device.name} ({device.ip_address})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  YANG Model (Optional)
-                </label>
-                <select
-                  value={selectedYangModel?.id || ''}
-                  onChange={(e) => {
-                    const model = yangModels.find(m => m.id === e.target.value);
-                    onYangModelSelect(model || null);
-                  }}
-                  className="input"
-                >
-                  <option value="">Select YANG model...</option>
-                  {yangModels.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name} ({model.vendor})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              >
+                <option value="">Select device...</option>
+                {devices.map((device) => (
+                  <option key={device._id} value={device._id}>
+                    {device.name} ({device.ip_address})
+                  </option>
+                ))}
+              </select>
             </div>
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Configuration Prompt
+                YANG Model (Optional)
               </label>
-              <textarea
-                value={xmlPrompt}
-                onChange={(e) => setXmlPrompt(e.target.value)}
-                placeholder="Describe the configuration you want to generate..."
+              <select
+                value={selectedYangModel?.id || ''}
+                onChange={(e) => {
+                  const model = yangModels.find(m => m.id === e.target.value);
+                  onYangModelSelect(model || null);
+                }}
+                  className="input"
+              >
+                <option value="">Select YANG model...</option>
+                {yangModels.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name} ({model.vendor})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+                Configuration Prompt
+            </label>
+            <textarea
+              value={xmlPrompt}
+              onChange={(e) => setXmlPrompt(e.target.value)}
+              placeholder="Describe the configuration you want to generate..."
                 className="input"
-                rows="4"
+              rows="4"
                 required
                 minLength="10"
               />
-            </div>
-            
-            <button
-              onClick={handleGenerateXml}
-              disabled={loading || !xmlPrompt.trim() || xmlPrompt.length < 10}
-              className="btn btn-primary btn-md w-full"
-            >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Generating XML...
-                </>
-              ) : (
+          </div>
+          
+          <button
+            onClick={handleGenerateXml}
+            disabled={loading || !xmlPrompt.trim() || xmlPrompt.length < 10}
+            className="btn btn-primary btn-md w-full"
+          >
+            {loading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Generating XML...
+              </>
+            ) : (
                 <>
                   <CodeBracketIcon className="h-4 w-4 mr-2" />
                   Generate NETCONF XML
                 </>
-              )}
-            </button>
-            
-            {/* Quick Generate & Deploy Buttons */}
-            {activeSessions.length > 0 && !loading && xmlPrompt.trim() && xmlPrompt.length >= 10 && (
+            )}
+          </button>
+          
+          {/* Quick Generate & Deploy Buttons */}
+          {activeSessions.length > 0 && !loading && xmlPrompt.trim() && xmlPrompt.length >= 10 && (
               <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
                 <h4 className="text-sm font-medium text-gray-900 mb-3">
                   Quick Deploy to Active Sessions
-                </h4>
-                
+              </h4>
+              
                 <div className="space-y-3">
                   <select
                     id="quickDeploySession"
@@ -302,51 +302,51 @@ const XmlGenerator = ({
                       </option>
                     ))}
                   </select>
-                  
+                
                   <div className="flex gap-3">
-                    <button
+                <button
                       onClick={() => handleQuickDeploy('safe')}
-                      disabled={loading}
+                  disabled={loading}
                       className="btn btn-success btn-sm flex-1"
-                    >
-                      {loading ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                           Deploying...
-                        </>
-                      ) : (
-                        <>
-                          <CloudArrowUpIcon className="h-4 w-4 mr-2" />
+                    </>
+                  ) : (
+                    <>
+                      <CloudArrowUpIcon className="h-4 w-4 mr-2" />
                           Generate & Deploy
-                        </>
-                      )}
-                    </button>
-                    
-                    <button
-                      onClick={handleValidateAndGenerate}
-                      disabled={loading}
+                    </>
+                  )}
+                </button>
+                
+                <button
+                  onClick={handleValidateAndGenerate}
+                  disabled={loading}
                       className="btn btn-secondary btn-sm"
                       title="Generate XML and validate against target device"
-                    >
-                      {loading ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Validating...
-                        </>
-                      ) : (
-                        <>
-                          <CommandLineIcon className="h-4 w-4 mr-2" />
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Validating...
+                    </>
+                  ) : (
+                    <>
+                      <CommandLineIcon className="h-4 w-4 mr-2" />
                           Generate & Validate
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
+                    </>
+                  )}
+                </button>
               </div>
-            )}
-          </div>
+                </div>
+            </div>
+          )}
+      </div>
 
-          {/* Example Prompts */}
+      {/* Example Prompts */}
           <div className="mt-6">
             <h3 className="text-sm font-medium text-gray-700 mb-3">Example Prompts:</h3>
             <div className="space-y-2">
@@ -369,37 +369,37 @@ const XmlGenerator = ({
                 </button>
               ))}
             </div>
-          </div>
         </div>
+      </div>
 
         {/* Configuration Preview */}
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-medium text-gray-900">Configuration Preview</h2>
             {generatedXml && (
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(generatedXml);
-                  }}
-                  className="btn btn-secondary btn-sm"
-                >
-                  <ClipboardDocumentIcon className="h-4 w-4 mr-2" />
-                  Copy XML
-                </button>
-                <button
-                  onClick={() => {
+            <div className="flex space-x-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(generatedXml);
+                }}
+                className="btn btn-secondary btn-sm"
+              >
+                <ClipboardDocumentIcon className="h-4 w-4 mr-2" />
+                Copy XML
+              </button>
+              <button
+                onClick={() => {
                     setXmlPrompt('');
-                    setGeneratedXml('');
-                  }}
-                  className="btn btn-secondary btn-sm"
-                >
+                  setGeneratedXml('');
+                }}
+                className="btn btn-secondary btn-sm"
+              >
                   Generate New
-                </button>
-              </div>
+              </button>
+            </div>
             )}
           </div>
-
+          
           {/* No Configuration Display */}
           {!generatedXml && (
             <div className="text-center py-12">
@@ -415,28 +415,28 @@ const XmlGenerator = ({
           {generatedXml && (
             <div className="space-y-4">
               <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <div className="flex items-center">
-                  <CheckCircleIcon className="h-5 w-5 text-green-600 mr-2" />
-                  <span className="text-green-800 text-sm">
+            <div className="flex items-center">
+              <CheckCircleIcon className="h-5 w-5 text-green-600 mr-2" />
+              <span className="text-green-800 text-sm">
                     Configuration Valid
-                  </span>
-                </div>
-              </div>
-              
+              </span>
+            </div>
+          </div>
+          
               {/* Deployment Result Display */}
               {(deployResult || deploymentStatus) && (
                 <div className={`p-4 rounded-lg border ${
                   (deployResult?.success || deploymentStatus?.success) 
                     ? 'bg-green-50 border-green-200' 
                     : 'bg-red-50 border-red-200'
-                }`}>
+        }`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {(deployResult?.success || deploymentStatus?.success) ? (
                         <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                      ) : (
+            ) : (
                         <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
-                      )}
+            )}
                       <span className={
                         (deployResult?.success || deploymentStatus?.success) 
                           ? 'text-green-800' 
@@ -445,15 +445,15 @@ const XmlGenerator = ({
                         {deploymentStatus?.message || deployResult?.message || 'Deployment completed'}
                       </span>
                     </div>
-                    <button
+                <button
                       onClick={() => {
                         setDeployResult(null);
                         setDeploymentStatus(null);
                       }}
-                      className="text-gray-400 hover:text-gray-600"
-                    >
+                  className="text-gray-400 hover:text-gray-600"
+                >
                       ×
-                    </button>
+                </button>
                   </div>
                   {(deploymentStatus?.error || deployResult?.error) && (
                     <div className="mt-2 text-sm text-red-600">

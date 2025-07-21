@@ -519,7 +519,7 @@ class NetconfService {
       }, 60000); // Increased to 60 seconds
 
       let responseBuffer = '';
-      
+
       const responseHandler = (data) => {
         try {
           const chunk = data.toString();
@@ -608,15 +608,15 @@ class NetconfService {
               if (responseBuffer.includes('</rpc-reply>')) {
                 console.log(`🔄 Attempting to parse response without ]]>]]> terminator`);
                 
-                clearTimeout(timeout);
+            clearTimeout(timeout);
                 session.stream.removeListener('data', responseHandler);
                 
                 this.parser.parseString(responseBuffer, (err, result) => {
-                  if (err) {
+              if (err) {
                     console.error(`❌ XML parsing error: ${err.message}`);
-                    reject(new Error(`XML parsing error: ${err.message}`));
-                    return;
-                  }
+                reject(new Error(`XML parsing error: ${err.message}`));
+                return;
+              }
                   
                   // Check for NETCONF errors
                   if (result['rpc-reply'] && result['rpc-reply']['rpc-error']) {
@@ -628,13 +628,13 @@ class NetconfService {
                   }
                   
                   console.log(`✅ NETCONF RPC ${operation} completed successfully (no terminator)`);
-                  resolve({
-                    success: true,
-                    operation,
-                    messageId,
-                    data: result
-                  });
-                });
+              resolve({
+                success: true,
+                operation,
+                messageId,
+                data: result
+              });
+            });
               }
             }
           }
@@ -662,7 +662,7 @@ class NetconfService {
       
       // Send RPC
       try {
-        session.stream.write(rpc);
+      session.stream.write(rpc);
         console.log(`📤 RPC sent to ${session.ip_address}`);
       } catch (writeError) {
         clearTimeout(timeout);

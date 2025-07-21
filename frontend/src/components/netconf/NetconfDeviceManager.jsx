@@ -9,7 +9,7 @@ import {
   ServerIcon,
   FunnelIcon,
   MagnifyingGlassIcon,
-  CpuChipIcon,
+  CpuChipIcon, 
   PlayIcon,
   ArrowPathIcon,
   CheckCircleIcon,
@@ -23,7 +23,7 @@ import { useConfirmation } from '../../hooks/useConfirmation';
 
 const NetconfDeviceManager = ({ 
   onTestConnection, 
-  onConnect,
+  onConnect, 
   onDisconnect
 }) => {
   const [devices, setDevices] = useState([]);
@@ -244,7 +244,7 @@ const NetconfDeviceManager = ({
     
     try {
       const result = await onTestConnection(device.id);
-      setConnectionResult(result);
+    setConnectionResult(result);
     } catch (error) {
       setConnectionResult({
         success: false,
@@ -362,7 +362,7 @@ const NetconfDeviceManager = ({
   };
 
   if (loading) {
-    return (
+  return (
       <div className="animate-pulse">
         <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
         <div className="space-y-4">
@@ -375,7 +375,7 @@ const NetconfDeviceManager = ({
   }
 
   const filterCounts = getFilterCounts();
-
+      
   return (
     <div className="space-y-6">
       {/* Connection Result Display */}
@@ -384,15 +384,15 @@ const NetconfDeviceManager = ({
           connectionResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
         }`}>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {connectionResult.success ? (
-                <CheckCircleIcon className="h-5 w-5 text-green-500" />
-              ) : (
-                <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
-              )}
-              <span className={connectionResult.success ? 'text-green-800' : 'text-red-800'}>
-                {connectionResult.message}
-              </span>
+          <div className="flex items-center gap-2">
+            {connectionResult.success ? (
+              <CheckCircleIcon className="h-5 w-5 text-green-500" />
+            ) : (
+              <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
+            )}
+            <span className={connectionResult.success ? 'text-green-800' : 'text-red-800'}>
+              {connectionResult.message}
+            </span>
             </div>
             <button
               onClick={() => setConnectionResult(null)}
@@ -403,7 +403,7 @@ const NetconfDeviceManager = ({
           </div>
         </div>
       )}
-
+      
       {/* Search and Filters */}
       <div className="card p-4">
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
@@ -554,7 +554,7 @@ const NetconfDeviceManager = ({
                   <div className="flex-shrink-0 text-gray-600">
                     {getDeviceIcon(device.type)}
                   </div>
-                  <div>
+                <div>
                     <h3 className="text-lg font-medium text-gray-900">{device.name}</h3>
                     <p className="text-sm text-gray-500">
                       {device.type} • {device.ip_address}
@@ -564,7 +564,7 @@ const NetconfDeviceManager = ({
                       <div className="mt-1">
                         <span className="text-xs text-gray-500">NETCONF Port: {device.netconf_port}</span>
                       </div>
-                    )}
+                  )}
                   </div>
                 </div>
                 
@@ -637,15 +637,15 @@ const NetconfDeviceManager = ({
                       <div>
                         <span className="text-gray-500">Model:</span>
                         <span className="ml-2 text-gray-900">{device.model}</span>
-                      </div>
+              </div>
                     )}
-                    {device.netconf_capabilities && device.netconf_capabilities.length > 0 && (
+              {device.netconf_capabilities && device.netconf_capabilities.length > 0 && (
                       <div>
                         <span className="text-gray-500">Capabilities:</span>
                         <span className="ml-2 text-gray-900">{device.netconf_capabilities.length}</span>
-                      </div>
-                    )}
-                    {device.last_connection && (
+                </div>
+              )}
+              {device.last_connection && (
                       <div>
                         <span className="text-gray-500">Last Connection:</span>
                         <span className={`ml-2 ${
@@ -662,7 +662,7 @@ const NetconfDeviceManager = ({
           ))}
         </div>
       )}
-
+      
       {/* Device Summary */}
       <div className="card p-4 bg-blue-50">
         <h4 className="text-sm font-medium text-blue-900 mb-2">NETCONF Device Summary</h4>
@@ -893,4 +893,4 @@ const NetconfDeviceManager = ({
   );
 };
 
-export default NetconfDeviceManager;
+export default NetconfDeviceManager; 

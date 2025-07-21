@@ -13,7 +13,7 @@ const createBackupSchema = Joi.object({
   device_id: Joi.string().required(),
   backup_name: Joi.string().required().min(1).max(255),
   description: Joi.string().max(1000).allow(''),
-  backup_type: Joi.string().valid('manual', 'scheduled', 'pre_change').default('manual'),
+  backup_type: Joi.string().valid('manual', 'scheduled').default('manual'),
   config_type: Joi.string().valid('running-config', 'startup-config', 'both').default('running-config'),
   created_by: Joi.string().max(255).allow('').default('system'),
   tags: Joi.array().items(Joi.string()).optional()

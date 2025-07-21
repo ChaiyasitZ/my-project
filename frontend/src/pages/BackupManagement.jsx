@@ -350,8 +350,6 @@ function BackupManagement() {
         return <Archive className="h-4 w-4 text-blue-600" />;
       case 'scheduled':
         return <ClockIcon className="h-4 w-4 text-green-600" />;
-      case 'pre_change':
-        return <ShieldIcon className="h-4 w-4 text-orange-600" />;
       default:
         return <FolderIcon className="h-4 w-4 text-gray-600" />;
     }
@@ -360,8 +358,7 @@ function BackupManagement() {
   const getBackupTypeBadge = (type) => {
     const styles = {
       manual: 'bg-blue-100 text-blue-800',
-      scheduled: 'bg-green-100 text-green-800',
-      pre_change: 'bg-orange-100 text-orange-800'
+      scheduled: 'bg-green-100 text-green-800'
     };
     return styles[type] || 'bg-gray-100 text-gray-800';
   };
@@ -393,10 +390,10 @@ function BackupManagement() {
   const filteredBackups = (backups || []).filter(backup => {
     // Search term filter
     const matchesSearch = !searchTerm || (
-      backup?.backup_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      backup?.device_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (backup?.description && backup.description.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    backup?.backup_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    backup?.device_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (backup?.description && backup.description.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
     
     // Configuration type filter
     const matchesConfigType = configFilter === 'all' || backup?.config_type === configFilter;
@@ -654,7 +651,6 @@ function BackupManagement() {
                 <option value="all">All Types</option>
                 <option value="manual">Manual</option>
                 <option value="scheduled">Scheduled</option>
-                <option value="pre_change">Pre-Change</option>
               </select>
             </div>
 
@@ -1017,26 +1013,50 @@ function BackupManagement() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Backup Type
-                      </label>
-                      <select
-                        value={multiDeviceMode ? multiBackupForm.backup_type : backupForm.backup_type}
-                        onChange={(e) => {
-                          if (multiDeviceMode) {
-                            setMultiBackupForm({ ...multiBackupForm, backup_type: e.target.value });
-                          } else {
-                            setBackupForm({ ...backupForm, backup_type: e.target.value });
-                          }
-                        }}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="manual">Manual</option>
-                        <option value="scheduled">Scheduled</option>
-                        <option value="pre_change">Pre-Change</option>
-                      </select>
+                                      <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Backup Type
+                    </label>
+                    <select
+                      value={multiDeviceMode ? multiBackupForm.backup_type : backupForm.backup_type}
+                      onChange={(e) => {
+                        if (multiDeviceMode) {
+                          setMultiBackupForm({ ...multiBackupForm, backup_type: e.target.value });
+                        } else {
+                          setBackupForm({ ...backupForm, backup_type: e.target.value });
+                        }
+                      }}
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="manual">Manual</option>
+                      <option value="scheduled">Scheduled</option>
+                    </select>
+                    
+                    {/* Backup Type Explanation */}
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="text-sm text-blue-800">
+                        <div className="font-medium mb-2">Backup Types:</div>
+                        <div className="space-y-2">
+                          <div className="flex items-start space-x-2">
+                            <Archive className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <span className="font-medium">Manual:</span> On-demand backup created instantly by user action
+                            </div>
+                          </div>
+                          <div className="flex items-start space-x-2">
+                            <ClockIcon className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                              <span className="font-medium">Scheduled:</span> Automatic backup triggered by system scheduler
+                              <div className="text-xs text-blue-600 mt-1">
+                                <strong>Note:</strong> Scheduled backups require a separate cron service or task scheduler to be implemented. 
+                                This feature marks backups for automation tracking but doesn't automatically execute them.
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
+                  </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">

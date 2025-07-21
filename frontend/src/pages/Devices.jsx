@@ -447,10 +447,10 @@ function Devices() {
               {device.model && (
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <div className="grid grid-cols-1 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-500">Model:</span>
-                      <span className="ml-2 text-gray-900">{device.model}</span>
-                    </div>
+                      <div>
+                        <span className="text-gray-500">Model:</span>
+                        <span className="ml-2 text-gray-900">{device.model}</span>
+                      </div>
                   </div>
                 </div>
               )}
