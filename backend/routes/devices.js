@@ -9,7 +9,12 @@ const router = express.Router();
 // Validation schemas
 const deviceSchema = Joi.object({
   name: Joi.string().required().max(255),
-  type: Joi.string().valid('router', 'switch').required(),
+  type: Joi.string().valid('router', 'switch', 'nexus').required(),
+  layer: Joi.string().valid('layer-2', 'layer-3').when('type', {
+    is: 'switch',
+    then: Joi.string().default('layer-2').required(),
+    otherwise: Joi.forbidden()
+  }),
   ip_address: Joi.string().ip().required(),
   ssh_port: Joi.number().integer().min(1).max(65535).default(22),
   username: Joi.string().required().max(255),
@@ -28,7 +33,12 @@ const deviceSchema = Joi.object({
 
 const deviceUpdateSchema = Joi.object({
   name: Joi.string().max(255),
-  type: Joi.string().valid('router', 'switch'),
+  type: Joi.string().valid('router', 'switch', 'nexus'),
+  layer: Joi.string().valid('layer-2', 'layer-3').when('type', {
+    is: 'switch',
+    then: Joi.string(),
+    otherwise: Joi.forbidden()
+  }),
   ip_address: Joi.string().ip(),
   ssh_port: Joi.number().integer().min(1).max(65535),
   username: Joi.string().max(255),

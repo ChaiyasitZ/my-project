@@ -20,6 +20,7 @@ import {
   StopIcon
 } from '@heroicons/react/24/outline';
 import { useConfirmation } from '../../hooks/useConfirmation';
+import DeviceIcon from '../DeviceIcon';
 
 const NetconfDeviceManager = ({ 
   onTestConnection, 
@@ -43,6 +44,7 @@ const NetconfDeviceManager = ({
   const [formData, setFormData] = useState({
     name: '',
     type: 'switch',
+    layer: 'layer-2',
     ip_address: '',
     ssh_port: 22,
     username: '',
@@ -352,13 +354,12 @@ const NetconfDeviceManager = ({
     return 'NETCONF Disabled';
   };
 
-  const getDeviceIcon = (type) => {
-    switch (type) {
-      case 'router':
-        return <WifiIcon className="h-5 w-5" />;
-      default:
-        return <ServerIcon className="h-5 w-5" />;
-    }
+  const getDeviceIcon = (device) => {
+    return <DeviceIcon 
+      deviceType={device.type} 
+      layer={device.layer} 
+      className="h-5 w-5" 
+    />;
   };
 
   if (loading) {
@@ -552,7 +553,7 @@ const NetconfDeviceManager = ({
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <div className="flex-shrink-0 text-gray-600">
-                    {getDeviceIcon(device.type)}
+                    {getDeviceIcon(device)}
                   </div>
                 <div>
                     <h3 className="text-lg font-medium text-gray-900">{device.name}</h3>
@@ -716,13 +717,40 @@ const NetconfDeviceManager = ({
                       required
                       className="input mt-1"
                       value={formData.type}
-                      onChange={(e) => setFormData({...formData, type: e.target.value})}
+                      onChange={(e) => {
+                        const newType = e.target.value;
+                        setFormData({
+                          ...formData, 
+                          type: newType,
+                          layer: newType === 'switch' ? 'layer-2' : undefined
+                        });
+                      }}
                     >
                       <option value="switch">Switch</option>
                       <option value="router">Router</option>
+                      <option value="nexus">Nexus Switch</option>
                     </select>
                   </div>
                 </div>
+
+                {/* Layer Selection - only show for switches */}
+                {formData.type === 'switch' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Switch Layer *</label>
+                    <select
+                      required
+                      className="input mt-1"
+                      value={formData.layer || 'layer-2'}
+                      onChange={(e) => setFormData({...formData, layer: e.target.value})}
+                    >
+                      <option value="layer-2">Layer 2 (Data Link)</option>
+                      <option value="layer-3">Layer 3 (Network/Routing)</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Layer 2: Switching only • Layer 3: Switching + Routing capabilities
+                    </p>
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>

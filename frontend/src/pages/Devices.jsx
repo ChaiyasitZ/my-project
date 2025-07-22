@@ -11,6 +11,7 @@ import {
   FunnelIcon,
   SearchIcon
 } from 'lucide-react';
+import DeviceIcon from '../components/DeviceIcon';
 
 function Devices() {
   const [devices, setDevices] = useState([]);
@@ -27,6 +28,7 @@ function Devices() {
   const [formData, setFormData] = useState({
     name: '',
     type: 'switch',
+    layer: 'layer-2',
     ip_address: '',
     ssh_port: 22,
     username: '',
@@ -84,20 +86,21 @@ function Devices() {
     const counts = {
       all: devices.length,
       switch: devices.filter(d => d.type === 'switch').length,
-      router: devices.filter(d => d.type === 'router').length
+      router: devices.filter(d => d.type === 'router').length,
+      nexus: devices.filter(d => d.type === 'nexus').length
     };
     return counts;
   };
 
   const getFilterIcon = (type) => {
-    switch (type) {
-      case 'switch':
-        return <ServerIcon className="h-4 w-4" />;
-      case 'router':
-        return <WifiIcon className="h-4 w-4" />;
-      default:
-        return <FunnelIcon className="h-4 w-4" />;
+    if (type === 'all') {
+      return <FunnelIcon className="h-4 w-4" />;
     }
+    return <DeviceIcon 
+      deviceType={type} 
+      layer="layer-2" 
+      className="h-4 w-4" 
+    />;
   };
 
   const handleSubmit = async (e) => {
@@ -128,6 +131,7 @@ function Devices() {
     setFormData({
       name: device.name,
       type: device.type,
+      layer: device.type === 'switch' ? (device.layer || 'layer-2') : undefined,
       ip_address: device.ip_address,
       ssh_port: device.ssh_port,
       username: device.username,
@@ -195,6 +199,7 @@ function Devices() {
     setFormData({
       name: '',
       type: 'switch',
+      layer: 'layer-2',
       ip_address: '',
       ssh_port: 22,
       username: '',
@@ -215,13 +220,12 @@ function Devices() {
     return styles[status] || 'badge-info';
   };
 
-  const getDeviceIcon = (type) => {
-    switch (type) {
-      case 'router':
-        return <WifiIcon className="h-5 w-5" />;
-      default:
-        return <ServerIcon className="h-5 w-5" />;
-    }
+  const getDeviceIcon = (device) => {
+    return <DeviceIcon 
+      deviceType={device.type} 
+      layer={device.layer} 
+      className="h-5 w-5" 
+    />;
   };
 
   if (loading) {
@@ -285,7 +289,8 @@ function Devices() {
             {[
               { key: 'all', label: 'All', count: filterCounts.all },
               { key: 'switch', label: 'Switches', count: filterCounts.switch },
-              { key: 'router', label: 'Routers', count: filterCounts.router }
+              { key: 'router', label: 'Routers', count: filterCounts.router },
+              { key: 'nexus', label: 'Nexus', count: filterCounts.nexus }
             ].map(filter => (
               <button
                 key={filter.key}
@@ -392,12 +397,13 @@ function Devices() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <div className="flex-shrink-0 text-gray-600">
-                    {getDeviceIcon(device.type)}
+                    {getDeviceIcon(device)}
                   </div>
                   <div>
                     <h3 className="text-lg font-medium text-gray-900">{device.name}</h3>
                     <p className="text-sm text-gray-500">
-                      {device.type} • {device.ip_address}
+                      {device.type}
+                      {device.type === 'switch' && device.layer && ` (${device.layer === 'layer-2' ? 'L2' : 'L3'})`} • {device.ip_address}
                       {device.location && ` • ${device.location}`}
                     </p>
                     {device.description && (
@@ -489,13 +495,40 @@ function Devices() {
                       required
                       className="input mt-1"
                       value={formData.type}
-                      onChange={(e) => setFormData({...formData, type: e.target.value})}
+                      onChange={(e) => {
+                        const newType = e.target.value;
+                        setFormData({
+                          ...formData, 
+                          type: newType,
+                          layer: newType === 'switch' ? 'layer-2' : undefined
+                        });
+                      }}
                     >
                       <option value="switch">Switch</option>
                       <option value="router">Router</option>
+                      <option value="nexus">Nexus Switch</option>
                     </select>
                   </div>
                 </div>
+
+                {/* Layer Selection - only show for switches */}
+                {formData.type === 'switch' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Switch Layer *</label>
+                    <select
+                      required
+                      className="input mt-1"
+                      value={formData.layer || 'layer-2'}
+                      onChange={(e) => setFormData({...formData, layer: e.target.value})}
+                    >
+                      <option value="layer-2">Layer 2 (Data Link)</option>
+                      <option value="layer-3">Layer 3 (Network/Routing)</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Layer 2: Switching only • Layer 3: Switching + Routing capabilities
+                    </p>
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>

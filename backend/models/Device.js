@@ -10,8 +10,30 @@ const deviceSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['router', 'switch'],
+    enum: ['router', 'switch', 'nexus'],
     maxlength: 50
+  },
+  layer: {
+    type: String,
+    enum: ['layer-2', 'layer-3'],
+    default: function() {
+      return this.type === 'switch' ? 'layer-2' : undefined;
+    },
+    validate: {
+      validator: function(value) {
+        // Nexus switches don't need layer specification
+        if (this.type === 'nexus') {
+          return value === undefined || value === null;
+        }
+        // Switches require layer specification
+        if (this.type === 'switch') {
+          return value !== undefined && value !== null;
+        }
+        // Routers don't have layers
+        return value === undefined || value === null;
+      },
+      message: 'Layer specification is only for switch devices, not nexus or router'
+    }
   },
   ip_address: {
     type: String,
