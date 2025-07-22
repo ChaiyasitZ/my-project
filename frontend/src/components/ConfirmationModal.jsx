@@ -20,30 +20,39 @@ function ConfirmationModal({
         return {
           icon: <XCircleIcon className="h-6 w-6 text-red-600" />,
           iconBg: 'bg-red-100',
-          confirmBtn: 'bg-red-600 hover:bg-red-700 focus:ring-red-500',
           titleColor: 'text-red-900'
         };
       case 'success':
         return {
           icon: <CheckCircleIcon className="h-6 w-6 text-green-600" />,
           iconBg: 'bg-green-100',
-          confirmBtn: 'bg-green-600 hover:bg-green-700 focus:ring-green-500',
           titleColor: 'text-green-900'
         };
       case 'info':
         return {
           icon: <InfoIcon className="h-6 w-6 text-blue-600" />,
           iconBg: 'bg-blue-100',
-          confirmBtn: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500',
           titleColor: 'text-blue-900'
         };
       default: // warning
         return {
           icon: <AlertTriangleIcon className="h-6 w-6 text-yellow-600" />,
           iconBg: 'bg-yellow-100',
-          confirmBtn: 'bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500',
           titleColor: 'text-yellow-900'
         };
+    }
+  };
+
+  const getConfirmButtonClass = (modalType) => {
+    switch (modalType) {
+      case 'danger':
+        return 'btn-danger';
+      case 'success':
+        return 'btn-success';
+      case 'info':
+        return 'btn-info';
+      default: // warning
+        return 'btn-warning';
     }
   };
 
@@ -95,7 +104,7 @@ function ConfirmationModal({
               type="button"
               onClick={handleConfirm}
               disabled={loading}
-              className={`w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 text-base font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed ${styles.confirmBtn}`}
+              className={`btn btn-md w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed ${getConfirmButtonClass(type)}`}
             >
               {loading ? (
                 <>
@@ -110,7 +119,7 @@ function ConfirmationModal({
               type="button"
               onClick={handleCancel}
               disabled={loading}
-              className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn btn-secondary btn-md w-full sm:w-auto mt-3 sm:mt-0 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {cancelText}
             </button>

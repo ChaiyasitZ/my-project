@@ -182,7 +182,7 @@ function ConfigurationHistory() {
           <button
             onClick={handleClearAll}
             disabled={clearingAll}
-            className="inline-flex items-center px-4 py-2 border border-red-300 rounded-lg text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="btn btn-outline-danger btn-md"
             title={`Clear ${filter === 'all' ? 'all configurations' : `all ${filter} configurations`}`}
           >
             {clearingAll ? (

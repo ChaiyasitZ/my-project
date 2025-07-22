@@ -412,7 +412,7 @@ function ConsoleConfiguration() {
           <button
             onClick={handleTestConnection}
             disabled={isLoading || !selectedPort}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-400"
+            className="btn btn-primary btn-md"
           >
             {isLoading ? 'Testing...' : 'Test Connection'}
           </button>
@@ -421,7 +421,7 @@ function ConsoleConfiguration() {
             <button
               onClick={handleConnect}
               disabled={isLoading || !selectedPort}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-400"
+              className="btn btn-success btn-md"
             >
               {isLoading ? 'Connecting...' : 'Connect'}
             </button>
@@ -429,7 +429,7 @@ function ConsoleConfiguration() {
             <button
               onClick={handleDisconnect}
               disabled={isLoading}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:bg-gray-400"
+              className="btn btn-danger btn-md"
             >
               {isLoading ? 'Disconnecting...' : 'Disconnect'}
             </button>
@@ -647,7 +647,7 @@ function ConsoleConfiguration() {
                                            const converted = processSubnetInput(cidr);
                                            handleVariableChange('management_mask', converted);
                                          }}
-                                         className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+                                         className="btn btn-outline-primary btn-sm text-xs"
                                          title={`${cidr} = ${cidrToSubnetMask(cidr)} | ${hostCount.toLocaleString()} usable hosts`}
                                        >
                                          <div className="text-center">
@@ -761,7 +761,7 @@ function ConsoleConfiguration() {
             <button
               onClick={handleApplyConfiguration}
               disabled={isLoading || (!selectedTemplate && !customConfig)}
-              className="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-400"
+              className="btn btn-info btn-md"
             >
               {isLoading ? 'Applying Configuration...' : 'Apply Configuration'}
             </button>

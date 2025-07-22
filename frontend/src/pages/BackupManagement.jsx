@@ -528,7 +528,7 @@ function BackupManagement() {
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="btn btn-primary btn-md"
           >
             <PlusIcon className="h-4 w-4 mr-2" />
             Add Backup
@@ -536,7 +536,7 @@ function BackupManagement() {
           <button
             onClick={fetchData}
             disabled={loading}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            className="btn btn-secondary btn-md"
           >
             <RefreshCwIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -699,7 +699,7 @@ function BackupManagement() {
             {(backups || []).length === 0 && (
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="btn btn-primary btn-md"
               >
                 <PlusIcon className="h-4 w-4 mr-2" />
                 Create First Backup
@@ -795,7 +795,7 @@ function BackupManagement() {
                       setSelectedBackup(backup);
                       setShowRestoreModal(true);
                     }}
-                    className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    className="btn btn-primary btn-sm"
                   >
                     <UploadIcon className="h-3 w-3 mr-1" />
                     Restore
@@ -805,7 +805,7 @@ function BackupManagement() {
                     <button
                       onClick={() => handlePreviewBackup(backup)}
                       title="Preview Configuration"
-                      className="inline-flex items-center px-3 py-1.5 border border-blue-300 text-xs font-medium rounded text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      className="btn btn-outline-primary btn-sm"
                     >
                       <EyeIcon className="h-3 w-3" />
                     </button>
@@ -813,13 +813,13 @@ function BackupManagement() {
                       <>
                         <button
                           onClick={() => handleSetRestorePoint(backup)}
-                          className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          className="btn btn-secondary btn-sm"
                         >
                           <ShieldIcon className="h-3 w-3" />
                         </button>
                         <button
                           onClick={() => handleDeleteBackup(backup)}
-                          className="inline-flex items-center px-3 py-1.5 border border-red-300 text-xs font-medium rounded text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                          className="btn btn-outline-danger btn-sm"
                         >
                           <TrashIcon className="h-3 w-3" />
                         </button>
@@ -906,7 +906,7 @@ function BackupManagement() {
                                 if (device) handleTestBackup(device);
                               }}
                               disabled={loading}
-                              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                              className="btn btn-secondary btn-sm"
                             >
                               <WifiIcon className="h-4 w-4 mr-2" />
                               Test Backup Connection
@@ -1126,7 +1126,7 @@ function BackupManagement() {
                                 removeTag(index);
                               }
                             }}
-                            className="inline-flex items-center px-3 py-2 border border-red-300 text-sm font-medium rounded-lg text-red-700 bg-white hover:bg-red-50"
+                            className="btn btn-outline-danger btn-sm"
                           >
                             <XCircleIcon className="h-4 w-4" />
                           </button>
@@ -1144,7 +1144,7 @@ function BackupManagement() {
                             addTag();
                           }
                         }}
-                        className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50"
+                        className="btn btn-secondary btn-sm"
                       >
                         <TagIcon className="h-4 w-4 mr-2" />
                         Add Tag
@@ -1163,7 +1163,7 @@ function BackupManagement() {
                       (!backupForm.device_id || !backupForm.backup_name)
                     )
                   }
-                  className="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn btn-primary btn-md w-full sm:w-auto"
                 >
                   {creating ? (
                     <>
@@ -1180,7 +1180,7 @@ function BackupManagement() {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="btn btn-secondary btn-md w-full sm:w-auto mt-3 sm:mt-0 sm:ml-3"
                 >
                   Cancel
                 </button>
@@ -1309,7 +1309,7 @@ function BackupManagement() {
                             
                             toast.success(`Downloaded ${activeTab} configuration!`);
                           }}
-                          className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          className="btn btn-secondary btn-md"
                         >
                           <DownloadIcon className="h-4 w-4 mr-2" />
                           Download {activeTab === 'running' ? 'Running' : 'Startup'} Config
@@ -1329,7 +1329,7 @@ function BackupManagement() {
                 <button
                   type="button"
                   onClick={() => setShowPreviewModal(false)}
-                  className="w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="btn btn-secondary btn-md w-full sm:w-auto sm:ml-3"
                 >
                   Close
                 </button>
@@ -1420,7 +1420,7 @@ function BackupManagement() {
                 <button
                   onClick={handleRestoreBackup}
                   disabled={restoring}
-                  className="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-orange-600 text-base font-medium text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn btn-warning btn-md w-full sm:w-auto sm:ml-3"
                 >
                   {restoring ? (
                     <>
@@ -1437,7 +1437,7 @@ function BackupManagement() {
                 <button
                   type="button"
                   onClick={() => setShowRestoreModal(false)}
-                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="btn btn-secondary btn-md w-full sm:w-auto mt-3 sm:mt-0 sm:ml-3"
                 >
                   Cancel
                 </button>
