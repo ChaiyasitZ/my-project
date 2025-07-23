@@ -39,15 +39,27 @@ IMPORTANT - Convert CIDR prefix to wildcard mask:
 - /27 = 0.0.0.31 wildcard
 - /28 = 0.0.0.15 wildcard
 - /30 = 0.0.0.3 wildcard
+- /31 = 0.0.0.1 wildcard
+- /32 = 0.0.0.0 wildcard
 
 Example: "192.168.1.0/25" becomes "network 192.168.1.0 0.0.0.127"
 
 Template:
-configure terminal
-router ospf [process-id]
- network [ip-address] [wildcard-mask] area [area]
-exit
-end
+OSPF:
+  configure terminal
+    router ospf [process-id]
+    network [ip-address] [wildcard-mask] area [area]
+  exit
+  end
+
+RIPv2:
+  configure terminal
+  router rip
+    version 2
+    network [ip-address]
+    no auto-summary
+  exit
+  end
 
 Configuration:`;
 

@@ -18,7 +18,37 @@ class NetconfService {
     try {
       const conn = new Client();
       
+      // Configure SSH connection with better stability settings
+      const sshConfig = {
+        host: ip_address,
+        port: 22, // SSH port (not NETCONF port)
+        username: username,
+        password: password,
+        readyTimeout: 30000, // 30 second timeout
+        keepaliveInterval: 5000, // Send keepalive every 5 seconds
+        keepaliveCountMax: 3, // Allow 3 missed keepalives
+        algorithms: {
+          kex: ['diffie-hellman-group14-sha256', 'diffie-hellman-group14-sha1'],
+          cipher: ['aes128-ctr', 'aes192-ctr', 'aes256-ctr'],
+          hmac: ['hmac-sha2-256', 'hmac-sha1'],
+        }
+      };
+      
       return new Promise((resolve, reject) => {
+        // Add connection error handlers
+        conn.on('error', (err) => {
+          console.error(`❌ SSH connection error for ${ip_address}:`, err);
+          reject(new Error(`SSH connection failed: ${err.message}`));
+        });
+
+        conn.on('end', () => {
+          console.log(`📡 SSH connection ended for ${ip_address}`);
+        });
+
+        conn.on('close', () => {
+          console.log(`🔌 SSH connection closed for ${ip_address}`);
+        });
+
         conn.on('ready', () => {
           console.log(`✅ SSH connection ready for ${ip_address}`);
           
@@ -30,6 +60,9 @@ class NetconfService {
             }
 
             console.log(`🔗 NETCONF session started for ${ip_address}`);
+            
+            // Configure stream for better reliability
+            stream.setKeepAlive(true, 5000); // Enable TCP keepalive
             
             // Send NETCONF hello
             const hello = this.buildHello();
@@ -60,35 +93,56 @@ class NetconfService {
               console.log(`📥 Setup data: ${chunk.length} bytes - ${chunk.substring(0, 100)}${chunk.length > 100 ? '...' : ''}`);
               
               // Check for complete messages (ending with ]]>]]>)
-              const messages = buffer.split(']]>]]>');
-              buffer = messages.pop(); // Keep incomplete message in buffer
-              
-              messages.forEach(message => {
-                if (message.trim()) {
-                  console.log(`🔄 Processing setup message: ${message.substring(0, 200)}...`);
-                  this.handleNetconfMessage(message + ']]>]]>', session);
-                  
-                  // If this was a hello response, resolve the connection
-                  if (message.includes('</hello>') && session.capabilities && session.capabilities.length > 0) {
-                    clearTimeout(connectionTimeout);
-                    this.sessions.set(sessionId, session);
-                    session.connected_at = new Date();
-                    console.log(`✅ NETCONF session established for ${ip_address} with ${session.capabilities.length} capabilities`);
-                    resolve(session);
+              if (buffer.includes(']]>]]>')) {
+                const messages = buffer.split(']]>]]>');
+                buffer = messages.pop(); // Keep incomplete message in buffer
+                
+                messages.forEach(message => {
+                  if (message.trim()) {
+                    console.log(`🔄 Processing setup message: ${message.substring(0, 200)}...`);
+                    this.handleNetconfMessage(message.trim(), session);
+                    
+                    // If this was a hello response, resolve the connection
+                    if (message.includes('</hello>') && session.capabilities && session.capabilities.length > 0) {
+                      clearTimeout(connectionTimeout);
+                      this.sessions.set(sessionId, session);
+                      session.connected_at = new Date();
+                      console.log(`✅ NETCONF session established for ${ip_address} with ${session.capabilities.length} capabilities`);
+                      resolve(session);
+                    }
                   }
-                }
-              });
+                });
+              }
             });
 
             stream.on('close', () => {
               console.log(`❌ NETCONF session closed for ${ip_address}`);
               session.isConnected = false;
               this.sessions.delete(sessionId);
+              
+              // Clean up any pending RPCs
+              if (session.pendingRpcs) {
+                session.pendingRpcs.forEach((pendingRpc, messageId) => {
+                  clearTimeout(pendingRpc.timeout);
+                  pendingRpc.reject(new Error('NETCONF session closed'));
+                });
+                session.pendingRpcs.clear();
+              }
             });
 
             stream.on('error', (err) => {
               console.error(`❌ NETCONF stream error for ${ip_address}:`, err);
               session.isConnected = false;
+              
+              // Clean up any pending RPCs
+              if (session.pendingRpcs) {
+                session.pendingRpcs.forEach((pendingRpc, messageId) => {
+                  clearTimeout(pendingRpc.timeout);
+                  pendingRpc.reject(new Error(`NETCONF stream error: ${err.message}`));
+                });
+                session.pendingRpcs.clear();
+              }
+              
               reject(err);
             });
 
@@ -120,38 +174,8 @@ class NetconfService {
           reject(new Error(`SSH connection failed: ${err.message}`));
         });
 
-        // Connect with SSH - Support older Cisco devices
-        conn.connect({
-          host: ip_address,
-          port: 22, // SSH port for NETCONF
-          username,
-          password,
-          readyTimeout: 30000,
-          algorithms: {
-            kex: [
-              'diffie-hellman-group14-sha256',
-              'diffie-hellman-group14-sha1',
-              'diffie-hellman-group1-sha1',
-              'diffie-hellman-group-exchange-sha256',
-              'diffie-hellman-group-exchange-sha1'
-            ],
-            cipher: [
-              'aes128-ctr',
-              'aes192-ctr', 
-              'aes256-ctr',
-              'aes128-cbc',
-              'aes192-cbc',
-              'aes256-cbc',
-              '3des-cbc'
-            ],
-            hmac: [
-              'hmac-sha2-256',
-              'hmac-sha2-512',
-              'hmac-sha1',
-              'hmac-sha1-96'
-            ]
-          }
-        });
+        // Connect with SSH using improved config
+        conn.connect(sshConfig);
       });
 
     } catch (error) {
@@ -189,22 +213,59 @@ class NetconfService {
     }
   }
 
-  // Get device configuration
-  async getConfig(sessionId, datastore = 'running', filter = null) {
+  // Get device configuration with retry mechanism
+  async getConfig(sessionId, datastore = 'running', filter = null, retries = 2) {
     const session = this.sessions.get(sessionId);
     if (!session || !session.isConnected) {
       throw new Error('NETCONF session not available');
     }
 
     const rpcContent = {
-      source: { [datastore]: null }
+      datastore: datastore
     };
 
     if (filter) {
       rpcContent.filter = filter;
     }
 
-    return this.sendRpc(session, 'get-config', rpcContent);
+    let lastError;
+    for (let attempt = 1; attempt <= retries + 1; attempt++) {
+      try {
+        console.log(`🔄 get-config attempt ${attempt}/${retries + 1} for ${sessionId}`);
+        
+        // Check connection health before retry
+        if (attempt > 1) {
+          if (!session.conn || session.conn._readyState !== 'open') {
+            throw new Error('SSH connection lost, cannot retry');
+          }
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        const result = await this.sendRpc(session, 'get-config', rpcContent);
+        console.log(`✅ get-config successful on attempt ${attempt}`);
+        return result;
+        
+      } catch (error) {
+        console.error(`❌ get-config attempt ${attempt} failed:`, error.message);
+        lastError = error;
+        
+        // Don't retry on connection errors
+        if (error.message.includes('SSH connection lost') || 
+            error.message.includes('NETCONF session closed') ||
+            error.message.includes('ECONNRESET')) {
+          console.log(`🚫 Cannot retry due to connection loss`);
+          break;
+        }
+        
+        if (attempt === retries + 1) {
+          console.log(`🚫 All retry attempts exhausted`);
+          break;
+        }
+      }
+    }
+
+    throw new Error(`get-config failed after ${retries + 1} attempts: ${lastError.message}`);
   }
 
   // Get operational data
@@ -482,19 +543,58 @@ class NetconfService {
 
   // Build NETCONF RPC message
   buildRpc(operation, content, messageId) {
-    const rpc = {
-      $: {
-        'message-id': messageId,
-        'xmlns': 'urn:ietf:params:xml:ns:netconf:base:1.0'
-      },
-      [operation]: content
-    };
-
-    let xml = this.builder.buildObject({ rpc });
-    // Fix XML declaration
-    xml = xml.replace('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', 
-                     '<?xml version="1.0" encoding="UTF-8"?>');
-    return xml + ']]>]]>';
+    // Build RPC manually to avoid namespace issues
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<rpc message-id="${messageId}" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">`;
+    
+    if (operation === 'get-config') {
+      xml += `
+  <get-config>
+    <source>
+      <${content.datastore || 'running'}/>
+    </source>`;
+      if (content.filter) {
+        xml += `
+    <filter type="subtree">
+      ${content.filter}
+    </filter>`;
+      }
+      xml += `
+  </get-config>`;
+    } else if (operation === 'get') {
+      xml += `
+  <get>`;
+      if (content.filter) {
+        xml += `
+    <filter type="subtree">
+      ${content.filter}
+    </filter>`;
+      }
+      xml += `
+  </get>`;
+    } else if (operation === 'edit-config') {
+      xml += `
+  <edit-config>
+    <target>
+      <${content.target || 'running'}/>
+    </target>
+    <default-operation>${content.operation || 'merge'}</default-operation>
+    <config>
+      ${content.config}
+    </config>
+  </edit-config>`;
+    } else {
+      // Generic operation
+      xml += `
+  <${operation}>
+    ${JSON.stringify(content)}
+  </${operation}>`;
+    }
+    
+    xml += `
+</rpc>]]>]]>`;
+    
+    return xml;
   }
 
   // Send RPC and wait for response
@@ -506,17 +606,45 @@ class NetconfService {
         return;
       }
 
+      // Check if SSH connection is still alive
+      if (!session.conn || session.conn._readyState !== 'open') {
+        console.error(`❌ SSH connection lost for ${session.ip_address}`);
+        session.isConnected = false;
+        reject(new Error('SSH connection lost'));
+        return;
+      }
+
       const messageId = session.messageId();
       const rpc = this.buildRpc(operation, content, messageId);
       
       console.log(`📤 Sending NETCONF RPC: ${operation} (message-id: ${messageId})`);
-      console.log(`🔍 RPC Content: ${rpc.substring(0, 200)}...`);
+      console.log(`🔍 RPC Content: ${rpc.substring(0, 300)}...`);
       
-      // Increase timeout for slower devices and add connection check
+      // Store pending RPC for message ID matching
+      if (!session.pendingRpcs) {
+        session.pendingRpcs = new Map();
+      }
+      
+      // Set timeout with connection health check
       const timeout = setTimeout(() => {
+        // Clean up pending RPC
+        if (session.pendingRpcs) {
+          session.pendingRpcs.delete(messageId);
+        }
+        session.stream.removeAllListeners('data');
+        
         console.log(`⏰ NETCONF RPC timeout for ${operation} on ${session.ip_address}`);
-        reject(new Error(`NETCONF RPC timeout for ${operation} after 60 seconds`));
-      }, 60000); // Increased to 60 seconds
+        
+        // Check if connection is still alive
+        if (!session.conn || session.conn._readyState !== 'open') {
+          reject(new Error(`SSH connection lost during ${operation}`));
+        } else {
+          reject(new Error(`NETCONF RPC timeout for ${operation} after 25 seconds`));
+        }
+      }, 25000); // Reduced to 25 seconds
+      
+      // Store the resolve/reject functions for this message ID
+      session.pendingRpcs.set(messageId, { resolve, reject, timeout, operation });
 
       let responseBuffer = '';
 
@@ -674,6 +802,68 @@ class NetconfService {
     });
   }
 
+  // Process NETCONF response with proper message ID matching
+  processNetconfResponse(response, session, expectedMessageId, operation, resolve, reject) {
+    try {
+      console.log(`🔄 Processing NETCONF response for message ID ${expectedMessageId}`);
+      
+      // Extract message ID from response
+      const messageIdMatch = response.match(/message-id="(\d+)"/);
+      const responseMessageId = messageIdMatch ? parseInt(messageIdMatch[1]) : null;
+      
+      console.log(`🆔 Expected: ${expectedMessageId}, Received: ${responseMessageId}`);
+      
+      // Check if we have pending RPC for this message ID
+      if (session.pendingRpcs && session.pendingRpcs.has(expectedMessageId)) {
+        const pendingRpc = session.pendingRpcs.get(expectedMessageId);
+        
+        // Clear timeout and remove from pending
+        clearTimeout(pendingRpc.timeout);
+        session.pendingRpcs.delete(expectedMessageId);
+        session.stream.removeAllListeners('data');
+        
+        // Parse the response
+        this.parser.parseString(response, (err, result) => {
+          if (err) {
+            console.error(`❌ XML parsing error: ${err.message}`);
+            pendingRpc.reject(new Error(`XML parsing error: ${err.message}`));
+            return;
+          }
+          
+          // Check for NETCONF errors in different formats
+          let rpcError = null;
+          if (result['rpc-reply'] && result['rpc-reply']['rpc-error']) {
+            rpcError = result['rpc-reply']['rpc-error'];
+          } else if (result.rpc && result.rpc['rpc-error']) {
+            rpcError = result.rpc['rpc-error'];
+          }
+          
+          if (rpcError) {
+            const errorMsg = rpcError['error-message'] || 'Unknown NETCONF error';
+            const errorType = rpcError['error-type'] || 'unknown';
+            const errorTag = rpcError['error-tag'] || 'unknown';
+            console.error(`❌ NETCONF RPC error: ${errorMsg} (type: ${errorType}, tag: ${errorTag})`);
+            pendingRpc.reject(new Error(`NETCONF RPC error: ${errorMsg}`));
+            return;
+          }
+          
+          console.log(`✅ NETCONF RPC ${operation} completed successfully`);
+          pendingRpc.resolve({
+            success: true,
+            operation,
+            messageId: expectedMessageId,
+            data: result
+          });
+        });
+      } else {
+        console.log(`⚠️ No pending RPC found for message ID ${expectedMessageId}`);
+      }
+    } catch (error) {
+      console.error(`❌ Error processing NETCONF response:`, error);
+      reject(error);
+    }
+  }
+
   // Handle incoming NETCONF messages
   handleNetconfMessage(message, session) {
     try {
@@ -687,6 +877,16 @@ class NetconfService {
             console.log(`📋 Received capabilities for ${session.ip_address}:`, session.capabilities.length);
           }
         });
+      } else if (message.includes('<rpc-reply')) {
+        // Handle RPC replies
+        const messageIdMatch = message.match(/message-id="(\d+)"/);
+        if (messageIdMatch) {
+          const messageId = parseInt(messageIdMatch[1]);
+          if (session.pendingRpcs && session.pendingRpcs.has(messageId)) {
+            const pendingRpc = session.pendingRpcs.get(messageId);
+            this.processNetconfResponse(message.replace(']]>]]>', ''), session, messageId, pendingRpc.operation, pendingRpc.resolve, pendingRpc.reject);
+          }
+        }
       }
     } catch (error) {
       console.error(`❌ Error handling NETCONF message:`, error);

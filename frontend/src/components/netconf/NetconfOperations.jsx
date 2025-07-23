@@ -19,18 +19,41 @@ const NetconfOperations = ({ activeSessions }) => {
     const toastId = toast.loading(`Getting ${datastore} configuration...`);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/netconf/config/${sessionId}?datastore=${datastore}`);
+      // Add timeout to the request
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout
+      
+      const response = await fetch(`${API_BASE_URL}/netconf/config/${sessionId}?datastore=${datastore}`, {
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      clearTimeout(timeoutId);
       const data = await response.json();
       
       if (data.success) {
-        setConfigData(JSON.stringify(data.data.config, null, 2));
+        console.log('✅ Configuration data received:', data);
+        if (data.data && data.data.config) {
+          setConfigData(JSON.stringify(data.data.config, null, 2));
+        } else if (data.data) {
+          setConfigData(JSON.stringify(data.data, null, 2));
+        } else {
+          setConfigData('No configuration data received');
+        }
         toast.success(`${datastore} configuration retrieved successfully!`, { id: toastId });
       } else {
-        toast.error(`Failed to get configuration: ${data.message}`, { id: toastId });
+        console.error('❌ Configuration request failed:', data);
+        toast.error(`Failed to get configuration: ${data.message || 'Unknown error'}`, { id: toastId });
       }
     } catch (error) {
       console.error('Error getting configuration:', error);
-      toast.error('Failed to get configuration: ' + error.message, { id: toastId });
+      if (error.name === 'AbortError') {
+        toast.error('Request timed out. Please try again.', { id: toastId });
+      } else {
+        toast.error('Failed to get configuration: ' + error.message, { id: toastId });
+      }
     } finally {
       setLoading(false);
     }
