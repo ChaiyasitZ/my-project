@@ -16,7 +16,7 @@ const configurationBackupSchema = new mongoose.Schema({
   startup_config: String,
   backup_type: {
     type: String,
-    enum: ['manual', 'scheduled', 'pre_change', 'post_change'],
+    enum: ['manual', 'scheduled'],
     default: 'manual'
   },
   config_type: {

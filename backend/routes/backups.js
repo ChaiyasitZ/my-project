@@ -377,7 +377,7 @@ router.post('/:id/restore', async (req, res) => {
               description: `Automatic checkpoint before restoring backup: ${backup.backup_name}`,
               running_config: checkpointResult.runningConfig,
               startup_config: checkpointResult.startupConfig,
-              backup_type: 'pre_change',
+              backup_type: 'manual',
               file_size: checkpointResult.runningConfigSize + checkpointResult.startupConfigSize,
               config_hash: checkpointHash,
               created_by: 'system',
