@@ -1,5 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+
+// Configure axios - use relative URLs since Vite will proxy /api to backend
+const api = axios.create({
+  baseURL: '/api'
+});
 import toast from 'react-hot-toast';
 import { 
   PlusIcon, 
@@ -43,8 +48,8 @@ const NetconfDeviceManager = ({
 
   const [formData, setFormData] = useState({
     name: '',
-    type: 'switch',
-    layer: 'layer-2',
+    device_type: 'cisco_ios',
+    vendor: 'cisco',
     ip_address: '',
     ssh_port: 22,
     username: '',
@@ -52,60 +57,56 @@ const NetconfDeviceManager = ({
     description: '',
     location: '',
     model: '',
+    platform: '',
+    os_version: '',
     status: 'active',
     netconf_enabled: true,
     netconf_port: 830,
     netconf_capabilities: [],
     yang_models: [],
-    preferred_connection: 'netconf'
+    connection_timeout: 30000,
+    keepalive_interval: 5000,
+    max_retries: 3
   });
-
-  useEffect(() => {
-    fetchDevices();
-  }, []);
-
-  // Filter devices whenever devices, selectedFilter, or searchTerm changes
-  useEffect(() => {
-    filterDevices();
-  }, [devices, selectedFilter, searchTerm]);
 
   const fetchDevices = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/devices');
-      const devicesData = response.data.devices || [];
+      console.log('🔍 Fetching NETCONF devices from:', api.defaults.baseURL + '/netconf-devices');
+      const response = await api.get('/netconf-devices');
+      console.log('📥 NETCONF devices response:', response.data);
+      const devicesData = response.data.data?.devices || [];
       
       // Fetch real-time session status for each NETCONF device
       const devicesWithSessionStatus = await Promise.all(
         devicesData.map(async (device) => {
-          if (device.netconf_enabled) {
-            try {
-              const sessionResponse = await axios.get(`/netconf/device-session-status/${device.id}`);
-              if (sessionResponse.data.success) {
-                return {
-                  ...device,
-                  real_time_session_status: sessionResponse.data.data.real_time_status,
-                  session_info: sessionResponse.data.data.session_info
-                };
-              }
-            } catch (sessionError) {
-              console.warn(`Failed to get session status for ${device.name}:`, sessionError.message);
+          try {
+            const sessionResponse = await api.get(`/netconf/device-session-status/${device.id || device._id}`);
+            if (sessionResponse.data.success) {
+              return {
+                ...device,
+                real_time_session_status: sessionResponse.data.data.real_time_status,
+                session_info: sessionResponse.data.data.session_info
+              };
             }
+          } catch (sessionError) {
+            console.warn(`Failed to get session status for ${device.name}:`, sessionError.message);
           }
           return device;
         })
       );
       
       setDevices(devicesWithSessionStatus);
+      console.log('✅ Loaded NETCONF devices:', devicesWithSessionStatus.length);
     } catch (error) {
-      console.error('Error fetching devices:', error);
-      toast.error('Failed to fetch devices');
+      console.error('❌ Error fetching NETCONF devices:', error);
+      toast.error('Failed to fetch NETCONF devices: ' + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
     }
   };
 
-  const filterDevices = () => {
+  const filterDevices = useCallback(() => {
     // Always start with only NETCONF-enabled devices
     let filtered = devices.filter(device => device.netconf_enabled);
 
@@ -116,9 +117,16 @@ const NetconfDeviceManager = ({
         (device.last_connection?.type === 'netconf' && device.last_connection?.status === 'success')
       );
     } else if (selectedFilter === 'switch') {
-      filtered = filtered.filter(device => device.type === 'switch');
+      filtered = filtered.filter(device => 
+        device.device_type === 'cisco_ios' || 
+        device.device_type === 'cisco_nxos' ||
+        device.type === 'switch' // backwards compatibility
+      );
     } else if (selectedFilter === 'router') {
-      filtered = filtered.filter(device => device.type === 'router');
+      filtered = filtered.filter(device => 
+        device.device_type === 'cisco_iosxr' ||
+        device.type === 'router' // backwards compatibility
+      );
     }
     // 'all' means all NETCONF devices, no additional filtering needed
 
@@ -134,7 +142,16 @@ const NetconfDeviceManager = ({
     }
 
     setFilteredDevices(filtered);
-  };
+  }, [devices, selectedFilter, searchTerm]);
+
+  useEffect(() => {
+    fetchDevices();
+  }, []);
+
+  // Filter devices whenever dependencies change - MOVED AFTER filterDevices definition
+  useEffect(() => {
+    filterDevices();
+  }, [filterDevices]);
 
   const getFilterCounts = () => {
     const netconfDevices = devices.filter(d => d.netconf_enabled);
@@ -169,11 +186,11 @@ const NetconfDeviceManager = ({
     e.preventDefault();
     try {
       if (editingDevice) {
-        await axios.put(`/devices/${editingDevice.id}`, formData);
+        await api.put(`/netconf-devices/${editingDevice.id}`, formData);
         console.log('✅ NETCONF Device updated successfully:', formData.name);
         toast.success(`NETCONF Device "${formData.name}" updated successfully!`);
       } else {
-        await axios.post('/devices', formData);
+        await api.post('/netconf-devices', formData);
         console.log('✅ NETCONF Device created successfully:', formData.name);
         toast.success(`NETCONF Device "${formData.name}" created successfully!`);
       }
@@ -192,20 +209,25 @@ const NetconfDeviceManager = ({
     setEditingDevice(device);
     setFormData({
       name: device.name,
-      type: device.type,
+      device_type: device.device_type || 'cisco_ios',
+      vendor: device.vendor || 'cisco',
       ip_address: device.ip_address,
-      ssh_port: device.ssh_port,
+      ssh_port: device.ssh_port || 22,
       username: device.username,
       password: '', // Don't populate password for security
       description: device.description || '',
       location: device.location || '',
       model: device.model || '',
-      status: device.status,
-      netconf_enabled: device.netconf_enabled || true,
+      platform: device.platform || '',
+      os_version: device.os_version || '',
+      status: device.status || 'active',
+      netconf_enabled: device.netconf_enabled !== false,
       netconf_port: device.netconf_port || 830,
       netconf_capabilities: device.netconf_capabilities || [],
       yang_models: device.yang_models || [],
-      preferred_connection: device.preferred_connection || 'netconf'
+      connection_timeout: device.connection_timeout || 30000,
+      keepalive_interval: device.keepalive_interval || 5000,
+      max_retries: device.max_retries || 3
     });
     setShowModal(true);
   };
@@ -223,8 +245,8 @@ const NetconfDeviceManager = ({
 
     if (confirmed) {
       try {
-        console.log(`📤 DELETE request to: /devices/${device.id}`);
-        const response = await axios.delete(`/devices/${device.id}`);
+        console.log(`📤 DELETE request to: /netconf-devices/${device.id}`);
+        const response = await api.delete(`/netconf-devices/${device.id}`);
         console.log('📥 Delete response:', response.data);
         console.log('✅ NETCONF Device deleted successfully:', device.name);
         toast.success(`NETCONF Device "${device.name}" deleted successfully!`);
@@ -303,7 +325,8 @@ const NetconfDeviceManager = ({
   const resetForm = () => {
     setFormData({
       name: '',
-      type: 'switch',
+      device_type: 'cisco_ios',
+      vendor: 'cisco',
       ip_address: '',
       ssh_port: 22,
       username: '',
@@ -311,12 +334,16 @@ const NetconfDeviceManager = ({
       description: '',
       location: '',
       model: '',
+      platform: '',
+      os_version: '',
       status: 'active',
       netconf_enabled: true,
       netconf_port: 830,
       netconf_capabilities: [],
       yang_models: [],
-      preferred_connection: 'netconf'
+      connection_timeout: 30000,
+      keepalive_interval: 5000,
+      max_retries: 3
     });
   };
 
@@ -712,23 +739,33 @@ const NetconfDeviceManager = ({
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Type *</label>
+                    <label className="block text-sm font-medium text-gray-700">Device Type *</label>
                     <select
                       required
                       className="input mt-1"
-                      value={formData.type}
+                      value={formData.device_type}
                       onChange={(e) => {
-                        const newType = e.target.value;
+                        const newDeviceType = e.target.value;
+                        // Auto-set vendor based on device type
+                        let vendor = 'cisco';
+                        if (newDeviceType.includes('juniper')) vendor = 'juniper';
+                        else if (newDeviceType.includes('huawei')) vendor = 'huawei';
+                        else if (newDeviceType.includes('arista')) vendor = 'arista';
+                        
                         setFormData({
                           ...formData, 
-                          type: newType,
-                          layer: newType === 'switch' ? 'layer-2' : undefined
+                          device_type: newDeviceType,
+                          vendor: vendor
                         });
                       }}
                     >
-                      <option value="switch">Switch</option>
-                      <option value="router">Router</option>
-                      <option value="nexus">Nexus Switch</option>
+                      <option value="cisco_ios">Cisco IOS</option>
+                      <option value="cisco_nxos">Cisco NX-OS (Nexus)</option>
+                      <option value="cisco_iosxr">Cisco IOS-XR</option>
+                      <option value="juniper_junos">Juniper Junos</option>
+                      <option value="huawei_vrp">Huawei VRP</option>
+                      <option value="arista_eos">Arista EOS</option>
+                      <option value="other">Other</option>
                     </select>
                   </div>
                 </div>
@@ -778,6 +815,35 @@ const NetconfDeviceManager = ({
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
+                    <label className="block text-sm font-medium text-gray-700">Vendor *</label>
+                    <select
+                      required
+                      className="input mt-1"
+                      value={formData.vendor}
+                      onChange={(e) => setFormData({...formData, vendor: e.target.value})}
+                    >
+                      <option value="cisco">Cisco</option>
+                      <option value="juniper">Juniper</option>
+                      <option value="huawei">Huawei</option>
+                      <option value="arista">Arista</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Platform</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Cisco Nexus 9300"
+                      className="input mt-1"
+                      value={formData.platform}
+                      onChange={(e) => setFormData({...formData, platform: e.target.value})}
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
                     <label className="block text-sm font-medium text-gray-700">Username *</label>
                     <input
                       type="text"
@@ -821,16 +887,57 @@ const NetconfDeviceManager = ({
                      </div>
                      
                      <div>
-                       <label className="block text-sm font-medium text-gray-700">Preferred Connection</label>
+                       <label className="block text-sm font-medium text-gray-700">NETCONF Enabled</label>
                        <select
                          className="input mt-1"
-                         value={formData.preferred_connection}
-                         onChange={(e) => setFormData({...formData, preferred_connection: e.target.value})}
+                         value={formData.netconf_enabled ? 'true' : 'false'}
+                         onChange={(e) => setFormData({...formData, netconf_enabled: e.target.value === 'true'})}
                        >
-                         <option value="netconf">NETCONF</option>
-                         <option value="ssh">SSH</option>
-                         <option value="console">Console</option>
+                         <option value="true">Enabled</option>
+                         <option value="false">Disabled</option>
                        </select>
+                     </div>
+                   </div>
+                   
+                   <div className="border-t border-gray-200 pt-4 mt-4">
+                     <h4 className="text-md font-medium text-gray-900 mb-3">Advanced NETCONF Settings</h4>
+                     
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                       <div>
+                         <label className="block text-sm font-medium text-gray-700">Connection Timeout (ms)</label>
+                         <input
+                           type="number"
+                           min="5000"
+                           max="120000"
+                           className="input mt-1"
+                           value={formData.connection_timeout}
+                           onChange={(e) => setFormData({...formData, connection_timeout: parseInt(e.target.value) || 30000})}
+                         />
+                       </div>
+                       
+                       <div>
+                         <label className="block text-sm font-medium text-gray-700">Keepalive Interval (ms)</label>
+                         <input
+                           type="number"
+                           min="1000"
+                           max="30000"
+                           className="input mt-1"
+                           value={formData.keepalive_interval}
+                           onChange={(e) => setFormData({...formData, keepalive_interval: parseInt(e.target.value) || 5000})}
+                         />
+                       </div>
+                       
+                       <div>
+                         <label className="block text-sm font-medium text-gray-700">Max Retries</label>
+                         <input
+                           type="number"
+                           min="1"
+                           max="10"
+                           className="input mt-1"
+                           value={formData.max_retries}
+                           onChange={(e) => setFormData({...formData, max_retries: parseInt(e.target.value) || 3})}
+                         />
+                       </div>
                      </div>
                    </div>
                  </div>
@@ -861,12 +968,23 @@ const NetconfDeviceManager = ({
                      <label className="block text-sm font-medium text-gray-700">Model</label>
                      <input
                        type="text"
-                       placeholder="Nexus 9000"
+                       placeholder="e.g., C9300-48P"
                        className="input mt-1"
                        value={formData.model}
                        onChange={(e) => setFormData({...formData, model: e.target.value})}
                      />
                    </div>
+                 </div>
+                 
+                 <div>
+                   <label className="block text-sm font-medium text-gray-700">OS Version</label>
+                   <input
+                     type="text"
+                     placeholder="e.g., 16.12.04"
+                     className="input mt-1"
+                     value={formData.os_version}
+                     onChange={(e) => setFormData({...formData, os_version: e.target.value})}
+                   />
                  </div>
                 
                 <div>

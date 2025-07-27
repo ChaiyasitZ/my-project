@@ -1,6 +1,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import xml2js from 'xml2js';
+import NetconfDevice from '../models/NetconfDevice.js';
 import Device from '../models/Device.js';
 import YangModel from '../models/YangModel.js';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
@@ -45,7 +46,12 @@ router.get('/device-session-status/:device_id', async (req, res) => {
   try {
     const { device_id } = req.params;
     
-    const device = await Device.findById(device_id);
+    // Try NETCONF device first, then fallback to regular device
+    let device = await NetconfDevice.findById(device_id);
+    if (!device) {
+      device = await Device.findById(device_id);
+    }
+    
     if (!device) {
       return res.status(404).json({
         success: false,
@@ -97,7 +103,12 @@ router.post('/test-connection', async (req, res) => {
       });
     }
 
-    const device = await Device.findById(device_id);
+    // Try NETCONF device first, then fallback to regular device
+    let device = await NetconfDevice.findById(device_id);
+    if (!device) {
+      device = await Device.findById(device_id);
+    }
+    
     if (!device) {
       return res.status(404).json({
         success: false,
@@ -163,7 +174,12 @@ router.post('/connect/:device_id', async (req, res) => {
   try {
     const { device_id } = req.params;
 
-    const device = await Device.findById(device_id);
+    // Try NETCONF device first, then fallback to regular device
+    let device = await NetconfDevice.findById(device_id);
+    if (!device) {
+      device = await Device.findById(device_id);
+    }
+    
     if (!device) {
       return res.status(404).json({
         success: false,

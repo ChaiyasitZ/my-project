@@ -11,6 +11,7 @@ import configurationsRouter from './routes/configurations.js';
 import consoleRouter from './routes/console.js';
 import backupsRouter from './routes/backups.js';
 import netconfRouter from './routes/netconf.js';
+import netconfDevicesRouter from './routes/netconfDevices.js';
 
 
 // Import services for cleanup
@@ -90,6 +91,7 @@ app.use('/api/configurations', configurationsRouter);
 app.use('/api/console', consoleRouter);
 app.use('/api/backups', backupsRouter);
 app.use('/api/netconf', netconfRouter);
+app.use('/api/netconf-devices', netconfDevicesRouter);
 
 
 // Root endpoint
@@ -116,6 +118,7 @@ app.get('/', (req, res) => {
       console: '/api/console',
       backups: '/api/backups',
       netconf: '/api/netconf',
+      netconf_devices: '/api/netconf-devices',
       compliance: '/api/compliance'
     },
     protocols: ['SSH', 'Console', 'NETCONF'],

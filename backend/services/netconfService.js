@@ -18,7 +18,7 @@ class NetconfService {
     try {
       const conn = new Client();
       
-      // Configure SSH connection with better stability settings
+      // Configure SSH connection with enhanced stability settings
       const sshConfig = {
         host: ip_address,
         port: 22, // SSH port (not NETCONF port)
@@ -28,10 +28,14 @@ class NetconfService {
         keepaliveInterval: 5000, // Send keepalive every 5 seconds
         keepaliveCountMax: 3, // Allow 3 missed keepalives
         algorithms: {
-          kex: ['diffie-hellman-group14-sha256', 'diffie-hellman-group14-sha1'],
-          cipher: ['aes128-ctr', 'aes192-ctr', 'aes256-ctr'],
+          kex: ['diffie-hellman-group14-sha256', 'diffie-hellman-group14-sha1', 'diffie-hellman-group1-sha1'],
+          cipher: ['aes128-ctr', 'aes192-ctr', 'aes256-ctr', 'aes128-cbc', '3des-cbc'],
           hmac: ['hmac-sha2-256', 'hmac-sha1'],
-        }
+          compress: ['none']
+        },
+        // Additional connection options for better compatibility
+        tryKeyboard: true,
+        debug: false // Set to true for SSH debugging
       };
       
       return new Promise((resolve, reject) => {
@@ -61,8 +65,8 @@ class NetconfService {
 
             console.log(`🔗 NETCONF session started for ${ip_address}`);
             
-            // Configure stream for better reliability
-            stream.setKeepAlive(true, 5000); // Enable TCP keepalive
+            // Note: Keep-alive is already configured on the SSH connection level
+            // NETCONF subsystem streams don't support setKeepAlive method
             
             // Send NETCONF hello
             const hello = this.buildHello();
@@ -170,12 +174,26 @@ class NetconfService {
         });
 
         conn.on('error', (err) => {
-          console.error(`❌ SSH connection error for ${ip_address}:`, err);
-          reject(new Error(`SSH connection failed: ${err.message}`));
+          console.error(`❌ SSH connection error for ${ip_address}:`, err.message);
+          // Provide more specific error information
+          let errorMsg = `SSH connection failed: ${err.message}`;
+          if (err.code) {
+            errorMsg += ` (Code: ${err.code})`;
+          }
+          if (err.level) {
+            errorMsg += ` (Level: ${err.level})`;
+          }
+          reject(new Error(errorMsg));
         });
 
-        // Connect with SSH using improved config
-        conn.connect(sshConfig);
+        // Connect with SSH using enhanced config
+        console.log(`🔗 Attempting SSH connection to ${ip_address}:22 for NETCONF`);
+        try {
+          conn.connect(sshConfig);
+        } catch (connectError) {
+          console.error(`❌ Failed to initiate SSH connection to ${ip_address}:`, connectError.message);
+          reject(new Error(`SSH connection initiation failed: ${connectError.message}`));
+        }
       });
 
     } catch (error) {
@@ -456,41 +474,94 @@ class NetconfService {
     }
   }
 
-  // Test NETCONF connection
+  // Test NETCONF connection with enhanced diagnostics
   async testConnection(deviceConfig) {
+    const startTime = Date.now();
+    
     try {
       console.log(`🧪 Testing NETCONF connection to ${deviceConfig.ip_address}:${deviceConfig.netconf_port || 830}`);
+      console.log(`📋 Device details: ${deviceConfig.name} (${deviceConfig.type})`);
       
+      // Test basic SSH connectivity first
+      console.log(`🔍 Step 1: Testing SSH connectivity...`);
       const session = await this.connect(deviceConfig);
-      console.log(`✅ NETCONF session established, testing basic operations...`);
+      const sshTime = Date.now() - startTime;
+      console.log(`✅ SSH connection established in ${sshTime}ms`);
       
-      // Try a simple get-config operation with timeout
+      // Test NETCONF hello exchange
+      console.log(`🔍 Step 2: Testing NETCONF hello exchange...`);
+      if (!session.capabilities || session.capabilities.length === 0) {
+        console.warn(`⚠️ No NETCONF capabilities received, waiting...`);
+        // Wait a bit more for capabilities
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+      
+      const helloTime = Date.now() - startTime;
+      console.log(`✅ NETCONF hello completed in ${helloTime}ms with ${session.capabilities?.length || 0} capabilities`);
+      
+      // Test basic NETCONF operation
+      console.log(`🔍 Step 3: Testing basic NETCONF operation...`);
       const testPromise = this.sendRpc(session, 'get-config', {
-        source: { running: {} }
+        datastore: 'running'
       });
       
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Connection test timeout')), 30000);
+        setTimeout(() => reject(new Error('NETCONF operation timeout after 30 seconds')), 30000);
       });
       
       const result = await Promise.race([testPromise, timeoutPromise]);
-      console.log(`✅ NETCONF test operation successful`);
+      const totalTime = Date.now() - startTime;
+      console.log(`✅ NETCONF get-config operation successful in ${totalTime}ms`);
       
       // Close the test connection
-      this.disconnect(session.sessionId);
+      console.log(`🔍 Step 4: Cleaning up test connection...`);
+      await this.disconnect(`${deviceConfig.ip_address}:${deviceConfig.netconf_port || 830}`);
       
       return {
         success: true,
-        message: 'NETCONF connection and basic operations successful',
-        capabilities: session.capabilities,
-        connectionTime: new Date().toISOString()
+        message: 'NETCONF connection and operations successful',
+        capabilities: session.capabilities || [],
+        connectionTime: new Date().toISOString(),
+        performanceMetrics: {
+          sshConnectionTime: sshTime,
+          helloExchangeTime: helloTime,
+          totalTestTime: totalTime
+        },
+        deviceInfo: {
+          name: deviceConfig.name,
+          type: deviceConfig.type,
+          ip: deviceConfig.ip_address
+        }
       };
     } catch (error) {
-      console.error(`❌ NETCONF connection test failed: ${error.message}`);
+      const totalTime = Date.now() - startTime;
+      console.error(`❌ NETCONF connection test failed after ${totalTime}ms: ${error.message}`);
+      
+      // Provide diagnostic information
+      let diagnostics = [];
+      if (error.message.includes('SSH connection failed')) {
+        diagnostics.push('Check SSH service is running on device');
+        diagnostics.push('Verify SSH credentials and port 22 accessibility');
+        diagnostics.push('Ensure device supports SSH key exchange algorithms');
+      } else if (error.message.includes('NETCONF subsystem')) {
+        diagnostics.push('Device SSH is working but NETCONF subsystem is not available');
+        diagnostics.push('Enable NETCONF on the device: "netconf-yang" or "netconf ssh"');
+      } else if (error.message.includes('timeout')) {
+        diagnostics.push('Network connectivity issues or device response delays');
+        diagnostics.push('Check firewall rules and network latency');
+      }
+      
       return {
         success: false,
         message: `NETCONF connection test failed: ${error.message}`,
-        error: error.message
+        error: error.message,
+        testDuration: totalTime,
+        diagnostics: diagnostics,
+        deviceInfo: {
+          name: deviceConfig.name,
+          type: deviceConfig.type,
+          ip: deviceConfig.ip_address
+        }
       };
     }
   }

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = '/api';
 
 export const useNetconf = () => {
   const [devices, setDevices] = useState([]);
@@ -9,29 +9,28 @@ export const useNetconf = () => {
   const [activeSessions, setActiveSessions] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Fetch devices
+  // Fetch NETCONF devices
   const fetchDevices = useCallback(async () => {
     try {
-      console.log(`🔍 Fetching NETCONF-enabled devices from ${API_BASE_URL}/devices`);
-      const response = await fetch(`${API_BASE_URL}/devices`);
+      console.log(`🔍 Fetching NETCONF devices from ${API_BASE_URL}/netconf-devices`);
+      const response = await fetch(`${API_BASE_URL}/netconf-devices`);
       const data = await response.json();
       
-      if (data.success && data.devices) {
-        const allDevices = data.devices || [];
-        const filteredDevices = allDevices.filter(device => device.netconf_enabled);
+      if (data.success && data.data && data.data.devices) {
+        const netconfDevices = data.data.devices;
         
-        setDevices(filteredDevices);
-        console.log(`📱 Loaded ${filteredDevices.length} NETCONF-enabled devices (Total: ${allDevices.length})`);
+        setDevices(netconfDevices);
+        console.log(`📱 Loaded ${netconfDevices.length} NETCONF devices`);
         
-        if (filteredDevices.length === 0 && allDevices.length > 0) {
-          console.warn('⚠️ No NETCONF-enabled devices found. Consider enabling NETCONF on devices.');
+        if (netconfDevices.length === 0) {
+          console.warn('⚠️ No NETCONF devices found. Consider adding NETCONF devices.');
         }
       } else {
         console.error('❌ Invalid API response structure:', data);
         setDevices([]);
       }
     } catch (error) {
-      console.error('❌ Error fetching devices:', error);
+      console.error('❌ Error fetching NETCONF devices:', error);
       setDevices([]);
     }
   }, []);
@@ -84,10 +83,9 @@ export const useNetconf = () => {
   const testConnection = useCallback(async (deviceId) => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/netconf/test-connection`, {
+      const response = await fetch(`${API_BASE_URL}/netconf-devices/${deviceId}/test-connection`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_id: deviceId })
+        headers: { 'Content-Type': 'application/json' }
       });
       const data = await response.json();
       
@@ -113,10 +111,9 @@ export const useNetconf = () => {
     const toastId = toast.loading('Establishing NETCONF session...');
     
     try {
-      const response = await fetch(`${API_BASE_URL}/netconf/connect/${deviceId}`, {
+      const response = await fetch(`${API_BASE_URL}/netconf-devices/${deviceId}/connect`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
+        headers: { 'Content-Type': 'application/json' }
       });
       const data = await response.json();
       

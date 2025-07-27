@@ -5,5 +5,22 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    allowedHosts: ['9f4b4b4a1b81.ngrok-free.app']},
+    host: true, // Allow external hosts
+    port: 5173,
+    strictPort: true,
+    // Allow specific hosts
+    allowedHosts: [
+      'localhost',
+      '.localhost',
+      '8db6a36773dd.ngrok-free.app'
+    ],
+    // Proxy API requests to backend
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false
+      }
+    }
+  }
 })

@@ -23,7 +23,13 @@ export const config = {
 
   // CORS Configuration
   cors: {
-    origin: process.env.FRONTEND_URL || ['http://localhost:5173', '9f4b4b4a1b81.ngrok-free.app'],
+    origin: [
+      'http://localhost:5173', 
+      'http://localhost:3000',
+      'https://8db6a36773dd.ngrok-free.app'
+    ],
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   },
 }; 

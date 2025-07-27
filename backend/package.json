@@ -8,7 +8,8 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "init-db": "node scripts/initMongoDB.js",
-    "init-yang": "node scripts/initYangModels.js"
+    "init-yang": "node scripts/initYangModels.js",
+    "migrate-netconf": "node scripts/migrateNetconfDevices.js"
   },
   "dependencies": {
     "@serialport/parser-readline": "^13.0.0",
