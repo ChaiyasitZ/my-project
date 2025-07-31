@@ -20,14 +20,12 @@ function Configurations() {
   const [generatedConfig, setGeneratedConfig] = useState(null);
   const [generatedConfigs, setGeneratedConfigs] = useState([]);
   const [validation, setValidation] = useState(null);
-  const [aiStatus, setAiStatus] = useState(null);
   const [multiDeviceMode, setMultiDeviceMode] = useState(false);
 
   const { confirmationState, showConfirmation } = useConfirmation();
 
   useEffect(() => {
     fetchDevices();
-    checkAiStatus();
   }, []);
 
   const fetchDevices = async () => {
@@ -36,17 +34,6 @@ function Configurations() {
       setDevices(response.data.devices || []);
     } catch (error) {
       console.error('Error fetching devices:', error);
-    }
-  };
-
-  const checkAiStatus = async () => {
-    try {
-      const response = await axios.get('/configurations/ai-status');
-      setAiStatus(response.data.aiService);
-      console.log('🤖 AI Service Status:', response.data.aiService);
-    } catch (error) {
-      console.error('Error checking AI status:', error);
-      setAiStatus({ status: 'error', error: error.message });
     }
   };
 
@@ -126,11 +113,6 @@ function Configurations() {
         });
       } else {
         toast.error(errorMessage, { id: toastId });
-      }
-      
-      // Refresh AI status if it's an AI service error
-      if (error.response?.status === 503) {
-        checkAiStatus();
       }
     } finally {
       setIsGenerating(false);
@@ -402,66 +384,8 @@ function Configurations() {
               Generate Cisco device configurations using local LLM with Ollama
             </p>
           </div>
-          {/* AI Status Indicator */}
-          {aiStatus && (
-            <div className="flex items-center space-x-2">
-              <div className={`h-3 w-3 rounded-full ${
-                aiStatus.status === 'connected' ? 'bg-green-500' : 
-                aiStatus.status === 'disconnected' ? 'bg-red-500' : 'bg-yellow-500'
-              }`}></div>
-              <span className="text-sm text-gray-600">
-                {aiStatus.status === 'connected' ? 'AI Service Online' : 
-                 aiStatus.status === 'disconnected' ? 'AI Service Offline' : 'AI Service Checking...'}
-              </span>
-              <button
-                onClick={checkAiStatus}
-                className="text-sm text-blue-600 hover:text-blue-800"
-              >
-                Refresh
-              </button>
-            </div>
-          )}
         </div>
       </div>
-
-      {/* AI Service Warning */}
-      {aiStatus && aiStatus.status !== 'connected' && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-yellow-800">
-                AI Service Issue
-              </h3>
-              <div className="mt-2 text-sm text-yellow-700">
-                <p>
-                  {aiStatus.status === 'disconnected' 
-                    ? 'The Ollama AI service is not available. Make sure Ollama is running on your system.'
-                    : 'There was an error connecting to the AI service.'
-                  }
-                </p>
-                {aiStatus.error && (
-                  <p className="mt-1 font-mono text-xs bg-yellow-100 p-2 rounded">
-                    Error: {aiStatus.error}
-                  </p>
-                )}
-                <div className="mt-3">
-                  <p className="font-medium">To fix this:</p>
-                  <ul className="list-disc list-inside mt-1 space-y-1">
-                    <li>Ensure Ollama is installed and running</li>
-                    <li>Check if the service is accessible at http://localhost:11434</li>
-                    <li>Verify the model ({aiStatus.model || 'codellama:13b'}) is downloaded</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Generation Form */}

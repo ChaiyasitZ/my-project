@@ -317,7 +317,7 @@ function BackupManagement() {
   };
 
   const formatFileSize = (bytes) => {
-    if (!bytes) return 'Unknown';
+    if (!bytes || bytes === 0) return '0 B';
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
     return `${Math.round(bytes / Math.pow(1024, i) * 100) / 100} ${sizes[i]}`;
@@ -410,7 +410,10 @@ function BackupManagement() {
     runningOnly: (backups || []).filter(b => b?.config_type === 'running-config').length,
     startupOnly: (backups || []).filter(b => b?.config_type === 'startup-config').length,
     bothConfigs: (backups || []).filter(b => b?.config_type === 'both').length,
-    totalSize: (backups || []).reduce((sum, b) => sum + (b?.file_size || 0), 0)
+    totalSize: (backups || []).reduce((sum, b) => {
+      const fileSize = b?.file_size || 0;
+      return sum + (typeof fileSize === 'number' ? fileSize : 0);
+    }, 0)
   };
 
   const addDeviceToSelection = (deviceId) => {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { 
@@ -466,7 +467,7 @@ function Devices() {
       )}
 
       {/* Modal */}
-      {showModal && (
+      {showModal && createPortal(
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
             <form onSubmit={handleSubmit}>
@@ -647,7 +648,8 @@ function Devices() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

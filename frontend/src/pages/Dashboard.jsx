@@ -286,27 +286,6 @@ function Dashboard() {
           )}
         </div>
       </div>
-
-      {/* Quick Actions */}
-      <div className="card p-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
-        <div className="space-y-3">
-          <a
-            href="/devices"
-            className="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors duration-200"
-          >
-            <ServerIcon className="h-5 w-5 text-gray-600 mr-3" />
-            <span className="text-sm text-gray-900">Manage Devices</span>
-          </a>
-          <a
-            href="/configurations"
-            className="flex items-center p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors duration-200"
-          >
-            <CogIcon className="h-5 w-5 text-gray-600 mr-3" />
-            <span className="text-sm text-gray-900">Generate Configuration</span>
-          </a>
-        </div>
-      </div>
     </div>
   );
 }

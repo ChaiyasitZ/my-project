@@ -2,6 +2,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useState, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import axios from 'axios';
+import { StagewiseToolbar } from '@stagewise/toolbar-react';
+import ReactPlugin from '@stagewise-plugins/react';
 
 console.log('🚀 App.jsx: Starting imports...');
 
@@ -135,6 +137,9 @@ function App() {
             },
           }}
         />
+        
+        {/* Stagewise Toolbar - Only in development */}
+        <StagewiseToolbar config={{ plugins: [ReactPlugin] }} />
       </div>
     </Router>
   );
