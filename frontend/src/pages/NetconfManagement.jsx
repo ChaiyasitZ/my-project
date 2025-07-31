@@ -115,7 +115,6 @@ const NetconfManagement = () => {
           yangModels={yangModels}
           loading={loading}
           onRefresh={fetchYangModels}
-          onModelSelect={setSelectedYangModel}
         />
       )}
 

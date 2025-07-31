@@ -19,8 +19,7 @@ const API_BASE_URL = 'http://localhost:3001/api';
 const YangModelManager = ({ 
   yangModels, 
   loading, 
-  onRefresh, 
-  onModelSelect 
+  onRefresh
 }) => {
   const [showYangUploadForm, setShowYangUploadForm] = useState(false);
   const [uploadMethod, setUploadMethod] = useState('file');
@@ -396,16 +395,6 @@ const YangModelManager = ({
                     <span className="font-mono text-xs">{model.revision}</span>
                   </div>
                 </div>
-                
-                <div className="mt-3 flex space-x-2">
-                  <button
-                    onClick={() => onModelSelect(model)}
-                    className="btn btn-primary btn-sm flex-1"
-                  >
-                    <CheckCircleIcon className="h-4 w-4 mr-2" />
-                    Select
-                  </button>
-                </div>
               </div>
             ))}
           </div>
@@ -678,13 +667,6 @@ const YangModelManager = ({
               >
                 <ClipboardDocumentIcon className="h-4 w-4 mr-2" />
                 Copy Content
-              </button>
-              <button
-                onClick={() => onModelSelect(previewModel)}
-                className="btn btn-primary btn-sm"
-              >
-                <CheckCircleIcon className="h-4 w-4 mr-2" />
-                Select Model
               </button>
             </div>
           </div>
