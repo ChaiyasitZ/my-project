@@ -10,7 +10,8 @@ import {
   TrashIcon,
   FilterIcon,
   Trash2Icon,
-  HistoryIcon
+  HistoryIcon,
+  RefreshCwIcon
 } from 'lucide-react';
 
 function ConfigurationHistory() {
@@ -166,53 +167,87 @@ function ConfigurationHistory() {
             View and manage configuration generation history
           </p>
         </div>
-        <button
-          onClick={fetchConfigurations}
-          disabled={loading}
-          className="btn btn-secondary btn-md"
-        >
-          {loading ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={fetchConfigurations}
+            disabled={loading}
+            className="btn btn-secondary btn-md"
+          >
+            <RefreshCwIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+          
+          {/* Clear All Config Button */}
+          {configurations.length > 0 && (
+            <button
+              onClick={handleClearAll}
+              disabled={clearingAll}
+              className="btn btn-danger btn-md"
+              title={`Clear ${filter === 'all' ? 'all configurations' : `all ${filter} configurations`}`}
+            >
+              {clearingAll ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Clearing...
+                </>
+              ) : (
+                <>
+                  <Trash2Icon className="h-4 w-4 mr-2" />
+                  Clear All ({configurations.length})
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Controls */}
-      <div className="flex items-center space-x-3">
-        {/* Clear All Button */}
-        {configurations.length > 0 && (
-          <button
-            onClick={handleClearAll}
-            disabled={clearingAll}
-            className="btn btn-outline-danger btn-md"
-            title={`Clear ${filter === 'all' ? 'all configurations' : `all ${filter} configurations`}`}
-          >
-            {clearingAll ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
-                Clearing...
-              </>
-            ) : (
-              <>
-                <Trash2Icon className="h-4 w-4 mr-2" />
-                Clear All ({configurations.length})
-              </>
-            )}
-          </button>
-        )}
-        
-        {/* Filter */}
-        <div className="flex items-center space-x-2">
-          <FilterIcon className="h-5 w-5 text-gray-500" />
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="input w-48"
-          >
-            <option value="all">All</option>
-            <option value="generated">Generated</option>
-            <option value="applied">Applied</option>
-            <option value="failed">Failed</option>
-            <option value="rolled_back">Rolled Back</option>
-          </select>
+      {/* Filter Controls */}
+      <div className="card p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <FilterIcon className="h-5 w-5 text-gray-500" />
+              <span className="text-sm font-medium text-gray-700">Filter by Status:</span>
+            </div>
+            
+            {/* Filter Buttons */}
+            <div className="flex items-center space-x-2">
+              {[
+                { key: 'all', label: 'All', count: configurations.length },
+                { key: 'generated', label: 'Generated', count: configurations.filter(c => c.status === 'generated').length },
+                { key: 'applied', label: 'Applied', count: configurations.filter(c => c.status === 'applied').length },
+                { key: 'failed', label: 'Failed', count: configurations.filter(c => c.status === 'failed').length },
+                { key: 'rolled_back', label: 'Rolled Back', count: configurations.filter(c => c.status === 'rolled_back').length }
+              ].map((filterOption) => (
+                <button
+                  key={filterOption.key}
+                  onClick={() => setFilter(filterOption.key)}
+                  className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    filter === filterOption.key
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {filterOption.label}
+                  {filterOption.count > 0 && (
+                    <span className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
+                      filter === filterOption.key
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-200 text-gray-600'
+                    }`}>
+                      {filterOption.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {filter !== 'all' && configurations.length > 0 && (
+            <div className="text-sm text-gray-500">
+              Showing {configurations.length} {filter} configuration{configurations.length !== 1 ? 's' : ''}
+            </div>
+          )}
         </div>
       </div>
 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { WifiIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { WifiIcon } from '@heroicons/react/24/outline';
+import { RefreshCwIcon } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useConfirmation } from '../hooks/useConfirmation';
 import { useNetconf } from '../hooks/useNetconf';
@@ -57,9 +58,9 @@ const NetconfManagement = () => {
           <button
             onClick={fetchActiveSessions}
             disabled={loading}
-            className="btn btn-primary btn-md"
+            className="btn btn-secondary btn-md"
           >
-            <ArrowPathIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCwIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
         </div>

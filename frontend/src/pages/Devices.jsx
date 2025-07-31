@@ -10,7 +10,8 @@ import {
   ServerIcon,
   WifiIcon,
   FunnelIcon,
-  SearchIcon
+  SearchIcon,
+  RefreshCwIcon
 } from 'lucide-react';
 import DeviceIcon from '../components/DeviceIcon';
 
@@ -257,17 +258,27 @@ function Devices() {
             Manage your network devices (switches and routers)
           </p>
         </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setEditingDevice(null);
-            setShowModal(true);
-          }}
-          className="btn btn-primary btn-md"
-        >
-          <PlusIcon className="h-4 w-4 mr-2" />
-          Add Device
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => {
+              resetForm();
+              setEditingDevice(null);
+              setShowModal(true);
+            }}
+            className="btn btn-primary btn-md"
+          >
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Add Device
+          </button>
+          <button
+            onClick={fetchDevices}
+            disabled={loading}
+            className="btn btn-secondary btn-md"
+          >
+            <RefreshCwIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Search and Filters */}

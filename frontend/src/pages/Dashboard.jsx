@@ -9,7 +9,8 @@ import {
   ActivityIcon,
   ChartBarIcon,
   NetworkIcon,
-  WifiIcon
+  WifiIcon,
+  RefreshCwIcon
 } from 'lucide-react';
 
 function Dashboard() {
@@ -125,6 +126,7 @@ function Dashboard() {
           className="btn btn-secondary btn-md"
           disabled={loading}
         >
+          <RefreshCwIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           {loading ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>

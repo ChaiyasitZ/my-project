@@ -5,13 +5,15 @@ import {
   BotIcon, 
   SendIcon, 
   CheckCircleIcon, 
-  ServerIcon
+  ServerIcon,
+  RefreshCwIcon
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useConfirmation } from '../hooks/useConfirmation';
 
 function Configurations() {
   const [devices, setDevices] = useState([]);
+  const [devicesLoading, setDevicesLoading] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState('');
   const [selectedDevices, setSelectedDevices] = useState([]);
   const [prompt, setPrompt] = useState('');
@@ -29,11 +31,14 @@ function Configurations() {
   }, []);
 
   const fetchDevices = async () => {
+    setDevicesLoading(true);
     try {
       const response = await axios.get('/devices?status=active');
       setDevices(response.data.devices || []);
     } catch (error) {
       console.error('Error fetching devices:', error);
+    } finally {
+      setDevicesLoading(false);
     }
   };
 
@@ -373,18 +378,24 @@ function Configurations() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <BotIcon className="h-8 w-8 text-blue-600" />
-              LLM Configuration Generator
-            </h1>
-            <p className="mt-2 text-gray-600">
-              Generate Cisco device configurations using local LLM with Ollama
-            </p>
-          </div>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+            <BotIcon className="h-8 w-8 text-blue-600" />
+            LLM Configuration Generator
+          </h1>
+          <p className="mt-2 text-gray-600">
+            Generate Cisco device configurations using local LLM with Ollama
+          </p>
         </div>
+        <button
+          onClick={fetchDevices}
+          disabled={devicesLoading}
+          className="btn btn-secondary btn-md"
+        >
+          <RefreshCwIcon className={`h-4 w-4 mr-2 ${devicesLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -736,27 +747,7 @@ function Configurations() {
         </div>
       </div>
 
-      {/* Quick Start Guide */}
-      {devices.length === 0 && (
-        <div className="card p-6 bg-blue-50 border-blue-200">
-          <div className="flex items-start">
-            <ServerIcon className="h-6 w-6 text-blue-600 mr-3 mt-0.5" />
-            <div>
-              <h3 className="text-lg font-medium text-blue-900">No Active Devices Found</h3>
-              <p className="text-blue-700 mt-1">
-                You need to add and activate devices before generating configurations.
-              </p>
-              <a
-                href="/devices"
-                className="inline-flex items-center mt-3 text-sm text-blue-600 hover:text-blue-500"
-              >
-                <ServerIcon className="h-4 w-4 mr-1" />
-                Manage Devices
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Confirmation Modal */}
       <ConfirmationModal
