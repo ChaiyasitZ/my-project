@@ -182,15 +182,6 @@ function ConfigurationHistory() {
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          <button
-            onClick={fetchConfigurations}
-            disabled={loading}
-            className="btn btn-secondary btn-md"
-          >
-            <RefreshCwIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
-          
           {/* Clear All Config Button - Always visible */}
           <button
             onClick={handleClearAll}
@@ -213,6 +204,15 @@ function ConfigurationHistory() {
               </>
             )}
           </button>
+          
+          <button
+            onClick={fetchConfigurations}
+            disabled={loading}
+            className="btn btn-secondary btn-md"
+          >
+            <RefreshCwIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
         </div>
       </div>
 
@@ -230,7 +230,7 @@ function ConfigurationHistory() {
               {[
                 { key: 'all', label: 'All', count: configurations.length },
                 { key: 'generated', label: 'Generated', count: configurations.filter(c => c.status === 'generated').length },
-                { key: 'applied', label: 'Applied', count: configurations.filter(c => c.status === 'applied').length },
+                { key: 'applied', label: 'Deployed', count: configurations.filter(c => c.status === 'applied').length },
                 { key: 'failed', label: 'Failed', count: configurations.filter(c => c.status === 'failed').length },
                 { key: 'rolled_back', label: 'Rolled Back', count: configurations.filter(c => c.status === 'rolled_back').length }
               ].map((filterOption) => (

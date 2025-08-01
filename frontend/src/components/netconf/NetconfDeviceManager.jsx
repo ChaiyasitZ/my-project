@@ -200,7 +200,8 @@ const NetconfDeviceManager = ({
     e.preventDefault();
     try {
       if (editingDevice) {
-        await api.put(`/netconf-devices/${editingDevice.id}`, formData);
+        const deviceId = editingDevice.id || editingDevice._id;
+        await api.put(`/netconf-devices/${deviceId}`, formData);
         console.log('✅ NETCONF Device updated successfully:', formData.name);
         toast.success(`NETCONF Device "${formData.name}" updated successfully!`);
       } else {
@@ -247,7 +248,8 @@ const NetconfDeviceManager = ({
   };
 
   const handleDelete = async (device) => {
-    console.log('🗑️ Attempting to delete NETCONF device:', device.name, 'ID:', device.id);
+    const deviceId = device.id || device._id;
+    console.log('🗑️ Attempting to delete NETCONF device:', device.name, 'ID:', deviceId);
     
     const confirmed = await showConfirmation({
       title: 'Delete NETCONF Device',
@@ -259,8 +261,8 @@ const NetconfDeviceManager = ({
 
     if (confirmed) {
       try {
-        console.log(`📤 DELETE request to: /netconf-devices/${device.id}`);
-        const response = await api.delete(`/netconf-devices/${device.id}`);
+        console.log(`📤 DELETE request to: /netconf-devices/${deviceId}`);
+        const response = await api.delete(`/netconf-devices/${deviceId}`);
         console.log('📥 Delete response:', response.data);
         console.log('✅ NETCONF Device deleted successfully:', device.name);
         toast.success(`NETCONF Device "${device.name}" deleted successfully!`);
@@ -277,11 +279,12 @@ const NetconfDeviceManager = ({
   };
 
   const handleTestConnection = async (device) => {
-    setTestingDevice(device.id);
+    const deviceId = device.id || device._id;
+    setTestingDevice(deviceId);
     setConnectionResult(null);
     
     try {
-      const result = await onTestConnection(device.id);
+      const result = await onTestConnection(deviceId);
     setConnectionResult(result);
     } catch (error) {
       setConnectionResult({
@@ -304,7 +307,8 @@ const NetconfDeviceManager = ({
 
     if (confirmed) {
       try {
-        await onConnect(device.id);
+        const deviceId = device.id || device._id;
+        await onConnect(deviceId);
         toast.success(`NETCONF session established with ${device.name}`);
         fetchDevices(); // Refresh to show updated connection status
       } catch (error) {
@@ -589,8 +593,10 @@ const NetconfDeviceManager = ({
         </div>
       ) : (
         <div className="grid gap-6">
-          {filteredDevices.map((device) => (
-            <div key={device.id} className="card p-6">
+          {filteredDevices.map((device) => {
+            const deviceId = device.id || device._id;
+            return (
+            <div key={deviceId} className="card p-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <div className="flex-shrink-0 text-gray-600">
@@ -620,11 +626,11 @@ const NetconfDeviceManager = ({
                       <>
                         <button
                           onClick={() => handleTestConnection(device)}
-                          disabled={testingDevice === device.id}
+                          disabled={testingDevice === deviceId}
                           className="btn btn-secondary btn-sm"
                           title="Test NETCONF Connection"
                         >
-                          {testingDevice === device.id ? (
+                          {testingDevice === deviceId ? (
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
                           ) : (
                             <PlayIcon className="h-4 w-4" />
@@ -701,7 +707,8 @@ const NetconfDeviceManager = ({
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
       

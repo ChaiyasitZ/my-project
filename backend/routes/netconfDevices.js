@@ -5,6 +5,14 @@ import netconfService from '../services/netconfService.js';
 
 const router = express.Router();
 
+// Helper function to validate ObjectId format
+const validateObjectId = (id) => {
+  if (!id || id === 'undefined' || !id.match(/^[0-9a-fA-F]{24}$/)) {
+    return false;
+  }
+  return true;
+};
+
 // Validation schema for NETCONF device
 const netconfDeviceSchema = Joi.object({
   name: Joi.string().required().max(255).trim(),
@@ -187,6 +195,13 @@ router.get('/stats', async (req, res) => {
 // GET /api/netconf-devices/:id - Get specific NETCONF device
 router.get('/:id', async (req, res) => {
   try {
+    if (!validateObjectId(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid device ID format'
+      });
+    }
+    
     const device = await NetconfDevice.findById(req.params.id)
       .populate('yang_models.model_id', 'name namespace revision description');
 
@@ -372,7 +387,17 @@ router.delete('/:id', async (req, res) => {
 // POST /api/netconf-devices/:id/test-connection - Test NETCONF connection
 router.post('/:id/test-connection', async (req, res) => {
   try {
-    const device = await NetconfDevice.findById(req.params.id);
+    const { id } = req.params;
+    
+    // Validate ObjectId format
+    if (!validateObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid device ID format'
+      });
+    }
+    
+    const device = await NetconfDevice.findById(id);
     if (!device) {
       return res.status(404).json({
         success: false,

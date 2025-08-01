@@ -123,7 +123,8 @@ function Devices() {
     e.preventDefault();
     try {
       if (editingDevice) {
-        await axios.put(`/devices/${editingDevice.id}`, formData);
+        const deviceId = editingDevice.id || editingDevice._id;
+        await axios.put(`/devices/${deviceId}`, formData);
         console.log('✅ Device updated successfully:', formData.name);
         toast.success(`Device "${formData.name}" updated successfully!`);
       } else {
@@ -163,7 +164,8 @@ function Devices() {
   const handleDelete = async (device) => {
     if (window.confirm(`Are you sure you want to delete ${device.name}?`)) {
       try {
-        await axios.delete(`/devices/${device.id}`);
+        const deviceId = device.id || device._id;
+        await axios.delete(`/devices/${deviceId}`);
         console.log('✅ Device deleted successfully:', device.name);
         toast.success(`Device "${device.name}" deleted successfully!`);
         fetchDevices();
@@ -175,11 +177,12 @@ function Devices() {
   };
 
   const handleTestConnection = async (device) => {
-    setTestingDevice(device.id);
+    const deviceId = device.id || device._id;
+    setTestingDevice(deviceId);
     const toastId = toast.loading(`Testing SSH connection to ${device.name}...`);
     
     try {
-      const response = await axios.post(`/devices/${device.id}/test`);
+      const response = await axios.post(`/devices/${deviceId}/test`);
       
       // Add null/undefined checks for nested properties
       if (response.data && response.data.connectionTest) {
@@ -418,8 +421,10 @@ function Devices() {
         </div>
       ) : (
         <div className="grid gap-6">
-          {filteredDevices.map((device) => (
-            <div key={device.id} className="card p-6">
+          {filteredDevices.map((device) => {
+            const deviceId = device.id || device._id;
+            return (
+            <div key={deviceId} className="card p-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <div className="flex-shrink-0 text-gray-600">
@@ -446,11 +451,11 @@ function Devices() {
                   <div className="flex space-x-2">
                     <button
                       onClick={() => handleTestConnection(device)}
-                      disabled={testingDevice === device.id}
+                      disabled={testingDevice === deviceId}
                       className="btn btn-secondary btn-sm"
                       title="Test Connection"
                     >
-                      {testingDevice === device.id ? (
+                      {testingDevice === deviceId ? (
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
                       ) : (
                         <TestTubeIcon className="h-4 w-4" />
@@ -487,7 +492,8 @@ function Devices() {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
