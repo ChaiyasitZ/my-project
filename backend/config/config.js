@@ -5,20 +5,20 @@ dotenv.config();
 export const config = {
   // MongoDB Configuration
   database: {
-    mongodb_uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/network_automation'
+    mongodb_uri: process.env.MONGODB_URI
   },
 
   // Ollama Local AI Configuration
   ollama: {
-    host: process.env.OLLAMA_HOST || 'http://localhost:11434',
-    model: process.env.OLLAMA_MODEL || 'qwen2.5-coder:3b',
+    host: process.env.OLLAMA_HOST,
+    model: process.env.OLLAMA_MODEL,
   },
 
   // Server Configuration
   server: {
-    port: process.env.PORT || 3001,
-    jwtSecret: process.env.JWT_SECRET || 'network_automation_jwt_secret_2025',
-    nodeEnv: process.env.NODE_ENV || 'development',
+    port: process.env.PORT,
+    jwtSecret: process.env.JWT_SECRET,
+    nodeEnv: process.env.NODE_ENV,
   },
 
   // CORS Configuration

@@ -3,6 +3,7 @@ import { config } from '../config/config.js';
 
 // Import MongoDB models
 import Device from '../models/Device.js';
+import netconfDevices from '../models/netconfDevices.js';
 import ConfigurationTemplate from '../models/ConfigurationTemplate.js';
 import YangModel from '../models/YangModel.js';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
