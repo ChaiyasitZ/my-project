@@ -71,13 +71,13 @@ function App() {
 
   return (
     <Router>
-      <div className="flex min-h-screen bg-gray-50">
+      <div className="flex min-h-screen bg-gray-50 w-full">
         <Sidebar serverStatus={serverStatus} />
         
         {/* Main content area */}
-        <div className="flex-1 lg:ml-0">
+        <div className="flex-1 lg:ml-0 w-full">
           <main className="pt-20 lg:pt-6 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto">
+            <div className="max-w-7xl mx-auto w-full">
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<Dashboard />} />

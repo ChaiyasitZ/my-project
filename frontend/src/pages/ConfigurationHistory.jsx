@@ -38,6 +38,20 @@ function ConfigurationHistory() {
     fetchConfigurations();
   }, [fetchConfigurations]);
 
+  // Manage modal body class
+  useEffect(() => {
+    if (showModal) {
+      document.body.classList.add('modal-open');
+    } else {
+      document.body.classList.remove('modal-open');
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      document.body.classList.remove('modal-open');
+    };
+  }, [showModal]);
+
   const applyFilters = () => {
     return configurations;
   };
@@ -177,27 +191,28 @@ function ConfigurationHistory() {
             {loading ? 'Refreshing...' : 'Refresh'}
           </button>
           
-          {/* Clear All Config Button */}
-          {configurations.length > 0 && (
-            <button
-              onClick={handleClearAll}
-              disabled={clearingAll}
-              className="btn btn-danger btn-md"
-              title={`Clear ${filter === 'all' ? 'all configurations' : `all ${filter} configurations`}`}
-            >
-              {clearingAll ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Clearing...
-                </>
-              ) : (
-                <>
-                  <Trash2Icon className="h-4 w-4 mr-2" />
-                  Clear All ({configurations.length})
-                </>
-              )}
-            </button>
-          )}
+          {/* Clear All Config Button - Always visible */}
+          <button
+            onClick={handleClearAll}
+            disabled={clearingAll || configurations.length === 0}
+            className="btn btn-danger btn-md"
+            title={configurations.length === 0 
+              ? 'No configurations to clear' 
+              : `Clear ${filter === 'all' ? 'all configurations' : `all ${filter} configurations`}`
+            }
+          >
+            {clearingAll ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Clearing...
+              </>
+            ) : (
+              <>
+                <Trash2Icon className="h-4 w-4 mr-2" />
+                Clear All ({configurations.length})
+              </>
+            )}
+          </button>
         </div>
       </div>
 
@@ -340,7 +355,7 @@ function ConfigurationHistory() {
 
       {/* Configuration Details Modal */}
       {showModal && selectedConfig && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+        <div className="modal-overlay fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-screen overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex items-center justify-between">

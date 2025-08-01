@@ -3,9 +3,15 @@
 @tailwind utilities;
 
 @layer base {
-  body {
+  html, body {
     @apply bg-gray-50 text-gray-900;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    height: 100%;
+    min-height: 100vh;
+  }
+  
+  #root {
+    min-height: 100vh;
   }
 }
 
@@ -92,5 +98,25 @@
   
   .badge-info {
     @apply badge bg-blue-100 text-blue-800;
+  }
+
+  /* Full screen modal overlay */
+  .modal-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 9999 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Ensure body doesn't have scroll issues with modals */
+  body.modal-open {
+    overflow: hidden;
+    height: 100vh;
   }
 }

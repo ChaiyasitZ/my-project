@@ -1,4 +1,5 @@
 import { AlertTriangleIcon, CheckCircleIcon, XCircleIcon, InfoIcon } from 'lucide-react';
+import { useEffect } from 'react';
 
 function ConfirmationModal({ 
   isOpen, 
@@ -12,6 +13,20 @@ function ConfirmationModal({
   loading = false,
   loadingText = 'Processing...'
 }) {
+  // Manage modal body class
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add('modal-open');
+    } else {
+      document.body.classList.remove('modal-open');
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      document.body.classList.remove('modal-open');
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const getTypeStyles = () => {
@@ -69,11 +84,11 @@ function ConfirmationModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="modal-overlay fixed inset-0 z-50 overflow-y-auto">
       <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         {/* Backdrop */}
         <div 
-          className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+          className="modal-overlay fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
           onClick={handleCancel}
         ></div>
 
