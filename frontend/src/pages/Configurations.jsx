@@ -23,6 +23,8 @@ function Configurations() {
   const [generatedConfigs, setGeneratedConfigs] = useState([]);
   const [validation, setValidation] = useState(null);
   const [multiDeviceMode, setMultiDeviceMode] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedConfig, setEditedConfig] = useState('');
 
   const { confirmationState, showConfirmation } = useConfirmation();
 
@@ -63,6 +65,8 @@ function Configurations() {
         
         setGeneratedConfig(response.data.configuration);
         setValidation(response.data.configuration.validation);
+        setEditedConfig(response.data.configuration.generated_config);
+        setIsEditing(false);
         
         // Show warning if fallback method was used
         if (response.data.configuration.warning) {
@@ -352,6 +356,8 @@ function Configurations() {
     setGeneratedConfigs([]);
     setValidation(null);
     setMultiDeviceMode(false);
+    setIsEditing(false);
+    setEditedConfig('');
   };
 
   const getValidationColor = (isValid) => {
@@ -629,30 +635,15 @@ function Configurations() {
                     <>
                       {configResult.validation && (
                         <div className="mb-3">
-                          {/* Configuration Valid Tab */}
-                          <div className="bg-blue-50 rounded-lg p-3">
-                            <div className="flex items-center mb-2">
+                          <div className="bg-blue-50 rounded-lg p-2">
+                            <div className="flex items-center">
                               <CheckCircleIcon className={`h-4 w-4 mr-2 ${
                                 configResult.validation.isValid ? 'text-green-600' : 'text-red-600'
                               }`} />
-                              <span className={`font-medium ${configResult.validation.isValid ? 'text-green-700' : 'text-red-700'}`}>
-                                Configuration Valid • Quality Score: {configResult.validation.score}%
+                              <span className={`text-sm font-medium ${configResult.validation.isValid ? 'text-green-700' : 'text-red-700'}`}>
+                                {configResult.validation.isValid ? 'Configuration Valid' : 'Configuration Issues Found'}
                               </span>
                             </div>
-                            
-                            {/* Configuration Explanations - ONLY in validation tab */}
-                            {configResult.explanation && configResult.explanation.length > 0 && (
-                              <div className="mt-3 border-t border-blue-200 pt-3">
-                                <p className="text-sm font-medium text-blue-800 mb-2">📋 Configuration Explanation:</p>
-                                <div className="space-y-1 bg-white rounded p-2 border border-blue-200">
-                                  {configResult.explanation.map((exp, idx) => (
-                                    <div key={idx} className="text-xs text-gray-700 pl-2 border-l-2 border-blue-300">
-                                      {exp}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
                           </div>
                         </div>
                       )}
@@ -719,61 +710,76 @@ function Configurations() {
 
               {/* Configuration Valid Tab */}
               {validation && (
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <div className="flex items-start">
+                <div className="bg-blue-50 rounded-lg p-3">
+                  <div className="flex items-center">
                     {getValidationIcon(validation.isValid)}
-                    <div className="ml-3 w-full">
+                    <div className="ml-2">
                       <p className={`text-sm font-medium ${getValidationColor(validation.isValid)}`}>
-                        {validation.isValid ? 'Configuration Valid' : 'Configuration Issues Found'} • Quality Score: {validation.score}%
+                        {validation.isValid ? 'Configuration Valid' : 'Configuration Issues Found'}
                       </p>
-                      
-                      {/* Configuration Explanations - ONLY in Configuration Valid tab */}
-                      {generatedConfig.explanation && generatedConfig.explanation.length > 0 && (
-                        <div className="mt-4 border-t border-blue-200 pt-3">
-                          <p className="text-sm font-medium text-blue-800 mb-3">📋 Configuration Explanation:</p>
-                          <div className="bg-white rounded-lg p-3 border border-blue-200">
-                            <div className="space-y-2">
-                              {generatedConfig.explanation.map((exp, idx) => (
-                                <div key={idx} className="text-xs text-gray-700 pl-3 border-l-2 border-blue-300">
-                                  {exp}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {validation.warnings && validation.warnings.length > 0 && (
-                        <div className="mt-3 border-t border-orange-200 pt-3">
-                          <p className="text-sm font-medium text-orange-700 mb-2">⚠️ Warnings:</p>
-                          <div className="bg-orange-50 rounded p-2">
-                            {validation.warnings.map((warning, idx) => (
-                              <p key={idx} className="text-xs text-orange-600">• {warning}</p>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {validation.errors && validation.errors.length > 0 && (
-                        <div className="mt-3 border-t border-red-200 pt-3">
-                          <p className="text-sm font-medium text-red-700 mb-2">❌ Errors:</p>
-                          <div className="bg-red-50 rounded p-2">
-                            {validation.errors.map((error, idx) => (
-                              <p key={idx} className="text-xs text-red-600">• {error}</p>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
               )}
 
               {/* Configuration Code */}
-              <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
-                <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">
-                  {generatedConfig.generated_config}
-                </pre>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-gray-700">Configuration</h3>
+                  <div className="flex space-x-2">
+                    {!isEditing ? (
+                      <button
+                        onClick={() => {
+                          setIsEditing(true);
+                          setEditedConfig(generatedConfig.generated_config);
+                        }}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        Edit
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => {
+                            setGeneratedConfig({
+                              ...generatedConfig,
+                              generated_config: editedConfig
+                            });
+                            setIsEditing(false);
+                          }}
+                          className="btn btn-primary btn-sm"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditedConfig(generatedConfig.generated_config);
+                            setIsEditing(false);
+                          }}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                
+                {isEditing ? (
+                  <textarea
+                    value={editedConfig}
+                    onChange={(e) => setEditedConfig(e.target.value)}
+                    className="w-full h-48 p-3 bg-gray-900 text-green-400 font-mono text-sm rounded-lg border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-vertical"
+                    placeholder="Edit your configuration..."
+                    spellCheck={false}
+                  />
+                ) : (
+                  <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+                    <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">
+                      {generatedConfig.generated_config}
+                    </pre>
+                  </div>
+                )}
               </div>
 
               {/* Actions */}

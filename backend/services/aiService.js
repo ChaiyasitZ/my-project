@@ -112,40 +112,78 @@ export class AIService {
       enhancedPrompt = this.addCidrGuidance(enhancedPrompt);
     }
     
-    return `Generate Cisco IOS configuration for ${deviceName}. Output only CLI commands.
+    // Detect if this is a simple single command
+    const isSimpleCommand = enhancedPrompt.toLowerCase().includes('access-list') || 
+                           enhancedPrompt.toLowerCase().includes('hostname') ||
+                           enhancedPrompt.toLowerCase().includes('vlan ') ||
+                           (enhancedPrompt.toLowerCase().includes('interface ') && !enhancedPrompt.toLowerCase().includes('and'));
+
+    if (isSimpleCommand) {
+      return `Generate Cisco IOS configuration for ${deviceName}. Output only CLI commands.
+
+TASK: ${enhancedPrompt}
+
+REQUIREMENTS:
+- Start with "configure terminal"
+- End with "end"
+- Generate ONLY the specific command requested
+- Do not add additional interfaces, OSPF, or other configuration
+- Output only what was asked for
+
+Generate minimal configuration:`;
+    } else {
+      return `Generate Cisco IOS configuration for ${deviceName}. Output only CLI commands.
 
 TASK: ${enhancedPrompt}
 
 REQUIREMENTS:
 - Start with "configure terminal"
 - End with "end" 
-- Use correct wildcard masks for OSPF networks
-- For multiple networks, create separate network statements
+- For OSPF networks: Use correct wildcard masks
+- For multiple networks: Create separate network statements
 - Output only executable commands
 
 WILDCARD MASKS:
 /24 = 0.0.0.255, /25 = 0.0.0.127, /26 = 0.0.0.63, /27 = 0.0.0.31, /30 = 0.0.0.3
 
 Generate configuration:`;
+    }
   }
 
   /**
    * Preprocess prompt to handle multiple networks and improve parsing
    */
   preprocessPrompt(prompt) {
-    // Handle multiple network patterns with dashes or "and"
     let enhanced = prompt;
     
-    // Replace "- network" patterns with "and network"
-    enhanced = enhanced.replace(/\s*-\s*(\d+\.\d+\.\d+\.\d+\/\d+)\s+area\s+(\d+)/g, ' and network $1 area $2');
+    // Skip preprocessing for access-list commands
+    if (enhanced.toLowerCase().includes('access-list')) {
+      console.log(`🔄 Access-list detected, skipping preprocessing: "${enhanced}"`);
+      return enhanced;
+    }
     
-    // Replace "- ip" patterns with "and network" 
-    enhanced = enhanced.replace(/\s*-\s*(\d+\.\d+\.\d+\.\d+\/\d+)/g, ' and network $1');
+    // Skip preprocessing for interface commands
+    if (enhanced.toLowerCase().includes('interface ')) {
+      console.log(`🔄 Interface command detected, skipping preprocessing: "${enhanced}"`);
+      return enhanced;
+    }
     
-    // Ensure clear separation of network statements
-    enhanced = enhanced.replace(/(\d+\.\d+\.\d+\.\d+\/\d+)\s+area\s+(\d+)\s+(\d+\.\d+\.\d+\.\d+\/\d+)/g, '$1 area $2 and network $3');
+    // Handle multiple network patterns with dashes or "and" only for OSPF/routing
+    if (enhanced.toLowerCase().includes('network') && enhanced.toLowerCase().includes('area')) {
+      // Replace "- network" patterns with "and network"
+      enhanced = enhanced.replace(/\s*-\s*(\d+\.\d+\.\d+\.\d+\/\d+)\s+area\s+(\d+)/g, ' and network $1 area $2');
+      
+      // Replace "- ip" patterns with "and network" 
+      enhanced = enhanced.replace(/\s*-\s*(\d+\.\d+\.\d+\.\d+\/\d+)/g, ' and network $1');
+      
+      // Ensure clear separation of network statements
+      enhanced = enhanced.replace(/(\d+\.\d+\.\d+\.\d+\/\d+)\s+area\s+(\d+)\s+(\d+\.\d+\.\d+\.\d+\/\d+)/g, '$1 area $2 and network $3');
+      
+      console.log(`🔄 Network preprocessing applied: "${enhanced}"`);
+    } else {
+      console.log(`🔄 No preprocessing needed: "${enhanced}"`);
+    }
     
-    console.log(`🔄 Preprocessed prompt: "${enhanced}"`);
     return enhanced;
   }
 
