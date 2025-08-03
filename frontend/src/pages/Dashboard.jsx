@@ -213,6 +213,14 @@ function Dashboard() {
                         {device.ip_address || 'N/A'}
                       </span>
                     </div>
+                    {device.model && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Model:</span>
+                        <span className="text-xs font-medium text-gray-900 truncate ml-2">
+                          {device.model}
+                        </span>
+                      </div>
+                    )}
                     {device.location && (
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-gray-500">Location:</span>
