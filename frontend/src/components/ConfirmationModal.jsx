@@ -1,5 +1,5 @@
-import { AlertTriangleIcon, CheckCircleIcon, XCircleIcon, InfoIcon } from 'lucide-react';
-import { useEffect } from 'react';
+import { AlertTriangleIcon, CheckCircleIcon, XCircleIcon, InfoIcon, X } from 'lucide-react';
+import { useEffect, useCallback } from 'react';
 
 function ConfirmationModal({ 
   isOpen, 
@@ -13,19 +13,29 @@ function ConfirmationModal({
   loading = false,
   loadingText = 'Processing...'
 }) {
-  // Manage modal body class
+  // Handle ESC key
+  const handleEscape = useCallback((e) => {
+    if (e.key === 'Escape' && !loading) {
+      onClose();
+    }
+  }, [onClose, loading]);
+
+  // Manage modal body class and keyboard events
   useEffect(() => {
     if (isOpen) {
       document.body.classList.add('modal-open');
+      document.addEventListener('keydown', handleEscape);
     } else {
       document.body.classList.remove('modal-open');
+      document.removeEventListener('keydown', handleEscape);
     }
     
     // Cleanup on unmount
     return () => {
       document.body.classList.remove('modal-open');
+      document.removeEventListener('keydown', handleEscape);
     };
-  }, [isOpen]);
+  }, [isOpen, handleEscape]);
 
   if (!isOpen) return null;
 
@@ -83,30 +93,64 @@ function ConfirmationModal({
     onClose();
   };
 
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget && !loading) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="modal-overlay fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+    <div 
+      className="fixed inset-0 z-50 overflow-y-auto"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+      aria-describedby="modal-description"
+    >
+      <div 
+        className="flex items-center justify-center min-h-screen p-4"
+        onClick={handleBackdropClick}
+      >
         {/* Backdrop */}
         <div 
-          className="modal-overlay fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-          onClick={handleCancel}
+          className="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity duration-300 ease-out backdrop-blur-sm"
+          aria-hidden="true"
         ></div>
 
         {/* Modal */}
-        <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+        <div className="relative bg-white rounded-xl px-6 pt-6 pb-4 text-left overflow-hidden shadow-2xl transform transition-all duration-300 ease-out max-w-lg w-full animate-in zoom-in-95 fade-in">
+          {/* Close button */}
+          <div className="absolute top-4 right-4">
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={loading}
+              className="rounded-md bg-white text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+              aria-label="Close modal"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
           <div className="sm:flex sm:items-start">
             {/* Icon */}
-            <div className={`mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full ${styles.iconBg} sm:mx-0 sm:h-10 sm:w-10`}>
+            <div className={`mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full ${styles.iconBg} sm:mx-0 sm:h-10 sm:w-10 transition-all duration-200`}>
               {styles.icon}
             </div>
             
             {/* Content */}
             <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left flex-1">
-              <h3 className={`text-lg leading-6 font-medium ${styles.titleColor}`}>
+              <h3 
+                id="modal-title"
+                className={`text-lg leading-6 font-semibold ${styles.titleColor}`}
+              >
                 {title}
               </h3>
               <div className="mt-2">
-                <p className="text-sm text-gray-500 whitespace-pre-line">
+                <p 
+                  id="modal-description"
+                  className="text-sm text-gray-600 whitespace-pre-line leading-relaxed"
+                >
                   {message}
                 </p>
               </div>
@@ -114,17 +158,17 @@ function ConfirmationModal({
           </div>
           
           {/* Actions */}
-          <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+          <div className="mt-6 pt-4 border-t border-gray-100 sm:flex sm:flex-row-reverse sm:gap-3">
             <button
               type="button"
               onClick={handleConfirm}
               disabled={loading}
-              className={`btn btn-md w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed ${getConfirmButtonClass(type)}`}
+              className={`btn btn-md w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 focus:scale-105 ${getConfirmButtonClass(type)}`}
             >
               {loading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  {loadingText}
+                  <span>{loadingText}</span>
                 </>
               ) : (
                 confirmText
@@ -134,7 +178,7 @@ function ConfirmationModal({
               type="button"
               onClick={handleCancel}
               disabled={loading}
-              className="btn btn-secondary btn-md w-full sm:w-auto mt-3 sm:mt-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn btn-secondary btn-md w-full sm:w-auto mt-3 sm:mt-0 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 focus:scale-105"
             >
               {cancelText}
             </button>
