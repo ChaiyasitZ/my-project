@@ -206,7 +206,8 @@ function Configurations() {
             error: result.success ? null : result.error,
             order: index + 1,
             configuration_id: result.configuration_id,
-            validation: result.validation
+            validation: result.validation,
+            explanation: result.explanation || []
           };
         });
         
@@ -627,14 +628,31 @@ function Configurations() {
                   {configResult.success ? (
                     <>
                       {configResult.validation && (
-                        <div className="mb-3 p-2 bg-gray-100 rounded text-sm">
-                          <div className="flex items-center">
-                            <CheckCircleIcon className={`h-4 w-4 mr-2 ${
-                              configResult.validation.isValid ? 'text-green-600' : 'text-red-600'
-                            }`} />
-                            <span className={configResult.validation.isValid ? 'text-green-700' : 'text-red-700'}>
-                              {configResult.validation.feedback}
-                            </span>
+                        <div className="mb-3">
+                          {/* Configuration Valid Tab */}
+                          <div className="bg-blue-50 rounded-lg p-3">
+                            <div className="flex items-center mb-2">
+                              <CheckCircleIcon className={`h-4 w-4 mr-2 ${
+                                configResult.validation.isValid ? 'text-green-600' : 'text-red-600'
+                              }`} />
+                              <span className={`font-medium ${configResult.validation.isValid ? 'text-green-700' : 'text-red-700'}`}>
+                                Configuration Valid • Quality Score: {configResult.validation.score}%
+                              </span>
+                            </div>
+                            
+                            {/* Configuration Explanations - ONLY in validation tab */}
+                            {configResult.explanation && configResult.explanation.length > 0 && (
+                              <div className="mt-3 border-t border-blue-200 pt-3">
+                                <p className="text-sm font-medium text-blue-800 mb-2">📋 Configuration Explanation:</p>
+                                <div className="space-y-1 bg-white rounded p-2 border border-blue-200">
+                                  {configResult.explanation.map((exp, idx) => (
+                                    <div key={idx} className="text-xs text-gray-700 pl-2 border-l-2 border-blue-300">
+                                      {exp}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -699,22 +717,51 @@ function Configurations() {
                 </div>
               </div>
 
-              {/* Validation Results */}
+              {/* Configuration Valid Tab */}
               {validation && (
-                <div className="bg-gray-50 p-3 rounded-lg">
+                <div className="bg-blue-50 rounded-lg p-4">
                   <div className="flex items-start">
                     {getValidationIcon(validation.isValid)}
-                    <div className="ml-2">
+                    <div className="ml-3 w-full">
                       <p className={`text-sm font-medium ${getValidationColor(validation.isValid)}`}>
-                        {validation.isValid ? 'Configuration Valid' : 'Configuration Issues Found'}
+                        {validation.isValid ? 'Configuration Valid' : 'Configuration Issues Found'} • Quality Score: {validation.score}%
                       </p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {validation.feedback}
-                      </p>
-                      {validation.suggestions && (
-                        <div className="mt-2">
-                          <p className="text-sm font-medium text-gray-700">Suggestions:</p>
-                          <p className="text-sm text-gray-600">{validation.suggestions}</p>
+                      
+                      {/* Configuration Explanations - ONLY in Configuration Valid tab */}
+                      {generatedConfig.explanation && generatedConfig.explanation.length > 0 && (
+                        <div className="mt-4 border-t border-blue-200 pt-3">
+                          <p className="text-sm font-medium text-blue-800 mb-3">📋 Configuration Explanation:</p>
+                          <div className="bg-white rounded-lg p-3 border border-blue-200">
+                            <div className="space-y-2">
+                              {generatedConfig.explanation.map((exp, idx) => (
+                                <div key={idx} className="text-xs text-gray-700 pl-3 border-l-2 border-blue-300">
+                                  {exp}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {validation.warnings && validation.warnings.length > 0 && (
+                        <div className="mt-3 border-t border-orange-200 pt-3">
+                          <p className="text-sm font-medium text-orange-700 mb-2">⚠️ Warnings:</p>
+                          <div className="bg-orange-50 rounded p-2">
+                            {validation.warnings.map((warning, idx) => (
+                              <p key={idx} className="text-xs text-orange-600">• {warning}</p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {validation.errors && validation.errors.length > 0 && (
+                        <div className="mt-3 border-t border-red-200 pt-3">
+                          <p className="text-sm font-medium text-red-700 mb-2">❌ Errors:</p>
+                          <div className="bg-red-50 rounded p-2">
+                            {validation.errors.map((error, idx) => (
+                              <p key={idx} className="text-xs text-red-600">• {error}</p>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>

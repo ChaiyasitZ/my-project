@@ -11,7 +11,8 @@ const configurationHistorySchema = new mongoose.Schema({
     required: true,
     minlength: 10
   },
-  generated_config: String,
+  generated_config: String, // Display version with comments for UI
+  deployment_config: String, // Clean version for device deployment
   applied_config: String,
   status: {
     type: String,

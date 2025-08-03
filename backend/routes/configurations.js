@@ -234,7 +234,8 @@ router.post('/generate', async (req, res) => {
     const configuration = new ConfigurationHistory({
       device_id,
       prompt,
-      generated_config: aiResult.configuration,
+      generated_config: aiResult.configuration, // Clean version for output panel
+      deployment_config: aiResult.deploymentConfig, // Clean version for device
       ai_model: aiResult.model,
       execution_time: executionTime,
       status: 'generated',
@@ -252,7 +253,9 @@ router.post('/generate', async (req, res) => {
       device_type: device.type,
       validation: aiResult.validation,
       confidenceScore: aiResult.confidenceScore,
-      recommendations: aiResult.recommendations
+      recommendations: aiResult.recommendations,
+      explanation: aiResult.validation?.explanation || [],
+      deployment_config: aiResult.deploymentConfig // Clean version for deployment
     };
     
     console.log('📤 Sending response with created_at:', responseConfig.created_at);
@@ -354,12 +357,15 @@ router.post('/apply', async (req, res) => {
     }
     
     try {
-      // Apply configuration via SSH
-      const sshResult = await sshService.sendConfigCommands(device, configuration.generated_config);
+      // Apply configuration via SSH using deployment config (no comments)
+      const configToApply = configuration.deployment_config || configuration.generated_config;
+      console.log(`📡 Deploying clean configuration (${configToApply.split('\n').length} lines, no comments)`);
+      
+      const sshResult = await sshService.sendConfigCommands(device, configToApply);
       
       // Update configuration status with timestamp
       configuration.status = 'applied';
-      configuration.applied_config = configuration.generated_config;
+      configuration.applied_config = configToApply;
       configuration.applied_at = Date.now(); // Use timestamp
       await configuration.save();
       
@@ -580,7 +586,7 @@ router.post('/generate-multi', async (req, res) => {
       });
     }
     
-    console.log(`🤖 Multi-device generation request for ${device_ids.length} devices: "${prompt}"`);
+    console.log(`🤖 Mistral 7B multi-device generation request for ${device_ids.length} devices: "${prompt}"`);
     
     // Get all devices
     const devices = await Device.find({ _id: { $in: device_ids } });
@@ -602,9 +608,21 @@ router.post('/generate-multi', async (req, res) => {
       });
     }
     
-    // Generate multi-device configuration
+    console.log(`🎯 Using model: ${aiStatus.model} with optimized settings`);
+    
+    // Generate multi-device configuration with proper device context
+    const deviceContexts = devices.map(device => ({
+      id: device._id,
+      name: device.name,
+      type: device.type,
+      model: device.model,
+      ios_version: device.ios_version,
+      location: device.location,
+      vendor: device.vendor
+    }));
+    
     const result = await aiService.generateMultiDeviceConfiguration(
-      devices, 
+      deviceContexts, 
       prompt, 
       topology_hints || {}
     );
@@ -626,19 +644,21 @@ router.post('/generate-multi', async (req, res) => {
           const configuration = new ConfigurationHistory({
             device_id: deviceResult.device_id,
             prompt: prompt,
-            generated_config: deviceResult.configuration,
-            method: 'multi_device_ai',
-            model: result.model || aiStatus.model,
+            generated_config: deviceResult.configuration, // Clean version for output panel
+            deployment_config: deviceResult.deploymentConfig, // Clean version for device
+            ai_model: result.model || aiStatus.model,
+            method: result.method || 'mistral_7b_multi',
             status: 'generated',
             validation_result: deviceResult.validation,
             multi_device_session: true,
-            topology_data: result.topology
+            execution_time: result.executionTime
           });
           
           await configuration.save();
           savedConfigurations.push({
             ...deviceResult,
-            configuration_id: configuration._id
+            configuration_id: configuration._id,
+            explanation: deviceResult.validation?.explanation || []
           });
         } catch (saveError) {
           console.error(`Failed to save configuration for device ${deviceResult.device_name}:`, saveError);
@@ -659,10 +679,10 @@ router.post('/generate-multi', async (req, res) => {
       success: true,
       message: `Generated configurations for ${result.summary.successfulDevices}/${result.summary.totalDevices} devices`,
       results: savedConfigurations,
-      topology: result.topology,
-      cross_validation: result.crossValidation,
       execution_time: result.executionTime,
       summary: result.summary,
+      method: result.method,
+      model: result.model,
       ai_status: aiStatus
     });
     
@@ -721,12 +741,15 @@ router.post('/apply-multi', async (req, res) => {
           continue;
         }
         
-        // Apply configuration via SSH
-        const sshResult = await sshService.sendConfigCommands(device, configuration.generated_config);
+        // Apply configuration via SSH using deployment config (no comments)
+        const configToApply = configuration.deployment_config || configuration.generated_config;
+        console.log(`📡 Deploying to ${device.name}: clean config (${configToApply.split('\n').length} lines, no comments)`);
+        
+        const sshResult = await sshService.sendConfigCommands(device, configToApply);
         
         // Update configuration status
         configuration.status = 'applied';
-        configuration.applied_config = configuration.generated_config;
+        configuration.applied_config = configToApply;
         configuration.applied_at = Date.now();
         await configuration.save();
         
