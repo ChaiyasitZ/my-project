@@ -4,7 +4,7 @@ import yangService from './yangService.js';
 export class AIService {
   constructor() {
     this.host = process.env.OLLAMA_HOST || 'http://localhost:11434';
-    this.model = process.env.OLLAMA_MODEL || 'qwen2.5-coder:3b';
+    this.model = process.env.OLLAMA_MODEL;
     this.timeout = 30000; // 30 seconds
     this.temperature = 0.1;
     this.maxTokens = 300;
