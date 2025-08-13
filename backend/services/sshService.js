@@ -13,13 +13,16 @@ export class SSHService {
     // Always clean up any existing connection for this device first
     this.disconnect(deviceId);
     
+    // Quick connectivity check
+    console.log(`🔍 Attempting fast connection to ${ip_address}...`);
+    
     return new Promise((resolve, reject) => {
       const conn = new Client();
       
       const timeout = setTimeout(() => {
         conn.end();
-        reject(new Error('SSH connection timeout'));
-      }, 45000); // Increased timeout for problematic devices
+        reject(new Error('SSH connection timeout - device unreachable'));
+      }, 10000); // Fast timeout for unreachable devices
 
       conn.on('ready', () => {
         clearTimeout(timeout);
@@ -71,8 +74,8 @@ export class SSHService {
         port: ssh_port || 22,
         username,
         password,
-        readyTimeout: 45000, // Increased timeout
-        authTimeout: 30000,
+        readyTimeout: 10000, // Fast timeout for unreachable devices
+        authTimeout: 8000,   // Quick auth timeout
         tryKeyboard: true, // Enable keyboard-interactive authentication
         // Add specific options for Cisco devices
         keepaliveInterval: 15000, // More frequent keepalives
@@ -225,9 +228,9 @@ export class SSHService {
           const timeout = setTimeout(() => {
             if (!commandComplete) {
               stream.end();
-              reject(new Error('Configuration deployment timeout (60 seconds)'));
+              reject(new Error('Configuration deployment timeout - device unresponsive'));
             }
-          }, 60000); // 60 second timeout
+          }, 30000); // Faster deployment timeout
 
           const sendNextCommand = () => {
             if (currentStep >= allCommands.length) {

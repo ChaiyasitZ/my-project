@@ -7,6 +7,20 @@ import sshService from '../services/sshService.js';
 
 const router = express.Router();
 
+// Helper function for user-friendly error messages
+function getErrorMessage(errorType) {
+  switch (errorType) {
+    case 'connection_timeout':
+      return 'Device is unreachable - check network connectivity and device status';
+    case 'authentication_failed':
+      return 'Authentication failed - check device credentials';
+    case 'deployment_error':
+      return 'Configuration deployment failed - check device configuration and syntax';
+    default:
+      return 'Unknown deployment error occurred';
+  }
+}
+
 // Validation schemas
 const generateConfigSchema = Joi.object({
   device_id: Joi.string().required(),
@@ -359,32 +373,54 @@ router.post('/apply', async (req, res) => {
     try {
       // Apply configuration via SSH using deployment config (no comments)
       const configToApply = configuration.deployment_config || configuration.generated_config;
-      console.log(`📡 Deploying clean configuration (${configToApply.split('\n').length} lines, no comments)`);
+      console.log(`📡 Deploying configuration to ${device.ip_address} (${configToApply.split('\n').length} lines)`);
+      
+      // Add deployment start time for timeout tracking
+      const deploymentStart = Date.now();
       
       const sshResult = await sshService.sendConfigCommands(device, configToApply);
+      
+      const deploymentTime = Date.now() - deploymentStart;
+      console.log(`✅ Configuration deployed successfully in ${deploymentTime}ms`);
       
       // Update configuration status with timestamp
       configuration.status = 'applied';
       configuration.applied_config = configToApply;
-      configuration.applied_at = Date.now(); // Use timestamp
+      configuration.applied_at = Date.now();
+      configuration.deployment_time = deploymentTime;
       await configuration.save();
       
       res.json({
         success: true,
         message: 'Configuration applied successfully',
+        deploymentTime,
         output: sshResult.output
       });
       
     } catch (sshError) {
-      // Update configuration status to failed
+      const deploymentTime = Date.now() - (Date.now() - 1000); // Approximate time
+      console.error(`❌ Deployment failed after ${deploymentTime}ms: ${sshError.message}`);
+      
+      // Update configuration status to failed with better error categorization
       configuration.status = 'failed';
       configuration.error_message = sshError.message;
+      configuration.deployment_time = deploymentTime;
       await configuration.save();
+      
+      // Determine error type for better user feedback
+      let errorType = 'deployment_error';
+      if (sshError.message.includes('timeout') || sshError.message.includes('unreachable')) {
+        errorType = 'connection_timeout';
+      } else if (sshError.message.includes('authentication') || sshError.message.includes('login')) {
+        errorType = 'authentication_failed';
+      }
       
       res.status(500).json({
         success: false,
-        message: 'Failed to apply configuration',
-        error: sshError.message
+        message: getErrorMessage(errorType),
+        error: sshError.message,
+        errorType,
+        deploymentTime
       });
     }
     
