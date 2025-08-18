@@ -701,7 +701,7 @@ function ConsoleConfiguration() {
                   {/* Template Preview */}
                   <div className="mt-6">
                     <h4 className="text-sm font-medium text-gray-700 mb-2">Configuration Preview</h4>
-                    <div className="bg-black rounded-md p-3 max-h-40 overflow-auto">
+                    <div className="bg-black rounded-md p-3 max-h-40 overflow-auto code-scrollbar">
                       <pre className="text-green-400 text-xs font-mono whitespace-pre-wrap">
                         {templates[selectedTemplate] && 
                           (() => {
@@ -792,7 +792,7 @@ function ConsoleConfiguration() {
           </div>
 
           {/* Command Details */}
-          <div className="space-y-2 max-h-64 overflow-auto">
+          <div className="space-y-2 max-h-64 overflow-auto custom-scrollbar">
             {configResults.results.map((result, index) => (
               <div
                 key={index}
@@ -831,7 +831,7 @@ function ConsoleConfiguration() {
           {configResults.fullOutput && (
             <div className="mt-6">
               <h4 className="text-sm font-medium text-gray-700 mb-2">📋 Full Console Output</h4>
-              <div className="bg-black rounded-lg p-4 max-h-96 overflow-auto">
+              <div className="bg-black rounded-lg p-4 max-h-96 overflow-auto code-scrollbar">
                 <pre className="text-green-400 text-xs font-mono whitespace-pre-wrap">
                   {configResults.fullOutput}
                 </pre>

@@ -427,7 +427,7 @@ const YangModelManager = ({
       {/* Upload Form Modal */}
       {showYangUploadForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full m-4 max-h-[90vh] overflow-hidden">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full m-4 max-h-[90vh] overflow-hidden modal-scrollbar">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-medium text-gray-900">
                 {editingModel ? 'Edit YANG Model' : 'Add New YANG Model'}
@@ -440,7 +440,7 @@ const YangModelManager = ({
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto max-h-[80vh]">
+            <div className="p-6 overflow-y-auto max-h-[80vh] modal-scrollbar">
               {/* Upload method selection */}
               {!editingModel && (
                 <div className="mb-6">
@@ -611,7 +611,7 @@ const YangModelManager = ({
       {/* Preview Modal */}
       {previewModel && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full m-4 max-h-[90vh] overflow-hidden">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full m-4 max-h-[90vh] overflow-hidden modal-scrollbar">
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="text-lg font-medium text-gray-900">
                 YANG Model Preview: {previewModel.name}
@@ -624,7 +624,7 @@ const YangModelManager = ({
               </button>
             </div>
             
-            <div className="p-4 overflow-y-auto max-h-[80vh]">
+            <div className="p-4 overflow-y-auto max-h-[80vh] modal-scrollbar">
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 mb-2">Model Information</h4>

@@ -6,7 +6,7 @@ import Device from '../models/Device.js';
 import YangModel from '../models/YangModel.js';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import netconfService from '../services/netconfService.js';
-import aiService from '../services/aiService.js';
+import llmService from '../services/llmService.js';
 import yangService from '../services/yangService.js';
 
 const router = express.Router();
@@ -656,7 +656,7 @@ router.post('/generate-xml', async (req, res) => {
 
     // Choose generation method based on output format
     if (output_format === 'netconf_xml') {
-      result = await aiService.generateNetconfXml(
+      result = await llmService.generateNetconfXml(
         prompt, 
         device?.type || 'switch', 
         deviceContext, 
@@ -664,7 +664,7 @@ router.post('/generate-xml', async (req, res) => {
       );
     } else {
       // Default to CLI generation
-      result = await aiService.generateConfiguration(
+      result = await llmService.generateConfiguration(
         prompt, 
         device?.type || 'switch', 
         deviceContext

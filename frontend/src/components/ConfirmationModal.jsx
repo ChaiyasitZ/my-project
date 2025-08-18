@@ -101,7 +101,7 @@ function ConfirmationModal({
 
   return (
     <div 
-      className="fixed inset-0 z-50 overflow-y-auto"
+      className="fixed inset-0 z-50 overflow-y-auto overlay-scrollbar"
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"

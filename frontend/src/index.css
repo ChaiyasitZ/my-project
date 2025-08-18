@@ -16,6 +16,156 @@
 }
 
 @layer components {
+  /* Improved Scrollbar System */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.3) transparent;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 3px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(156, 163, 175, 0.3);
+    border-radius: 3px;
+    border: 1px solid transparent;
+    background-clip: content-box;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(156, 163, 175, 0.5);
+    background-clip: content-box;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  
+  /* Overlay Scrollbar - No Content Squeezing */
+  .overlay-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
+    overflow: overlay; /* Fallback for browsers that support it */
+  }
+  
+  .overlay-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .overlay-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .overlay-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(156, 163, 175, 0.4);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+    min-height: 20px;
+  }
+  
+  .overlay-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(156, 163, 175, 0.6);
+    background-clip: content-box;
+  }
+  
+  .overlay-scrollbar::-webkit-scrollbar-thumb:active {
+    background: rgba(156, 163, 175, 0.8);
+    background-clip: content-box;
+  }
+  
+  /* Dark Theme Scrollbar */
+  .dark-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(75, 85, 99, 0.4) transparent;
+  }
+  
+  .dark-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .dark-scrollbar::-webkit-scrollbar-track {
+    background: rgba(17, 24, 39, 0.1);
+    border-radius: 3px;
+  }
+  
+  .dark-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(75, 85, 99, 0.4);
+    border-radius: 3px;
+    border: 1px solid transparent;
+    background-clip: content-box;
+  }
+  
+  .dark-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(75, 85, 99, 0.6);
+    background-clip: content-box;
+  }
+  
+  /* Modal Scrollbar */
+  .modal-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.5) rgba(243, 244, 246, 0.5);
+  }
+  
+  .modal-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .modal-scrollbar::-webkit-scrollbar-track {
+    background: rgba(243, 244, 246, 0.5);
+    border-radius: 4px;
+  }
+  
+  .modal-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(156, 163, 175, 0.5);
+    border-radius: 4px;
+    border: 1px solid rgba(243, 244, 246, 0.3);
+    background-clip: content-box;
+  }
+  
+  .modal-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(156, 163, 175, 0.7);
+    background-clip: content-box;
+  }
+  
+  /* Code/Terminal Scrollbar */
+  .code-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(34, 197, 94, 0.3) rgba(0, 0, 0, 0.8);
+  }
+  
+  .code-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .code-scrollbar::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.8);
+    border-radius: 4px;
+  }
+  
+  .code-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(34, 197, 94, 0.3);
+    border-radius: 4px;
+    border: 1px solid rgba(0, 0, 0, 0.5);
+    background-clip: content-box;
+  }
+  
+  .code-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(34, 197, 94, 0.5);
+    background-clip: content-box;
+  }
+
   .btn {
     @apply inline-flex items-center justify-center rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed border focus:outline-none focus:ring-2 focus:ring-offset-2;
   }

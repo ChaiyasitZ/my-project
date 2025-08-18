@@ -123,7 +123,7 @@ function Sidebar({ serverStatus = 'checking' }) {
           <div className="lg:hidden h-4"></div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto sidebar-scroll">
+          <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto custom-scrollbar">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href;
               const Icon = item.icon;

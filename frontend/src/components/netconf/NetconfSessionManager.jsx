@@ -80,7 +80,7 @@ const NetconfSessionManager = ({
                     <summary className="cursor-pointer text-blue-600 hover:text-blue-800">
                       View Capabilities ({session.capabilities.length})
                     </summary>
-                    <div className="mt-2 pl-4 space-y-1 max-h-32 overflow-y-auto">
+                    <div className="mt-2 pl-4 space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
                       {session.capabilities.slice(0, 10).map((capability, idx) => (
                         <div key={idx} className="text-gray-600 text-xs font-mono">
                           {capability}

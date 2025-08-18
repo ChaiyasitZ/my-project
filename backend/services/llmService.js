@@ -1,10 +1,10 @@
 import axios from 'axios';
 
 /**
- * AI Service for Cisco Configuration Generation
+ * LLM Service for Cisco Configuration Generation
  * Clean, optimized implementation for Ollama/Mistral integration
  */
-export class AIService {
+export class LLMService {
   constructor() {
     // Configuration
     this.host = process.env.OLLAMA_HOST || 'http://localhost:11434';
@@ -27,7 +27,7 @@ export class AIService {
       stop: []            // Remove all stop conditions initially
     };
     
-    console.log(`🤖 AI Service initialized - Model: ${this.model} @ ${this.host}`);
+    console.log(`🤖 LLM Service initialized - Model: ${this.model} @ ${this.host}`);
   }
 
   /**
@@ -593,7 +593,7 @@ Provide a concise technical explanation:`;
   }
 
   /**
-   * Get AI service status and capabilities
+   * Get LLM service status and capabilities
    */
   async getServiceStatus() {
     try {
@@ -631,4 +631,4 @@ Provide a concise technical explanation:`;
   }
 }
 
-export default new AIService();
+export default new LLMService();

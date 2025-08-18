@@ -2,7 +2,7 @@ import express from 'express';
 import Joi from 'joi';
 import Device from '../models/Device.js';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
-import aiService from '../services/aiService.js';
+import llmService from '../services/llmService.js';
 import sshService from '../services/sshService.js';
 
 const router = express.Router();
@@ -41,17 +41,17 @@ const rateConfigSchema = Joi.object({
 // GET /api/configurations/ai-status - Get AI service status
 router.get('/ai-status', async (req, res) => {
   try {
-    const status = await aiService.getServiceStatus();
+    const status = await llmService.getServiceStatus();
     res.json({
       success: true,
-      aiService: status
+      llmService: status
     });
   } catch (error) {
     console.error('Error getting AI status:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to get AI status',
-      aiService: { 
+      llmService: { 
         status: 'error', 
         error: error.message 
       }
@@ -204,7 +204,7 @@ router.post('/generate', async (req, res) => {
     
     let aiResult;
     try {
-      aiResult = await aiService.generateConfiguration(prompt, device.type, {
+      aiResult = await llmService.generateConfiguration(prompt, device.type, {
         name: device.name,
         model: device.model,
         ios_version: device.ios_version,
@@ -549,7 +549,7 @@ router.get('/:id', async (req, res) => {
     
     // Get explanation if needed
     if (req.query.explain === 'true') {
-      const explanation = await aiService.explainConfiguration(configuration.generated_config);
+      const explanation = await llmService.explainConfiguration(configuration.generated_config);
       enhancedConfiguration.explanation = explanation;
     }
     
@@ -635,7 +635,7 @@ router.post('/generate-multi', async (req, res) => {
     }
     
     // Check AI service status
-    const aiStatus = await aiService.getServiceStatus();
+    const aiStatus = await llmService.getServiceStatus();
     if (aiStatus.status === "disconnected") {
       return res.status(503).json({
         success: false,
@@ -657,7 +657,7 @@ router.post('/generate-multi', async (req, res) => {
       vendor: device.vendor
     }));
     
-    const result = await aiService.generateMultiDeviceConfiguration(
+    const result = await llmService.generateMultiDeviceConfiguration(
       deviceContexts, 
       prompt, 
       topology_hints || {}
