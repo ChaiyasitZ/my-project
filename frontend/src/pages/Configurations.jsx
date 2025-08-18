@@ -25,6 +25,8 @@ function Configurations() {
   const [multiDeviceMode, setMultiDeviceMode] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedConfig, setEditedConfig] = useState('');
+  const [topologyImage, setTopologyImage] = useState(null);
+  const [topologyPreview, setTopologyPreview] = useState(null);
 
   const { confirmationState, showConfirmation } = useConfirmation();
 
@@ -179,6 +181,59 @@ function Configurations() {
     setSelectedDevices(selectedDevices.filter(d => d.id !== deviceId));
   };
 
+  // Handle topology image upload
+  const handleTopologyImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      processImageFile(file);
+    }
+  };
+
+  // Handle image paste from clipboard
+  const handleImagePaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf('image') !== -1) {
+          const file = item.getAsFile();
+          if (file) {
+            processImageFile(file);
+            toast.success('Image pasted successfully!');
+          }
+          break;
+        }
+      }
+    }
+  };
+
+  // Process image file (upload or paste)
+  const processImageFile = (file) => {
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Please use a valid image file (JPEG, PNG, GIF, BMP, WebP)');
+      return;
+    }
+    
+    // Validate file size (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image file must be less than 10MB');
+      return;
+    }
+    
+    setTopologyImage(file);
+    
+    // Create preview URL
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setTopologyPreview(e.target.result);
+    };
+    reader.readAsDataURL(file);
+    
+    toast.success('Topology image ready for LLaVA generation!');
+  };
+
   const handleMultiDeviceGeneration = async () => {
     if (selectedDevices.length === 0 || !prompt) return;
 
@@ -189,14 +244,27 @@ function Configurations() {
     try {
       console.log('🚀 Starting multi-device generation for:', selectedDevices.map(d => d.name));
       
-      // Call the new multi-device API endpoint
-      const response = await axios.post('/configurations/generate-multi', {
-        device_ids: selectedDevices.map(d => d.id),
-        prompt: prompt,
-        topology_hints: {
-          connection_type: 'sequential', // Router1 -> Router2 -> Router3
-          network_base: '192.168.0.0'
-        }
+      // Prepare form data for potential image upload
+      const formData = new FormData();
+      formData.append('device_ids', JSON.stringify(selectedDevices.map(d => d.id)));
+      formData.append('prompt', prompt);
+      formData.append('topology_hints', JSON.stringify({
+        connection_type: 'sequential', // Router1 -> Router2 -> Router3
+        network_base: '192.168.0.0'
+      }));
+      
+      // Add topology image if available
+      if (topologyImage) {
+        formData.append('topology_image', topologyImage);
+        console.log('📸 Including topology image for enhanced generation');
+      }
+
+      // Call the enhanced multi-device API endpoint with longer timeout for LLaVA
+      const response = await axios.post('/configurations/generate-multi', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: topologyImage ? 300000 : 60000,  // 5 min for LLaVA, 1 min for regular
       });
       
       if (response.data.success) {
@@ -205,25 +273,42 @@ function Configurations() {
           const device = selectedDevices.find(d => d.id === result.device_id);
           return {
             device: device,
-            config: result.success ? result.configuration : null,
+            config: result.success ? (result.configuration || result.displayConfig) : null,
             success: result.success,
             error: result.success ? null : result.error,
             order: index + 1,
             configuration_id: result.configuration_id,
-            validation: result.validation,
-            explanation: result.explanation || []
+            validation: result.validation || { isValid: result.success, errors: [], warnings: [] },
+            explanation: result.explanation || [],
+            image_enhanced: result.image_enhanced || false
           };
         });
         
+        console.log('🎯 Raw API response:', response.data);
+        console.log('🎯 Mapped configs for preview:', configs);
+        console.log('🎯 Config details:', configs.map(c => ({ 
+          device: c.device?.name, 
+          hasConfig: !!c.config, 
+          configLength: c.config?.length,
+          success: c.success,
+          image_enhanced: c.image_enhanced
+        })));
         setGeneratedConfigs(configs);
         
         const successCount = response.data.summary.successfulDevices;
         const totalCount = response.data.summary.totalDevices;
+        const visionEnhanced = response.data.vision_enhanced || response.data.image_analyzed;
         
         if (successCount === totalCount) {
-          toast.success(`🎉 Generated all ${totalCount} configurations successfully!`, { id: toastId });
+          const message = visionEnhanced 
+            ? `🎉 Generated all ${totalCount} configurations with LLaVA vision!`
+            : `🎉 Generated all ${totalCount} configurations successfully!`;
+          toast.success(message, { id: toastId });
         } else if (successCount > 0) {
-          toast.success(`Generated ${successCount}/${totalCount} configurations`, { id: toastId });
+          const message = visionEnhanced
+            ? `Generated ${successCount}/${totalCount} configurations with LLaVA vision`
+            : `Generated ${successCount}/${totalCount} configurations`;
+          toast.success(message, { id: toastId });
         } else {
           toast.error(`Failed to generate any configurations`, { id: toastId });
         }
@@ -437,7 +522,11 @@ function Configurations() {
             </div>
           </div>
 
-          <form onSubmit={multiDeviceMode ? (e) => { e.preventDefault(); handleMultiDeviceGeneration(); } : handleGenerateConfiguration} className="space-y-4">
+          <form 
+            onSubmit={multiDeviceMode ? (e) => { e.preventDefault(); handleMultiDeviceGeneration(); } : handleGenerateConfiguration} 
+            onPaste={handleImagePaste}
+            className="space-y-4"
+          >
             {!multiDeviceMode ? (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -499,6 +588,77 @@ function Configurations() {
                     ))}
                   </div>
                 )}
+
+                {/* Topology Image Upload Section */}
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h4 className="text-sm font-medium text-blue-900 mb-3 flex items-center">
+                    🖼️ LLaVA Vision Configuration (Optional)
+                    <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">Direct Generation</span>
+                  </h4>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Upload or Paste Network Topology Image
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleTopologyImageChange}
+                        className="block w-full text-sm text-gray-500
+                          file:mr-4 file:py-2 file:px-4
+                          file:rounded-lg file:border-0
+                          file:text-sm file:font-medium
+                          file:bg-blue-50 file:text-blue-700
+                          hover:file:bg-blue-100
+                          cursor-pointer"
+                      />
+                      <div className="mt-2 p-3 bg-blue-100 rounded border border-blue-200">
+                        <p className="text-xs text-blue-700 font-medium">📋 Image Paste Support:</p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          You can also paste images directly! Copy an image (Ctrl+C) and paste it here (Ctrl+V).
+                          LLaVA will generate configurations directly from the topology image.
+                        </p>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Supports JPEG, PNG, GIF, BMP, WebP (Max 10MB). LLaVA will generate configs directly from your topology image.
+                      </p>
+                    </div>
+
+                    {/* Image Preview */}
+                    {topologyPreview && (
+                      <div className="mt-3">
+                        <img 
+                          src={topologyPreview} 
+                          alt="Topology Preview" 
+                          className="max-w-full h-48 object-contain border border-gray-300 rounded bg-white"
+                        />
+                        <div className="mt-2 flex space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTopologyImage(null);
+                              setTopologyPreview(null);
+                            }}
+                            className="btn btn-secondary btn-sm"
+                          >
+                            🗑️ Remove Image
+                          </button>
+                        </div>
+                        
+                        <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
+                          <p className="text-xs text-green-700 font-medium flex items-center">
+                            ✅ <span className="ml-1">Image Ready for LLaVA Generation</span>
+                          </p>
+                          <p className="text-xs text-green-600 mt-1">
+                            When you click "Generate Configurations", LLaVA will analyze this topology image 
+                            and generate device configs based on what it sees in the diagram.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -633,9 +793,10 @@ function Configurations() {
 
                   {configResult.success ? (
                     <>
-                      {configResult.validation && (
-                        <div className="mb-3">
-                          <div className="bg-blue-50 rounded-lg p-2">
+                      {/* Enhanced status with LLaVA indicator */}
+                      <div className="mb-3 flex items-center justify-between">
+                        {configResult.validation && (
+                          <div className="bg-blue-50 rounded-lg p-2 flex-1 mr-2">
                             <div className="flex items-center">
                               <CheckCircleIcon className={`h-4 w-4 mr-2 ${
                                 configResult.validation.isValid ? 'text-green-600' : 'text-red-600'
@@ -645,18 +806,38 @@ function Configurations() {
                               </span>
                             </div>
                           </div>
+                        )}
+                        
+                        {configResult.image_enhanced && (
+                          <div className="bg-purple-50 rounded-lg p-2">
+                            <span className="text-xs font-medium text-purple-700 flex items-center">
+                              👁️ LLaVA Vision
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {configResult.config ? (
+                        <div className="bg-gray-900 rounded-lg p-3 overflow-x-auto custom-scrollbar">
+                          <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">
+                            {configResult.config}
+                          </pre>
+                        </div>
+                      ) : (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                          <div className="text-yellow-800 text-sm">
+                            ⚠️ Configuration generated but not displaying properly
+                          </div>
+                          <div className="text-xs text-yellow-600 mt-1">
+                            Debug: config field = {typeof configResult.config} | success = {String(configResult.success)}
+                          </div>
                         </div>
                       )}
-                      
-                      <div className="bg-gray-900 rounded-lg p-3 overflow-x-auto">
-                        <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">
-                          {configResult.config}
-                        </pre>
-                      </div>
                       
                       <div className="mt-2 text-xs text-gray-500">
                         Configuration #{configResult.order}
                         {configResult.configuration_id && ` • ID: ${configResult.configuration_id.slice(-8)}`}
+                        {configResult.image_enhanced && ' • Generated with LLaVA vision'}
                       </div>
                     </>
                   ) : (

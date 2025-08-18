@@ -3,9 +3,46 @@ import Joi from 'joi';
 import Device from '../models/Device.js';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import llmService from '../services/llmService.js';
+import visionLlmService from '../services/visionLlmService.js';
 import sshService from '../services/sshService.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const router = express.Router();
+
+// Configure multer for image uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = 'uploads/topology';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'topology-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    const allowedTypes = /jpeg|jpg|png|gif|bmp|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'));
+    }
+  }
+});
 
 // Helper function for user-friendly error messages
 function getErrorMessage(errorType) {
@@ -595,10 +632,20 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// 🆕 POST /api/configurations/generate-multi - Generate configurations for multiple devices
-router.post('/generate-multi', async (req, res) => {
+// Removed separate analysis endpoint - LLaVA now generates configs directly
+
+// 🆕 POST /api/configurations/generate-multi - Generate configurations for multiple devices with topology support
+router.post('/generate-multi', upload.single('topology_image'), async (req, res) => {
   try {
-    const { device_ids, prompt, topology_hints } = req.body;
+    let { device_ids, prompt, topology_hints } = req.body;
+    
+    // Parse JSON strings if they come from FormData
+    if (typeof device_ids === 'string') {
+      device_ids = JSON.parse(device_ids);
+    }
+    if (typeof topology_hints === 'string') {
+      topology_hints = JSON.parse(topology_hints);
+    }
     
     // Validation
     if (!device_ids || !Array.isArray(device_ids) || device_ids.length === 0) {
@@ -622,7 +669,8 @@ router.post('/generate-multi', async (req, res) => {
       });
     }
     
-    console.log(`🤖 Mistral 7B multi-device generation request for ${device_ids.length} devices: "${prompt}"`);
+    const hasTopologyImage = !!req.file;
+    console.log(`🤖 Multi-device generation request for ${device_ids.length} devices${hasTopologyImage ? ' with topology image' : ''}: "${prompt}"`);
     
     // Get all devices
     const devices = await Device.find({ _id: { $in: device_ids } });
@@ -644,9 +692,154 @@ router.post('/generate-multi', async (req, res) => {
       });
     }
     
-    console.log(`🎯 Using model: ${aiStatus.model} with optimized settings`);
+    let enhancedTopologyHints = topology_hints || {};
     
-    // Generate multi-device configuration with proper device context
+    // If topology image is provided, use LLaVA for direct configuration generation
+    if (hasTopologyImage) {
+      console.log(`🔍 Using LLaVA for direct config generation: ${req.file.filename}`);
+      
+      // Check LLaVA service status
+      const visionStatus = await visionLlmService.getServiceStatus();
+      if (visionStatus.status === "disconnected") {
+        return res.status(503).json({
+          success: false,
+          message: 'Vision LLM service (LLaVA) is not available. Please install and run LLaVA model with Ollama.',
+          visionStatus: visionStatus
+        });
+      }
+      
+      // Generate configurations directly from image for each device
+      const visionResults = [];
+      
+      for (const device of devices) {
+        console.log(`🎯 Generating config for ${device.name} using LLaVA vision...`);
+        
+        const deviceContext = {
+          name: device.name,
+          type: device.type,
+          model: device.model,
+          ios_version: device.ios_version,
+          location: device.location,
+          vendor: device.vendor
+        };
+        
+        const visionResult = await visionLlmService.generateConfigurationFromImage(
+          req.file.path,
+          prompt,
+          device,
+          deviceContext
+        );
+        
+        visionResults.push({
+          device_id: device._id,
+          device_name: device.name,
+          success: visionResult.success,
+          configuration: visionResult.configuration || null,
+          displayConfig: visionResult.configuration || null,
+          deploymentConfig: visionResult.configuration || null,
+          error: visionResult.error || null,
+          validation: { isValid: visionResult.success, errors: [], warnings: [] },
+          image_enhanced: true,
+          execution_time: visionResult.executionTime
+        });
+      }
+      
+      // Use vision results instead of standard LLM generation
+      const successCount = visionResults.filter(r => r.success).length;
+      const totalTime = visionResults.reduce((sum, r) => sum + (r.execution_time || 0), 0);
+      
+      console.log(`✅ LLaVA direct generation completed: ${successCount}/${devices.length} devices`);
+      
+      // Prepare image data for storage
+      let imageData = null;
+      if (req.file) {
+        try {
+          const imageBuffer = fs.readFileSync(req.file.path);
+          const base64Data = imageBuffer.toString('base64');
+          
+          imageData = {
+            filename: req.file.filename,
+            originalName: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.size,
+            uploadDate: Date.now(),
+            base64Data: base64Data,
+            isVisionGenerated: true
+          };
+          
+          console.log(`📸 Prepared image data: ${req.file.originalname} (${Math.round(req.file.size/1024)}KB)`);
+        } catch (imageError) {
+          console.error('❌ Failed to process image data:', imageError.message);
+        }
+      }
+
+      // Save successful configurations
+      const savedConfigurations = [];
+      
+      for (const deviceResult of visionResults) {
+        if (deviceResult.success) {
+          try {
+            const configuration = new ConfigurationHistory({
+              device_id: deviceResult.device_id,
+              prompt: prompt,
+              generated_config: deviceResult.configuration,
+              deployment_config: deviceResult.deploymentConfig,
+              ai_model: visionStatus.model,
+              method: 'llava_direct_vision',
+              status: 'generated',
+              validation_result: deviceResult.validation,
+              multi_device_session: true,
+              execution_time: totalTime,
+              image_enhanced: true,
+              vision_enhanced: true,
+              topology_image: imageData,
+              vision_analysis: {
+                vision_model: visionStatus.model,
+                detected_devices: [deviceResult.device_name],
+                detected_ports: {},
+                detected_connections: []
+              }
+            });
+            
+            await configuration.save();
+            savedConfigurations.push({
+              ...deviceResult,
+              configuration_id: configuration._id
+            });
+          } catch (saveError) {
+            console.error(`Failed to save config for ${deviceResult.device_name}:`, saveError);
+            savedConfigurations.push({
+              ...deviceResult,
+              success: false,
+              error: 'Failed to save configuration'
+            });
+          }
+        } else {
+          savedConfigurations.push(deviceResult);
+        }
+      }
+      
+      return res.json({
+        success: successCount > 0,
+        message: `Generated ${successCount}/${devices.length} configurations using LLaVA vision`,
+        results: savedConfigurations,
+        execution_time: totalTime,
+        summary: {
+          successfulDevices: successCount,
+          totalDevices: devices.length,
+          description: `${successCount}/${devices.length} devices configured with LLaVA vision`
+        },
+        method: 'llava_direct_vision',
+        model: visionStatus.model,
+        vision_enhanced: true,
+        image_analyzed: true,
+        ai_status: aiStatus
+      });
+    }
+    
+    console.log(`🎯 Using model: ${aiStatus.model} with${hasTopologyImage ? ' LLaVA-enhanced' : ''} generation`);
+    
+    // Generate multi-device configuration with enhanced topology context
     const deviceContexts = devices.map(device => ({
       id: device._id,
       name: device.name,
@@ -660,7 +853,7 @@ router.post('/generate-multi', async (req, res) => {
     const result = await llmService.generateMultiDeviceConfiguration(
       deviceContexts, 
       prompt, 
-      topology_hints || {}
+      enhancedTopologyHints
     );
     
     if (!result.success) {
@@ -713,12 +906,16 @@ router.post('/generate-multi', async (req, res) => {
     
     res.json({
       success: true,
-      message: `Generated configurations for ${result.summary.successfulDevices}/${result.summary.totalDevices} devices`,
+      message: `Generated configurations for ${result.summary.successfulDevices}/${result.summary.totalDevices} devices${result.topology_enhanced ? ' with topology analysis' : ''}`,
       results: savedConfigurations,
       execution_time: result.executionTime,
       summary: result.summary,
       method: result.method,
       model: result.model,
+      topology_enhanced: result.topology_enhanced || false,
+      topology_analysis: enhancedTopologyHints.topologyAnalysis || null,
+      vision_model: enhancedTopologyHints.visionModel || null,
+      image_analyzed: enhancedTopologyHints.imageAnalyzed || false,
       ai_status: aiStatus
     });
     

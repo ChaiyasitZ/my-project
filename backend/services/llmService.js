@@ -420,19 +420,36 @@ Commands:`;
   }
 
   /**
-   * Generate configurations for multiple devices
+   * Generate configurations for multiple devices with topology awareness
    */
   async generateMultiDeviceConfiguration(devices, prompt, topologyHints = {}) {
     const startTime = Date.now();
     
     try {
       console.log(`🚀 Multi-device generation for ${devices.length} devices`);
-
+      
+      // Check if topology analysis is available
+      const hasTopologyAnalysis = topologyHints.topologyAnalysis && topologyHints.portConfigurations;
+      
       const promises = devices.map(async (device, index) => {
         console.log(`🔄 Generating ${index + 1}/${devices.length}: ${device.name}`);
         
-        const devicePrompt = `${prompt} for device ${device.name}`;
-        const result = await this.generateConfiguration(devicePrompt, device.type, device);
+        let enhancedPrompt = prompt;
+        let deviceContext = device;
+        
+        // Enhance prompt with topology information if available
+        let portConfig = null;
+        if (hasTopologyAnalysis) {
+          portConfig = topologyHints.portConfigurations.find(pc => pc.device_id === device.id);
+          if (portConfig) {
+            enhancedPrompt = this._buildTopologyAwarePrompt(prompt, device, portConfig, topologyHints.topologyAnalysis);
+            deviceContext = { ...device, topologyContext: portConfig.topology_context };
+          }
+        } else {
+          enhancedPrompt = `${prompt} for device ${device.name}`;
+        }
+        
+        const result = await this.generateConfiguration(enhancedPrompt, device.type, deviceContext);
 
         return {
           device_id: device.id,
@@ -442,7 +459,9 @@ Commands:`;
           displayConfig: result.displayConfig || null,
           deploymentConfig: result.deploymentConfig || null,
           error: result.error || null,
-          validation: result.validation || null
+          validation: result.validation || null,
+          topology_enhanced: hasTopologyAnalysis,
+          port_mappings: portConfig?.connections || []
         };
       });
 
@@ -456,12 +475,13 @@ Commands:`;
         success: successCount > 0,
         results,
         executionTime,
-        method: 'mistral_7b_multi',
+        method: hasTopologyAnalysis ? 'llava_topology_enhanced' : 'mistral_7b_multi',
         model: this.model,
+        topology_enhanced: hasTopologyAnalysis,
         summary: {
           successfulDevices: successCount,
           totalDevices: devices.length,
-          description: `${successCount}/${devices.length} devices configured`
+          description: `${successCount}/${devices.length} devices configured${hasTopologyAnalysis ? ' with topology analysis' : ''}`
         }
       };
 
@@ -482,6 +502,39 @@ Commands:`;
         }
       };
     }
+  }
+
+  /**
+   * Build topology-aware prompt with port and connection information
+   */
+  _buildTopologyAwarePrompt(basePrompt, device, portConfig, topologyAnalysis) {
+    const connections = portConfig.connections || [];
+    const connectionInfo = connections.map(conn => 
+      `${conn.local_port} → ${conn.remote_device} ${conn.remote_port}`
+    ).join('\n');
+
+    return `Generate Cisco IOS configuration for ${device.name} (${device.type}) based on network topology analysis.
+
+TOPOLOGY CONTEXT:
+${topologyAnalysis.networkSummary || 'Network topology provided'}
+
+DEVICE CONNECTIONS:
+${connectionInfo || 'No specific connections mapped'}
+
+DETECTED PROTOCOLS: ${(topologyAnalysis.protocols || []).join(', ') || 'Standard protocols'}
+NETWORK SEGMENTS: ${(topologyAnalysis.ipRanges || []).join(', ') || 'Auto-assign'}
+VLANS DETECTED: ${(topologyAnalysis.vlans || []).join(', ') || 'None specified'}
+
+USER REQUEST: ${basePrompt}
+
+REQUIREMENTS:
+1. Configure interfaces for all mapped connections
+2. Apply appropriate routing protocols based on topology
+3. Use IP addressing that fits the network design
+4. Include port descriptions matching the topology
+5. Configure VLANs if this is a switch with VLAN requirements
+
+Generate configuration:`;
   }
 
   /**

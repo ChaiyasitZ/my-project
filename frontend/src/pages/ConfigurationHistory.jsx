@@ -298,6 +298,16 @@ function ConfigurationHistory() {
                       <span className="text-sm text-gray-400">
                         {config.ip_address}
                       </span>
+                      {config.topology_image && config.topology_image.base64Data && (
+                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded flex items-center">
+                          🖼️ Image
+                        </span>
+                      )}
+                      {config.vision_enhanced && (
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded flex items-center">
+                          👁️ LLaVA
+                        </span>
+                      )}
                     </div>
                     
                     <p className="text-gray-600 mb-3 line-clamp-2">
@@ -409,6 +419,37 @@ function ConfigurationHistory() {
                   <p className="text-sm text-gray-800">{selectedConfig.prompt}</p>
                 </div>
               </div>
+
+              {/* Topology Image */}
+              {selectedConfig.topology_image && selectedConfig.topology_image.base64Data && (
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
+                    🖼️ Network Topology Image
+                    {selectedConfig.topology_image.isVisionGenerated && (
+                      <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
+                        👁️ LLaVA Vision
+                      </span>
+                    )}
+                  </h4>
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="mb-3">
+                      <img 
+                        src={`data:${selectedConfig.topology_image.mimetype};base64,${selectedConfig.topology_image.base64Data}`}
+                        alt="Network Topology"
+                        className="max-w-full h-auto max-h-64 object-contain border border-gray-300 rounded"
+                      />
+                    </div>
+                    <div className="text-xs text-gray-500 space-y-1">
+                      <div><strong>Filename:</strong> {selectedConfig.topology_image.originalName}</div>
+                      <div><strong>Size:</strong> {Math.round(selectedConfig.topology_image.size / 1024)} KB</div>
+                      <div><strong>Uploaded:</strong> {new Date(selectedConfig.topology_image.uploadDate).toLocaleString()}</div>
+                      {selectedConfig.vision_analysis && selectedConfig.vision_analysis.vision_model && (
+                        <div><strong>Vision Model:</strong> {selectedConfig.vision_analysis.vision_model}</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
               
               {/* Generated Configuration */}
               <div>
