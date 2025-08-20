@@ -262,7 +262,7 @@ function BackupManagement() {
 
     const confirmed = await showConfirmation({
       title: 'Restore Configuration',
-      message: `Are you sure you want to restore "${selectedBackup.backup_name}"?\n\nThis will ${restoreForm.restore_type === 'startup-config' ? 'replace the startup configuration' : 'apply to running configuration'}.`,
+      message: `Are you sure you want to restore "${selectedBackup.backup_name}"?\n\nThis will ${restoreForm.restore_type === 'startup' ? 'replace the startup configuration' : restoreForm.restore_type === 'both' ? 'restore both configurations' : 'apply to running configuration'}.`,
       confirmText: 'Restore',
       cancelText: 'Cancel',
       type: 'warning'
@@ -280,7 +280,15 @@ function BackupManagement() {
         url: `/backups/${selectedBackup.id}/restore`
       });
       
-      const response = await axios.post(`/backups/${selectedBackup.id}/restore`, restoreForm);
+      // Ensure we only send the required fields (no backup_id)
+      const restoreData = {
+        restore_type: restoreForm.restore_type,
+        create_checkpoint: restoreForm.create_checkpoint
+      };
+      
+      console.log('📤 Actual restore data being sent:', restoreData);
+      
+      const response = await axios.post(`/backups/${selectedBackup.id}/restore`, restoreData);
       
       console.log('✅ Configuration restored successfully!');
       console.log('Summary:',
@@ -293,7 +301,7 @@ function BackupManagement() {
       
       setShowRestoreModal(false);
       setRestoreForm({
-        restore_type: 'running-config',
+        restore_type: 'running',
         create_checkpoint: true,
         description: ''
       });
@@ -846,6 +854,11 @@ function BackupManagement() {
                   <button
                     onClick={() => {
                       setSelectedBackup(backup);
+                      // Reset restore form to ensure correct values
+                      setRestoreForm({
+                        restore_type: 'running',
+                        create_checkpoint: true
+                      });
                       setShowRestoreModal(true);
                     }}
                     className="btn btn-primary btn-sm"

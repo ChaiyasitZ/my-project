@@ -601,19 +601,31 @@ router.post('/:id/restore', async (req, res) => {
       create_checkpoint: req.body.create_checkpoint
     });
     
-    const { error, value } = restoreBackupSchema.validate(req.body);
+    // Manual validation to avoid schema caching issues
+    const { restore_type = 'running', create_checkpoint = true } = req.body;
     
-    if (error) {
-      console.error('❌ Restore validation error:', error.details);
+    // Validate restore_type
+    if (!['running', 'startup', 'both'].includes(restore_type)) {
+      console.error('❌ Invalid restore_type:', restore_type);
       return res.status(400).json({
         success: false,
-        message: 'Validation error',
-        details: error.details,
-        received_data: req.body
+        message: 'Invalid restore_type. Must be: running, startup, or both',
+        received_restore_type: restore_type,
+        valid_options: ['running', 'startup', 'both']
       });
     }
     
-    const { restore_type, create_checkpoint } = value;
+    // Validate create_checkpoint
+    if (typeof create_checkpoint !== 'boolean') {
+      console.error('❌ Invalid create_checkpoint:', create_checkpoint);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid create_checkpoint. Must be boolean',
+        received_create_checkpoint: create_checkpoint
+      });
+    }
+    
+    console.log(`✅ Manual validation passed:`, { restore_type, create_checkpoint });
     
     // Get backup and device details
     const backup = await ConfigurationBackup.findById(id);
