@@ -482,4 +482,180 @@ router.post('/:id/test', async (req, res) => {
   }
 });
 
+// POST /api/devices/:id/ssh/connect - Connect SSH session
+router.post('/:id/ssh/connect', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const device = await Device.findById(id);
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    console.log(`🔌 Connecting persistent SSH session to ${device.name} (${device.ip_address})`);
+    
+    try {
+      // Create persistent session
+      const session = await sshService.getOrCreatePersistentSession(device);
+      
+      // Update device status to reflect connection
+      device.status = 'active';
+      device.last_connection = {
+        type: 'ssh',
+        timestamp: new Date(),
+        status: 'success',
+        session_id: session.sessionKey
+      };
+      await device.save();
+      
+      res.json({
+        success: true,
+        message: `SSH session connected to ${device.name}`,
+        session: {
+          session_id: session.sessionKey,
+          device_name: device.name,
+          device_ip: device.ip_address,
+          is_privileged: session.isPrivileged,
+          connected_at: new Date(session.createdAt).toISOString(),
+          use_count: session.useCount
+        }
+      });
+      
+    } catch (connectionError) {
+      // Update device status to reflect connection failure
+      device.status = 'error';
+      device.last_connection = {
+        type: 'ssh',
+        timestamp: new Date(),
+        status: 'failed'
+      };
+      await device.save();
+      
+      res.status(500).json({
+        success: false,
+        message: `Failed to connect SSH session: ${connectionError.message}`,
+        error: connectionError.message
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error connecting SSH session:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to connect SSH session'
+    });
+  }
+});
+
+// POST /api/devices/:id/ssh/disconnect - Disconnect SSH session  
+router.post('/:id/ssh/disconnect', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const device = await Device.findById(id);
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    console.log(`🔌 Disconnecting SSH session from ${device.name} (${device.ip_address})`);
+    
+    // Find and disconnect persistent session
+    const sessionKey = `${id}_persistent`;
+    const session = sshService.persistentSessions.get(sessionKey);
+    
+    if (session) {
+      if (session.connection) {
+        session.connection.end();
+      }
+      sshService.persistentSessions.delete(sessionKey);
+      console.log(`✅ SSH session disconnected from ${device.name}`);
+    }
+    
+    // Update device status
+    device.status = 'inactive';
+    device.last_connection = {
+      type: 'ssh',
+      timestamp: new Date(),
+      status: 'disconnected'
+    };
+    await device.save();
+    
+    res.json({
+      success: true,
+      message: `SSH session disconnected from ${device.name}`
+    });
+    
+  } catch (error) {
+    console.error('Error disconnecting SSH session:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to disconnect SSH session'
+    });
+  }
+});
+
+// GET /api/devices/:id/ssh/status - Get SSH session status with performance metrics
+router.get('/:id/ssh/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const device = await Device.findById(id);
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    const sessionKey = `${id}_persistent`;
+    const session = sshService.persistentSessions.get(sessionKey);
+    
+    // Also check optimized session pool
+    const deviceSessions = sshService.sessionPool.get(id) || [];
+    const poolSessions = deviceSessions.filter(s => sshService.isSessionValid(s));
+    
+    const isConnected = session && sshService.isSessionValid(session);
+    
+    res.json({
+      success: true,
+      device: {
+        name: device.name,
+        ip_address: device.ip_address,
+        status: device.status
+      },
+      ssh_session: {
+        is_connected: isConnected,
+        session_id: session?.sessionKey || null,
+        connected_at: session ? new Date(session.createdAt).toISOString() : null,
+        last_used: session ? new Date(session.lastUsed).toISOString() : null,
+        use_count: session?.useCount || 0,
+        is_privileged: session?.isPrivileged || false,
+        user_mode_only: session?.userModeOnly || false,
+        is_busy: session?.busy || false,
+        connection_age: session ? Math.round((Date.now() - session.createdAt) / 1000) : 0,
+        performance: session?.performance || null,
+        recent_commands: session?.commandHistory?.slice(-3) || []
+      },
+      session_pool: {
+        total_sessions: poolSessions.length,
+        available_sessions: poolSessions.filter(s => !s.busy).length,
+        busy_sessions: poolSessions.filter(s => s.busy).length
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error getting SSH session status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get SSH session status'
+    });
+  }
+});
+
 export default router; 

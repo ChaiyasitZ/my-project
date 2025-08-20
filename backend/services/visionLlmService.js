@@ -65,10 +65,14 @@ export class VisionLLMService {
         throw new Error('Empty response from LLaVA model');
       }
       
-      console.log(`📋 Generated config: ${configuration.length} chars`);
+      console.log(`📋 Raw LLaVA response: ${configuration.length} chars`);
+      console.log(`📋 First 200 chars: ${configuration.substring(0, 200)}...`);
       
       // Clean and validate the configuration
       const cleanConfig = this._cleanConfiguration(configuration, prompt);
+      
+      console.log(`🧹 After cleaning: ${cleanConfig ? cleanConfig.length : 0} chars`);
+      console.log(`🧹 Cleaned config preview: ${cleanConfig ? cleanConfig.substring(0, 200) : 'EMPTY'}...`);
       
       const executionTime = Date.now() - startTime;
       console.log(`✅ Configuration generated from image (${executionTime}ms)`);
@@ -580,6 +584,8 @@ configure terminal`;
     if (!rawConfig) return '';
     
     console.log(`🧹 Cleaning configuration (${rawConfig.length} chars)...`);
+    console.log(`🧹 User prompt: "${userPrompt}"`);
+    console.log(`🧹 Raw config preview: ${rawConfig.substring(0, 300)}...`);
     
     let cleaned = rawConfig;
     
@@ -673,6 +679,12 @@ configure terminal`;
     }
     
     console.log(`✅ Cleaned to ${cleaned.split('\n').length} lines`);
+    console.log(`✅ Final cleaned config: ${cleaned.substring(0, 200)}...`);
+    
+    if (cleaned.length < 20) {
+      console.warn(`⚠️ Configuration too short after cleaning (${cleaned.length} chars)`);
+    }
+    
     return cleaned;
   }
 

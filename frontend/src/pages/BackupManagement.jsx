@@ -169,7 +169,26 @@ function BackupManagement() {
       await fetchData();
     } catch (error) {
       console.error('❌ Error creating backup:', error);
-      toast.error('Failed to create backup: ' + (error.response?.data?.message || error.message), { id: toastId });
+      
+      const errorData = error.response?.data;
+      let errorMessage = 'Failed to create backup';
+      
+      if (errorData?.message) {
+        errorMessage = errorData.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // Show troubleshooting tips if available
+      if (errorData?.troubleshooting && errorData.troubleshooting.length > 0) {
+        const troubleshootingTips = errorData.troubleshooting.slice(0, 2).join('\n• ');
+        errorMessage += `\n\nTroubleshooting:\n• ${troubleshootingTips}`;
+      }
+      
+      toast.error(errorMessage, { 
+        id: toastId,
+        duration: 8000  // Longer duration for detailed error messages
+      });
     } finally {
       setCreating(false);
     }
@@ -255,6 +274,12 @@ function BackupManagement() {
     const toastId = toast.loading(`Restoring backup "${selectedBackup.backup_name}"...`);
     
     try {
+      console.log('🔄 Sending restore request:', {
+        backup_id: selectedBackup.id,
+        restore_form: restoreForm,
+        url: `/backups/${selectedBackup.id}/restore`
+      });
+      
       const response = await axios.post(`/backups/${selectedBackup.id}/restore`, restoreForm);
       
       console.log('✅ Configuration restored successfully!');
@@ -276,7 +301,32 @@ function BackupManagement() {
       fetchData();
     } catch (error) {
       console.error('❌ Error restoring backup:', error);
-      toast.error('Failed to restore backup: ' + (error.response?.data?.message || error.message), { id: toastId });
+      console.error('❌ Error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      
+      const errorData = error.response?.data;
+      let errorMessage = 'Failed to restore backup';
+      
+      if (errorData?.message) {
+        errorMessage = errorData.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // Show validation details if available
+      if (errorData?.details) {
+        console.error('❌ Validation details:', errorData.details);
+        errorMessage += '\n\nValidation errors:\n' + 
+          errorData.details.map(d => `• ${d.message}`).join('\n');
+      }
+      
+      toast.error(errorMessage, { 
+        id: toastId,
+        duration: 10000  // Longer duration for detailed error messages
+      });
     } finally {
       setRestoring(false);
     }

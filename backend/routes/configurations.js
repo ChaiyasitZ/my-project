@@ -370,6 +370,164 @@ router.post('/rate', async (req, res) => {
   }
 });
 
+// POST /api/configurations/session-apply - Apply configuration using existing SSH session (no enable needed)
+router.post('/session-apply', async (req, res) => {
+  try {
+    const { configuration_id } = req.body;
+    
+    if (!configuration_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Configuration ID is required'
+      });
+    }
+    
+    const configuration = await ConfigurationHistory.findById(configuration_id).populate('device');
+    
+    if (!configuration) {
+      return res.status(404).json({
+        success: false,
+        message: 'Configuration not found'
+      });
+    }
+    
+    if (!configuration.device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Associated device not found'
+      });
+    }
+    
+    console.log(`🔗 Session-based deployment to ${configuration.device.name} (${configuration.device.ip_address})...`);
+    
+    try {
+      const deployResult = await sshService.fastDeployWithSession(
+        configuration.device,
+        configuration.deployment_config
+      );
+      
+      if (deployResult.success) {
+        configuration.status = 'applied';
+        configuration.applied_at = Date.now();
+        await configuration.save();
+        
+        res.json({
+          success: true,
+          message: 'Configuration applied successfully using existing SSH session (no enable needed)',
+          output: deployResult.output,
+          session_reused: true,
+          use_count: deployResult.useCount,
+          command_count: deployResult.commandCount
+        });
+      } else {
+        throw new Error('Session-based deployment failed');
+      }
+      
+    } catch (deployError) {
+      configuration.status = 'failed';
+      configuration.error_message = deployError.message;
+      await configuration.save();
+      
+      let statusCode = 500;
+      let userMessage = `Session-based deployment failed: ${deployError.message}`;
+      
+      if (deployError.message.includes('No active SSH session')) {
+        userMessage = `No SSH session connected to ${configuration.device.name}. Please connect SSH session first from Device Management.`;
+        statusCode = 400;
+      }
+      
+      res.status(statusCode).json({
+        success: false,
+        message: userMessage,
+        error: deployError.message,
+        suggestion: 'Connect SSH session from Device Management page first'
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error in session-based apply:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error during session-based configuration application',
+      error: error.message
+    });
+  }
+});
+
+// POST /api/configurations/fast-apply - Fast apply configuration using persistent sessions
+router.post('/fast-apply', async (req, res) => {
+  try {
+    const { configuration_id } = req.body;
+    
+    if (!configuration_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Configuration ID is required'
+      });
+    }
+    
+    const configuration = await ConfigurationHistory.findById(configuration_id).populate('device');
+    
+    if (!configuration) {
+      return res.status(404).json({
+        success: false,
+        message: 'Configuration not found'
+      });
+    }
+    
+    if (!configuration.device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Associated device not found'
+      });
+    }
+    
+    console.log(`⚡ Fast applying configuration to ${configuration.device.name} (${configuration.device.ip_address})...`);
+    
+    try {
+      const deployResult = await sshService.fastDeploy(
+        configuration.device,
+        configuration.deployment_config
+      );
+      
+      if (deployResult.success) {
+        configuration.status = 'applied';
+        configuration.applied_at = Date.now();
+        await configuration.save();
+        
+        res.json({
+          success: true,
+          message: 'Configuration applied successfully using persistent session',
+          output: deployResult.output,
+          session_reused: deployResult.sessionReused,
+          command_count: deployResult.commandCount
+        });
+      } else {
+        throw new Error('Fast deployment failed');
+      }
+      
+    } catch (deployError) {
+      configuration.status = 'failed';
+      configuration.error_message = deployError.message;
+      await configuration.save();
+      
+      res.status(500).json({
+        success: false,
+        message: `Fast deployment failed: ${deployError.message}`,
+        error: deployError.message
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error in fast apply:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error during fast configuration application',
+      error: error.message
+    });
+  }
+});
+
 // POST /api/configurations/apply - Apply configuration to device
 router.post('/apply', async (req, res) => {
   try {
@@ -672,6 +830,10 @@ router.post('/generate-multi', upload.single('topology_image'), async (req, res)
     const hasTopologyImage = !!req.file;
     console.log(`🤖 Multi-device generation request for ${device_ids.length} devices${hasTopologyImage ? ' with topology image' : ''}: "${prompt}"`);
     
+    // Generate unique session ID for this multi-device configuration
+    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`📝 Multi-device session ID: ${sessionId}`);
+    
     // Get all devices
     const devices = await Device.find({ _id: { $in: device_ids } });
     
@@ -729,6 +891,13 @@ router.post('/generate-multi', upload.single('topology_image'), async (req, res)
           device,
           deviceContext
         );
+        
+        console.log(`🔍 Vision result for ${device.name}:`, {
+          success: visionResult.success,
+          hasConfiguration: !!visionResult.configuration,
+          configLength: visionResult.configuration?.length,
+          error: visionResult.error
+        });
         
         visionResults.push({
           device_id: device._id,
@@ -789,6 +958,7 @@ router.post('/generate-multi', upload.single('topology_image'), async (req, res)
               status: 'generated',
               validation_result: deviceResult.validation,
               multi_device_session: true,
+              session_id: sessionId,
               execution_time: totalTime,
               image_enhanced: true,
               vision_enhanced: true,
@@ -880,6 +1050,7 @@ router.post('/generate-multi', upload.single('topology_image'), async (req, res)
             status: 'generated',
             validation_result: deviceResult.validation,
             multi_device_session: true,
+            session_id: sessionId,
             execution_time: result.executionTime
           });
           

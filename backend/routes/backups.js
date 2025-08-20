@@ -20,7 +20,6 @@ const createBackupSchema = Joi.object({
 });
 
 const restoreBackupSchema = Joi.object({
-  backup_id: Joi.string().required(),
   restore_type: Joi.string().valid('running', 'startup', 'both').default('running'),
   create_checkpoint: Joi.boolean().default(true)
 });
@@ -213,6 +212,205 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// POST /api/backups/session - Create backup using existing SSH session (no enable needed)
+router.post('/session', async (req, res) => {
+  try {
+    const { error, value } = createBackupSchema.validate(req.body);
+    
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        details: error.details
+      });
+    }
+    
+    const { device_id, backup_name, description, backup_type, created_by, tags } = value;
+    
+    // Get device details
+    const device = await Device.findById(device_id);
+    
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    console.log(`🔗 Starting session-based backup for device ${device.name} (${device.ip_address})`);
+    
+    try {
+      // Use existing session backup method (no enable command)
+      const backupResult = await sshService.optimizedBackup(device, config_type);
+      
+      if (!backupResult.success) {
+        throw new Error('Failed to create session-based backup');
+      }
+      
+      // Calculate hash for duplicate detection
+      const configHash = crypto
+        .createHash('sha256')
+        .update(backupResult.runningConfig)
+        .digest('hex');
+      
+      // Save backup to database
+      const backup = new ConfigurationBackup({
+        device_id,
+        backup_name,
+        description,
+        running_config: backupResult.runningConfig,
+        startup_config: backupResult.startupConfig,
+        backup_type,
+        config_type: backupResult.configType,
+        file_size: backupResult.runningConfigSize + backupResult.startupConfigSize,
+        config_hash: configHash,
+        created_by: created_by || 'system',
+        tags: tags || []
+      });
+      
+      await backup.save();
+      
+      res.status(201).json({
+        success: true,
+        message: 'Session-based backup created successfully (no enable needed)',
+        backup: {
+          id: backup._id,
+          backup_name: backup.backup_name,
+          device_name: device.name,
+          device_type: device.type,
+          device_ip: device.ip_address,
+          file_size: backup.file_size,
+          session_reused: true,
+          use_count: backupResult.useCount,
+          config_type: backupResult.configType,
+          backup_type: backup_type,
+          created_at: backup.createdAt
+        }
+      });
+      
+    } catch (backupError) {
+      console.error('Session-based backup error:', backupError.message);
+      
+      let statusCode = 500;
+      let userMessage = `Session-based backup failed: ${backupError.message}`;
+      
+      if (backupError.message.includes('No active SSH session')) {
+        userMessage = `No SSH session connected to ${device.name}. Please connect SSH session first from Device Management.`;
+        statusCode = 400;
+      }
+      
+      res.status(statusCode).json({
+        success: false,
+        message: userMessage,
+        error: backupError.message,
+        device: {
+          name: device.name,
+          ip_address: device.ip_address
+        },
+        suggestion: 'Connect SSH session from Device Management page first'
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error creating session-based backup:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create session-based backup'
+    });
+  }
+});
+
+// POST /api/backups/fast - Create fast backup using persistent sessions
+router.post('/fast', async (req, res) => {
+  try {
+    const { error, value } = createBackupSchema.validate(req.body);
+    
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        details: error.details
+      });
+    }
+    
+    const { device_id, backup_name, description, backup_type, created_by, tags } = value;
+    
+    // Get device details
+    const device = await Device.findById(device_id);
+    
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    console.log(`⚡ Starting fast backup for device ${device.name} (${device.ip_address})`);
+    
+    try {
+      // Use fast backup method with persistent sessions
+      const backupResult = await sshService.fastBackup(device);
+      
+      if (!backupResult.success) {
+        throw new Error('Failed to create fast backup');
+      }
+      
+      // Calculate hash for duplicate detection
+      const configHash = crypto
+        .createHash('sha256')
+        .update(backupResult.runningConfig)
+        .digest('hex');
+      
+      // Save backup to database
+      const backup = new ConfigurationBackup({
+        device_id,
+        backup_name,
+        description,
+        running_config: backupResult.runningConfig,
+        backup_type,
+        config_type: 'running-config',
+        file_size: backupResult.runningConfigSize,
+        config_hash: configHash,
+        created_by: created_by || 'system',
+        tags: tags || []
+      });
+      
+      await backup.save();
+      
+      res.status(201).json({
+        success: true,
+        message: 'Fast backup created successfully',
+        backup: {
+          id: backup._id,
+          backup_name: backup.backup_name,
+          device_name: device.name,
+          device_type: device.type,
+          device_ip: device.ip_address,
+          file_size: backupResult.runningConfigSize,
+          session_reused: backupResult.sessionReused,
+          backup_type: backup_type,
+          created_at: backup.createdAt
+        }
+      });
+      
+    } catch (backupError) {
+      console.error('Fast backup error:', backupError.message);
+      res.status(500).json({
+        success: false,
+        message: `Fast backup failed: ${backupError.message}`,
+        error: backupError.message
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error creating fast backup:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create fast backup'
+    });
+  }
+});
+
 // POST /api/backups - Create new backup
 router.post('/', async (req, res) => {
   try {
@@ -242,10 +440,31 @@ router.post('/', async (req, res) => {
     console.log(`🚀 Starting backup creation for device ${device.name} (${device.ip_address})`);
     
     try {
-      const backupResult = await sshService.createFullBackup(device, { config_type });
+      // Check if device has an active SSH session first
+      const deviceId = device._id || device.id;
+      const sessionKey = `${deviceId}_persistent`;
+      const existingSession = sshService.persistentSessions.get(sessionKey);
+      const hasActiveSession = existingSession && sshService.isSessionValid(existingSession);
+      
+      let backupResult;
+      
+      if (hasActiveSession) {
+        console.log(`🔗 Using existing SSH session for backup (no enable needed)`);
+        backupResult = await sshService.optimizedBackup(device, config_type);
+      } else {
+        console.log(`🔄 No active session found, using traditional backup method`);
+        backupResult = await sshService.createFullBackup(device, { config_type });
+      }
       
       if (!backupResult.success) {
-        throw new Error('Failed to create backup');
+        console.error(`❌ Backup creation failed for ${device.name}:`, {
+          runningError: backupResult.runningError,
+          startupError: backupResult.startupError,
+          device: device.name,
+          ip: device.ip_address,
+          sessionUsed: hasActiveSession
+        });
+        throw new Error(`Backup creation failed: ${backupResult.runningError || backupResult.startupError || 'Unknown error'}`);
       }
       
       // Calculate hash for duplicate detection
@@ -308,10 +527,56 @@ router.post('/', async (req, res) => {
       
     } catch (backupError) {
       console.error('SSH backup error:', backupError.message);
-      res.status(500).json({
+      
+      // Provide more specific error messages based on error type
+      let userMessage = 'Failed to create backup';
+      let statusCode = 500;
+      
+      if (backupError.message.includes('timeout')) {
+        userMessage = `Backup timeout - device ${device.ip_address} is not responding. Please check device connectivity.`;
+        statusCode = 504;
+      } else if (backupError.message.includes('Authentication failed') || backupError.message.includes('auth')) {
+        userMessage = `Authentication failed for device ${device.name}. Please check username and password.`;
+        statusCode = 401;
+      } else if (backupError.message.includes('Connection refused') || backupError.message.includes('ECONNREFUSED')) {
+        userMessage = `Cannot connect to device ${device.name} at ${device.ip_address}. Device may be offline or SSH is disabled.`;
+        statusCode = 503;
+      } else if (backupError.message.includes('Host unreachable') || backupError.message.includes('EHOSTUNREACH')) {
+        userMessage = `Device ${device.name} at ${device.ip_address} is unreachable. Please check network connectivity.`;
+        statusCode = 503;
+      } else if (backupError.message.includes('No password set') || backupError.message.includes('Device configuration prevents enable')) {
+        userMessage = `Device ${device.name} has no enable password configured. Attempting backup with limited user mode access.`;
+        statusCode = 422; // Unprocessable Entity - device config issue
+      }
+      
+      res.status(statusCode).json({
         success: false,
-        message: 'Failed to create backup',
-        error: backupError.message
+        message: userMessage,
+        error: backupError.message,
+        device: {
+          name: device.name,
+          ip_address: device.ip_address,
+          type: device.type
+        },
+        troubleshooting: [
+          'Check device connectivity and SSH access',
+          'Verify device credentials are correct', 
+          'Ensure device is not overloaded or unresponsive',
+          'Try using the "Test Backup Connection" button first',
+          ...(backupError.message.includes('No password set') ? [
+            'DEVICE CONFIGURATION OPTIONS:',
+            'Option 1 - Set Enable Password:',
+            '  1. SSH manually: ssh admin@' + device.ip_address,
+            '  2. configure terminal',
+            '  3. enable secret YOUR_PASSWORD',
+            '  4. write memory',
+            'Option 2 - Allow No Password Enable:',
+            '  1. configure terminal', 
+            '  2. no enable password',
+            '  3. privilege exec level 15 username ' + device.username,
+            '  4. write memory'
+          ] : [])
+        ]
       });
     }
     
@@ -328,13 +593,23 @@ router.post('/', async (req, res) => {
 router.post('/:id/restore', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    console.log(`🔄 Restore request received:`, {
+      backup_id: id,
+      body: req.body,
+      restore_type: req.body.restore_type,
+      create_checkpoint: req.body.create_checkpoint
+    });
+    
     const { error, value } = restoreBackupSchema.validate(req.body);
     
     if (error) {
+      console.error('❌ Restore validation error:', error.details);
       return res.status(400).json({
         success: false,
         message: 'Validation error',
-        details: error.details
+        details: error.details,
+        received_data: req.body
       });
     }
     
@@ -393,15 +668,45 @@ router.post('/:id/restore', async (req, res) => {
         }
       }
       
-      // Apply the backup configuration
-      const configToRestore = restore_type === 'startup' ? backup.startup_config : backup.running_config;
+      // Determine which configuration to restore based on restore_type
+      let configToRestore = '';
+      let configSource = '';
       
-      if (!configToRestore) {
-        return res.status(400).json({
-          success: false,
-          message: `${restore_type} configuration not available in this backup`
-        });
+      if (restore_type === 'startup') {
+        if (!backup.startup_config) {
+          return res.status(400).json({
+            success: false,
+            message: 'Startup configuration not available in this backup'
+          });
+        }
+        configToRestore = backup.startup_config;
+        configSource = 'startup';
+      } else if (restore_type === 'running') {
+        if (!backup.running_config) {
+          return res.status(400).json({
+            success: false,
+            message: 'Running configuration not available in this backup'
+          });
+        }
+        configToRestore = backup.running_config;
+        configSource = 'running';
+      } else if (restore_type === 'both') {
+        // For both, prioritize running config, fallback to startup
+        if (backup.running_config) {
+          configToRestore = backup.running_config;
+          configSource = 'running';
+        } else if (backup.startup_config) {
+          configToRestore = backup.startup_config;
+          configSource = 'startup';
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: 'No configuration available in this backup'
+          });
+        }
       }
+      
+      console.log(`🔄 Restoring ${configSource} configuration (${configToRestore.length} chars) to ${device.name}`);
       
       const restoreResult = await sshService.applyConfigurationFromBackup(device, configToRestore);
       
@@ -425,25 +730,59 @@ router.post('/:id/restore', async (req, res) => {
       
       res.json({
         success: true,
-        message: 'Configuration restored successfully',
+        message: `Configuration restored successfully from ${configSource} backup`,
         restore_details: {
           backup_name: backup.backup_name,
           restore_type: restore_type,
+          config_source: configSource,
+          config_size: configToRestore.length,
           checkpoint_created: !!checkpointId,
           checkpoint_id: checkpointId,
           device_name: device.name,
           device_ip: device.ip_address,
-          restored_at: new Date().toISOString()
+          restored_at: new Date().toISOString(),
+          session_reused: restoreResult.sessionReused || false,
+          command_count: restoreResult.commandCount || 0
         },
         output: restoreResult.output
       });
       
     } catch (restoreError) {
       console.error('Configuration restore error:', restoreError.message);
-      res.status(500).json({
+      
+      // Provide specific error messages based on error type
+      let userMessage = 'Failed to restore configuration';
+      let statusCode = 500;
+      
+      if (restoreError.message.includes('No active SSH session')) {
+        userMessage = `No SSH session connected to ${device.name}. Please connect SSH session first from Device Management.`;
+        statusCode = 400;
+      } else if (restoreError.message.includes('timeout')) {
+        userMessage = `Restore timeout - device ${device.ip_address} is not responding during configuration restore.`;
+        statusCode = 504;
+      } else if (restoreError.message.includes('Authentication failed')) {
+        userMessage = `Authentication failed during restore to device ${device.name}. Please check credentials.`;
+        statusCode = 401;
+      } else if (restoreError.message.includes('Connection refused')) {
+        userMessage = `Cannot connect to device ${device.name} for restore. Device may be offline.`;
+        statusCode = 503;
+      }
+      
+      res.status(statusCode).json({
         success: false,
-        message: 'Failed to restore configuration',
-        error: restoreError.message
+        message: userMessage,
+        error: restoreError.message,
+        device: {
+          name: device.name,
+          ip_address: device.ip_address,
+          type: device.type
+        },
+        troubleshooting: [
+          'Ensure SSH session is connected to the device',
+          'Check device connectivity and SSH access',
+          'Verify device is not in configuration mode',
+          'Try connecting SSH session from Device Management first'
+        ]
       });
     }
     
@@ -560,6 +899,140 @@ router.post('/:id/set-restore-point', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to set restore point'
+    });
+  }
+});
+
+// GET /api/backups/enable-test/:device_id - Test enable command specifically
+router.get('/enable-test/:device_id', async (req, res) => {
+  try {
+    const { device_id } = req.params;
+    
+    // Get device details
+    const device = await Device.findById(device_id);
+    
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    console.log(`🔍 Testing enable command for ${device.name} (${device.ip_address})`);
+    
+    try {
+      // Test just the enable command
+      const enableResult = await sshService.executeCommand(device, 'show privilege');
+      
+      res.json({
+        success: true,
+        device: {
+          name: device.name,
+          ip_address: device.ip_address,
+          has_enable_password: !!device.enable_password
+        },
+        enable_test: {
+          success: enableResult.success,
+          output: enableResult.output,
+          privilege_level: enableResult.output.match(/Current privilege level is (\d+)/)?.[1] || 'unknown'
+        },
+        troubleshooting: [
+          'If privilege level is 1, enable command failed',
+          'If privilege level is 15, enable command succeeded',
+          'Check if enable password is set on device',
+          'Verify enable password in device configuration'
+        ]
+      });
+      
+    } catch (enableError) {
+      res.status(500).json({
+        success: false,
+        message: 'Enable test failed',
+        error: enableError.message,
+        device: {
+          name: device.name,
+          ip_address: device.ip_address
+        }
+      });
+    }
+    
+  } catch (error) {
+    console.error('Enable test error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Enable test failed',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/backups/ssh-debug/:device_id - Debug SSH connection issues
+router.get('/ssh-debug/:device_id', async (req, res) => {
+  try {
+    const { device_id } = req.params;
+    
+    // Get device details
+    const device = await Device.findById(device_id);
+    
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    console.log(`🔍 SSH Debug for ${device.name} (${device.ip_address})`);
+    
+    // Test connection with detailed logging
+    const connectionResult = await sshService.testConnection(device);
+    
+    // If full test fails, try basic connection
+    let basicConnectionResult = null;
+    if (!connectionResult.success) {
+      console.log(`🔄 Full test failed, trying basic connection...`);
+      basicConnectionResult = await sshService.testBasicConnection(device);
+    }
+    
+    res.json({
+      success: true,
+      device: {
+        name: device.name,
+        ip_address: device.ip_address,
+        type: device.type,
+        ssh_port: device.ssh_port || 22
+      },
+      connection_test: connectionResult,
+      basic_connection_test: basicConnectionResult,
+      ssh_config: {
+        supported_algorithms: {
+          kex: [
+            'diffie-hellman-group1-sha1',
+            'diffie-hellman-group14-sha1', 
+            'diffie-hellman-group-exchange-sha1',
+            'diffie-hellman-group-exchange-sha256',
+            'diffie-hellman-group14-sha256'
+          ],
+          cipher: ['aes128-ctr', 'aes128-cbc', 'aes256-cbc', '3des-cbc'],
+          hmac: ['hmac-sha1', 'hmac-sha2-256', 'hmac-md5'],
+          serverHostKey: ['ssh-rsa', 'ssh-dss']
+        }
+      },
+      troubleshooting: [
+        'If connection fails with "no matching key exchange algorithm":',
+        '1. Device may be using very old SSH algorithms',
+        '2. Try enabling SSH version 2 on the device: "ip ssh version 2"',
+        '3. Check if SSH is enabled: "ip ssh"',
+        '4. Verify management IP is reachable',
+        '5. Check if device supports newer algorithms'
+      ]
+    });
+    
+  } catch (error) {
+    console.error('SSH debug error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'SSH debug failed',
+      error: error.message
     });
   }
 });

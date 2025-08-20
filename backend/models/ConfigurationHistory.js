@@ -71,6 +71,15 @@ const configurationHistorySchema = new mongoose.Schema({
     detected_ports: mongoose.Schema.Types.Mixed,
     detected_connections: [mongoose.Schema.Types.Mixed],
     vision_model: String
+  },
+  // Multi-device session grouping
+  session_id: {
+    type: String,
+    index: true // Add index for efficient grouping queries
+  },
+  multi_device_session: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: false // Disable automatic timestamps since we're using custom ones

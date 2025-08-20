@@ -16,23 +16,68 @@ import {
 
 function ConfigurationHistory() {
   const [configurations, setConfigurations] = useState([]);
+  const [groupedConfigurations, setGroupedConfigurations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [clearingAll, setClearingAll] = useState(false);
   const [filter, setFilter] = useState('all');
   const [selectedConfig, setSelectedConfig] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState(new Set());
+
+  // Group configurations by session_id
+  const groupConfigurations = useCallback((configs) => {
+    const groups = {};
+    const singleConfigs = [];
+
+    configs.forEach(config => {
+      if (config.session_id && config.multi_device_session) {
+        if (!groups[config.session_id]) {
+          groups[config.session_id] = {
+            session_id: config.session_id,
+            prompt: config.prompt,
+            created_at: config.created_at,
+            execution_time: config.execution_time,
+            topology_image: config.topology_image,
+            vision_enhanced: config.vision_enhanced,
+            ai_model: config.ai_model,
+            method: config.method,
+            devices: [],
+            isGroup: true
+          };
+        }
+        groups[config.session_id].devices.push(config);
+      } else {
+        singleConfigs.push(config);
+      }
+    });
+
+    // Convert groups object to array and sort by created_at
+    const groupsArray = Object.values(groups).map(group => ({
+      ...group,
+      devices: group.devices.sort((a, b) => a.device_name.localeCompare(b.device_name)),
+      status: group.devices.every(d => d.status === 'applied') ? 'applied' : 
+              group.devices.some(d => d.status === 'failed') ? 'failed' : 'generated'
+    }));
+
+    // Combine and sort by created_at (newest first)
+    const allItems = [...groupsArray, ...singleConfigs].sort((a, b) => b.created_at - a.created_at);
+    
+    return allItems;
+  }, []);
 
   const fetchConfigurations = useCallback(async () => {
     try {
       const url = filter === 'all' ? '/configurations/history' : `/configurations/history?status=${filter}`;
       const response = await axios.get(url);
-      setConfigurations(response.data.configurations || []);
+      const configs = response.data.configurations || [];
+      setConfigurations(configs);
+      setGroupedConfigurations(groupConfigurations(configs));
     } catch (error) {
       console.error('Error fetching configurations:', error);
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, groupConfigurations]);
 
   useEffect(() => {
     fetchConfigurations();
@@ -52,8 +97,20 @@ function ConfigurationHistory() {
     };
   }, [showModal]);
 
+  const toggleGroupExpansion = (sessionId) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sessionId)) {
+        newSet.delete(sessionId);
+      } else {
+        newSet.add(sessionId);
+      }
+      return newSet;
+    });
+  };
+
   const applyFilters = () => {
-    return configurations;
+    return groupedConfigurations;
   };
 
   const viewDetails = async (config) => {
@@ -78,15 +135,25 @@ function ConfigurationHistory() {
 
   const handleClearAll = async () => {
     // Get configurations that match the current filter
-    const configurationsToDelete = applyFilters();
+    const groupedItems = applyFilters();
     
-    if (configurationsToDelete.length === 0) {
+    if (groupedItems.length === 0) {
       console.warn('⚠️ No configurations to delete with current filters');
       toast.error('No configurations to delete with current filters');
       return;
     }
 
-    const confirmationMessage = `Are you sure you want to delete ${configurationsToDelete.length} configuration${configurationsToDelete.length > 1 ? 's' : ''}?\n\nThis action cannot be undone.`;
+    // Flatten grouped configurations to get all individual configs to delete
+    const configurationsToDelete = [];
+    groupedItems.forEach(item => {
+      if (item.isGroup) {
+        configurationsToDelete.push(...item.devices);
+      } else {
+        configurationsToDelete.push(item);
+      }
+    });
+
+    const confirmationMessage = `Are you sure you want to delete ${configurationsToDelete.length} configuration${configurationsToDelete.length > 1 ? 's' : ''} across ${groupedItems.length} session${groupedItems.length > 1 ? 's' : ''}?\n\nThis action cannot be undone.`;
 
     if (window.confirm(confirmationMessage)) {
       setClearingAll(true);
@@ -185,9 +252,9 @@ function ConfigurationHistory() {
           {/* Clear All Config Button - Always visible */}
           <button
             onClick={handleClearAll}
-            disabled={clearingAll || configurations.length === 0}
+            disabled={clearingAll || groupedConfigurations.length === 0}
             className="btn btn-danger btn-md"
-            title={configurations.length === 0 
+            title={groupedConfigurations.length === 0 
               ? 'No configurations to clear' 
               : `Clear ${filter === 'all' ? 'all configurations' : `all ${filter} configurations`}`
             }
@@ -200,7 +267,7 @@ function ConfigurationHistory() {
             ) : (
               <>
                 <Trash2Icon className="h-4 w-4 mr-2" />
-                Clear All ({configurations.length})
+                Clear All ({groupedConfigurations.length})
               </>
             )}
           </button>
@@ -228,11 +295,11 @@ function ConfigurationHistory() {
             {/* Filter Buttons */}
             <div className="flex items-center space-x-2">
               {[
-                { key: 'all', label: 'All', count: configurations.length },
-                { key: 'generated', label: 'Generated', count: configurations.filter(c => c.status === 'generated').length },
-                { key: 'applied', label: 'Deployed', count: configurations.filter(c => c.status === 'applied').length },
-                { key: 'failed', label: 'Failed', count: configurations.filter(c => c.status === 'failed').length },
-                { key: 'rolled_back', label: 'Rolled Back', count: configurations.filter(c => c.status === 'rolled_back').length }
+                { key: 'all', label: 'All', count: groupedConfigurations.length },
+                { key: 'generated', label: 'Generated', count: groupedConfigurations.filter(c => c.status === 'generated').length },
+                { key: 'applied', label: 'Deployed', count: groupedConfigurations.filter(c => c.status === 'applied').length },
+                { key: 'failed', label: 'Failed', count: groupedConfigurations.filter(c => c.status === 'failed').length },
+                { key: 'rolled_back', label: 'Rolled Back', count: groupedConfigurations.filter(c => c.status === 'rolled_back').length }
               ].map((filterOption) => (
                 <button
                   key={filterOption.key}
@@ -258,16 +325,16 @@ function ConfigurationHistory() {
             </div>
           </div>
           
-          {filter !== 'all' && configurations.length > 0 && (
+          {filter !== 'all' && groupedConfigurations.length > 0 && (
             <div className="text-sm text-gray-500">
-              Showing {configurations.length} {filter} configuration{configurations.length !== 1 ? 's' : ''}
+              Showing {groupedConfigurations.length} {filter} configuration{groupedConfigurations.length !== 1 ? 's' : ''}
             </div>
           )}
         </div>
       </div>
 
       {/* Configurations List */}
-      {configurations.length === 0 ? (
+      {groupedConfigurations.length === 0 ? (
         <div className="card p-12 text-center">
           <ClockIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No configurations found</h3>
@@ -280,85 +347,193 @@ function ConfigurationHistory() {
         </div>
       ) : (
         <div className="space-y-4">
-          {configurations.map((config) => (
-            <div key={config.id} className="card p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start space-x-4 flex-1">
-                  <div className="flex-shrink-0 mt-1">
-                    {getStatusIcon(config.status)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <h3 className="text-lg font-medium text-gray-900">
-                        {config.device_name}
-                      </h3>
-                      <span className="text-sm text-gray-500">
-                        ({config.device_type})
-                      </span>
-                      <span className="text-sm text-gray-400">
-                        {config.ip_address}
-                      </span>
-                      {config.topology_image && config.topology_image.base64Data && (
-                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded flex items-center">
-                          🖼️ Image
-                        </span>
-                      )}
-                      {config.vision_enhanced && (
+          {groupedConfigurations.map((item) => (
+            item.isGroup ? (
+              // Grouped Multi-Device Configuration
+              <div key={item.session_id} className="card p-6 border-l-4 border-l-blue-500 bg-blue-50">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start space-x-4 flex-1">
+                    <div className="flex-shrink-0 mt-1">
+                      {getStatusIcon(item.status)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <h3 className="text-lg font-medium text-gray-900">
+                          Multi-Device Configuration ({item.devices.length} devices)
+                        </h3>
                         <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded flex items-center">
-                          👁️ LLaVA
+                          📦 Group
                         </span>
-                      )}
-                    </div>
-                    
-                    <p className="text-gray-600 mb-3 line-clamp-2">
-                      {config.prompt}
-                    </p>
-                    
-                    <div className="flex items-center space-x-4 text-sm text-gray-500">
-                      <span>Created: {formatDate(config.created_at)}</span>
-                      {config.applied_at && (
-                        <span>Applied: {formatDate(config.applied_at)}</span>
-                      )}
-                      {config.execution_time && (
-                        <span>Duration: {config.execution_time}ms</span>
-                      )}
-                    </div>
-                    
-                    {config.error_message && (
-                      <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
-                        <p className="text-sm text-red-600">
-                          <strong>Error:</strong> {config.error_message}
-                        </p>
+                        {item.topology_image && item.topology_image.base64Data && (
+                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded flex items-center">
+                            🖼️ Image
+                          </span>
+                        )}
+                        {item.vision_enhanced && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded flex items-center">
+                            👁️ LLaVA
+                          </span>
+                        )}
                       </div>
-                    )}
+                      
+                      <p className="text-gray-600 mb-3 line-clamp-2">
+                        {item.prompt}
+                      </p>
+
+                      <div className="flex items-center space-x-4 text-sm text-gray-500 mb-3">
+                        <span>Created: {formatDate(item.created_at)}</span>
+                        {item.execution_time && (
+                          <span>Duration: {item.execution_time}ms</span>
+                        )}
+                        <span>Devices: {item.devices.map(d => d.device_name).join(', ')}</span>
+                      </div>
+
+                      {/* Device List - Collapsed/Expanded */}
+                      {expandedGroups.has(item.session_id) && (
+                        <div className="mt-4 space-y-2">
+                          {item.devices.map((device) => (
+                            <div key={device.id} className="bg-white p-3 rounded border">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                  <div className="flex-shrink-0">
+                                    {getStatusIcon(device.status)}
+                                  </div>
+                                  <div>
+                                    <div className="font-medium">{device.device_name}</div>
+                                    <div className="text-sm text-gray-500">({device.device_type}) {device.ip_address}</div>
+                                  </div>
+                                  <span className={`badge ${getStatusBadge(device.status)}`}>
+                                    {device.status}
+                                  </span>
+                                </div>
+                                <div className="flex space-x-2">
+                                  <button
+                                    onClick={() => viewDetails(device)}
+                                    className="btn btn-secondary btn-sm"
+                                    title="View Details"
+                                  >
+                                    <EyeIcon className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => deleteConfiguration(device.id)}
+                                    className="btn btn-danger btn-sm"
+                                    title="Delete"
+                                  >
+                                    <TrashIcon className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-                
-                <div className="flex items-center space-x-3">
-                  <span className={`badge ${getStatusBadge(config.status)}`}>
-                    {config.status}
-                  </span>
                   
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => viewDetails(config)}
-                      className="btn btn-secondary btn-sm"
-                      title="View Details"
-                    >
-                      <EyeIcon className="h-4 w-4" />
-                    </button>
+                  <div className="flex items-center space-x-3">
+                    <span className={`badge ${getStatusBadge(item.status)}`}>
+                      {item.status}
+                    </span>
                     
                     <button
-                      onClick={() => deleteConfiguration(config.id)}
-                      className="btn btn-danger btn-sm"
-                      title="Delete"
+                      onClick={() => toggleGroupExpansion(item.session_id)}
+                      className="btn btn-secondary btn-sm"
+                      title={expandedGroups.has(item.session_id) ? "Collapse" : "Expand"}
                     >
-                      <TrashIcon className="h-4 w-4" />
+                      {expandedGroups.has(item.session_id) ? (
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" />
+                        </svg>
+                      ) : (
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      )}
                     </button>
                   </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              // Single Device Configuration
+              <div key={item.id} className="card p-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start space-x-4 flex-1">
+                    <div className="flex-shrink-0 mt-1">
+                      {getStatusIcon(item.status)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <h3 className="text-lg font-medium text-gray-900">
+                          {item.device_name}
+                        </h3>
+                        <span className="text-sm text-gray-500">
+                          ({item.device_type})
+                        </span>
+                        <span className="text-sm text-gray-400">
+                          {item.ip_address}
+                        </span>
+                        {item.topology_image && item.topology_image.base64Data && (
+                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded flex items-center">
+                            🖼️ Image
+                          </span>
+                        )}
+                        {item.vision_enhanced && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded flex items-center">
+                            👁️ LLaVA
+                          </span>
+                        )}
+                      </div>
+                      
+                      <p className="text-gray-600 mb-3 line-clamp-2">
+                        {item.prompt}
+                      </p>
+                      
+                      <div className="flex items-center space-x-4 text-sm text-gray-500">
+                        <span>Created: {formatDate(item.created_at)}</span>
+                        {item.applied_at && (
+                          <span>Applied: {formatDate(item.applied_at)}</span>
+                        )}
+                        {item.execution_time && (
+                          <span>Duration: {item.execution_time}ms</span>
+                        )}
+                      </div>
+                      
+                      {item.error_message && (
+                        <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
+                          <p className="text-sm text-red-600">
+                            <strong>Error:</strong> {item.error_message}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-3">
+                    <span className={`badge ${getStatusBadge(item.status)}`}>
+                      {item.status}
+                    </span>
+                    
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => viewDetails(item)}
+                        className="btn btn-secondary btn-sm"
+                        title="View Details"
+                      >
+                        <EyeIcon className="h-4 w-4" />
+                      </button>
+                      
+                      <button
+                        onClick={() => deleteConfiguration(item.id)}
+                        className="btn btn-danger btn-sm"
+                        title="Delete"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
           ))}
         </div>
       )}

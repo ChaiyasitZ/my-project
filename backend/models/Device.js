@@ -62,6 +62,11 @@ const deviceSchema = new mongoose.Schema({
     required: true,
     maxlength: 255
   },
+  enable_password: {
+    type: String,
+    maxlength: 255,
+    required: false // Optional, defaults to using the same as login password
+  },
   description: String,
   location: {
     type: String,

@@ -268,12 +268,40 @@ function Configurations() {
       });
       
       if (response.data.success) {
+        console.log('🎯 Raw API response:', response.data);
+        console.log('🎯 Results array:', response.data.results);
+        
+        // Debug each result
+        response.data.results.forEach((result, i) => {
+          console.log(`🔍 Result ${i}:`, {
+            device_id: result.device_id,
+            device_name: result.device_name,
+            success: result.success,
+            configuration: result.configuration,
+            displayConfig: result.displayConfig,
+            error: result.error,
+            hasConfiguration: !!result.configuration,
+            configLength: result.configuration?.length,
+            allKeys: Object.keys(result)
+          });
+        });
+        
         // Transform API response to match frontend format
         const configs = response.data.results.map((result, index) => {
           const device = selectedDevices.find(d => d.id === result.device_id);
+          const config = result.success ? (result.configuration || result.displayConfig) : null;
+          
+          console.log(`📝 Mapping device ${device?.name}:`, {
+            result_success: result.success,
+            result_configuration: result.configuration,
+            result_displayConfig: result.displayConfig,
+            final_config: config,
+            config_length: config?.length
+          });
+          
           return {
             device: device,
-            config: result.success ? (result.configuration || result.displayConfig) : null,
+            config: config,
             success: result.success,
             error: result.success ? null : result.error,
             order: index + 1,
@@ -284,8 +312,7 @@ function Configurations() {
           };
         });
         
-        console.log('🎯 Raw API response:', response.data);
-        console.log('🎯 Mapped configs for preview:', configs);
+        console.log('🎯 Final mapped configs for preview:', configs);
         console.log('🎯 Config details:', configs.map(c => ({ 
           device: c.device?.name, 
           hasConfig: !!c.config, 
