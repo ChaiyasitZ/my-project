@@ -75,56 +75,105 @@ export class VisionLLMService {
       
       const imageBase64 = await this._imageToBase64(imagePath);
       
-      const topologyPrompt = `You are a Cisco network topology expert analyzing a network diagram with MULTIPLE devices.
+      const topologyPrompt = `You are a CCIE-certified network architect with expertise in enterprise network design, analyzing a network topology diagram for automated Cisco IOS configuration generation.
 
-CRITICAL MULTI-DEVICE ANALYSIS TASK:
+CRITICAL MULTI-DEVICE TOPOLOGY ANALYSIS:
 
-TARGET DEVICES TO ANALYZE: ${deviceList.map(d => d.name).join(', ')}
+TARGET DEVICES FOR CONFIGURATION: ${deviceList.map(d => `${d.name} (${d.type})`).join(', ')}
 
-STEP-BY-STEP ANALYSIS REQUIRED:
+COMPREHENSIVE ANALYSIS REQUIREMENTS:
 
-1. **DEVICE IDENTIFICATION:**
-   - Locate each device: ${deviceList.map(d => d.name).join(', ')}
-   - Identify device types (Router/Switch/Firewall)
-   - Note device positions and labels in the image
+1. **DEVICE INVENTORY & CLASSIFICATION:**
+   - Locate each target device: ${deviceList.map(d => d.name).join(', ')}
+   - Identify exact device types (Router, Layer 2 Switch, Layer 3 Switch, Nexus, ASA)
+   - Note device models if visible (ISR, ASR, Catalyst, Nexus series)
+   - Document physical placement and network role
 
-2. **PORT MAPPING FOR EACH DEVICE:**
-   For ${deviceList.map(d => d.name).join(', ')}, identify:
-   - ALL interface ports visible on each device
-   - Port labels (Gi0/1, Fa0/24, etc.)
-   - Port numbers and types
-   - Connection endpoints
+2. **INTERFACE & PORT MAPPING:**
+   For each device ${deviceList.map(d => d.name).join(', ')}, extract:
+   - ALL visible interface ports with exact labels
+   - Interface types: GigabitEthernet (Gi), FastEthernet (Fa), Serial (Se), Loopback (Lo)
+   - Port numbering schemes (0/0/1, 0/1, 1/1, etc.)
+   - Interface roles (access, trunk, routed, management)
+   - Speed/duplex specifications if shown
 
-3. **INTER-DEVICE CONNECTIONS:**
-   - Map ALL cables/lines between devices
-   - Identify which port connects to which device
-   - Note connection types (Ethernet, Serial, etc.)
-   - Document connection paths
+3. **NETWORK CONNECTIVITY MATRIX:**
+   - Point-to-point links with exact interface pairs
+   - Shared network segments (switches, VLANs)
+   - WAN connections (Serial, T1/E1, Metro Ethernet)
+   - Redundant paths and backup connections
+   - Trunk links and VLAN assignments
+   - Management network connections
 
-4. **NETWORK SEGMENTS:**
-   - Identify shared network segments
-   - Group devices by network connectivity
-   - Note redundant paths and backup connections
-   - Identify potential HSRP/VRRP segments
+4. **ROUTING PROTOCOL ANALYSIS:**
+   - Identify routing domains and areas
+   - OSPF areas and backbone connections
+   - EIGRP autonomous systems
+   - ISIS levels and NET addressing
+   - BGP AS numbers and peering
+   - Static routing requirements
 
-OUTPUT FORMAT (BE EXTREMELY DETAILED):
+5. **VLAN & SWITCHING ANALYSIS:**
+   - VLAN numbers and names if visible
+   - Trunk configurations between switches
+   - Access port VLAN assignments
+   - Inter-VLAN routing requirements
+   - STP topology and root bridge placement
+   - EtherChannel/Port-channel configurations
 
-DEVICES FOUND:
-${deviceList.map(device => `- ${device.name}: [device type] at [position in image]`).join('\n')}
+6. **IP ADDRESSING SCHEME:**
+   - Network subnets visible in diagram
+   - Point-to-point link addressing
+   - Loopback addresses for router IDs
+   - Management network addressing
+   - DHCP scopes if indicated
 
-DETAILED PORT ANALYSIS:
-${deviceList.map(device => `
-${device.name} PORTS:
-- Port 1: [interface name] → connects to [device] [port]
-- Port 2: [interface name] → connects to [device] [port]
-- [continue for all visible ports]`).join('\n')}
+STRUCTURED OUTPUT FORMAT:
 
-NETWORK TOPOLOGY STRUCTURE:
-- Network segments: [list all network segments]
-- Redundant paths: [identify backup connections]
-- HSRP candidates: [devices that share network segments]
+DEVICE_INVENTORY:
+${deviceList.map(device => `${device.name}:
+  - Type: [Router/Switch/Nexus]
+  - Model: [if visible]
+  - Role: [Core/Distribution/Access/WAN]
+  - Location: [position in topology]`).join('\n')}
 
-TOPOLOGY ANALYSIS COMPLETE`;
+INTERFACE_MAPPING:
+${deviceList.map(device => `${device.name}_INTERFACES:
+  - Gi0/0/1: [connection details] → [remote_device] [remote_interface]
+  - Gi0/0/2: [connection details] → [remote_device] [remote_interface]
+  - [continue for all interfaces]`).join('\n')}
+
+ROUTING_PROTOCOL_REQUIREMENTS:
+- OSPF Areas: [area assignments]
+- EIGRP AS: [autonomous system numbers]  
+- ISIS Levels: [level-1/level-2 assignments]
+- BGP AS: [AS numbers and peering]
+- Static Routes: [required static routes]
+
+VLAN_CONFIGURATION:
+- VLANs: [VLAN IDs and names]
+- Trunk Links: [interface pairs carrying VLANs]
+- Access Ports: [VLAN assignments]
+- Inter-VLAN: [SVI requirements]
+
+IP_ADDRESSING_PLAN:
+- Network Segments: [subnet assignments]
+- Point-to-Point: [/30 or /31 subnets]
+- Loopbacks: [router ID assignments]
+- Management: [management network]
+
+ADVANCED_FEATURES:
+- Redundancy: [HSRP/VRRP groups]
+- QoS: [quality of service requirements]
+- Security: [ACL placement]
+- Monitoring: [SNMP/logging requirements]
+
+CONFIGURATION_PRIORITY:
+1. [Most critical device/feature first]
+2. [Secondary priority items]
+3. [Optional enhancements]
+
+TOPOLOGY_ANALYSIS_COMPLETE`;
 
       const response = await this.client.post("/api/generate", {
         model: this.visionModel,
