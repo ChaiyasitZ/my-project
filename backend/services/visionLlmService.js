@@ -4,7 +4,8 @@ import path from 'path';
 
 /**
  * Vision LLM Service for Network Topology Analysis
- * Uses LLaVA model for understanding network diagrams, topology images, and port configurations
+ * Specialized for LLaVA:7b - Image analysis + prompt-based configuration generation
+ * Optimized for multimodal vision + text understanding of network topologies
  */
 export class VisionLLMService {
   constructor() {
@@ -19,17 +20,386 @@ export class VisionLLMService {
       timeout: this.timeout,
     });
     
-    // Vision-specific parameters
+    // LLaVA-specific parameters for image + text analysis
     this.visionParams = {
-      temperature: 0.1,    // Lower for more precise technical analysis
-      num_predict: 400,    // More tokens for detailed topology analysis
-      top_k: 10,          // More focused responses
-      top_p: 0.8,         // Good balance for technical accuracy
-      repeat_penalty: 1.1,
-      stop: []
+      temperature: 0.05,   // Very low for precise technical analysis
+      num_predict: 500,    // More tokens for detailed image analysis + config
+      top_k: 5,           // Highly focused for technical accuracy
+      top_p: 0.7,         // Conservative for network engineering precision
+      repeat_penalty: 1.05,
+      stop: ['Human:', 'User:', '```']
     };
     
-    console.log(`🔍 Vision LLM Service initialized - Model: ${this.visionModel} @ ${this.host}`);
+    // Port detection specific parameters (even more precise)
+    this.portDetectionParams = {
+      temperature: 0.001,  // Ultra-precise for port identification
+      num_predict: 400,    // More tokens for detailed port analysis
+      top_k: 2,           // Extremely narrow focus
+      top_p: 0.5,         // Very conservative for accuracy
+      repeat_penalty: 1.01,
+      stop: ['Human:', 'ANALYSIS COMPLETE', 'DEVICE ANALYSIS COMPLETE']
+    };
+    
+    // Multi-device topology analysis parameters
+    this.multiDeviceAnalysisParams = {
+      temperature: 0.02,   // Very precise for multi-device understanding
+      num_predict: 800,    // Much more tokens for complex topology analysis
+      top_k: 4,           // Focused but allows some variation
+      top_p: 0.65,        // Conservative but comprehensive
+      repeat_penalty: 1.03,
+      stop: ['Human:', 'TOPOLOGY ANALYSIS COMPLETE']
+    };
+    
+    // Configuration generation parameters (balanced for image + prompt)
+    this.configGenerationParams = {
+      temperature: 0.1,    // Precise but allows some creativity
+      num_predict: 600,    // More tokens for complete configurations
+      top_k: 8,           // Moderate focus for config variety
+      top_p: 0.8,         // Balanced for technical + creative config
+      repeat_penalty: 1.08,
+      stop: ['Human:', 'User:', 'end\n']
+    };
+    
+    console.log(`🔍 LLaVA Vision LLM Service initialized - Model: ${this.visionModel} @ ${this.host}`);
+    console.log(`🎯 Specialized for: Image analysis + Topology-aware configuration generation`);
+  }
+
+  /**
+   * Enhanced multi-device topology analysis for improved accuracy
+   */
+  async analyzeMultiDeviceTopology(imagePath, deviceList) {
+    const startTime = Date.now();
+    
+    try {
+      console.log(`🔍 Analyzing multi-device topology for ${deviceList.length} devices: ${deviceList.map(d => d.name).join(', ')}`);
+      
+      const imageBase64 = await this._imageToBase64(imagePath);
+      
+      const topologyPrompt = `You are a Cisco network topology expert analyzing a network diagram with MULTIPLE devices.
+
+CRITICAL MULTI-DEVICE ANALYSIS TASK:
+
+TARGET DEVICES TO ANALYZE: ${deviceList.map(d => d.name).join(', ')}
+
+STEP-BY-STEP ANALYSIS REQUIRED:
+
+1. **DEVICE IDENTIFICATION:**
+   - Locate each device: ${deviceList.map(d => d.name).join(', ')}
+   - Identify device types (Router/Switch/Firewall)
+   - Note device positions and labels in the image
+
+2. **PORT MAPPING FOR EACH DEVICE:**
+   For ${deviceList.map(d => d.name).join(', ')}, identify:
+   - ALL interface ports visible on each device
+   - Port labels (Gi0/1, Fa0/24, etc.)
+   - Port numbers and types
+   - Connection endpoints
+
+3. **INTER-DEVICE CONNECTIONS:**
+   - Map ALL cables/lines between devices
+   - Identify which port connects to which device
+   - Note connection types (Ethernet, Serial, etc.)
+   - Document connection paths
+
+4. **NETWORK SEGMENTS:**
+   - Identify shared network segments
+   - Group devices by network connectivity
+   - Note redundant paths and backup connections
+   - Identify potential HSRP/VRRP segments
+
+OUTPUT FORMAT (BE EXTREMELY DETAILED):
+
+DEVICES FOUND:
+${deviceList.map(device => `- ${device.name}: [device type] at [position in image]`).join('\n')}
+
+DETAILED PORT ANALYSIS:
+${deviceList.map(device => `
+${device.name} PORTS:
+- Port 1: [interface name] → connects to [device] [port]
+- Port 2: [interface name] → connects to [device] [port]
+- [continue for all visible ports]`).join('\n')}
+
+NETWORK TOPOLOGY STRUCTURE:
+- Network segments: [list all network segments]
+- Redundant paths: [identify backup connections]
+- HSRP candidates: [devices that share network segments]
+
+TOPOLOGY ANALYSIS COMPLETE`;
+
+      const response = await this.client.post("/api/generate", {
+        model: this.visionModel,
+        prompt: topologyPrompt,
+        images: [imageBase64],
+        stream: false,
+        options: this.multiDeviceAnalysisParams
+      });
+
+      const analysis = response.data.response?.trim();
+      console.log(`📋 Multi-device topology analysis: ${analysis?.length || 0} chars`);
+      
+      const structuredAnalysis = this._parseMultiDeviceTopology(analysis, deviceList);
+      
+      console.log(`✅ Multi-device analysis completed in ${Date.now() - startTime}ms`);
+      console.log(`📊 Analyzed ${Object.keys(structuredAnalysis.devicePorts).length} devices with ${structuredAnalysis.connections.length} connections`);
+      
+      return {
+        success: true,
+        analysis: structuredAnalysis,
+        rawAnalysis: analysis,
+        executionTime: Date.now() - startTime,
+        devicesAnalyzed: Object.keys(structuredAnalysis.devicePorts).length,
+        connectionsFound: structuredAnalysis.connections.length
+      };
+      
+    } catch (error) {
+      console.error(`❌ Multi-device topology analysis failed:`, error.message);
+      return {
+        success: false,
+        error: error.message,
+        executionTime: Date.now() - startTime
+      };
+    }
+  }
+
+  /**
+   * Parse multi-device topology analysis into structured data
+   */
+  _parseMultiDeviceTopology(analysis, deviceList) {
+    const result = {
+      devicePorts: {},
+      connections: [],
+      networkSegments: [],
+      hsrpCandidates: [],
+      redundantPaths: []
+    };
+    
+    try {
+      // Initialize device ports for each target device
+      deviceList.forEach(device => {
+        result.devicePorts[device.name.toUpperCase()] = [];
+      });
+      
+      // Enhanced parsing for multi-device scenarios
+      const lines = analysis.split('\n');
+      let currentDevice = null;
+      
+      for (const line of lines) {
+        const trimmed = line.trim();
+        
+        // Detect device sections
+        const deviceMatch = trimmed.match(/^([A-Z0-9-]+)\s+PORTS?:/i);
+        if (deviceMatch) {
+          currentDevice = deviceMatch[1].toUpperCase();
+          continue;
+        }
+        
+        // Parse port information for current device
+        if (currentDevice && trimmed.startsWith('-')) {
+          const portMatch = trimmed.match(/-\s*(?:Port\s+\d+:\s*)?([A-Za-z]+\d+\/\d+(?:\/\d+)?)/i);
+          if (portMatch) {
+            const standardizedPort = this._standardizeCiscoInterface(portMatch[1]);
+            if (!result.devicePorts[currentDevice]) {
+              result.devicePorts[currentDevice] = [];
+            }
+            result.devicePorts[currentDevice].push(standardizedPort);
+          }
+          
+          // Parse connections
+          const connectionMatch = trimmed.match(/-\s*([A-Za-z]+\d+\/\d+(?:\/\d+)?)\s*[→\->]+\s*connects?\s+to\s+([A-Z0-9-]+)\s+([A-Za-z]+\d+\/\d+(?:\/\d+)?)/i);
+          if (connectionMatch) {
+            result.connections.push({
+              sourceDevice: currentDevice,
+              sourcePort: this._standardizeCiscoInterface(connectionMatch[1]),
+              targetDevice: connectionMatch[2].toUpperCase(),
+              targetPort: this._standardizeCiscoInterface(connectionMatch[3])
+            });
+          }
+        }
+        
+        // Parse network segments
+        if (trimmed.toLowerCase().includes('network segment') || trimmed.toLowerCase().includes('shared segment')) {
+          const segmentMatch = trimmed.match(/([A-Z0-9-]+)\s+and\s+([A-Z0-9-]+)\s+share/i);
+          if (segmentMatch) {
+            result.networkSegments.push({
+              device1: segmentMatch[1].toUpperCase(),
+              device2: segmentMatch[2].toUpperCase(),
+              type: 'shared'
+            });
+          }
+        }
+        
+        // Parse HSRP candidates
+        if (trimmed.toLowerCase().includes('hsrp candidate')) {
+          const hsrpMatch = trimmed.match(/([A-Z0-9-]+).*hsrp.*group/i);
+          if (hsrpMatch) {
+            result.hsrpCandidates.push(hsrpMatch[1].toUpperCase());
+          }
+        }
+      }
+      
+      console.log(`📋 Parsed multi-device topology:`, {
+        devices: Object.keys(result.devicePorts),
+        totalPorts: Object.values(result.devicePorts).reduce((sum, ports) => sum + ports.length, 0),
+        connections: result.connections.length,
+        networkSegments: result.networkSegments.length
+      });
+      
+      return result;
+      
+    } catch (error) {
+      console.error(`❌ Failed to parse multi-device topology:`, error.message);
+      return result;
+    }
+  }
+
+  /**
+   * Enhanced port detection specifically for target device in multi-device topology
+   */
+  async _detectPortsFromImageEnhanced(imagePath, deviceName, allDevices) {
+    try {
+      console.log(`🔍 Enhanced port detection for ${deviceName} in multi-device topology...`);
+      
+      const imageBase64 = await this._imageToBase64(imagePath);
+      
+      const enhancedPortPrompt = `You are analyzing a Cisco network topology diagram with MULTIPLE devices. Focus EXCLUSIVELY on device "${deviceName}".
+
+MULTI-DEVICE CONTEXT:
+- Target device: ${deviceName}
+- Other devices in topology: ${allDevices.filter(d => d !== deviceName).join(', ')}
+- Your task: Find ONLY the ports for ${deviceName}
+
+ENHANCED ANALYSIS INSTRUCTIONS:
+
+1. **LOCATE ${deviceName} SPECIFICALLY:**
+   - Find the device labeled "${deviceName}" in the image
+   - Ignore all other devices (${allDevices.filter(d => d !== deviceName).join(', ')})
+   - Focus only on ${deviceName}'s connections
+
+2. **DETAILED PORT IDENTIFICATION FOR ${deviceName}:**
+   - Look at ALL cables/lines connected to ${deviceName}
+   - Read port labels directly on or near ${deviceName}
+   - Note interface types and numbers
+   - Identify connection endpoints from ${deviceName}
+
+3. **CISCO INTERFACE NAMING PRECISION:**
+   - Gi0/1, Gi0/2 = GigabitEthernet0/1, GigabitEthernet0/2
+   - Fa0/1, Fa0/24 = FastEthernet0/1, FastEthernet0/24
+   - Se0/0/0 = Serial0/0/0
+   - Te0/1 = TenGigabitEthernet0/1
+
+4. **CONNECTION MAPPING FOR ${deviceName}:**
+   - ${deviceName} [port] connects to [other device] [port]
+   - Be specific about which device and which port
+   - Include ALL visible connections from ${deviceName}
+
+REQUIRED OUTPUT FORMAT:
+
+DEVICE ANALYSIS COMPLETE
+TARGET DEVICE: ${deviceName}
+PORTS DETECTED:
+- [Full interface name 1]
+- [Full interface name 2]
+- [Continue for all ports]
+
+CONNECTIONS FROM ${deviceName}:
+- ${deviceName} [port] connects to [device] [port]
+- ${deviceName} [port] connects to [device] [port]
+- [Continue for all connections]
+
+DEVICE ANALYSIS COMPLETE`;
+
+      const response = await this.client.post("/api/generate", {
+        model: this.visionModel,
+        prompt: enhancedPortPrompt,
+        images: [imageBase64],
+        stream: false,
+        options: this.portDetectionParams
+      });
+
+      const analysis = response.data.response?.trim();
+      console.log(`📋 Enhanced port detection for ${deviceName}: ${analysis}`);
+      
+      return this._parseEnhancedPortDetection(analysis, deviceName);
+      
+    } catch (error) {
+      console.error(`❌ Enhanced port detection failed for ${deviceName}:`, error.message);
+      return { ports: [], connections: [] };
+    }
+  }
+
+  /**
+   * Parse enhanced port detection results with better accuracy
+   */
+  _parseEnhancedPortDetection(analysis, deviceName) {
+    const result = { ports: [], connections: [] };
+    
+    try {
+      const lines = analysis.split('\n');
+      let inPortsSection = false;
+      let inConnectionsSection = false;
+      
+      for (const line of lines) {
+        const trimmed = line.trim();
+        
+        // Detect sections
+        if (trimmed.includes('PORTS DETECTED:')) {
+          inPortsSection = true;
+          inConnectionsSection = false;
+          continue;
+        }
+        
+        if (trimmed.includes('CONNECTIONS FROM')) {
+          inPortsSection = false;
+          inConnectionsSection = true;
+          continue;
+        }
+        
+        // Parse ports section
+        if (inPortsSection && trimmed.startsWith('-')) {
+          const portMatch = trimmed.match(/-\s*([A-Za-z]+\d+\/\d+(?:\/\d+)?)/);
+          if (portMatch) {
+            const standardizedPort = this._standardizeCiscoInterface(portMatch[1]);
+            result.ports.push(standardizedPort);
+          }
+        }
+        
+        // Parse connections section with enhanced accuracy
+        if (inConnectionsSection && trimmed.includes('connects to')) {
+          const connectionPatterns = [
+            // Pattern: "- R1 GigabitEthernet0/1 connects to SW1 GigabitEthernet0/2"
+            new RegExp(`-\\s*${deviceName}\\s+([A-Za-z]+\\d+\\/\\d+(?:\\/\\d+)?)\\s+connects\\s+to\\s+([A-Z0-9-]+)\\s+([A-Za-z]+\\d+\\/\\d+(?:\\/\\d+)?)`, 'i'),
+            // Pattern: "- GigabitEthernet0/1 connects to SW1 GigabitEthernet0/2"
+            /^\s*-\s*([A-Za-z]+\d+\/\d+(?:\/\d+)?)\s+connects\s+to\s+([A-Z0-9-]+)\s+([A-Za-z]+\d+\/\d+(?:\/\d+)?)/i
+          ];
+          
+          for (const pattern of connectionPatterns) {
+            const match = trimmed.match(pattern);
+            if (match) {
+              result.connections.push({
+                device: deviceName,
+                port: this._standardizeCiscoInterface(match[1]),
+                connectsTo: match[2].toUpperCase(),
+                remotePort: this._standardizeCiscoInterface(match[3])
+              });
+              break;
+            }
+          }
+        }
+      }
+      
+      // Remove duplicates
+      result.ports = [...new Set(result.ports)];
+      
+      console.log(`✅ Enhanced parsing for ${deviceName}:`);
+      console.log(`   📍 Ports (${result.ports.length}): ${result.ports.join(', ')}`);
+      console.log(`   🔗 Connections (${result.connections.length}): ${result.connections.map(c => `${c.port}→${c.connectsTo}:${c.remotePort}`).join(', ')}`);
+      
+      return result;
+      
+    } catch (error) {
+      console.error(`❌ Failed to parse enhanced port detection:`, error.message);
+      return { ports: [], connections: [] };
+    }
   }
 
   /**
@@ -44,20 +414,17 @@ export class VisionLLMService {
       // Convert image to base64
       const imageBase64 = await this._imageToBase64(imagePath);
       
-      // Create direct configuration prompt with enhanced port detection
-      const configPrompt = await this._buildDirectConfigurationPrompt(prompt, device, deviceContext, imagePath);
+      // Create direct configuration prompt with enhanced multi-device context
+      const allDevices = deviceContext.allDevices || [device];
+      const configPrompt = await this._buildDirectConfigurationPrompt(prompt, device, deviceContext, imagePath, allDevices);
       
-      // Call LLaVA API with image and prompt
+      // Call LLaVA API with image and prompt using specialized parameters
       const response = await this.client.post("/api/generate", {
         model: this.visionModel,
         prompt: configPrompt,
         images: [imageBase64],
         stream: false,
-        options: { 
-          ...this.visionParams, 
-          num_predict: 500,  // More tokens for complete configs
-          temperature: 0.1   // More consistent output
-        }
+        options: this.configGenerationParams  // Use specialized config generation parameters
       });
 
       const configuration = response.data.response?.trim();
@@ -319,12 +686,7 @@ DETAILED ANALYSIS:`;
         prompt: portDetectionPrompt,
         images: [imageBase64],
         stream: false,
-        options: {
-          temperature: 0.05,  // Very precise for port detection
-          num_predict: 300,
-          top_k: 5,
-          top_p: 0.7
-        }
+        options: this.portDetectionParams  // Use specialized port detection parameters
       });
 
       const analysis = response.data.response?.trim();
@@ -413,70 +775,195 @@ DETAILED ANALYSIS:`;
   }
 
   /**
-   * Build direct configuration prompt from image and text
+   * Build direct configuration prompt from image and text with enhanced multi-device context
    */
-  async _buildDirectConfigurationPrompt(prompt, device, deviceContext, imagePath) {
-    // First, detect ports specifically for this device
-    const portInfo = await this._detectPortsFromImage(imagePath, device.name);
+  async _buildDirectConfigurationPrompt(prompt, device, deviceContext, imagePath, allDevices = []) {
+    // Use enhanced port detection for multi-device scenarios
+    const deviceNames = allDevices.length > 0 ? allDevices.map(d => d.name) : [device.name];
+    const portInfo = await this._detectPortsFromImageEnhanced(imagePath, device.name, deviceNames);
     
     let detectedPortsText = '';
     if (portInfo.ports.length > 0) {
       detectedPortsText = `
-DETECTED PORTS FOR ${device.name}:
+ENHANCED PORT DETECTION FOR ${device.name} (Multi-device topology):
 ${portInfo.ports.map(port => `- ${port}`).join('\n')}
 
-DETECTED CONNECTIONS:
+VERIFIED CONNECTIONS FROM ${device.name}:
 ${portInfo.connections.map(conn => `- ${conn.port} connects to ${conn.connectsTo} ${conn.remotePort}`).join('\n')}
+
+TOPOLOGY CONTEXT:
+- Total devices in topology: ${deviceNames.length}
+- Other devices: ${deviceNames.filter(d => d !== device.name).join(', ')}
+- Focus device: ${device.name}
 `;
     } else {
-      // Fallback: Use common router/switch interfaces based on device type
-      const fallbackPorts = this._getFallbackPorts(device.type, device.name);
+      // Enhanced fallback for multi-device scenarios
+      const fallbackPorts = this._getEnhancedFallbackPorts(device.type, device.name, allDevices.length);
       detectedPortsText = `
-FALLBACK INTERFACES FOR ${device.name} (${device.type}):
+ENHANCED FALLBACK INTERFACES FOR ${device.name} (${device.type}) in ${allDevices.length}-device topology:
 ${fallbackPorts.map(port => `- ${port}`).join('\n')}
 
-NOTE: Port detection from image failed, using standard interfaces.
+NOTE: Enhanced port detection from image failed, using topology-aware standard interfaces.
+RECOMMENDATION: Check image quality and device label visibility.
 `;
     }
 
-    return `You are a Cisco network engineer. Generate Cisco IOS configuration for device: ${device.name}
+    return `You are an expert Cisco network engineer with deep knowledge of IOS configuration syntax and best practices.
 
-USER REQUEST: ${prompt}
-
-DEVICE INFORMATION:
+DEVICE CONTEXT:
 - Device Name: ${device.name}
 - Device Type: ${device.type}
 - Model: ${device.model || 'Cisco Router/Switch'}
+- Expected IOS: 15.x or higher
+
+USER REQUEST: ${prompt}
 
 ${detectedPortsText}
 
-CRITICAL INSTRUCTIONS:
-1. **USE DETECTED PORTS ONLY:**
-   - Configure ONLY the ports listed above for ${device.name}
-   - Use the exact port names detected from the image
-   - If no ports detected, use standard interfaces (Gi0/1, Fa0/1)
+CISCO IOS CONFIGURATION EXPERTISE:
+${this._getCiscoConfigurationExpertise(prompt, device.type)}
 
-2. **FOLLOW USER REQUEST EXACTLY:**
-   - Generate ONLY what the user specifically requested: "${prompt}"
-   - DO NOT add protocols unless explicitly mentioned in the user request
-   - Focus on the specific task requested
+CRITICAL CONFIGURATION REQUIREMENTS:
 
-3. **INTERFACE CONFIGURATION:**
-   - Use EXACT interface names from detected ports (e.g., "interface GigabitEthernet0/1")
-   - Configure IP addresses only if user requests "IP" or "address"
-   - Add descriptions based on detected connections
-   - Enable interfaces with "no shutdown"
-   - Use proper Cisco IOS syntax
+1. **INTERFACE CONFIGURATION STANDARDS:**
+   - Use full interface names: interface GigabitEthernet0/1 (not gi0/1)
+   - IP addressing: ip address [ip] [subnet-mask] (not CIDR notation)
+   - Interface activation: no shutdown (required for all active interfaces)
+   - Descriptions: description [connection-description]
+   - Speed/duplex: speed 1000, duplex full (when needed)
 
-4. **FORMAT:**
-   - Start with "configure terminal"
-   - One "interface [InterfaceName]" block per detected port
-   - Use full interface names (GigabitEthernet0/1, not Gi0/1)
-   - End with "end"
+2. **ROUTING PROTOCOL SYNTAX:**
+   - OSPF: router ospf [process-id], network [network] [wildcard] area [area]
+   - EIGRP: router eigrp [as-number], network [network] [wildcard]
+   - BGP: router bgp [as-number], neighbor [ip] remote-as [as]
 
-Generate Cisco IOS configuration for ${device.name}:
+3. **SWITCHING PROTOCOLS:**
+   - VLANs: vlan [id], name [vlan-name]
+   - Switchport: switchport mode [access|trunk], switchport access vlan [id]
+   - STP: spanning-tree mode [pvst+|rapid-pvst+]
+
+4. **SECURITY BEST PRACTICES:**
+   - Access lists: access-list [number] [permit|deny] [source] [wildcard]
+   - SSH: ip ssh version 2, crypto key generate rsa modulus 1024
+   - Line security: line vty 0 15, login local, transport input ssh
+
+5. **TOPOLOGY-AWARE CONFIGURATION:**
+   - Use ONLY the detected ports: ${portInfo.ports.join(', ') || 'standard interfaces'}
+   - Configure based on detected connections
+   - Follow user request exactly (no additional protocols unless requested)
+   - Include proper interface descriptions
+
+CONFIGURATION FORMAT REQUIREMENTS:
+- Start: configure terminal
+- Proper indentation for sub-commands
+- Complete command syntax
+- End: end
+
+Generate syntactically correct Cisco IOS configuration for ${device.name}:
 
 configure terminal`;
+  }
+
+  /**
+   * Get Cisco configuration expertise based on prompt and device type
+   */
+  _getCiscoConfigurationExpertise(prompt, deviceType) {
+    const promptLower = prompt.toLowerCase();
+    let expertise = '';
+    
+    // Interface and IP configuration expertise
+    if (promptLower.includes('interface') || promptLower.includes('ip') || promptLower.includes('address')) {
+      expertise += `
+INTERFACE CONFIGURATION EXPERTISE:
+- Interface naming: GigabitEthernet0/1, FastEthernet0/1, Serial0/0/0
+- IP configuration: ip address 192.168.1.1 255.255.255.0
+- Secondary IPs: ip address 10.1.1.1 255.255.255.0 secondary
+- Interface activation: no shutdown (critical for interface to work)
+- Descriptions: description Connection_to_Router2_Gi0/1
+- Access lists: ip access-group ACL_NAME in/out
+`;
+    }
+    
+    // OSPF expertise
+    if (promptLower.includes('ospf')) {
+      expertise += `
+OSPF CONFIGURATION EXPERTISE:
+- Process configuration: router ospf 1
+- Router ID: router-id 1.1.1.1 (use loopback or highest IP)
+- Network statements: network 192.168.1.0 0.0.0.255 area 0
+- Area types: area 0 (backbone), area 1 stub, area 2 nssa
+- Interface OSPF: ip ospf 1 area 0 (alternative to network command)
+- Passive interfaces: passive-interface default, no passive-interface GigabitEthernet0/1
+- Cost adjustment: ip ospf cost 100
+- Hello/dead timers: ip ospf hello-interval 10, ip ospf dead-interval 40
+`;
+    }
+    
+    // EIGRP expertise
+    if (promptLower.includes('eigrp')) {
+      expertise += `
+EIGRP CONFIGURATION EXPERTISE:
+- AS configuration: router eigrp 100
+- Network statements: network 192.168.1.0 0.0.0.255
+- Auto-summary: no auto-summary (disable for modern networks)
+- Passive interfaces: passive-interface GigabitEthernet0/1
+- Metric tuning: metric weights 0 1 0 1 0 1
+- Authentication: key chain EIGRP_KEY, key 1, key-string cisco123
+`;
+    }
+    
+    // HSRP expertise
+    if (promptLower.includes('hsrp') || promptLower.includes('redundancy')) {
+      expertise += `
+HSRP CONFIGURATION EXPERTISE:
+- Virtual IP: standby 1 ip 192.168.1.254
+- Priority: standby 1 priority 110 (higher = active router)
+- Preemption: standby 1 preempt (allows takeover when priority is higher)
+- Authentication: standby 1 authentication md5 key-string hsrp_key
+- Tracking: standby 1 track 1 decrement 20
+- Timers: standby 1 timers 3 10 (hello 3s, hold 10s)
+`;
+    }
+    
+    // VLAN and switching expertise
+    if (deviceType === 'switch' || promptLower.includes('vlan') || promptLower.includes('switch')) {
+      expertise += `
+SWITCHING CONFIGURATION EXPERTISE:
+- VLAN creation: vlan 10, name DATA_VLAN
+- Access ports: switchport mode access, switchport access vlan 10
+- Trunk ports: switchport mode trunk, switchport trunk allowed vlan 10,20,30
+- Native VLAN: switchport trunk native vlan 1
+- STP configuration: spanning-tree mode rapid-pvst, spanning-tree vlan 10 priority 4096
+- Port security: switchport port-security, switchport port-security maximum 2
+`;
+    }
+    
+    // BGP expertise
+    if (promptLower.includes('bgp')) {
+      expertise += `
+BGP CONFIGURATION EXPERTISE:
+- BGP process: router bgp 65001
+- Router ID: bgp router-id 1.1.1.1
+- Neighbors: neighbor 192.168.1.2 remote-as 65002
+- Networks: network 10.1.1.0 mask 255.255.255.0
+- Attributes: neighbor 192.168.1.2 weight 100
+- Route maps: route-map BGP_IN permit 10
+`;
+    }
+    
+    // Security expertise
+    if (promptLower.includes('acl') || promptLower.includes('access-list') || promptLower.includes('security')) {
+      expertise += `
+SECURITY CONFIGURATION EXPERTISE:
+- Standard ACL: access-list 1 permit 192.168.1.0 0.0.0.255
+- Extended ACL: access-list 101 permit tcp 192.168.1.0 0.0.0.255 any eq 80
+- Named ACL: ip access-list extended WEB_TRAFFIC
+- Apply ACL: ip access-group WEB_TRAFFIC in
+- SSH security: ip ssh version 2, line vty 0 15, transport input ssh
+`;
+    }
+    
+    return expertise;
   }
 
   /**
@@ -548,42 +1035,75 @@ configure terminal`;
   }
 
   /**
-   * Get fallback ports for device type
+   * Get enhanced fallback ports for multi-device topology scenarios
    */
-  _getFallbackPorts(deviceType, deviceName) {
+  _getEnhancedFallbackPorts(deviceType, deviceName, topologySize = 1) {
     const type = deviceType.toLowerCase();
+    const deviceNumber = deviceName.match(/\d+/)?.[0] || '1';
     
     if (type.includes('router')) {
-      return [
+      // More interfaces for multi-device topologies
+      const routerPorts = [
         'GigabitEthernet0/0',
-        'GigabitEthernet0/1', 
+        'GigabitEthernet0/1',
         'FastEthernet0/0',
         'FastEthernet0/1'
       ];
+      
+      // Add more interfaces for larger topologies
+      if (topologySize > 2) {
+        routerPorts.push('GigabitEthernet0/2', 'Serial0/0/0', 'Serial0/1/0');
+      }
+      
+      return routerPorts;
     } else if (type.includes('switch')) {
-      return [
+      // Comprehensive switch port list for multi-device
+      const switchPorts = [
         'GigabitEthernet0/1',
         'GigabitEthernet0/2',
         'FastEthernet0/1',
-        'FastEthernet0/24'
+        'FastEthernet0/2'
       ];
+      
+      // Add more access ports for larger topologies
+      if (topologySize > 2) {
+        switchPorts.push(
+          'FastEthernet0/3', 'FastEthernet0/4',
+          'GigabitEthernet0/3', 'GigabitEthernet0/4'
+        );
+      }
+      
+      // Add typical uplink ports
+      if (topologySize > 1) {
+        switchPorts.push('GigabitEthernet0/24', 'GigabitEthernet0/48');
+      }
+      
+      return switchPorts;
     } else {
-      // Generic network device
+      // Enhanced generic device ports
       return [
         'Ethernet0/0',
         'Ethernet0/1',
-        'GigabitEthernet0/1'
+        'GigabitEthernet0/1',
+        'GigabitEthernet0/2'
       ];
     }
   }
 
   /**
-   * Clean configuration output
+   * Get fallback ports for device type (legacy method)
+   */
+  _getFallbackPorts(deviceType, deviceName) {
+    return this._getEnhancedFallbackPorts(deviceType, deviceName, 1);
+  }
+
+  /**
+   * Clean configuration output with enhanced Cisco syntax validation
    */
   _cleanConfiguration(rawConfig, userPrompt = '') {
     if (!rawConfig) return '';
     
-    console.log(`🧹 Cleaning configuration (${rawConfig.length} chars)...`);
+    console.log(`🧹 Cleaning configuration with Cisco expertise (${rawConfig.length} chars)...`);
     console.log(`🧹 User prompt: "${userPrompt}"`);
     console.log(`🧹 Raw config preview: ${rawConfig.substring(0, 300)}...`);
     
@@ -594,7 +1114,8 @@ configure terminal`;
       /```[\s\S]*?```/g,
       /```plaintext\n([\s\S]*?)```/g,
       /```cisco\n([\s\S]*?)```/g,
-      /```ios\n([\s\S]*?)```/g
+      /```ios\n([\s\S]*?)```/g,
+      /```config\n([\s\S]*?)```/g
     ];
     
     for (const pattern of codeBlockPatterns) {
@@ -620,10 +1141,11 @@ configure terminal`;
       .replace(/^Looking at.*$/gmi, '')
       .replace(/^Below is.*$/gmi, '')
       .replace(/^Certainly!.*$/gmi, '')
+      .replace(/^I'll.*$/gmi, '')
       .replace(/^\s*\*\*.*?\*\*\s*$/gm, '')  // Remove markdown headers
       .trim();
 
-    // Split into lines and filter
+    // Split into lines and filter with Cisco expertise
     const lines = cleaned.split('\n');
     const configLines = [];
     let inConfig = false;
@@ -639,36 +1161,24 @@ configure terminal`;
       }
       
       // Skip empty lines and explanatory text before config starts
-      if (!inConfig && (trimmed === '' || trimmed.match(/^[A-Z].*:/) || trimmed.includes('analysis'))) {
+      if (!inConfig && (trimmed === '' || trimmed.match(/^[A-Z].*:/) || trimmed.includes('analysis') || trimmed.includes('explanation'))) {
         continue;
       }
       
-      // Collect configuration lines
-      if (inConfig || trimmed.startsWith('interface') || trimmed.startsWith('ip address') || trimmed.startsWith('no shutdown') || trimmed.startsWith('description')) {
+      // Collect configuration lines with Cisco command validation
+      if (inConfig || this._isCiscoCommand(trimmed)) {
         inConfig = true;
         
-        // Skip protocol-specific configs unless they match user request
-        const userRequest = userPrompt.toLowerCase();
-        const isHSRPLine = trimmed.includes('hsrp') || trimmed.includes('standby');
-        const isOSPFLine = trimmed.includes('ospf') || trimmed.includes('router ospf');
-        const isEIGRPLine = trimmed.includes('eigrp') || trimmed.includes('router eigrp');
-        
-        // Only include protocol lines if user specifically requested them
-        if (isHSRPLine && !userRequest.includes('hsrp')) {
-          continue; // Skip HSRP config if not requested
+        // Apply Cisco-specific filtering based on user request
+        if (this._shouldIncludeCommand(trimmed, userPrompt)) {
+          // Validate and fix Cisco syntax
+          const validatedLine = this._validateAndFixCiscoCommand(line);
+          configLines.push(validatedLine);
         }
-        if (isOSPFLine && !userRequest.includes('ospf')) {
-          continue; // Skip OSPF config if not requested
-        }
-        if (isEIGRPLine && !userRequest.includes('eigrp')) {
-          continue; // Skip EIGRP config if not requested
-        }
-        
-        configLines.push(line);
       }
     }
 
-    // Ensure proper structure
+    // Ensure proper Cisco configuration structure
     cleaned = configLines.join('\n').trim();
     
     if (!cleaned.includes('configure terminal')) {
@@ -678,26 +1188,316 @@ configure terminal`;
       cleaned = cleaned + '\nend';
     }
     
-    console.log(`✅ Cleaned to ${cleaned.split('\n').length} lines`);
-    console.log(`✅ Final cleaned config: ${cleaned.substring(0, 200)}...`);
+    // Final Cisco syntax validation
+    cleaned = this._applyCiscoSyntaxRules(cleaned);
+    
+    console.log(`✅ Cleaned and validated with Cisco expertise: ${cleaned.split('\n').length} lines`);
+    console.log(`✅ Final Cisco config: ${cleaned.substring(0, 200)}...`);
     
     if (cleaned.length < 20) {
-      console.warn(`⚠️ Configuration too short after cleaning (${cleaned.length} chars)`);
+      console.warn(`⚠️ Configuration too short after Cisco validation (${cleaned.length} chars)`);
     }
     
     return cleaned;
   }
 
   /**
-   * Convert image file to base64
+   * Check if a line is a valid Cisco command
+   */
+  _isCiscoCommand(line) {
+    const trimmed = line.trim();
+    const ciscoCommands = [
+      'interface', 'ip address', 'no shutdown', 'description', 'router ospf', 'router eigrp', 
+      'router bgp', 'network', 'neighbor', 'vlan', 'switchport', 'access-list', 'standby',
+      'spanning-tree', 'hostname', 'username', 'enable secret', 'line vty', 'crypto key'
+    ];
+    
+    return ciscoCommands.some(cmd => trimmed.startsWith(cmd));
+  }
+
+  /**
+   * Determine if command should be included based on user request
+   */
+  _shouldIncludeCommand(command, userPrompt) {
+    const userRequest = userPrompt.toLowerCase();
+    const commandLower = command.toLowerCase();
+    
+    // Always include basic interface configuration
+    if (commandLower.includes('interface') || commandLower.includes('ip address') || 
+        commandLower.includes('no shutdown') || commandLower.includes('description')) {
+      return true;
+    }
+    
+    // Protocol-specific filtering
+    const isHSRPLine = commandLower.includes('hsrp') || commandLower.includes('standby');
+    const isOSPFLine = commandLower.includes('ospf') || commandLower.includes('router ospf');
+    const isEIGRPLine = commandLower.includes('eigrp') || commandLower.includes('router eigrp');
+    const isBGPLine = commandLower.includes('bgp') || commandLower.includes('router bgp');
+    
+    // Only include protocol lines if user specifically requested them
+    if (isHSRPLine && !userRequest.includes('hsrp')) return false;
+    if (isOSPFLine && !userRequest.includes('ospf')) return false;
+    if (isEIGRPLine && !userRequest.includes('eigrp')) return false;
+    if (isBGPLine && !userRequest.includes('bgp')) return false;
+    
+    return true;
+  }
+
+  /**
+   * Validate and fix individual Cisco commands
+   */
+  _validateAndFixCiscoCommand(line) {
+    let fixed = line;
+    
+    // Fix interface names (gi0/1 → GigabitEthernet0/1)
+    const interfaceMap = {
+      'gi': 'GigabitEthernet',
+      'fa': 'FastEthernet',
+      'eth': 'Ethernet', 
+      'se': 'Serial',
+      'te': 'TenGigabitEthernet'
+    };
+    
+    for (const [abbrev, full] of Object.entries(interfaceMap)) {
+      const pattern = new RegExp(`\\b${abbrev}(\\d+(?:\\/\\d+(?:\\/\\d+)?)?)\\b`, 'gi');
+      fixed = fixed.replace(pattern, `${full}$1`);
+    }
+    
+    // Fix IP address CIDR notation to subnet mask
+    const cidrPattern = /ip\s+address\s+(\d+\.\d+\.\d+\.\d+)\/(\d+)/i;
+    if (cidrPattern.test(fixed)) {
+      const match = fixed.match(cidrPattern);
+      const ip = match[1];
+      const prefix = parseInt(match[2]);
+      const subnetMask = this._cidrToSubnetMask(prefix);
+      fixed = fixed.replace(cidrPattern, `ip address ${ip} ${subnetMask}`);
+    }
+    
+    return fixed;
+  }
+
+  /**
+   * Apply final Cisco syntax rules
+   */
+  _applyCiscoSyntaxRules(config) {
+    let fixed = config;
+    
+    // Ensure proper command structure
+    const lines = fixed.split('\n');
+    const finalLines = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+      
+      // Add proper indentation for sub-commands
+      if (i > 0 && !trimmed.startsWith('configure') && !trimmed.startsWith('end') && 
+          !trimmed.startsWith('exit') && !trimmed.startsWith('interface') && 
+          !trimmed.startsWith('router') && !trimmed.startsWith('vlan') &&
+          !line.startsWith(' ') && trimmed.length > 0) {
+        
+        // Check if previous line was a mode command
+        const prevLine = lines[i-1]?.trim();
+        if (prevLine?.startsWith('interface') || prevLine?.startsWith('router') || prevLine?.startsWith('vlan')) {
+          finalLines.push(' ' + trimmed);
+        } else {
+          finalLines.push(line);
+        }
+      } else {
+        finalLines.push(line);
+      }
+    }
+    
+    return finalLines.join('\n');
+  }
+
+  /**
+   * Convert CIDR to subnet mask
+   */
+  _cidrToSubnetMask(prefix) {
+    const masks = {
+      8: '255.0.0.0',
+      16: '255.255.0.0',
+      24: '255.255.255.0',
+      25: '255.255.255.128',
+      26: '255.255.255.192',
+      27: '255.255.255.224',
+      28: '255.255.255.240',
+      29: '255.255.255.248',
+      30: '255.255.255.252'
+    };
+    
+    return masks[prefix] || '255.255.255.0';
+  }
+
+  /**
+   * Enhanced image preprocessing for better multi-device analysis
+   */
+  async _preprocessImageForAnalysis(imagePath) {
+    try {
+      console.log(`🖼️ Preprocessing image for enhanced analysis: ${imagePath}`);
+      
+      const imageBuffer = fs.readFileSync(imagePath);
+      const stats = fs.statSync(imagePath);
+      
+      console.log(`📊 Image stats: ${Math.round(stats.size / 1024)}KB, ${path.extname(imagePath)}`);
+      
+      // For now, return base64 - future: could add image enhancement
+      const base64 = imageBuffer.toString('base64');
+      
+      // Log image characteristics for debugging
+      const sizeCategory = stats.size > 5 * 1024 * 1024 ? 'large' : 
+                          stats.size > 1 * 1024 * 1024 ? 'medium' : 'small';
+      
+      console.log(`✅ Image preprocessed: ${sizeCategory} size, ready for LLaVA analysis`);
+      
+      return {
+        base64: base64,
+        originalSize: stats.size,
+        sizeCategory: sizeCategory,
+        format: path.extname(imagePath).toLowerCase()
+      };
+      
+    } catch (error) {
+      throw new Error(`Failed to preprocess image: ${error.message}`);
+    }
+  }
+
+  /**
+   * Convert image file to base64 (legacy method)
    */
   async _imageToBase64(imagePath) {
+    const processed = await this._preprocessImageForAnalysis(imagePath);
+    return processed.base64;
+  }
+
+  /**
+   * Multi-step image analysis for improved accuracy
+   */
+  async _performMultiStepImageAnalysis(imagePath, deviceList) {
     try {
-      const imageBuffer = fs.readFileSync(imagePath);
-      return imageBuffer.toString('base64');
+      console.log(`🔍 Performing multi-step analysis for ${deviceList.length} devices...`);
+      
+      // Step 1: Overall topology analysis
+      const topologyAnalysis = await this.analyzeMultiDeviceTopology(imagePath, deviceList);
+      
+      // Step 2: Device-specific port detection for each device
+      const devicePortAnalysis = {};
+      
+      for (const device of deviceList) {
+        console.log(`🔌 Analyzing ports for ${device.name}...`);
+        const portInfo = await this._detectPortsFromImageEnhanced(
+          imagePath, 
+          device.name, 
+          deviceList.map(d => d.name)
+        );
+        devicePortAnalysis[device.name] = portInfo;
+      }
+      
+      // Step 3: Cross-validate connections
+      const validatedConnections = this._crossValidateConnections(devicePortAnalysis);
+      
+      console.log(`✅ Multi-step analysis completed:`);
+      console.log(`   📊 Topology analysis: ${topologyAnalysis.success ? 'Success' : 'Failed'}`);
+      console.log(`   🔌 Device port analysis: ${Object.keys(devicePortAnalysis).length} devices`);
+      console.log(`   ✅ Validated connections: ${validatedConnections.length}`);
+      
+      return {
+        success: true,
+        topologyAnalysis: topologyAnalysis,
+        devicePortAnalysis: devicePortAnalysis,
+        validatedConnections: validatedConnections,
+        accuracy: this._calculateAnalysisAccuracy(devicePortAnalysis, validatedConnections)
+      };
+      
     } catch (error) {
-      throw new Error(`Failed to read image file: ${error.message}`);
+      console.error(`❌ Multi-step image analysis failed:`, error.message);
+      return {
+        success: false,
+        error: error.message
+      };
     }
+  }
+
+  /**
+   * Cross-validate connections between devices for accuracy
+   */
+  _crossValidateConnections(devicePortAnalysis) {
+    const validatedConnections = [];
+    
+    for (const [deviceName, portInfo] of Object.entries(devicePortAnalysis)) {
+      for (const connection of portInfo.connections) {
+        // Check if the target device also reports this connection
+        const targetDevice = connection.connectsTo;
+        const targetPortInfo = devicePortAnalysis[targetDevice];
+        
+        if (targetPortInfo) {
+          // Look for reciprocal connection
+          const reciprocalConnection = targetPortInfo.connections.find(conn => 
+            conn.connectsTo === deviceName && 
+            conn.remotePort === connection.port &&
+            conn.port === connection.remotePort
+          );
+          
+          if (reciprocalConnection) {
+            // Connection validated from both sides
+            validatedConnections.push({
+              device1: deviceName,
+              port1: connection.port,
+              device2: targetDevice,
+              port2: connection.remotePort,
+              validated: true
+            });
+          } else {
+            // Connection only detected from one side
+            validatedConnections.push({
+              device1: deviceName,
+              port1: connection.port,
+              device2: targetDevice,
+              port2: connection.remotePort,
+              validated: false
+            });
+          }
+        }
+      }
+    }
+    
+    // Remove duplicates
+    const uniqueConnections = validatedConnections.filter((conn, index, arr) => 
+      index === arr.findIndex(c => 
+        (c.device1 === conn.device1 && c.device2 === conn.device2) ||
+        (c.device1 === conn.device2 && c.device2 === conn.device1)
+      )
+    );
+    
+    console.log(`🔗 Connection validation: ${uniqueConnections.length} unique connections, ${uniqueConnections.filter(c => c.validated).length} fully validated`);
+    
+    return uniqueConnections;
+  }
+
+  /**
+   * Calculate analysis accuracy metrics
+   */
+  _calculateAnalysisAccuracy(devicePortAnalysis, validatedConnections) {
+    const totalDevices = Object.keys(devicePortAnalysis).length;
+    const devicesWithPorts = Object.values(devicePortAnalysis).filter(p => p.ports.length > 0).length;
+    const validatedConnectionsCount = validatedConnections.filter(c => c.validated).length;
+    const totalConnectionsCount = validatedConnections.length;
+    
+    const deviceDetectionRate = totalDevices > 0 ? (devicesWithPorts / totalDevices) * 100 : 0;
+    const connectionValidationRate = totalConnectionsCount > 0 ? (validatedConnectionsCount / totalConnectionsCount) * 100 : 0;
+    
+    return {
+      deviceDetectionRate: Math.round(deviceDetectionRate),
+      connectionValidationRate: Math.round(connectionValidationRate),
+      overallAccuracy: Math.round((deviceDetectionRate + connectionValidationRate) / 2),
+      metrics: {
+        devicesAnalyzed: totalDevices,
+        devicesWithPorts: devicesWithPorts,
+        totalConnections: totalConnectionsCount,
+        validatedConnections: validatedConnectionsCount
+      }
+    };
   }
 
   /**
@@ -991,25 +1791,35 @@ Configuration:`;
 
       return {
         status: "connected",
-        service: "LLaVA Vision Network Topology Analyzer",
+        service: "LLaVA Vision + Prompt Configuration Generator",
         host: this.host,
         model: this.visionModel,
         modelAvailable: !!currentModel,
         availableModels: models.map(m => m.name),
         timeout: this.timeout,
+        specialization: "Image analysis + Prompt-based configuration generation",
+        optimizations: {
+          port_detection: this.portDetectionParams,
+          config_generation: this.configGenerationParams,
+          general_vision: this.visionParams
+        },
         features: [
-          "🔍 Network topology image analysis",
-          "🔌 Port and connection mapping",
-          "📋 Device identification and classification", 
-          "🌐 IP addressing and VLAN detection",
-          "⚙️ Protocol recommendations",
-          "🎯 Context-aware configuration generation"
+          "🔍 Network topology image analysis with LLaVA:7b",
+          "🔌 Precise port and connection detection from images",
+          "📋 Device identification and classification from diagrams", 
+          "🌐 Visual IP addressing and VLAN detection",
+          "⚙️ Image-based protocol recommendations",
+          "🎯 Multimodal (image + text) configuration generation",
+          "🔧 Cisco interface name standardization",
+          "📝 Topology-aware configuration synthesis",
+          "🚀 Direct image-to-config generation",
+          "✅ Enhanced Cisco syntax validation for vision output"
         ]
       };
     } catch (error) {
       return {
         status: "disconnected",
-        service: "LLaVA Vision Network Topology Analyzer",
+        service: "LLaVA Vision + Prompt Configuration Generator",
         host: this.host,
         model: this.visionModel,
         modelAvailable: false,
