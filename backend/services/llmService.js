@@ -1044,10 +1044,10 @@ Commands:`;
     }
     
     if (lowerPrompt.includes('static') || lowerPrompt.includes('ip route')) {
-      const static = this.knowledgeBase.routing.static;
-      knowledge.push(`Static Routing: ${static.context}`);
-      knowledge.push(`Syntax: ${static.syntax.slice(0, 4).join(', ')}`);
-      knowledge.push(`Best Practices: ${static.bestPractices.slice(0, 3).join(', ')}`);
+      const staticRouting = this.knowledgeBase.routing.static;
+      knowledge.push(`Static Routing: ${staticRouting.context}`);
+      knowledge.push(`Syntax: ${staticRouting.syntax.slice(0, 4).join(', ')}`);
+      knowledge.push(`Best Practices: ${staticRouting.bestPractices.slice(0, 3).join(', ')}`);
     }
     
     // Check for switching
