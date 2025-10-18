@@ -10,12 +10,6 @@ import devicesRouter from './routes/devices.js';
 import configurationsRouter from './routes/configurations.js';
 import consoleRouter from './routes/console.js';
 import backupsRouter from './routes/backups.js';
-import netconfRouter from './routes/netconf.js';
-import netconfDevicesRouter from './routes/netconfDevices.js';
-
-
-// Import services for cleanup
-import netconfService from './services/netconfService.js';
 
 
 const app = express();
@@ -62,19 +56,13 @@ app.get('/api/health', async (req, res) => {
       throw new Error('MongoDB not connected');
     }
     
-    // Get NETCONF sessions info
-    const netconfSessions = netconfService.getActiveSessions();
-    
     res.json({
       success: true,
       message: 'Server is healthy',
       timestamp: new Date().toISOString(),
       version: '2.0.0',
       environment: config.server.nodeEnv,
-      database: 'MongoDB Atlas',
-      services: {
-        netconf_sessions: netconfSessions.length
-      }
+      database: 'MongoDB Atlas'
     });
   } catch (error) {
     res.status(503).json({
@@ -90,8 +78,6 @@ app.use('/api/devices', devicesRouter);
 app.use('/api/configurations', configurationsRouter);
 app.use('/api/console', consoleRouter);
 app.use('/api/backups', backupsRouter);
-app.use('/api/netconf', netconfRouter);
-app.use('/api/netconf-devices', netconfDevicesRouter);
 
 
 // Root endpoint
@@ -104,7 +90,6 @@ app.get('/', (req, res) => {
     features: [
       '🤖 Raw AI configuration generation',
       '🍃 MongoDB Atlas cloud database',
-      '🔗 NETCONF/YANG support',
       '⚡ Fast and lightweight',
       '🎯 Simple and reliable',
       '📝 Configuration validation',
@@ -116,13 +101,9 @@ app.get('/', (req, res) => {
       devices: '/api/devices',
       configurations: '/api/configurations',
       console: '/api/console',
-      backups: '/api/backups',
-      netconf: '/api/netconf',
-      netconf_devices: '/api/netconf-devices',
-      compliance: '/api/compliance'
+      backups: '/api/backups'
     },
-    protocols: ['SSH', 'Console', 'NETCONF'],
-    yang_support: true,
+    protocols: ['SSH', 'Console'],
     vendors: ['Cisco']
   });
 });
@@ -154,9 +135,6 @@ process.on('SIGTERM', async () => {
   console.log('🛑 SIGTERM received, shutting down gracefully');
   
   try {
-    // Cleanup NETCONF sessions
-    await netconfService.cleanup();
-    
     // Close MongoDB connection
     await mongoose.connection.close();
     console.log('✅ MongoDB connection closed');
@@ -172,9 +150,6 @@ process.on('SIGINT', async () => {
   console.log('🛑 SIGINT received, shutting down gracefully');
   
   try {
-    // Cleanup NETCONF sessions
-    await netconfService.cleanup();
-    
     // Close MongoDB connection
     await mongoose.connection.close();
     console.log('✅ MongoDB connection closed');
@@ -208,7 +183,6 @@ connectToMongoDB().then(() => {
     console.log(`🤖 Ollama Host: ${config.ollama.host}`);
     console.log(`🧠 AI Model: ${config.ollama.model}`);
     console.log(`🔗 Frontend URL: ${config.cors.origin}`);
-    console.log(`📡 NETCONF/YANG Support: Enabled`);
   });
 });
 

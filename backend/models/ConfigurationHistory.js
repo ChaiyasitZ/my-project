@@ -44,42 +44,6 @@ const configurationHistorySchema = new mongoose.Schema({
   },
   applied_at: {
     type: Number
-  },
-  // Topology image information
-  topology_image: {
-    filename: String,
-    originalName: String,
-    mimetype: String,
-    size: Number,
-    uploadDate: {
-      type: Number,
-      default: () => Date.now()
-    },
-    base64Data: String, // Store image as base64 for display
-    isVisionGenerated: {
-      type: Boolean,
-      default: false
-    }
-  },
-  // Vision analysis metadata
-  vision_enhanced: {
-    type: Boolean,
-    default: false
-  },
-  vision_analysis: {
-    detected_devices: [String],
-    detected_ports: mongoose.Schema.Types.Mixed,
-    detected_connections: [mongoose.Schema.Types.Mixed],
-    vision_model: String
-  },
-  // Multi-device session grouping
-  session_id: {
-    type: String,
-    index: true // Add index for efficient grouping queries
-  },
-  multi_device_session: {
-    type: Boolean,
-    default: false
   }
 }, {
   timestamps: false // Disable automatic timestamps since we're using custom ones

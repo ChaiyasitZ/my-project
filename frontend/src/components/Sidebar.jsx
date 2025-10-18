@@ -10,15 +10,13 @@ import {
   Archive,
   Menu,
   X,
-  Activity,
-  Network
+  Activity
 } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
   { name: 'Devices', href: '/devices', icon: ServerIcon },
   { name: 'Configurations', href: '/configurations', icon: CogIcon },
-  { name: 'NETCONF/YANG', href: '/netconf', icon: Network },
   { name: 'Console Setup', href: '/console', icon: TerminalIcon },
   { name: 'History', href: '/configuration-history', icon: ClockIcon },
   { name: 'Backups', href: '/backups', icon: Archive },
