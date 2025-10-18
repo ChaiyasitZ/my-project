@@ -15,18 +15,13 @@ function Configurations() {
   const [devices, setDevices] = useState([]);
   const [devicesLoading, setDevicesLoading] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState('');
-  const [selectedDevices, setSelectedDevices] = useState([]);
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [generatedConfig, setGeneratedConfig] = useState(null);
-  const [generatedConfigs, setGeneratedConfigs] = useState([]);
   const [validation, setValidation] = useState(null);
-  const [multiDeviceMode, setMultiDeviceMode] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedConfig, setEditedConfig] = useState('');
-  const [topologyImage, setTopologyImage] = useState(null);
-  const [topologyPreview, setTopologyPreview] = useState(null);
 
   const { confirmationState, showConfirmation } = useConfirmation();
 
@@ -165,309 +160,11 @@ function Configurations() {
     }
   };
 
-
-
-  // ฟังก์ชันสำหรับ multi-device
-  const addDeviceToSelection = (deviceId) => {
-    if (deviceId && !selectedDevices.find(d => d.id === deviceId)) {
-      const device = devices.find(d => d.id === deviceId);
-      if (device) {
-        setSelectedDevices([...selectedDevices, device]);
-      }
-    }
-  };
-
-  const removeDeviceFromSelection = (deviceId) => {
-    setSelectedDevices(selectedDevices.filter(d => d.id !== deviceId));
-  };
-
-  // Handle topology image upload
-  const handleTopologyImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      processImageFile(file);
-    }
-  };
-
-  // Handle image paste from clipboard
-  const handleImagePaste = (e) => {
-    const items = e.clipboardData?.items;
-    if (items) {
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.type.indexOf('image') !== -1) {
-          const file = item.getAsFile();
-          if (file) {
-            processImageFile(file);
-            toast.success('Image pasted successfully!');
-          }
-          break;
-        }
-      }
-    }
-  };
-
-  // Process image file (upload or paste)
-  const processImageFile = (file) => {
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      toast.error('Please use a valid image file (JPEG, PNG, GIF, BMP, WebP)');
-      return;
-    }
-    
-    // Validate file size (10MB limit)
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('Image file must be less than 10MB');
-      return;
-    }
-    
-    setTopologyImage(file);
-    
-    // Create preview URL
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setTopologyPreview(e.target.result);
-    };
-    reader.readAsDataURL(file);
-    
-    toast.success('Topology image ready for LLaVA generation!');
-  };
-
-  const handleMultiDeviceGeneration = async () => {
-    if (selectedDevices.length === 0 || !prompt) return;
-
-    setIsGenerating(true);
-    setGeneratedConfigs([]);
-    const toastId = toast.loading(`Generating configurations for ${selectedDevices.length} devices...`);
-    
-    try {
-      console.log('🚀 Starting multi-device generation for:', selectedDevices.map(d => d.name));
-      
-      // Prepare form data for potential image upload
-      const formData = new FormData();
-      formData.append('device_ids', JSON.stringify(selectedDevices.map(d => d.id)));
-      formData.append('prompt', prompt);
-      formData.append('topology_hints', JSON.stringify({
-        connection_type: 'sequential', // Router1 -> Router2 -> Router3
-        network_base: '192.168.0.0'
-      }));
-      
-      // Add topology image if available
-      if (topologyImage) {
-        formData.append('topology_image', topologyImage);
-        console.log('📸 Including topology image for enhanced generation');
-      }
-
-      // Call the enhanced multi-device API endpoint with longer timeout for LLaVA
-      const response = await axios.post('/configurations/generate-multi', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        timeout: topologyImage ? 300000 : 60000,  // 5 min for LLaVA, 1 min for regular
-      });
-      
-      if (response.data.success) {
-        console.log('🎯 Raw API response:', response.data);
-        console.log('🎯 Results array:', response.data.results);
-        
-        // Debug each result
-        response.data.results.forEach((result, i) => {
-          console.log(`🔍 Result ${i}:`, {
-            device_id: result.device_id,
-            device_name: result.device_name,
-            success: result.success,
-            configuration: result.configuration,
-            displayConfig: result.displayConfig,
-            error: result.error,
-            hasConfiguration: !!result.configuration,
-            configLength: result.configuration?.length,
-            allKeys: Object.keys(result)
-          });
-        });
-        
-        // Transform API response to match frontend format
-        const configs = response.data.results.map((result, index) => {
-          const device = selectedDevices.find(d => d.id === result.device_id);
-          const config = result.success ? (result.configuration || result.displayConfig) : null;
-          
-          console.log(`📝 Mapping device ${device?.name}:`, {
-            result_success: result.success,
-            result_configuration: result.configuration,
-            result_displayConfig: result.displayConfig,
-            final_config: config,
-            config_length: config?.length
-          });
-          
-          return {
-            device: device,
-            config: config,
-            success: result.success,
-            error: result.success ? null : result.error,
-            order: index + 1,
-            configuration_id: result.configuration_id,
-            validation: result.validation || { isValid: result.success, errors: [], warnings: [] },
-            explanation: result.explanation || [],
-            image_enhanced: result.image_enhanced || false
-          };
-        });
-        
-        console.log('🎯 Final mapped configs for preview:', configs);
-        console.log('🎯 Config details:', configs.map(c => ({ 
-          device: c.device?.name, 
-          hasConfig: !!c.config, 
-          configLength: c.config?.length,
-          success: c.success,
-          image_enhanced: c.image_enhanced
-        })));
-        setGeneratedConfigs(configs);
-        
-        const successCount = response.data.summary.successfulDevices;
-        const totalCount = response.data.summary.totalDevices;
-        const visionEnhanced = response.data.vision_enhanced || response.data.image_analyzed;
-        
-        if (successCount === totalCount) {
-          const message = visionEnhanced 
-            ? `🎉 Generated all ${totalCount} configurations with LLaVA vision!`
-            : `🎉 Generated all ${totalCount} configurations successfully!`;
-          toast.success(message, { id: toastId });
-        } else if (successCount > 0) {
-          const message = visionEnhanced
-            ? `Generated ${successCount}/${totalCount} configurations with LLaVA vision`
-            : `Generated ${successCount}/${totalCount} configurations`;
-          toast.success(message, { id: toastId });
-        } else {
-          toast.error(`Failed to generate any configurations`, { id: toastId });
-        }
-        
-        // Log topology information
-        if (response.data.topology) {
-          console.log('📡 Generated topology:', response.data.topology);
-        }
-        
-        // Log cross-validation results
-        if (response.data.cross_validation) {
-          console.log('✅ Cross-validation:', response.data.cross_validation);
-          if (!response.data.cross_validation.isConsistent) {
-            toast.warning(`⚠️ Configuration consistency issues detected`);
-          }
-        }
-        
-      } else {
-        throw new Error(response.data.message || 'Multi-device generation failed');
-      }
-      
-    } catch (error) {
-      console.error('❌ Multi-device generation error:', error);
-      const errorMessage = error.response?.data?.message || error.message;
-      toast.error(`Failed to generate configurations: ${errorMessage}`, { id: toastId });
-      
-      // Show individual device errors if available
-      if (error.response?.data?.results) {
-        error.response.data.results.forEach(result => {
-          if (!result.success) {
-            console.error(`❌ ${result.device_name}: ${result.error}`);
-          }
-        });
-      }
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleMultiDeviceDeployment = async (configResult) => {
-    if (!configResult || !configResult.configuration_id) return;
-
-    const confirmed = await showConfirmation({
-      title: 'Deploy Configuration',
-      message: `Are you sure you want to deploy this configuration to ${configResult.device.name}?\n\nThis action will modify the device configuration.`,
-      confirmText: 'Deploy',
-      cancelText: 'Cancel',
-      type: 'warning'
-    });
-
-    if (!confirmed) return;
-
-    const toastId = toast.loading(`Deploying configuration to ${configResult.device.name}...`);
-    
-    try {
-      await axios.post('/configurations/apply', {
-        configuration_id: configResult.configuration_id
-      });
-
-      // Update the config status in the UI
-      setGeneratedConfigs(prevConfigs => 
-        prevConfigs.map(config => 
-          config.configuration_id === configResult.configuration_id
-            ? { ...config, status: 'applied' }
-            : config
-        )
-      );
-
-      console.log(`✅ Configuration deployed successfully to ${configResult.device.name}!`);
-      toast.success(`Configuration deployed successfully to ${configResult.device.name}!`, { id: toastId });
-    } catch (error) {
-      console.error('Error deploying configuration:', error);
-      toast.error(`Error deploying to ${configResult.device.name}: ${error.response?.data?.message || error.message}`, { id: toastId });
-    }
-  };
-
-  const handleDeployAll = async () => {
-    if (!generatedConfigs.length) return;
-
-    const confirmed = await showConfirmation({
-      title: 'Deploy All Configurations',
-      message: `Are you sure you want to deploy configurations to all ${generatedConfigs.length} devices?\n\nThis action will modify all selected device configurations.`,
-      confirmText: 'Deploy All',
-      cancelText: 'Cancel',
-      type: 'warning'
-    });
-
-    if (!confirmed) return;
-
-    const toastId = toast.loading(`Deploying configurations to all devices...`);
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const config of generatedConfigs) {
-      if (!config.success || !config.configuration_id) continue;
-
-      try {
-        await axios.post('/configurations/apply', {
-          configuration_id: config.configuration_id
-        });
-
-        // Update individual config status
-        setGeneratedConfigs(prevConfigs => 
-          prevConfigs.map(c => 
-            c.configuration_id === config.configuration_id
-              ? { ...c, status: 'applied' }
-              : c
-          )
-        );
-
-        successCount++;
-      } catch (error) {
-        console.error(`Error deploying to ${config.device.name}:`, error);
-        failCount++;
-      }
-    }
-
-    if (failCount === 0) {
-      toast.success(`Successfully deployed to all ${successCount} devices!`, { id: toastId });
-    } else {
-      toast.error(`Deployed to ${successCount} devices, failed on ${failCount} devices.`, { id: toastId });
-    }
-  };
-
   const resetForm = () => {
     setSelectedDevice('');
-    setSelectedDevices([]);
     setPrompt('');
     setGeneratedConfig(null);
-    setGeneratedConfigs([]);
     setValidation(null);
-    setMultiDeviceMode(false);
     setIsEditing(false);
     setEditedConfig('');
   };
@@ -525,37 +222,11 @@ function Configurations() {
             <h2 className="text-lg font-medium text-gray-900">Generate Configuration</h2>
           </div>
 
-          {/* Mode Selection */}
-          <div className="mb-4">
-            <div className="flex items-center space-x-4">
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  checked={!multiDeviceMode}
-                  onChange={() => setMultiDeviceMode(false)}
-                  className="mr-2"
-                />
-                <span className="text-sm font-medium">Single Device</span>
-              </label>
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  checked={multiDeviceMode}
-                  onChange={() => setMultiDeviceMode(true)}
-                  className="mr-2"
-                />
-                <span className="text-sm font-medium">Multiple Devices</span>
-              </label>
-            </div>
-          </div>
-
           <form 
-            onSubmit={multiDeviceMode ? (e) => { e.preventDefault(); handleMultiDeviceGeneration(); } : handleGenerateConfiguration} 
-            onPaste={handleImagePaste}
+            onSubmit={handleGenerateConfiguration}
             className="space-y-4"
           >
-            {!multiDeviceMode ? (
-              <div>
+            <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Device
                 </label>
@@ -573,121 +244,6 @@ function Configurations() {
                   ))}
                 </select>
               </div>
-            ) : (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Multiple Devices
-                </label>
-                <select
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      addDeviceToSelection(e.target.value);
-                      e.target.value = '';
-                    }
-                  }}
-                  className="input mb-3"
-                >
-                  <option value="">Add device...</option>
-                  {devices.filter(d => !selectedDevices.find(sd => sd.id === d.id)).map((device) => (
-                    <option key={device.id} value={device.id}>
-                      {device.name} ({device.type}) - {device.ip_address}
-                    </option>
-                  ))}
-                </select>
-                
-                {/* Selected Devices List */}
-                {selectedDevices.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium text-gray-700">Selected Devices ({selectedDevices.length}):</p>
-                    {selectedDevices.map((device, index) => (
-                      <div key={device.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                        <span className="text-sm">
-                          {index + 1}. {device.name} ({device.type}) - {device.ip_address}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removeDeviceFromSelection(device.id)}
-                          className="text-red-600 hover:text-red-800 text-sm"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Topology Image Upload Section */}
-                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <h4 className="text-sm font-medium text-blue-900 mb-3 flex items-center">
-                    🖼️ LLaVA Vision Configuration (Optional)
-                    <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">Direct Generation</span>
-                  </h4>
-                  
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Upload or Paste Network Topology Image
-                      </label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleTopologyImageChange}
-                        className="block w-full text-sm text-gray-500
-                          file:mr-4 file:py-2 file:px-4
-                          file:rounded-lg file:border-0
-                          file:text-sm file:font-medium
-                          file:bg-blue-50 file:text-blue-700
-                          hover:file:bg-blue-100
-                          cursor-pointer"
-                      />
-                      <div className="mt-2 p-3 bg-blue-100 rounded border border-blue-200">
-                        <p className="text-xs text-blue-700 font-medium">📋 Image Paste Support:</p>
-                        <p className="text-xs text-blue-600 mt-1">
-                          You can also paste images directly! Copy an image (Ctrl+C) and paste it here (Ctrl+V).
-                          LLaVA will generate configurations directly from the topology image.
-                        </p>
-                      </div>
-                      <p className="mt-1 text-xs text-gray-500">
-                        Supports JPEG, PNG, GIF, BMP, WebP (Max 10MB). LLaVA will generate configs directly from your topology image.
-                      </p>
-                    </div>
-
-                    {/* Image Preview */}
-                    {topologyPreview && (
-                      <div className="mt-3">
-                        <img 
-                          src={topologyPreview} 
-                          alt="Topology Preview" 
-                          className="max-w-full h-48 object-contain border border-gray-300 rounded bg-white"
-                        />
-                        <div className="mt-2 flex space-x-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTopologyImage(null);
-                              setTopologyPreview(null);
-                            }}
-                            className="btn btn-secondary btn-sm"
-                          >
-                            🗑️ Remove Image
-                          </button>
-                        </div>
-                        
-                        <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
-                          <p className="text-xs text-green-700 font-medium flex items-center">
-                            ✅ <span className="ml-1">Image Ready for LLaVA Generation</span>
-                          </p>
-                          <p className="text-xs text-green-600 mt-1">
-                            When you click "Generate Configurations", LLaVA will analyze this topology image 
-                            and generate device configs based on what it sees in the diagram.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -706,7 +262,7 @@ function Configurations() {
 
             <button
               type="submit"
-              disabled={isGenerating || (multiDeviceMode ? selectedDevices.length === 0 : !selectedDevice) || !prompt || prompt.length < 10}
+              disabled={isGenerating || !selectedDevice || !prompt || prompt.length < 10}
               className="btn btn-primary btn-md w-full"
             >
               {isGenerating ? (
@@ -763,33 +319,18 @@ function Configurations() {
           </div>
 
           {/* No Configuration Display */}
-          {!generatedConfig && generatedConfigs.length === 0 && (
+          {!generatedConfig && (
             <div className="text-center py-12">
               <BotIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500">No configuration generated yet</p>
               <p className="text-sm text-gray-400 mt-1">
-                {multiDeviceMode ? 'Select devices and enter a prompt to get started' : 'Select a device and enter a prompt to get started'}
+                Select a device and enter a prompt to get started
               </p>
             </div>
           )}
 
-          {/* Multi-Device Configurations Display */}
-          {generatedConfigs.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-md font-medium text-gray-900">
-                  Generated Configurations ({generatedConfigs.length} devices)
-                </h3>
-                <button
-                  onClick={handleDeployAll}
-                  className="btn btn-primary btn-sm"
-                >
-                  Deploy All Configurations
-                </button>
-              </div>
-              {generatedConfigs.map((configResult, index) => (
-                <div key={index} className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
+          {/* Single Device Configuration Display */}
+          {generatedConfig && (
                     <div className="flex items-center">
                       <ServerIcon className="h-5 w-5 text-gray-600 mr-2" />
                       <span className="font-medium">
