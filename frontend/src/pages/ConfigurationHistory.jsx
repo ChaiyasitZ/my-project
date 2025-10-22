@@ -22,62 +22,21 @@ function ConfigurationHistory() {
   const [filter, setFilter] = useState('all');
   const [selectedConfig, setSelectedConfig] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState(new Set());
-
-  // Group configurations by session_id
-  const groupConfigurations = useCallback((configs) => {
-    const groups = {};
-    const singleConfigs = [];
-
-    configs.forEach(config => {
-      if (config.session_id && config.multi_device_session) {
-        if (!groups[config.session_id]) {
-          groups[config.session_id] = {
-            session_id: config.session_id,
-            prompt: config.prompt,
-            created_at: config.created_at,
-            execution_time: config.execution_time,
-            topology_image: config.topology_image,
-            vision_enhanced: config.vision_enhanced,
-            ai_model: config.ai_model,
-            method: config.method,
-            devices: [],
-            isGroup: true
-          };
-        }
-        groups[config.session_id].devices.push(config);
-      } else {
-        singleConfigs.push(config);
-      }
-    });
-
-    // Convert groups object to array and sort by created_at
-    const groupsArray = Object.values(groups).map(group => ({
-      ...group,
-      devices: group.devices.sort((a, b) => a.device_name.localeCompare(b.device_name)),
-      status: group.devices.every(d => d.status === 'applied') ? 'applied' : 
-              group.devices.some(d => d.status === 'failed') ? 'failed' : 'generated'
-    }));
-
-    // Combine and sort by created_at (newest first)
-    const allItems = [...groupsArray, ...singleConfigs].sort((a, b) => b.created_at - a.created_at);
-    
-    return allItems;
-  }, []);
-
   const fetchConfigurations = useCallback(async () => {
     try {
       const url = filter === 'all' ? '/configurations/history' : `/configurations/history?status=${filter}`;
       const response = await axios.get(url);
       const configs = response.data.configurations || [];
       setConfigurations(configs);
-      setGroupedConfigurations(groupConfigurations(configs));
+      // Sort by created_at (newest first)
+      const sortedConfigs = configs.sort((a, b) => b.created_at - a.created_at);
+      setGroupedConfigurations(sortedConfigs);
     } catch (error) {
       console.error('Error fetching configurations:', error);
     } finally {
       setLoading(false);
     }
-  }, [filter, groupConfigurations]);
+  }, [filter]);
 
   useEffect(() => {
     fetchConfigurations();
@@ -96,18 +55,6 @@ function ConfigurationHistory() {
       document.body.classList.remove('modal-open');
     };
   }, [showModal]);
-
-  const toggleGroupExpansion = (sessionId) => {
-    setExpandedGroups(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(sessionId)) {
-        newSet.delete(sessionId);
-      } else {
-        newSet.add(sessionId);
-      }
-      return newSet;
-    });
-  };
 
   const applyFilters = () => {
     return groupedConfigurations;
@@ -135,25 +82,15 @@ function ConfigurationHistory() {
 
   const handleClearAll = async () => {
     // Get configurations that match the current filter
-    const groupedItems = applyFilters();
+    const configurationsToDelete = applyFilters();
     
-    if (groupedItems.length === 0) {
+    if (configurationsToDelete.length === 0) {
       console.warn('⚠️ No configurations to delete with current filters');
       toast.error('No configurations to delete with current filters');
       return;
     }
 
-    // Flatten grouped configurations to get all individual configs to delete
-    const configurationsToDelete = [];
-    groupedItems.forEach(item => {
-      if (item.isGroup) {
-        configurationsToDelete.push(...item.devices);
-      } else {
-        configurationsToDelete.push(item);
-      }
-    });
-
-    const confirmationMessage = `Are you sure you want to delete ${configurationsToDelete.length} configuration${configurationsToDelete.length > 1 ? 's' : ''} across ${groupedItems.length} session${groupedItems.length > 1 ? 's' : ''}?\n\nThis action cannot be undone.`;
+    const confirmationMessage = `Are you sure you want to delete ${configurationsToDelete.length} configuration${configurationsToDelete.length > 1 ? 's' : ''}?\n\nThis action cannot be undone.`;
 
     if (window.confirm(confirmationMessage)) {
       setClearingAll(true);
@@ -348,114 +285,8 @@ function ConfigurationHistory() {
       ) : (
         <div className="space-y-4">
           {groupedConfigurations.map((item) => (
-            item.isGroup ? (
-              // Grouped Multi-Device Configuration
-              <div key={item.session_id} className="card p-6 border-l-4 border-l-blue-500 bg-blue-50">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-4 flex-1">
-                    <div className="flex-shrink-0 mt-1">
-                      {getStatusIcon(item.status)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h3 className="text-lg font-medium text-gray-900">
-                          Multi-Device Configuration ({item.devices.length} devices)
-                        </h3>
-                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded flex items-center">
-                          📦 Group
-                        </span>
-                        {item.topology_image && item.topology_image.base64Data && (
-                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded flex items-center">
-                            🖼️ Image
-                          </span>
-                        )}
-                        {item.vision_enhanced && (
-                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded flex items-center">
-                            👁️ LLaVA
-                          </span>
-                        )}
-                      </div>
-                      
-                      <p className="text-gray-600 mb-3 line-clamp-2">
-                        {item.prompt}
-                      </p>
-
-                      <div className="flex items-center space-x-4 text-sm text-gray-500 mb-3">
-                        <span>Created: {formatDate(item.created_at)}</span>
-                        {item.execution_time && (
-                          <span>Duration: {item.execution_time}ms</span>
-                        )}
-                        <span>Devices: {item.devices.map(d => d.device_name).join(', ')}</span>
-                      </div>
-
-                      {/* Device List - Collapsed/Expanded */}
-                      {expandedGroups.has(item.session_id) && (
-                        <div className="mt-4 space-y-2">
-                          {item.devices.map((device) => (
-                            <div key={device.id} className="bg-white p-3 rounded border">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-3">
-                                  <div className="flex-shrink-0">
-                                    {getStatusIcon(device.status)}
-                                  </div>
-                                  <div>
-                                    <div className="font-medium">{device.device_name}</div>
-                                    <div className="text-sm text-gray-500">({device.device_type}) {device.ip_address}</div>
-                                  </div>
-                                  <span className={`badge ${getStatusBadge(device.status)}`}>
-                                    {device.status}
-                                  </span>
-                                </div>
-                                <div className="flex space-x-2">
-                                  <button
-                                    onClick={() => viewDetails(device)}
-                                    className="btn btn-secondary btn-sm"
-                                    title="View Details"
-                                  >
-                                    <EyeIcon className="h-4 w-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => deleteConfiguration(device.id)}
-                                    className="btn btn-danger btn-sm"
-                                    title="Delete"
-                                  >
-                                    <TrashIcon className="h-4 w-4" />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-3">
-                    <span className={`badge ${getStatusBadge(item.status)}`}>
-                      {item.status}
-                    </span>
-                    
-                    <button
-                      onClick={() => toggleGroupExpansion(item.session_id)}
-                      className="btn btn-secondary btn-sm"
-                      title={expandedGroups.has(item.session_id) ? "Collapse" : "Expand"}
-                    >
-                      {expandedGroups.has(item.session_id) ? (
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" />
-                        </svg>
-                      ) : (
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              // Single Device Configuration
-              <div key={item.id} className="card p-6">
+            // Single Device Configuration
+            <div key={item.id} className="card p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-4 flex-1">
                     <div className="flex-shrink-0 mt-1">
@@ -472,16 +303,6 @@ function ConfigurationHistory() {
                         <span className="text-sm text-gray-400">
                           {item.ip_address}
                         </span>
-                        {item.topology_image && item.topology_image.base64Data && (
-                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded flex items-center">
-                            🖼️ Image
-                          </span>
-                        )}
-                        {item.vision_enhanced && (
-                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded flex items-center">
-                            👁️ LLaVA
-                          </span>
-                        )}
                       </div>
                       
                       <p className="text-gray-600 mb-3 line-clamp-2">
@@ -533,7 +354,6 @@ function ConfigurationHistory() {
                   </div>
                 </div>
               </div>
-            )
           ))}
         </div>
       )}
@@ -594,37 +414,6 @@ function ConfigurationHistory() {
                   <p className="text-sm text-gray-800">{selectedConfig.prompt}</p>
                 </div>
               </div>
-
-              {/* Topology Image */}
-              {selectedConfig.topology_image && selectedConfig.topology_image.base64Data && (
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
-                    🖼️ Network Topology Image
-                    {selectedConfig.topology_image.isVisionGenerated && (
-                      <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
-                        👁️ LLaVA Vision
-                      </span>
-                    )}
-                  </h4>
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <div className="mb-3">
-                      <img 
-                        src={`data:${selectedConfig.topology_image.mimetype};base64,${selectedConfig.topology_image.base64Data}`}
-                        alt="Network Topology"
-                        className="max-w-full h-auto max-h-64 object-contain border border-gray-300 rounded"
-                      />
-                    </div>
-                    <div className="text-xs text-gray-500 space-y-1">
-                      <div><strong>Filename:</strong> {selectedConfig.topology_image.originalName}</div>
-                      <div><strong>Size:</strong> {Math.round(selectedConfig.topology_image.size / 1024)} KB</div>
-                      <div><strong>Uploaded:</strong> {new Date(selectedConfig.topology_image.uploadDate).toLocaleString()}</div>
-                      {selectedConfig.vision_analysis && selectedConfig.vision_analysis.vision_model && (
-                        <div><strong>Vision Model:</strong> {selectedConfig.vision_analysis.vision_model}</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
               
               {/* Generated Configuration */}
               <div>

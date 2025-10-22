@@ -59,8 +59,6 @@ function BackupManagement() {
   const [filter, setFilter] = useState('all');
   const [configFilter, setConfigFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [multiDeviceMode, setMultiDeviceMode] = useState(false);
-  const [selectedDevices, setSelectedDevices] = useState([]);
   
   // Form state
   const [backupForm, setBackupForm] = useState({
@@ -72,14 +70,6 @@ function BackupManagement() {
     tags: []
   });
   
-  const [multiBackupForm, setMultiBackupForm] = useState({
-    backup_name_prefix: '',
-    description: '',
-    backup_type: 'manual',
-    config_type: 'running-config',
-    tags: []
-  });
-
   const [restoreForm, setRestoreForm] = useState({
     restore_type: 'running',
     create_checkpoint: true
@@ -194,64 +184,7 @@ function BackupManagement() {
     }
   };
 
-  const handleCreateMultiBackup = async (e) => {
-    e.preventDefault();
-    if (selectedDevices.length === 0 || !multiBackupForm.backup_name_prefix) {
-      toast.error('Please select devices and enter a backup name prefix');
-      return;
-    }
 
-    setCreating(true);
-    const toastId = toast.loading(`Creating backups for ${selectedDevices.length} devices...`);
-    
-    try {
-      // Create individual backup requests for each device
-      const backupPromises = selectedDevices.map((device) => {
-        return axios.post('/backups', {
-          device_id: device.id,
-          backup_name: `${multiBackupForm.backup_name_prefix}_${device.name}`,
-          description: multiBackupForm.description || `Multi-device backup for ${device.name}`,
-          backup_type: multiBackupForm.backup_type,
-          config_type: multiBackupForm.config_type,
-          tags: multiBackupForm.tags.filter(tag => tag.trim() !== '')
-        });
-      });
-
-      // Wait for all backups to complete
-      const results = await Promise.allSettled(backupPromises);
-      
-      // Count successes and failures
-      const successes = results.filter(r => r.status === 'fulfilled').length;
-      const failures = results.filter(r => r.status === 'rejected').length;
-
-      // Close modal and reset form
-      setShowCreateModal(false);
-      setMultiBackupForm({
-        backup_name_prefix: '',
-        description: '',
-        backup_type: 'manual',
-        config_type: 'running-config',
-        tags: []
-      });
-      setSelectedDevices([]);
-      setMultiDeviceMode(false);
-
-      // Show results
-      if (failures === 0) {
-        toast.success(`All ${successes} backups created successfully!`, { id: toastId });
-      } else {
-        toast.error(`${successes} backups created, ${failures} failed`, { id: toastId });
-      }
-      
-      // Refresh data
-      await fetchData();
-    } catch (error) {
-      console.error('❌ Error creating multi-device backups:', error);
-      toast.error('Failed to create backups: ' + (error.response?.data?.message || error.message), { id: toastId });
-    } finally {
-      setCreating(false);
-    }
-  };
 
   const handleRestoreBackup = async (e) => {
     e.preventDefault();
@@ -472,19 +405,6 @@ function BackupManagement() {
       const fileSize = b?.file_size || 0;
       return sum + (typeof fileSize === 'number' ? fileSize : 0);
     }, 0)
-  };
-
-  const addDeviceToSelection = (deviceId) => {
-    if (deviceId && !selectedDevices.find(d => d.id === deviceId)) {
-      const device = devices.find(d => d.id === deviceId);
-      if (device) {
-        setSelectedDevices([...selectedDevices, device]);
-      }
-    }
-  };
-
-  const removeDeviceFromSelection = (deviceId) => {
-    setSelectedDevices(selectedDevices.filter(d => d.id !== deviceId));
   };
 
   const handleTestBackup = async (device) => {
@@ -917,33 +837,7 @@ function BackupManagement() {
                   </button>
                 </div>
 
-                {/* Mode Selection */}
-                <div className="mb-4">
-                  <div className="flex items-center space-x-4">
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        checked={!multiDeviceMode}
-                        onChange={() => setMultiDeviceMode(false)}
-                        className="mr-2"
-                      />
-                      <span className="text-sm font-medium">Single Device</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="radio"
-                        checked={multiDeviceMode}
-                        onChange={() => setMultiDeviceMode(true)}
-                        className="mr-2"
-                      />
-                      <span className="text-sm font-medium">Multiple Devices</span>
-                    </label>
-                  </div>
-                </div>
-
-                <form onSubmit={multiDeviceMode ? handleCreateMultiBackup : handleCreateBackup} className="space-y-4">
-                  {!multiDeviceMode ? (
-                    <>
+                <form onSubmit={handleCreateBackup} className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Device *
@@ -994,84 +888,14 @@ function BackupManagement() {
                           required
                         />
                       </div>
-                    </>
-                  ) : (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Select Multiple Devices
-                        </label>
-                        <select
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              addDeviceToSelection(e.target.value);
-                              e.target.value = '';
-                            }
-                          }}
-                          className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 mb-3"
-                        >
-                          <option value="">Add device...</option>
-                          {devices.filter(d => !selectedDevices.find(sd => sd.id === d.id)).map((device) => (
-                            <option key={device.id} value={device.id}>
-                              {device.name} ({device.type}) - {device.ip_address}
-                            </option>
-                          ))}
-                        </select>
-                        
-                        {/* Selected Devices List */}
-                        {selectedDevices.length > 0 && (
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium text-gray-700">Selected Devices ({selectedDevices.length}):</p>
-                            {selectedDevices.map((device, index) => (
-                              <div key={device.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                                <span className="text-sm">
-                                  {index + 1}. {device.name} ({device.type}) - {device.ip_address}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => removeDeviceFromSelection(device.id)}
-                                  className="text-red-600 hover:text-red-800 text-sm"
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Backup Name Prefix *
-                        </label>
-                        <input
-                          type="text"
-                          value={multiBackupForm.backup_name_prefix}
-                          onChange={(e) => setMultiBackupForm({ ...multiBackupForm, backup_name_prefix: e.target.value })}
-                          placeholder="e.g., Pre-maintenance"
-                          className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          required
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          Device name will be appended automatically (e.g., "Pre-maintenance_Router1")
-                        </p>
-                      </div>
-                    </>
-                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Description
                     </label>
                     <textarea
-                      value={multiDeviceMode ? multiBackupForm.description : backupForm.description}
-                      onChange={(e) => {
-                        if (multiDeviceMode) {
-                          setMultiBackupForm({ ...multiBackupForm, description: e.target.value });
-                        } else {
-                          setBackupForm({ ...backupForm, description: e.target.value });
-                        }
-                      }}
+                      value={backupForm.description}
+                      onChange={(e) => setBackupForm({ ...backupForm, description: e.target.value })}
                       placeholder="Optional description for this backup..."
                       className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       rows="3"
@@ -1084,14 +908,8 @@ function BackupManagement() {
                       Backup Type
                     </label>
                     <select
-                      value={multiDeviceMode ? multiBackupForm.backup_type : backupForm.backup_type}
-                      onChange={(e) => {
-                        if (multiDeviceMode) {
-                          setMultiBackupForm({ ...multiBackupForm, backup_type: e.target.value });
-                        } else {
-                          setBackupForm({ ...backupForm, backup_type: e.target.value });
-                        }
-                      }}
+                      value={backupForm.backup_type}
+                      onChange={(e) => setBackupForm({ ...backupForm, backup_type: e.target.value })}
                       className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="manual">Manual</option>
@@ -1129,14 +947,8 @@ function BackupManagement() {
                         Configuration Type
                       </label>
                       <select
-                        value={multiDeviceMode ? multiBackupForm.config_type : backupForm.config_type}
-                        onChange={(e) => {
-                          if (multiDeviceMode) {
-                            setMultiBackupForm({ ...multiBackupForm, config_type: e.target.value });
-                          } else {
-                            setBackupForm({ ...backupForm, config_type: e.target.value });
-                          }
-                        }}
+                        value={backupForm.config_type}
+                        onChange={(e) => setBackupForm({ ...backupForm, config_type: e.target.value })}
                         className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="running-config">Running Config Only</option>
@@ -1163,35 +975,18 @@ function BackupManagement() {
                       Tags
                     </label>
                     <div className="space-y-2">
-                      {(multiDeviceMode ? multiBackupForm.tags : backupForm.tags).map((tag, index) => (
+                      {backupForm.tags.map((tag, index) => (
                         <div key={index} className="flex space-x-2">
                           <input
                             type="text"
                             value={tag}
-                            onChange={(e) => {
-                              if (multiDeviceMode) {
-                                const newTags = [...multiBackupForm.tags];
-                                newTags[index] = e.target.value;
-                                setMultiBackupForm({ ...multiBackupForm, tags: newTags });
-                              } else {
-                                updateTag(index, e.target.value);
-                              }
-                            }}
+                            onChange={(e) => updateTag(index, e.target.value)}
                             placeholder="Enter tag"
                             className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                           />
                           <button
                             type="button"
-                            onClick={() => {
-                              if (multiDeviceMode) {
-                                setMultiBackupForm({
-                                  ...multiBackupForm,
-                                  tags: multiBackupForm.tags.filter((_, i) => i !== index)
-                                });
-                              } else {
-                                removeTag(index);
-                              }
-                            }}
+                            onClick={() => removeTag(index)}
                             className="btn btn-outline-danger btn-sm"
                           >
                             <XCircleIcon className="h-4 w-4" />
@@ -1200,16 +995,7 @@ function BackupManagement() {
                       ))}
                       <button
                         type="button"
-                        onClick={() => {
-                          if (multiDeviceMode) {
-                            setMultiBackupForm({
-                              ...multiBackupForm,
-                              tags: [...multiBackupForm.tags, '']
-                            });
-                          } else {
-                            addTag();
-                          }
-                        }}
+                        onClick={() => addTag()}
                         className="btn btn-secondary btn-sm"
                       >
                         <TagIcon className="h-4 w-4 mr-2" />
@@ -1222,13 +1008,8 @@ function BackupManagement() {
 
               <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                 <button
-                  onClick={multiDeviceMode ? handleCreateMultiBackup : handleCreateBackup}
-                  disabled={creating || 
-                    (multiDeviceMode ? 
-                      (selectedDevices.length === 0 || !multiBackupForm.backup_name_prefix) : 
-                      (!backupForm.device_id || !backupForm.backup_name)
-                    )
-                  }
+                  type="submit"
+                  disabled={creating || !backupForm.device_id || !backupForm.backup_name}
                   className="btn btn-primary btn-md w-full sm:w-auto"
                 >
                   {creating ? (
@@ -1239,7 +1020,7 @@ function BackupManagement() {
                   ) : (
                     <>
                       <Archive className="h-4 w-4 mr-2" />
-                      {multiDeviceMode ? 'Create Multi Backups' : 'Create Backup'}
+                      Create Backup
                     </>
                   )}
                 </button>
