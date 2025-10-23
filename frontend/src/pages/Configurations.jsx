@@ -22,6 +22,12 @@ function Configurations() {
   const [validation, setValidation] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedConfig, setEditedConfig] = useState('');
+  const [showBackupModal, setShowBackupModal] = useState(false);
+  const [backupForm, setBackupForm] = useState({
+    backup_name: '',
+    description: ''
+  });
+  const [isCreatingBackup, setIsCreatingBackup] = useState(false);
 
   const { confirmationState, showConfirmation } = useConfirmation();
 
@@ -152,12 +158,54 @@ function Configurations() {
         status: 'applied'
       });
       toast.success('Configuration deployed successfully!', { id: toastId });
+      
+      // Show backup modal after successful deployment
+      setShowBackupModal(true);
+      setBackupForm({
+        backup_name: `Post-Deploy-${new Date().toISOString().split('T')[0]}-${Date.now()}`,
+        description: 'Automatic backup after configuration deployment'
+      });
     } catch (error) {
       console.error('Error applying configuration:', error);
       toast.error('Error deploying configuration: ' + (error.response?.data?.message || error.message), { id: toastId });
     } finally {
       setIsApplying(false);
     }
+  };
+
+  const handleCreateBackup = async () => {
+    if (!backupForm.backup_name.trim()) {
+      toast.error('Please enter a backup name');
+      return;
+    }
+
+    setIsCreatingBackup(true);
+    const toastId = toast.loading('Creating backup...');
+    
+    try {
+      await axios.post('/backups/post-deployment', {
+        device_id: generatedConfig.device_id,
+        backup_name: backupForm.backup_name,
+        description: backupForm.description,
+        backup_type: 'scheduled',
+        created_by: 'user',
+        tags: ['post-deployment', 'auto-backup']
+      });
+
+      toast.success('Backup created successfully!', { id: toastId });
+      setShowBackupModal(false);
+      setBackupForm({ backup_name: '', description: '' });
+    } catch (error) {
+      console.error('Error creating backup:', error);
+      toast.error('Failed to create backup: ' + (error.response?.data?.message || error.message), { id: toastId });
+    } finally {
+      setIsCreatingBackup(false);
+    }
+  };
+
+  const handleSkipBackup = () => {
+    setShowBackupModal(false);
+    setBackupForm({ backup_name: '', description: '' });
   };
 
   const resetForm = () => {
@@ -466,6 +514,80 @@ function Configurations() {
         loading={confirmationState.loading}
         loadingText={confirmationState.loadingText}
       />
+
+      {/* Post-Deployment Backup Modal */}
+      {showBackupModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">
+                📦 Create Post-Deployment Backup
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Configuration deployed successfully! Would you like to create a backup?
+              </p>
+            </div>
+            
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Backup Name *
+                </label>
+                <input
+                  type="text"
+                  value={backupForm.backup_name}
+                  onChange={(e) => setBackupForm({ ...backupForm, backup_name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="e.g., Post-Deploy-2025-10-23"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={backupForm.description}
+                  onChange={(e) => setBackupForm({ ...backupForm, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  rows="3"
+                  placeholder="Optional description for this backup..."
+                />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  <strong>ℹ️ Info:</strong> This backup will be marked as "scheduled" (automatic) and tagged with "post-deployment" and "auto-backup".
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-gray-50 flex justify-end space-x-3 rounded-b-lg">
+              <button
+                onClick={handleSkipBackup}
+                disabled={isCreatingBackup}
+                className="btn btn-secondary btn-md"
+              >
+                Skip Backup
+              </button>
+              <button
+                onClick={handleCreateBackup}
+                disabled={isCreatingBackup || !backupForm.backup_name.trim()}
+                className="btn btn-primary btn-md"
+              >
+                {isCreatingBackup ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Creating...
+                  </>
+                ) : (
+                  'Create Backup'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

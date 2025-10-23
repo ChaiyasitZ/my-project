@@ -9,7 +9,7 @@ export class LLMService {
     // Configuration
     this.host = process.env.OLLAMA_HOST || 'http://localhost:11434';
     this.model = process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b';
-    this.timeout = 60000;
+    this.timeout = 180000; // Increased to 3 minutes
     
     // HTTP Client
     this.client = axios.create({
@@ -20,7 +20,7 @@ export class LLMService {
     // Simple parameters for reliable generation
     this.defaultParams = {
       temperature: 0.3,
-      num_predict: 300,
+      num_predict: 200, // Reduced for faster generation
       top_k: 40,
       top_p: 0.9,
       repeat_penalty: 1.1
@@ -45,14 +45,34 @@ export class LLMService {
       const aiPrompt = this._buildPromptWithKnowledge(prompt, deviceType, deviceContext);
       
       console.log(`📝 Prompt length: ${aiPrompt.length} characters`);
+      console.log(`⏱️  Timeout set to: ${this.timeout}ms (${this.timeout/1000}s)`);
+      console.log(`🎯 Model: ${this.model}`);
+      console.log(`🔧 Parameters:`, this.defaultParams);
       
-      // Call Ollama API
-      const response = await this.client.post("/api/generate", {
-        model: this.model,
-        prompt: aiPrompt,
-        stream: false,
-        options: this.defaultParams
-      });
+      // Call Ollama API with retry logic
+      let response;
+      const apiStartTime = Date.now();
+      try {
+        console.log(`📡 Sending request to Ollama...`);
+        response = await this.client.post("/api/generate", {
+          model: this.model,
+          prompt: aiPrompt,
+          stream: false,
+          options: this.defaultParams
+        });
+        const apiTime = Date.now() - apiStartTime;
+        console.log(`✅ Ollama responded in ${apiTime}ms`);
+      } catch (apiError) {
+        const apiTime = Date.now() - apiStartTime;
+        console.error(`❌ Ollama request failed after ${apiTime}ms:`, apiError.message);
+        if (apiError.code === 'ECONNREFUSED') {
+          throw new Error('Ollama is not running. Please start Ollama service first.');
+        }
+        if (apiError.code === 'ETIMEDOUT' || apiError.message.includes('timeout')) {
+          throw new Error('Request timed out. The model may be too large or busy. Try a smaller model or wait and retry.');
+        }
+        throw apiError;
+      }
 
       const rawConfig = response.data.response?.trim();
       if (!rawConfig) {
