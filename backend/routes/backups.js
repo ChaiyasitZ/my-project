@@ -1131,8 +1131,7 @@ router.get('/test/:device_id', async (req, res) => {
           name: device.name,
           type: device.type,
           ip_address: device.ip_address,
-          model: device.model,
-          ios_version: device.ios_version
+          model: device.model
         },
         summary: {
           total_config_size: runningConfigResult.size + (startupConfigResult?.size || 0),

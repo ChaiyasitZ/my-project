@@ -9,7 +9,7 @@ const router = express.Router();
 // Validation schemas
 const deviceSchema = Joi.object({
   name: Joi.string().required().max(255),
-  type: Joi.string().valid('router', 'switch', 'nexus').required(),
+  type: Joi.string().valid('router', 'switch').required(),
   layer: Joi.string().valid('layer-2', 'layer-3').when('type', {
     is: 'switch',
     then: Joi.string().default('layer-2').required(),
@@ -22,18 +22,12 @@ const deviceSchema = Joi.object({
   description: Joi.string().allow('').max(1000),
   location: Joi.string().allow('').max(255),
   model: Joi.string().allow('').max(255),
-  status: Joi.string().valid('active', 'inactive', 'maintenance', 'error').default('active'),
-  // NETCONF fields
-  netconf_enabled: Joi.boolean().default(false),
-  netconf_port: Joi.number().integer().min(1).max(65535).default(830),
-  netconf_capabilities: Joi.array().items(Joi.string()).default([]),
-  yang_models: Joi.array().default([]),
-  preferred_connection: Joi.string().valid('netconf', 'ssh', 'console').default('ssh')
+  status: Joi.string().valid('active', 'inactive', 'maintenance', 'error').default('active')
 });
 
 const deviceUpdateSchema = Joi.object({
   name: Joi.string().max(255),
-  type: Joi.string().valid('router', 'switch', 'nexus'),
+  type: Joi.string().valid('router', 'switch'),
   layer: Joi.string().valid('layer-2', 'layer-3').when('type', {
     is: 'switch',
     then: Joi.string(),
@@ -46,13 +40,7 @@ const deviceUpdateSchema = Joi.object({
   description: Joi.string().allow('').max(1000),
   location: Joi.string().allow('').max(255),
   model: Joi.string().allow('').max(255),
-  status: Joi.string().valid('active', 'inactive', 'maintenance', 'error'),
-  // NETCONF fields
-  netconf_enabled: Joi.boolean(),
-  netconf_port: Joi.number().integer().min(1).max(65535),
-  netconf_capabilities: Joi.array().items(Joi.string()),
-  yang_models: Joi.array(),
-  preferred_connection: Joi.string().valid('netconf', 'ssh', 'console')
+  status: Joi.string().valid('active', 'inactive', 'maintenance', 'error')
 });
 
 // GET /api/devices - Get all devices
@@ -499,16 +487,10 @@ router.post('/:id/ssh/connect', async (req, res) => {
     
     try {
       // Create persistent session
-      const session = await sshService.getOrCreatePersistentSession(device);
+      const session = await sshService.connectSession(device);
       
-      // Update device status to reflect connection
+      // Update device status to active on successful connection
       device.status = 'active';
-      device.last_connection = {
-        type: 'ssh',
-        timestamp: new Date(),
-        status: 'success',
-        session_id: session.sessionKey
-      };
       await device.save();
       
       res.json({
@@ -527,11 +509,6 @@ router.post('/:id/ssh/connect', async (req, res) => {
     } catch (connectionError) {
       // Update device status to reflect connection failure
       device.status = 'error';
-      device.last_connection = {
-        type: 'ssh',
-        timestamp: new Date(),
-        status: 'failed'
-      };
       await device.save();
       
       res.status(500).json({
@@ -579,11 +556,6 @@ router.post('/:id/ssh/disconnect', async (req, res) => {
     
     // Update device status
     device.status = 'inactive';
-    device.last_connection = {
-      type: 'ssh',
-      timestamp: new Date(),
-      status: 'disconnected'
-    };
     await device.save();
     
     res.json({

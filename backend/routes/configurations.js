@@ -207,7 +207,6 @@ router.post('/generate', async (req, res) => {
       aiResult = await llmService.generateConfiguration(prompt, device.type, {
         name: device.name,
         model: device.model,
-        ios_version: device.ios_version,
         location: device.location
       });
     } catch (aiError) {

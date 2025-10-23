@@ -1565,7 +1565,6 @@ Brief explanation:`;
         const result = await this.generateConfiguration(devicePrompt, device.type, {
           name: device.name,
           model: device.model,
-          ios_version: device.ios_version,
           location: device.location
         });
 

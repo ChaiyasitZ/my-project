@@ -148,7 +148,6 @@ export class SSHService {
             'aes256-gcm@openssh.com'
           ],
           hmac: [
-            // Put legacy hmac-sha1 first (what Nexus uses)
             'hmac-sha1',
             'hmac-sha2-256',
             'hmac-sha2-512', 
@@ -157,7 +156,6 @@ export class SSHService {
             'hmac-md5-96'
           ],
           serverHostKey: [
-            // Put ssh-rsa first (what Nexus uses)
             'ssh-rsa',
             'rsa-sha2-512',
             'rsa-sha2-256', 
@@ -2318,8 +2316,7 @@ export class SSHService {
           name: deviceConfig.name,
           type: deviceConfig.type,
           ip_address: deviceConfig.ip_address,
-          model: deviceConfig.model,
-          ios_version: deviceConfig.ios_version
+          model: deviceConfig.model
         }
       };
       

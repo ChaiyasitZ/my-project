@@ -13,8 +13,6 @@ const DeviceIcon = ({ deviceType, layer, className = "h-6 w-6" }) => {
         }
         // Default to layer-2 if no layer specified
         return '/layer-2-switch.svg';
-      case 'nexus':
-        return '/nexus-switch-9000.svg';
       default:
         return '/layer-2-switch.svg'; // Default fallback
     }
@@ -31,8 +29,6 @@ const DeviceIcon = ({ deviceType, layer, className = "h-6 w-6" }) => {
           return 'Layer 3 Switch';
         }
         return 'Switch';
-      case 'nexus':
-        return 'Nexus Switch';
       default:
         return 'Network Device';
     }
