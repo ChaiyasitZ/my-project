@@ -5,12 +5,10 @@ export class SSHService {
   constructor() {
     this.connections = new Map(); // Store active connections
     this.persistentSessions = new Map(); // Store persistent sessions with privileged mode
-    this.sessionTimeout = 900000; // 15 minutes session timeout (increased for stability)
+    this.sessionTimeout = 600000; // 10 minutes session timeout (increased)
     this.maxSessionsPerDevice = 3; // Increased concurrent sessions per device
     this.commandQueue = new Map(); // Queue commands for busy sessions
     this.sessionPool = new Map(); // Pool of ready sessions per device
-    this.autoConnectEnabled = true; // Enable automatic connection maintenance
-    this.deviceList = []; // List of devices to maintain connections for
     
     // Optimized cleanup - every 2 minutes instead of 1
     setInterval(() => {
@@ -22,65 +20,6 @@ export class SSHService {
     setInterval(() => {
       this.healthCheckSessions();
     }, 30000);
-    
-    // Auto-reconnect for dropped sessions - every 60 seconds
-    setInterval(() => {
-      this.autoReconnectSessions();
-    }, 60000);
-    
-    console.log('🚀 SSH Service initialized with persistent connection pooling');
-  }
-
-  // Set devices to maintain persistent connections
-  async setActiveDevices(devices) {
-    this.deviceList = devices.filter(d => d.status === 'active');
-    console.log(`📋 Active devices registered: ${this.deviceList.length}`);
-    
-    // Pre-warm connections for all active devices
-    if (this.autoConnectEnabled) {
-      await this.warmUpConnections();
-    }
-  }
-
-  // Pre-warm connections for faster deployments
-  async warmUpConnections() {
-    console.log('🔥 Warming up SSH connections for active devices...');
-    const warmupPromises = this.deviceList.map(async (device) => {
-      try {
-        const session = await this.getOrCreatePersistentSession(device);
-        console.log(`✅ Pre-warmed connection for ${device.name} (${device.ip_address})`);
-        return { device: device.name, success: true };
-      } catch (error) {
-        console.log(`⚠️ Could not pre-warm ${device.name}: ${error.message}`);
-        return { device: device.name, success: false, error: error.message };
-      }
-    });
-    
-    const results = await Promise.allSettled(warmupPromises);
-    const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
-    console.log(`🔥 Warmed up ${successful}/${this.deviceList.length} connections`);
-    return results;
-  }
-
-  // Auto-reconnect dropped sessions
-  async autoReconnectSessions() {
-    if (!this.autoConnectEnabled || this.deviceList.length === 0) return;
-    
-    for (const device of this.deviceList) {
-      const deviceId = device.id || device._id;
-      const sessionKey = `${deviceId}_persistent`;
-      const session = this.persistentSessions.get(sessionKey);
-      
-      // Reconnect if session doesn't exist or is invalid
-      if (!session || !this.isSessionValid(session)) {
-        try {
-          await this.getOrCreatePersistentSession(device);
-          console.log(`🔄 Auto-reconnected session for ${device.name}`);
-        } catch (error) {
-          // Silent fail - will retry next cycle
-        }
-      }
-    }
   }
 
   async connect(deviceConfig) {

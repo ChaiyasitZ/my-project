@@ -234,40 +234,11 @@ router.post('/generate', async (req, res) => {
     
     if (!aiResult.success) {
       console.error('❌ AI generation failed:', aiResult.error);
-      
-      // Provide helpful error messages based on error type
-      let userMessage = 'AI generation failed';
-      let suggestions = [];
-      
-      if (aiResult.error.includes('Ollama is not running')) {
-        userMessage = 'Ollama service is not running';
-        suggestions = [
-          'Start Ollama: Open terminal and run "ollama serve"',
-          'Or download and install Ollama from https://ollama.ai'
-        ];
-      } else if (aiResult.error.includes('timeout')) {
-        userMessage = 'Request timed out - model took too long to respond';
-        suggestions = [
-          'The model might be too large or busy',
-          'Try using a smaller model like "qwen2.5-coder:1.5b"',
-          'Wait a moment and try again',
-          'Check system resources (CPU/RAM usage)'
-        ];
-      } else if (aiResult.error.includes('Empty response')) {
-        userMessage = 'Model returned empty response';
-        suggestions = [
-          'Try rephrasing your prompt',
-          'Model might not be loaded - run: ollama run qwen2.5-coder:7b',
-          'Check Ollama logs for errors'
-        ];
-      }
-      
       return res.status(400).json({
         success: false,
-        message: userMessage,
+        message: 'AI generation failed',
         error: aiResult.error,
-        executionTime: executionTime,
-        suggestions
+        executionTime: executionTime
       });
     }
     

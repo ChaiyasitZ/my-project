@@ -99,21 +99,10 @@ router.get('/', async (req, res) => {
     res.json({
       success: true,
       devices: enhancedDevices,
-      pagination: {
-        total,
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        hasMore: parseInt(offset) + enhancedDevices.length < total
-      }
+      total,
+      limit: parseInt(limit),
+      offset: parseInt(offset)
     });
-    
-    // Auto-warm SSH connections for active devices (non-blocking)
-    const activeDevices = enhancedDevices.filter(d => d.status === 'active');
-    if (activeDevices.length > 0) {
-      sshService.setActiveDevices(activeDevices).catch(err => {
-        console.log('⚠️ Background connection warming failed:', err.message);
-      });
-    }
     
   } catch (error) {
     console.error('Error fetching devices:', error);
@@ -637,91 +626,6 @@ router.get('/:id/ssh/status', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to get SSH session status'
-    });
-  }
-});
-
-// POST /api/devices/warmup - Warm up SSH connections for all active devices
-router.post('/warmup', async (req, res) => {
-  try {
-    console.log('🔥 Manual SSH connection warm-up requested');
-    
-    // Get all active devices
-    const activeDevices = await Device.find({ status: 'active' }).lean();
-    
-    if (activeDevices.length === 0) {
-      return res.json({
-        success: true,
-        message: 'No active devices to warm up',
-        results: []
-      });
-    }
-    
-    // Trigger warm-up
-    const results = await sshService.warmUpConnections();
-    
-    const successful = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
-    const failed = results.length - successful;
-    
-    res.json({
-      success: true,
-      message: `Warmed up ${successful} connections, ${failed} failed`,
-      total: results.length,
-      successful,
-      failed,
-      results: results.map(r => ({
-        device: r.value?.device || 'unknown',
-        success: r.value?.success || false,
-        error: r.value?.error || null
-      }))
-    });
-    
-  } catch (error) {
-    console.error('Error warming up connections:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to warm up connections',
-      error: error.message
-    });
-  }
-});
-
-// GET /api/devices/connections/status - Get overall connection pool status
-router.get('/connections/status', async (req, res) => {
-  try {
-    const status = {
-      persistent_sessions: sshService.persistentSessions.size,
-      connections: sshService.connections.size,
-      session_pool_devices: sshService.sessionPool.size,
-      auto_connect_enabled: sshService.autoConnectEnabled,
-      active_devices: sshService.deviceList.length,
-      sessions: []
-    };
-    
-    // Get details for each persistent session
-    for (const [key, session] of sshService.persistentSessions) {
-      status.sessions.push({
-        device_id: session.deviceId,
-        device_ip: session.deviceConfig?.ip_address,
-        device_name: session.deviceConfig?.name,
-        age_seconds: Math.round((Date.now() - session.createdAt) / 1000),
-        last_used_seconds_ago: Math.round((Date.now() - session.lastUsed) / 1000),
-        use_count: session.useCount,
-        is_privileged: session.isPrivileged,
-        is_valid: sshService.isSessionValid(session)
-      });
-    }
-    
-    res.json({
-      success: true,
-      connection_pool: status
-    });
-    
-  } catch (error) {
-    console.error('Error getting connection pool status:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get connection pool status'
     });
   }
 });
