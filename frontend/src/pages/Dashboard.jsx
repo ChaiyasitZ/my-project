@@ -8,10 +8,9 @@ import {
   ClockIcon,
   ActivityIcon,
   ChartBarIcon,
-  NetworkIcon,
-  WifiIcon,
   RefreshCwIcon
 } from 'lucide-react';
+import DeviceIcon from '../components/DeviceIcon';
 
 function Dashboard() {
   const [stats, setStats] = useState({
@@ -80,17 +79,6 @@ function Dashboard() {
       maintenance: 'bg-yellow-100 text-yellow-800'
     };
     return styles[status] || 'bg-gray-100 text-gray-800';
-  };
-
-  const getDeviceIcon = (type) => {
-    switch (type?.toLowerCase()) {
-      case 'router':
-        return <NetworkIcon className="h-5 w-5 text-blue-600" />;
-      case 'switch':
-        return <WifiIcon className="h-5 w-5 text-green-600" />;
-      default:
-        return <ServerIcon className="h-5 w-5 text-gray-600" />;
-    }
   };
 
   if (loading) {
@@ -191,7 +179,11 @@ function Dashboard() {
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-3">
                       <div className="flex-shrink-0">
-                        {getDeviceIcon(device.type)}
+                        <DeviceIcon 
+                          deviceType={device.type} 
+                          layer={device.layer}
+                          className="h-5 w-5" 
+                        />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-gray-900 truncate">
