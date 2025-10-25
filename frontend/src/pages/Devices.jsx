@@ -11,7 +11,8 @@ import {
   WifiIcon,
   FunnelIcon,
   SearchIcon,
-  RefreshCwIcon
+  RefreshCwIcon,
+  StopCircleIcon
 } from 'lucide-react';
 import DeviceIcon from '../components/DeviceIcon';
 
@@ -45,6 +46,20 @@ function Devices() {
 
   useEffect(() => {
     fetchDevices();
+    
+    // Poll for SSH status updates every 10 seconds
+    const pollInterval = setInterval(() => {
+      if (devices.length > 0) {
+        fetchSshSessionStatuses(devices);
+        // Silently refresh device list to get latest ssh_status
+        axios.get('/devices').then(response => {
+          const devicesData = response.data.devices || [];
+          setDevices(devicesData);
+        }).catch(err => console.error('Error polling devices:', err));
+      }
+    }, 10000);
+    
+    return () => clearInterval(pollInterval);
   }, []);
 
   // Filter devices whenever devices, selectedFilter, or searchTerm changes
@@ -112,15 +127,16 @@ function Devices() {
   };
 
   const handleSshConnect = async (device) => {
-    setConnectingDevices(prev => new Set([...prev, device.id]));
+    const deviceId = device.id || device._id;
+    setConnectingDevices(prev => new Set([...prev, deviceId]));
     const toastId = toast.loading(`Connecting SSH session to ${device.name}...`);
     
     try {
-      const response = await axios.post(`/devices/${device.id}/ssh/connect`);
+      const response = await axios.post(`/devices/${deviceId}/ssh/connect`);
       
       if (response.data.success) {
         // Update session status
-        setSshSessions(prev => new Map([...prev, [device.id, {
+        setSshSessions(prev => new Map([...prev, [deviceId, {
           is_connected: true,
           session_id: response.data.session.session_id,
           connected_at: response.data.session.connected_at,
@@ -132,29 +148,36 @@ function Devices() {
         
         // Refresh device list to show updated status
         fetchDevices();
+      } else {
+        toast.error(`Failed to connect: ${response.data.message || 'Unknown error'}`, { id: toastId });
+        fetchDevices();
       }
     } catch (error) {
       console.error('Error connecting SSH session:', error);
-      toast.error(`Failed to connect to ${device.name}: ${error.response?.data?.message || error.message}`, { id: toastId });
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || 'Connection failed';
+      toast.error(`Failed to connect to ${device.name}: ${errorMessage}`, { id: toastId });
+      // Refresh to update status
+      fetchDevices();
     } finally {
       setConnectingDevices(prev => {
         const newSet = new Set(prev);
-        newSet.delete(device.id);
+        newSet.delete(deviceId);
         return newSet;
       });
     }
   };
 
   const handleSshDisconnect = async (device) => {
-    setConnectingDevices(prev => new Set([...prev, device.id]));
+    const deviceId = device.id || device._id;
+    setConnectingDevices(prev => new Set([...prev, deviceId]));
     const toastId = toast.loading(`Disconnecting SSH session from ${device.name}...`);
     
     try {
-      const response = await axios.post(`/devices/${device.id}/ssh/disconnect`);
+      const response = await axios.post(`/devices/${deviceId}/ssh/disconnect`);
       
       if (response.data.success) {
         // Update session status
-        setSshSessions(prev => new Map([...prev, [device.id, { is_connected: false }]]));
+        setSshSessions(prev => new Map([...prev, [deviceId, { is_connected: false }]]));
         toast.success(`SSH session disconnected from ${device.name}`, { id: toastId });
         
         // Refresh device list to show updated status
@@ -166,7 +189,31 @@ function Devices() {
     } finally {
       setConnectingDevices(prev => {
         const newSet = new Set(prev);
-        newSet.delete(device.id);
+        newSet.delete(deviceId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleSshStop = async (device) => {
+    const deviceId = device.id || device._id;
+    const toastId = toast.loading(`Stopping SSH connection attempt to ${device.name}...`);
+    
+    try {
+      // Try to disconnect to cancel the connection attempt
+      await axios.post(`/devices/${deviceId}/ssh/disconnect`);
+      
+      toast.success(`Connection attempt stopped for ${device.name}`, { id: toastId });
+      
+      // Refresh device list to show updated status
+      fetchDevices();
+    } catch (error) {
+      console.error('Error stopping SSH connection:', error);
+      toast.error(`Failed to stop connection: ${error.response?.data?.message || error.message}`, { id: toastId });
+    } finally {
+      setConnectingDevices(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(deviceId);
         return newSet;
       });
     }
@@ -543,11 +590,24 @@ function Devices() {
                     {device.status}
                   </span>
                   
-                  {/* SSH Session Status Indicator */}
-                  {sshSessions.get(device.id)?.is_connected && (
-                    <span className="badge badge-success text-xs">
-                      🔗 SSH Connected
-                      {sshSessions.get(device.id)?.is_privileged && ' (Privileged)'}
+                  {/* Enhanced SSH Session Status Indicator */}
+                  {device.ssh_status === 'connected' && (
+                    <span className="badge badge-success text-xs flex items-center gap-1">
+                      <span className="inline-block w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                      SSH Connected
+                      {sshSessions.get(deviceId)?.is_privileged && ' (Privileged)'}
+                    </span>
+                  )}
+                  {device.ssh_status === 'connecting' && (
+                    <span className="badge badge-info text-xs flex items-center gap-1">
+                      <div className="animate-spin rounded-full h-2 w-2 border border-blue-400 border-t-transparent"></div>
+                      Connecting...
+                    </span>
+                  )}
+                  {device.ssh_status === 'error' && (
+                    <span className="badge badge-danger text-xs flex items-center gap-1">
+                      <span className="inline-block w-2 h-2 bg-red-400 rounded-full"></span>
+                      SSH Error
                     </span>
                   )}
                   
@@ -559,37 +619,64 @@ function Devices() {
                       title="Test Connection"
                     >
                       {testingDevice === deviceId ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                          Testing...
+                        </>
                       ) : (
-                        <TestTubeIcon className="h-4 w-4" />
+                        <>
+                          <TestTubeIcon className="h-4 w-4 mr-2" />
+                          Test
+                        </>
                       )}
                     </button>
                     
                     {/* SSH Session Management Buttons */}
-                    {sshSessions.get(device.id)?.is_connected ? (
+                    {device.ssh_status === 'connected' ? (
                       <button
                         onClick={() => handleSshDisconnect(device)}
-                        disabled={connectingDevices.has(device.id)}
+                        disabled={connectingDevices.has(deviceId)}
                         className="btn btn-warning btn-sm"
                         title="Disconnect SSH Session"
                       >
-                        {connectingDevices.has(device.id) ? (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                        {connectingDevices.has(deviceId) ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                            Disconnecting...
+                          </>
                         ) : (
-                          <WifiIcon className="h-4 w-4" />
+                          <>
+                            <WifiIcon className="h-4 w-4 mr-2" />
+                            Disconnect
+                          </>
                         )}
+                      </button>
+                    ) : device.ssh_status === 'connecting' ? (
+                      <button
+                        onClick={() => handleSshStop(device)}
+                        className="btn btn-danger btn-sm"
+                        title="Stop Connection Attempt"
+                      >
+                        <StopCircleIcon className="h-4 w-4 mr-2" />
+                        Stop
                       </button>
                     ) : (
                       <button
                         onClick={() => handleSshConnect(device)}
-                        disabled={connectingDevices.has(device.id)}
+                        disabled={connectingDevices.has(deviceId)}
                         className="btn btn-success btn-sm"
                         title="Connect SSH Session"
                       >
-                        {connectingDevices.has(device.id) ? (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                        {connectingDevices.has(deviceId) ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                            Connecting...
+                          </>
                         ) : (
-                          <WifiIcon className="h-4 w-4" />
+                          <>
+                            <WifiIcon className="h-4 w-4 mr-2" />
+                            Connect
+                          </>
                         )}
                       </button>
                     )}
@@ -599,7 +686,8 @@ function Devices() {
                       className="btn btn-secondary btn-sm"
                       title="Edit Device"
                     >
-                      <PencilIcon className="h-4 w-4" />
+                      <PencilIcon className="h-4 w-4 mr-2" />
+                      Edit
                     </button>
                     
                     <button
@@ -607,7 +695,8 @@ function Devices() {
                       className="btn btn-danger btn-sm"
                       title="Delete Device"
                     >
-                      <TrashIcon className="h-4 w-4" />
+                      <TrashIcon className="h-4 w-4 mr-2" />
+                      Delete
                     </button>
                   </div>
                 </div>

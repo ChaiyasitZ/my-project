@@ -9,6 +9,7 @@ export class SSHService {
     this.maxSessionsPerDevice = 3; // Increased concurrent sessions per device
     this.commandQueue = new Map(); // Queue commands for busy sessions
     this.sessionPool = new Map(); // Pool of ready sessions per device
+    this.reconnectAttempts = new Map(); // Track reconnection attempts
     
     // Optimized cleanup - every 2 minutes instead of 1
     setInterval(() => {
@@ -20,6 +21,11 @@ export class SSHService {
     setInterval(() => {
       this.healthCheckSessions();
     }, 30000);
+    
+    // Monitor and auto-reconnect every 60 seconds
+    setInterval(() => {
+      this.monitorAndReconnect();
+    }, 60000);
   }
 
   async connect(deviceConfig) {
@@ -1129,6 +1135,49 @@ export class SSHService {
     
     if (totalSessions > 0) {
       console.log(`💓 Session health: ${healthySessions}/${totalSessions} healthy sessions`);
+    }
+  }
+
+  async monitorAndReconnect() {
+    const Device = (await import('../models/Device.js')).default;
+    
+    // Find all devices marked as connected
+    const connectedDevices = await Device.find({ ssh_status: 'connected' });
+    
+    for (const device of connectedDevices) {
+      const sessionKey = `${device.id}_persistent`;
+      const session = this.persistentSessions.get(sessionKey);
+      
+      // Check if session exists and is valid
+      if (!session || !this.isSessionValid(session)) {
+        console.log(`🔄 Auto-reconnecting to ${device.name} (${device.ip_address})`);
+        
+        // Track reconnection attempts
+        const attempts = this.reconnectAttempts.get(device.id) || 0;
+        
+        if (attempts < 3) {
+          try {
+            // Attempt to reconnect
+            await this.getOrCreatePersistentSession(device);
+            console.log(`✅ Successfully reconnected to ${device.name}`);
+            this.reconnectAttempts.delete(device.id); // Reset on success
+          } catch (error) {
+            console.error(`❌ Failed to reconnect to ${device.name}:`, error.message);
+            this.reconnectAttempts.set(device.id, attempts + 1);
+            
+            // Update device status if max attempts reached
+            if (attempts + 1 >= 3) {
+              device.ssh_status = 'error';
+              device.status = 'error';
+              await device.save();
+              console.log(`❌ Max reconnection attempts reached for ${device.name}`);
+            }
+          }
+        }
+      } else {
+        // Session is healthy, reset reconnection counter
+        this.reconnectAttempts.delete(device.id);
+      }
     }
   }
 

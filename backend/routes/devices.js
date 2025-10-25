@@ -486,11 +486,18 @@ router.post('/:id/ssh/connect', async (req, res) => {
     console.log(`🔌 Connecting persistent SSH session to ${device.name} (${device.ip_address})`);
     
     try {
+      // Update status to connecting
+      device.ssh_status = 'connecting';
+      await device.save();
+      
       // Create persistent session
-      const session = await sshService.connectSession(device);
+      const session = await sshService.getOrCreatePersistentSession(device);
       
       // Update device status to active on successful connection
       device.status = 'active';
+      device.ssh_status = 'connected';
+      device.ssh_connected_at = new Date();
+      device.ssh_session_id = session.sessionKey;
       await device.save();
       
       res.json({
@@ -509,6 +516,7 @@ router.post('/:id/ssh/connect', async (req, res) => {
     } catch (connectionError) {
       // Update device status to reflect connection failure
       device.status = 'error';
+      device.ssh_status = 'error';
       await device.save();
       
       res.status(500).json({
@@ -556,6 +564,9 @@ router.post('/:id/ssh/disconnect', async (req, res) => {
     
     // Update device status
     device.status = 'inactive';
+    device.ssh_status = 'disconnected';
+    device.ssh_connected_at = null;
+    device.ssh_session_id = null;
     await device.save();
     
     res.json({
@@ -568,6 +579,40 @@ router.post('/:id/ssh/disconnect', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to disconnect SSH session'
+    });
+  }
+});
+
+// GET /api/devices/ssh/status-all - Get SSH status for all devices
+router.get('/ssh/status-all', async (req, res) => {
+  try {
+    const devices = await Device.find({});
+    
+    const statusList = devices.map(device => {
+      const sessionKey = `${device.id}_persistent`;
+      const session = sshService.persistentSessions.get(sessionKey);
+      const isConnected = session && sshService.isSessionValid(session);
+      
+      return {
+        device_id: device.id,
+        device_name: device.name,
+        ssh_status: device.ssh_status,
+        is_connected: isConnected,
+        connected_at: device.ssh_connected_at,
+        session_id: device.ssh_session_id
+      };
+    });
+    
+    res.json({
+      success: true,
+      devices: statusList
+    });
+    
+  } catch (error) {
+    console.error('Error getting SSH status for all devices:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get SSH status'
     });
   }
 });

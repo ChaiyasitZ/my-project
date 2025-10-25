@@ -81,6 +81,17 @@ const deviceSchema = new mongoose.Schema({
     type: String,
     enum: ['active', 'inactive', 'maintenance', 'error'],
     default: 'inactive'
+  },
+  ssh_status: {
+    type: String,
+    enum: ['connected', 'disconnected', 'connecting', 'error'],
+    default: 'disconnected'
+  },
+  ssh_connected_at: {
+    type: Date
+  },
+  ssh_session_id: {
+    type: String
   }
 }, {
   timestamps: true // Automatically adds createdAt and updatedAt
