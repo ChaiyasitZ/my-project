@@ -359,15 +359,20 @@ function Configurations() {
                 </div>
               </div>
 
-              {/* Configuration Valid Tab */}
+              {/* Configuration Valid Tab with Explanation */}
               {validation && (
-                <div className="bg-blue-50 rounded-lg p-3">
-                  <div className="flex items-center">
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                  <div className="flex items-start">
                     {getValidationIcon(validation.isValid)}
-                    <div className="ml-2">
-                      <p className={`text-sm font-medium ${getValidationColor(validation.isValid)}`}>
+                    <div className="ml-3 flex-1">
+                      <p className={`text-sm font-medium ${getValidationColor(validation.isValid)} mb-2`}>
                         {validation.isValid ? 'Configuration Valid' : 'Configuration Issues Found'}
                       </p>
+                      {generatedConfig.explanation && (
+                        <div className="text-sm text-gray-700 leading-relaxed">
+                          {generatedConfig.explanation}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -1927,6 +1927,124 @@ Generate valid NETCONF XML:
       };
     }
   }
+
+  /**
+   * Generate human-readable explanation of configuration
+   */
+  async generateExplanation(configuration, deviceType, originalPrompt = '') {
+    const startTime = Date.now();
+    
+    try {
+      console.log(`📖 Generating explanation for ${deviceType} config`);
+
+      // Check API key
+      if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
+        throw new Error('OpenRouter API key not configured');
+      }
+
+      // Detect if the original prompt is in Thai
+      const isThaiPrompt = /[\u0E00-\u0E7F]/.test(originalPrompt);
+      const language = isThaiPrompt ? 'Thai' : 'English';
+      
+      console.log(`🌐 Detected language: ${language}`);
+
+      const systemMessage = isThaiPrompt 
+        ? `คุณเป็นผู้เชี่ยวชาญด้านเครือข่าย อธิบาย configuration ด้วยภาษาไทยที่เข้าใจง่าย
+
+คำอธิบายของคุณต้อง:
+- สั้นและกระชับ (3-5 ประโยคเท่านั้น)
+- ใช้ภาษาง่ายๆ ที่คนทั่วไปเข้าใจได้
+- เน้นว่ามันทำอะไร ไม่ต้องลงรายละเอียดทางเทคนิค
+- หลีกเลี่ยงศัพท์เทคนิคที่ยากเกินไป
+- ทำให้คนที่ไม่มีความรู้พื้นฐานก็เข้าใจได้
+- ห้ามใช้ hashtag (#) หรือ markdown
+- เขียนเป็นประโยยธรรมดาๆ เท่านั้น
+
+ตัวอย่างคำอธิบายที่ดี: "การตั้งค่านี้จะเปิดใช้งานพอร์ต GigabitEthernet0/1 และกำหนด IP address เป็น 192.168.1.1 เพื่อเชื่อมต่อกับเครือข่าย LAN ภายในองค์กร"`
+        : `You are a network expert. Explain configurations in simple, easy-to-understand language.
+
+Keep your explanation:
+- Short and concise (3-5 sentences maximum)
+- Use simple, everyday language
+- Focus on WHAT it does, not technical details
+- Avoid jargon and technical terms when possible
+- Make it understandable for beginners
+- NO hashtags (#), NO markdown, NO special formatting
+- Just plain text sentences
+
+Example good explanation: "This sets up a network connection on port GigabitEthernet0/1 with IP address 192.168.1.1. It enables the port and adds a description to identify it as the LAN connection."`;
+
+      const userMessage = isThaiPrompt
+        ? `อธิบาย configuration ของ ${deviceType} นี้ด้วยภาษาไทยง่ายๆ:
+
+Configuration:
+${configuration}
+
+อธิบายสั้นๆ ให้เข้าใจง่าย (ห้ามใช้ hashtag หรือ markdown ใช้ประโยคธรรมดาเท่านั้น):`
+        : `Explain this ${deviceType} configuration in simple terms:
+
+Configuration:
+${configuration}
+
+Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO markdown, just simple sentences):`;
+
+      console.log(`🎯 Calling explanation model: ${this.model}`);
+      
+      const response = await this.client.post('/chat/completions', {
+        model: this.model,
+        messages: [
+          {
+            role: 'system',
+            content: systemMessage
+          },
+          {
+            role: 'user',
+            content: userMessage
+          }
+        ],
+        temperature: 0.4,  // Slightly higher for more natural language
+        max_tokens: 300,   // Reduced for concise explanation
+        top_p: 0.9
+      });
+
+      const explanation = response.data.choices[0]?.message?.content?.trim();
+      
+      if (!explanation) {
+        throw new Error('No explanation generated');
+      }
+
+      // Clean the explanation: remove hashtags, markdown headings, and extra formatting
+      let cleanExplanation = explanation
+        .replace(/^#+\s*/gm, '')  // Remove markdown headings (# ## ###)
+        .replace(/\*\*/g, '')      // Remove bold markdown
+        .replace(/\*/g, '')        // Remove italic markdown
+        .replace(/`/g, '')         // Remove code backticks
+        .trim();
+
+      const executionTime = Date.now() - startTime;
+      const tokensUsed = response.data.usage?.total_tokens || 0;
+      
+      console.log(`✅ Explanation generated (${executionTime}ms, ${tokensUsed} tokens)`);
+      
+      return {
+        success: true,
+        explanation: cleanExplanation,
+        executionTime,
+        tokensUsed,
+        model: this.model
+      };
+      
+    } catch (error) {
+      console.error("❌ Explanation generation failed:", error.message);
+      
+      return {
+        success: false,
+        error: `Explanation generation failed: ${error.message}`,
+        explanation: 'Unable to generate explanation at this time.',
+        executionTime: Date.now() - startTime
+      };
+    }
+  }
 }
 
 export default new LLMService();

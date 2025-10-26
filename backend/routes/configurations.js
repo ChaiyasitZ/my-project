@@ -242,6 +242,20 @@ router.post('/generate', async (req, res) => {
       });
     }
     
+    // Generate explanation for the configuration
+    console.log('📖 Generating configuration explanation...');
+    const explanationResult = await llmService.generateExplanation(
+      aiResult.displayConfig || aiResult.configuration,
+      device.type,
+      prompt
+    );
+    
+    if (explanationResult.success) {
+      console.log('✅ Explanation generated successfully');
+    } else {
+      console.warn('⚠️ Explanation generation failed:', explanationResult.error);
+    }
+    
     // Save to configuration history with timestamp
     const currentTimestamp = Date.now();
     const configuration = new ConfigurationHistory({
@@ -267,7 +281,7 @@ router.post('/generate', async (req, res) => {
       validation: aiResult.validation,
       confidenceScore: aiResult.confidenceScore,
       recommendations: aiResult.recommendations,
-      explanation: aiResult.validation?.explanation || [],
+      explanation: explanationResult.success ? explanationResult.explanation : 'Explanation unavailable',
       deployment_config: aiResult.deploymentConfig // Clean version for deployment
     };
     
