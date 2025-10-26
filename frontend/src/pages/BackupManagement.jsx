@@ -1003,34 +1003,34 @@ function BackupManagement() {
                       </button>
                     </div>
                   </div>
-                </form>
-              </div>
 
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button
-                  type="submit"
-                  disabled={creating || !backupForm.device_id || !backupForm.backup_name}
-                  className="btn btn-primary btn-md w-full sm:w-auto"
-                >
-                  {creating ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <Archive className="h-4 w-4 mr-2" />
-                      Create Backup
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="btn btn-secondary btn-md w-full sm:w-auto mt-3 sm:mt-0 sm:ml-3"
-                >
-                  Cancel
-                </button>
+                  <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse mt-6">
+                    <button
+                      type="submit"
+                      disabled={creating || !backupForm.device_id || !backupForm.backup_name}
+                      className="btn btn-primary btn-md w-full sm:w-auto"
+                    >
+                      {creating ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <Archive className="h-4 w-4 mr-2" />
+                          Create Backup
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateModal(false)}
+                      className="btn btn-secondary btn-md w-full sm:w-auto mt-3 sm:mt-0 sm:ml-3"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           </div>

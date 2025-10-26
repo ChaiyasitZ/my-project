@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import Device from '../models/Device.js';
 import ConfigurationBackup from '../models/ConfigurationBackup.js';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
+import BackupSchedule from '../models/BackupSchedule.js';
 import sshService from '../services/sshService.js';
 
 const router = express.Router();
@@ -1156,6 +1157,284 @@ router.get('/test/:device_id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to run backup test'
+    });
+  }
+});
+
+// ============================================
+// BACKUP SCHEDULE MANAGEMENT ROUTES
+// ============================================
+
+// POST /api/backups/schedules - Create new backup schedule (and run immediate backup)
+router.post('/schedules', async (req, res) => {
+  try {
+    const {
+      name,
+      description,
+      device_ids,
+      schedule_type = 'manual',
+      backup_type = 'running-config',
+      enabled = true
+    } = req.body;
+
+    if (!name || !device_ids || device_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Schedule name and at least one device are required'
+      });
+    }
+
+    // Create schedule
+    const schedule = new BackupSchedule({
+      name,
+      description,
+      device_ids,
+      schedule_type,
+      backup_type,
+      enabled,
+      created_by: 'user'
+    });
+
+    await schedule.save();
+    console.log(`📅 Backup schedule created: ${name}`);
+
+    // Run immediate backup for all devices in schedule
+    console.log(`⚡ Running immediate backup for ${device_ids.length} device(s)...`);
+    const backupResults = [];
+
+    for (const device_id of device_ids) {
+      try {
+        const device = await Device.findById(device_id);
+        if (!device) {
+          console.warn(`⚠️ Device ${device_id} not found, skipping...`);
+          continue;
+        }
+
+        console.log(`💾 Backing up ${device.name}...`);
+        const backupResult = await sshService.createFullBackup(device);
+
+        if (backupResult.success) {
+          const configHash = crypto
+            .createHash('sha256')
+            .update(backupResult.runningConfig || '')
+            .digest('hex');
+
+          const backup = new ConfigurationBackup({
+            device_id: device._id,
+            backup_name: `${name} - Initial - ${device.name}`,
+            description: description || `Initial backup for schedule: ${name}`,
+            running_config: backupResult.runningConfig,
+            startup_config: backupResult.startupConfig,
+            backup_type: 'scheduled',
+            config_type: backup_type,
+            file_size: (backupResult.runningConfigSize || 0) + (backupResult.startupConfigSize || 0),
+            config_hash: configHash,
+            created_by: 'schedule',
+            tags: ['scheduled', 'initial', schedule._id.toString()]
+          });
+
+          await backup.save();
+          backupResults.push({
+            device_id: device._id,
+            device_name: device.name,
+            backup_id: backup._id,
+            success: true
+          });
+
+          // Update schedule with last backup info
+          schedule.last_run = new Date();
+          schedule.last_status = 'success';
+          schedule.last_backup_id = backup._id;
+        } else {
+          backupResults.push({
+            device_id: device._id,
+            device_name: device.name,
+            success: false,
+            error: backupResult.error || 'Backup failed'
+          });
+        }
+      } catch (deviceError) {
+        console.error(`❌ Backup failed for device ${device_id}:`, deviceError.message);
+        backupResults.push({
+          device_id,
+          success: false,
+          error: deviceError.message
+        });
+      }
+    }
+
+    await schedule.save();
+
+    const successCount = backupResults.filter(r => r.success).length;
+    const failCount = backupResults.length - successCount;
+
+    res.status(201).json({
+      success: true,
+      message: `Schedule created and immediate backup completed (${successCount} success, ${failCount} failed)`,
+      schedule: {
+        id: schedule._id,
+        name: schedule.name,
+        description: schedule.description,
+        device_count: device_ids.length,
+        schedule_type: schedule.schedule_type,
+        backup_type: schedule.backup_type,
+        enabled: schedule.enabled,
+        last_run: schedule.last_run,
+        last_status: schedule.last_status
+      },
+      backup_results: backupResults
+    });
+
+  } catch (error) {
+    console.error('Error creating backup schedule:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create backup schedule',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/backups/schedules - Get all backup schedules
+router.get('/schedules', async (req, res) => {
+  try {
+    const schedules = await BackupSchedule.find()
+      .populate('device_ids', 'name type ip_address')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const enhancedSchedules = schedules.map(schedule => ({
+      ...schedule,
+      id: schedule._id,
+      device_count: schedule.device_ids.length,
+      devices: schedule.device_ids.map(d => ({
+        id: d._id,
+        name: d.name,
+        type: d.type,
+        ip_address: d.ip_address
+      }))
+    }));
+
+    res.json({
+      success: true,
+      schedules: enhancedSchedules
+    });
+
+  } catch (error) {
+    console.error('Error fetching backup schedules:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch backup schedules'
+    });
+  }
+});
+
+// DELETE /api/backups/schedules/:id - Delete backup schedule
+router.delete('/schedules/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const schedule = await BackupSchedule.findByIdAndDelete(id);
+
+    if (!schedule) {
+      return res.status(404).json({
+        success: false,
+        message: 'Backup schedule not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Backup schedule deleted successfully',
+      deleted_schedule: schedule.name
+    });
+
+  } catch (error) {
+    console.error('Error deleting backup schedule:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete backup schedule'
+    });
+  }
+});
+
+// POST /api/backups/custom - Create backup with custom name and description (for post-deploy popup)
+router.post('/custom', async (req, res) => {
+  try {
+    const {
+      device_id,
+      backup_name,
+      description,
+      backup_type = 'running-config'
+    } = req.body;
+
+    if (!device_id || !backup_name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Device ID and backup name are required'
+      });
+    }
+
+    const device = await Device.findById(device_id);
+
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+
+    console.log(`💾 Creating custom backup "${backup_name}" for ${device.name}...`);
+
+    const backupResult = await sshService.createFullBackup(device);
+
+    if (!backupResult.success) {
+      throw new Error('Failed to create backup');
+    }
+
+    const configHash = crypto
+      .createHash('sha256')
+      .update(backupResult.runningConfig || '')
+      .digest('hex');
+
+    const backup = new ConfigurationBackup({
+      device_id: device._id,
+      backup_name,
+      description: description || '',
+      running_config: backupResult.runningConfig,
+      startup_config: backup_type === 'both' ? backupResult.startupConfig : null,
+      backup_type: 'manual',
+      config_type: backup_type,
+      file_size: (backupResult.runningConfigSize || 0) + (backup_type === 'both' ? backupResult.startupConfigSize || 0 : 0),
+      config_hash: configHash,
+      created_by: 'user',
+      tags: ['post-deploy', 'custom']
+    });
+
+    await backup.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Custom backup created successfully',
+      backup: {
+        id: backup._id,
+        backup_name: backup.backup_name,
+        description: backup.description,
+        device_name: device.name,
+        device_type: device.type,
+        file_size: backup.file_size,
+        backup_type: backup.backup_type,
+        config_type: backup.config_type,
+        created_at: backup.createdAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Error creating custom backup:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create custom backup',
+      error: error.message
     });
   }
 });

@@ -1,7 +1,9 @@
 import express from 'express';
 import Joi from 'joi';
+import crypto from 'crypto';
 import Device from '../models/Device.js';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
+import ConfigurationBackup from '../models/ConfigurationBackup.js';
 import llmService from '../services/llmService.js';
 import sshService from '../services/sshService.js';
 
@@ -377,23 +379,79 @@ router.post('/session-apply', async (req, res) => {
     console.log(`🔗 Session-based deployment to ${configuration.device.name} (${configuration.device.ip_address})...`);
     
     try {
+      // Create pre-deployment backup using session
+      console.log(`💾 Creating pre-deployment backup...`);
+      let preBackupId = null;
+      try {
+        const preBackup = await sshService.optimizedBackup(configuration.device, 'running-config');
+        if (preBackup.success) {
+          const backup = new ConfigurationBackup({
+            device_id: configuration.device._id,
+            backup_name: `Pre-Deploy (Session) - ${new Date().toISOString()}`,
+            description: `Auto backup before session deployment: ${configuration.prompt}`,
+            running_config: preBackup.runningConfig,
+            backup_type: 'scheduled',
+            config_type: 'running-config',
+            file_size: preBackup.runningConfigSize,
+            config_hash: crypto.createHash('sha256').update(preBackup.runningConfig).digest('hex'),
+            created_by: 'auto-deploy',
+            is_restore_point: true,
+            tags: ['pre-deployment', 'auto-backup', 'session']
+          });
+          await backup.save();
+          preBackupId = backup._id;
+          console.log(`✅ Pre-deployment backup created`);
+        }
+      } catch (err) {
+        console.warn(`⚠️ Pre-deployment backup failed: ${err.message}`);
+      }
+      
       const deployResult = await sshService.fastDeployWithSession(
         configuration.device,
         configuration.deployment_config
       );
       
       if (deployResult.success) {
+        // Create post-deployment backup
+        let postBackupId = null;
+        try {
+          const postBackup = await sshService.optimizedBackup(configuration.device, 'running-config');
+          if (postBackup.success) {
+            const backup = new ConfigurationBackup({
+              device_id: configuration.device._id,
+              backup_name: `Post-Deploy (Session) - ${new Date().toISOString()}`,
+              description: `Auto backup after session deployment: ${configuration.prompt}`,
+              running_config: postBackup.runningConfig,
+              backup_type: 'scheduled',
+              config_type: 'running-config',
+              file_size: postBackup.runningConfigSize,
+              config_hash: crypto.createHash('sha256').update(postBackup.runningConfig).digest('hex'),
+              created_by: 'auto-deploy',
+              tags: ['post-deployment', 'auto-backup', 'session']
+            });
+            await backup.save();
+            postBackupId = backup._id;
+            console.log(`✅ Post-deployment backup created`);
+          }
+        } catch (err) {
+          console.warn(`⚠️ Post-deployment backup failed: ${err.message}`);
+        }
+        
         configuration.status = 'applied';
         configuration.applied_at = Date.now();
         await configuration.save();
         
         res.json({
           success: true,
-          message: 'Configuration applied successfully using existing SSH session (no enable needed)',
+          message: 'Configuration applied successfully using existing SSH session with auto-backups (no enable needed)',
           output: deployResult.output,
           session_reused: true,
           use_count: deployResult.useCount,
-          command_count: deployResult.commandCount
+          command_count: deployResult.commandCount,
+          auto_backups: {
+            pre_deployment_backup_id: preBackupId,
+            post_deployment_backup_id: postBackupId
+          }
         });
       } else {
         throw new Error('Session-based deployment failed');
@@ -461,22 +519,78 @@ router.post('/fast-apply', async (req, res) => {
     console.log(`⚡ Fast applying configuration to ${configuration.device.name} (${configuration.device.ip_address})...`);
     
     try {
+      // Create pre-deployment backup
+      console.log(`💾 Creating pre-deployment backup...`);
+      let preBackupId = null;
+      try {
+        const preBackup = await sshService.fastBackup(configuration.device);
+        if (preBackup.success) {
+          const backup = new ConfigurationBackup({
+            device_id: configuration.device._id,
+            backup_name: `Pre-Deploy (Fast) - ${new Date().toISOString()}`,
+            description: `Auto backup before fast deployment: ${configuration.prompt}`,
+            running_config: preBackup.runningConfig,
+            backup_type: 'scheduled',
+            config_type: 'running-config',
+            file_size: preBackup.runningConfigSize,
+            config_hash: crypto.createHash('sha256').update(preBackup.runningConfig).digest('hex'),
+            created_by: 'auto-deploy',
+            is_restore_point: true,
+            tags: ['pre-deployment', 'auto-backup', 'fast']
+          });
+          await backup.save();
+          preBackupId = backup._id;
+          console.log(`✅ Pre-deployment backup created`);
+        }
+      } catch (err) {
+        console.warn(`⚠️ Pre-deployment backup failed: ${err.message}`);
+      }
+      
       const deployResult = await sshService.fastDeploy(
         configuration.device,
         configuration.deployment_config
       );
       
       if (deployResult.success) {
+        // Create post-deployment backup
+        let postBackupId = null;
+        try {
+          const postBackup = await sshService.fastBackup(configuration.device);
+          if (postBackup.success) {
+            const backup = new ConfigurationBackup({
+              device_id: configuration.device._id,
+              backup_name: `Post-Deploy (Fast) - ${new Date().toISOString()}`,
+              description: `Auto backup after fast deployment: ${configuration.prompt}`,
+              running_config: postBackup.runningConfig,
+              backup_type: 'scheduled',
+              config_type: 'running-config',
+              file_size: postBackup.runningConfigSize,
+              config_hash: crypto.createHash('sha256').update(postBackup.runningConfig).digest('hex'),
+              created_by: 'auto-deploy',
+              tags: ['post-deployment', 'auto-backup', 'fast']
+            });
+            await backup.save();
+            postBackupId = backup._id;
+            console.log(`✅ Post-deployment backup created`);
+          }
+        } catch (err) {
+          console.warn(`⚠️ Post-deployment backup failed: ${err.message}`);
+        }
+        
         configuration.status = 'applied';
         configuration.applied_at = Date.now();
         await configuration.save();
         
         res.json({
           success: true,
-          message: 'Configuration applied successfully using persistent session',
+          message: 'Configuration applied successfully using persistent session with auto-backups',
           output: deployResult.output,
           session_reused: deployResult.sessionReused,
-          command_count: deployResult.commandCount
+          command_count: deployResult.commandCount,
+          auto_backups: {
+            pre_deployment_backup_id: preBackupId,
+            post_deployment_backup_id: postBackupId
+          }
         });
       } else {
         throw new Error('Fast deployment failed');
@@ -546,15 +660,80 @@ router.post('/apply', async (req, res) => {
       const configToApply = configuration.deployment_config || configuration.generated_config;
       console.log(`📡 Deploying configuration to ${device.ip_address} (${configToApply.split('\n').length} lines)`);
       
-      // Add deployment start time for timeout tracking
+      // STEP 1: Create pre-deployment backup checkpoint
+      console.log(`💾 Creating pre-deployment backup checkpoint...`);
+      let preDeploymentBackupId = null;
+      try {
+        const preBackupResult = await sshService.createFullBackup(device);
+        if (preBackupResult.success) {
+          const preBackupHash = crypto
+            .createHash('sha256')
+            .update(preBackupResult.runningConfig || '')
+            .digest('hex');
+          
+          const preDeploymentBackup = new ConfigurationBackup({
+            device_id: device._id,
+            backup_name: `Pre-Deploy Checkpoint - ${new Date().toISOString()}`,
+            description: `Automatic backup before deploying: ${configuration.prompt}`,
+            running_config: preBackupResult.runningConfig,
+            startup_config: preBackupResult.startupConfig,
+            backup_type: 'scheduled', // Using 'scheduled' to indicate auto-backup
+            config_type: 'running-config',
+            file_size: (preBackupResult.runningConfigSize || 0) + (preBackupResult.startupConfigSize || 0),
+            config_hash: preBackupHash,
+            created_by: 'auto-deploy',
+            is_restore_point: true,
+            tags: ['pre-deployment', 'auto-backup', 'checkpoint']
+          });
+          
+          await preDeploymentBackup.save();
+          preDeploymentBackupId = preDeploymentBackup._id;
+          console.log(`✅ Pre-deployment backup created: ${preDeploymentBackupId}`);
+        }
+      } catch (preBackupError) {
+        console.warn(`⚠️ Pre-deployment backup failed (continuing with deployment): ${preBackupError.message}`);
+      }
+      
+      // STEP 2: Deploy configuration
       const deploymentStart = Date.now();
-      
       const sshResult = await sshService.sendConfigCommands(device, configToApply);
-      
       const deploymentTime = Date.now() - deploymentStart;
       console.log(`✅ Configuration deployed successfully in ${deploymentTime}ms`);
       
-      // Update configuration status with timestamp
+      // STEP 3: Create post-deployment backup
+      console.log(`💾 Creating post-deployment backup...`);
+      let postDeploymentBackupId = null;
+      try {
+        const postBackupResult = await sshService.createFullBackup(device);
+        if (postBackupResult.success) {
+          const postBackupHash = crypto
+            .createHash('sha256')
+            .update(postBackupResult.runningConfig || '')
+            .digest('hex');
+          
+          const postDeploymentBackup = new ConfigurationBackup({
+            device_id: device._id,
+            backup_name: `Post-Deploy Backup - ${new Date().toISOString()}`,
+            description: `Automatic backup after deploying: ${configuration.prompt}`,
+            running_config: postBackupResult.runningConfig,
+            startup_config: postBackupResult.startupConfig,
+            backup_type: 'scheduled',
+            config_type: 'running-config',
+            file_size: (postBackupResult.runningConfigSize || 0) + (postBackupResult.startupConfigSize || 0),
+            config_hash: postBackupHash,
+            created_by: 'auto-deploy',
+            tags: ['post-deployment', 'auto-backup']
+          });
+          
+          await postDeploymentBackup.save();
+          postDeploymentBackupId = postDeploymentBackup._id;
+          console.log(`✅ Post-deployment backup created: ${postDeploymentBackupId}`);
+        }
+      } catch (postBackupError) {
+        console.warn(`⚠️ Post-deployment backup failed: ${postBackupError.message}`);
+      }
+      
+      // STEP 4: Update configuration status with timestamp
       configuration.status = 'applied';
       configuration.applied_config = configToApply;
       configuration.applied_at = Date.now();
@@ -563,9 +742,15 @@ router.post('/apply', async (req, res) => {
       
       res.json({
         success: true,
-        message: 'Configuration applied successfully',
+        message: 'Configuration applied successfully with automatic backups',
         deploymentTime,
-        output: sshResult.output
+        output: sshResult.output,
+        auto_backups: {
+          pre_deployment_backup_id: preDeploymentBackupId,
+          post_deployment_backup_id: postDeploymentBackupId,
+          pre_deployment_created: !!preDeploymentBackupId,
+          post_deployment_created: !!postDeploymentBackupId
+        }
       });
       
     } catch (sshError) {
