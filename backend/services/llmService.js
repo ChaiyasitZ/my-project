@@ -121,6 +121,16 @@ export class LLMService {
         throw new Error(`Generated configuration is too short or empty`);
       }
       
+      // CRITICAL: Log the actual commands to help debug issues
+      console.log(`📋 Commands after cleaning (first 500 chars):`);
+      const preview = cleanConfig.substring(0, 500);
+      console.log(preview);
+      
+      // Show character codes for first line to detect invisible characters
+      const firstLine = cleanConfig.split('\n')[0] || '';
+      const charCodes = firstLine.split('').map(c => c.charCodeAt(0)).join(',');
+      console.log(`🔍 First line char codes: ${charCodes.substring(0, 100)}...`);
+      
       const deploymentConfig = this._createDeploymentVersion(cleanConfig);
       const validation = this._validateConfiguration(cleanConfig, deviceType);
       
@@ -1328,41 +1338,42 @@ Commands:`;
    * Pre-process CIDR notation to include wildcard mask hints
    */
   _preprocessCIDR(prompt) {
-    // CIDR to wildcard mask conversion
-    const cidrToWildcard = {
-      '/8': '0.255.255.255',
-      '/9': '0.127.255.255',
-      '/10': '0.63.255.255',
-      '/11': '0.31.255.255',
-      '/12': '0.15.255.255',
-      '/13': '0.7.255.255',
-      '/14': '0.3.255.255',
-      '/15': '0.1.255.255',
-      '/16': '0.0.255.255', 
-      '/17': '0.0.127.255',
-      '/18': '0.0.63.255',
-      '/19': '0.0.31.255',
-      '/20': '0.0.15.255',
-      '/21': '0.0.7.255',
-      '/22': '0.0.3.255',
-      '/23': '0.0.1.255',
-      '/24': '0.0.0.255',
-      '/25': '0.0.0.127',
-      '/26': '0.0.0.63',
-      '/27': '0.0.0.31',
-      '/28': '0.0.0.15',
-      '/29': '0.0.0.7',
-      '/30': '0.0.0.3',
-      '/31': '0.0.0.1',
-      '/32': '0.0.0.0',
+    // CIDR to SUBNET mask conversion (for ip address commands)
+    // NOTE: Wildcard masks are only for OSPF network commands
+    const cidrToSubnet = {
+      '/8': '255.0.0.0',
+      '/9': '255.128.0.0',
+      '/10': '255.192.0.0',
+      '/11': '255.224.0.0',
+      '/12': '255.240.0.0',
+      '/13': '255.248.0.0',
+      '/14': '255.252.0.0',
+      '/15': '255.254.0.0',
+      '/16': '255.255.0.0', 
+      '/17': '255.255.128.0',
+      '/18': '255.255.192.0',
+      '/19': '255.255.224.0',
+      '/20': '255.255.240.0',
+      '/21': '255.255.248.0',
+      '/22': '255.255.252.0',
+      '/23': '255.255.254.0',
+      '/24': '255.255.255.0',
+      '/25': '255.255.255.128',
+      '/26': '255.255.255.192',
+      '/27': '255.255.255.224',
+      '/28': '255.255.255.240',
+      '/29': '255.255.255.248',
+      '/30': '255.255.255.252',
+      '/31': '255.255.255.254',
+      '/32': '255.255.255.255',
     };
     
     let processed = prompt;
     
-    // Replace CIDR notation with network and wildcard mask
-    for (const [cidr, wildcard] of Object.entries(cidrToWildcard)) {
+    // Replace CIDR notation with IP and SUBNET mask (not wildcard)
+    for (const [cidr, subnet] of Object.entries(cidrToSubnet)) {
       const cidrPattern = new RegExp(`(\\d+\\.\\d+\\.\\d+\\.\\d+)${cidr.replace('/', '\\/')}`, 'g');
-      processed = processed.replace(cidrPattern, `$1 wildcard ${wildcard}`);
+      processed = processed.replace(cidrPattern, `$1 ${subnet}`);
     }
     
     return processed;
@@ -1431,9 +1442,23 @@ Commands:`;
       cleaned = cleaned.replace(pattern, '');
     });
 
+    // CRITICAL: Remove ALL control characters and special characters except newlines
+    // This fixes the "^% Invalid input" error caused by invisible characters
+    cleaned = cleaned.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g, '');
+    
     // Split into lines and filter
     const lines = cleaned.split('\n')
-      .map(line => line.trimEnd()) // Keep leading spaces for indentation
+      .map(line => {
+        // Remove ALL leading/trailing whitespace INCLUDING special unicode spaces
+        let cleanLine = line.replace(/^\s+|\s+$/g, '');
+        
+        // If line has indentation (starts with space), preserve SINGLE space
+        if (line.match(/^\s+\S/)) {
+          cleanLine = ' ' + line.trim(); // Single space prefix for sub-commands
+        }
+        
+        return cleanLine;
+      })
       .filter(line => {
         const trimmed = line.trim();
         // Filter out unwanted lines
@@ -1443,7 +1468,8 @@ Commands:`;
                trimmed !== 'exit' &&
                trimmed !== 'write memory' &&
                trimmed !== 'copy running-config startup-config' &&
-               !trimmed.match(/^(Here|This|Sure|Commands?:|Note:|Output:)/i);
+               !trimmed.match(/^(Here|This|Sure|Commands?:|Note:|Output:)/i) &&
+               !trimmed.match(/^[^\w\s!-]/); // Remove lines starting with weird characters
       });
     
     // Format with proper indentation for device commands
@@ -1456,6 +1482,13 @@ Commands:`;
       
       // Skip empty lines
       if (!trimmed) continue;
+      
+      // CRITICAL: Validate line contains only valid Cisco IOS characters
+      // Allow: alphanumeric, spaces, hyphens, underscores, dots, slashes, colons, !, =, and parentheses
+      if (!trimmed.match(/^[a-zA-Z0-9\s\-_./:!=()\[\]]+$/)) {
+        console.log(`⚠️ Skipping line with invalid characters: "${trimmed}"`);
+        continue; // Skip lines with invalid characters
+      }
       
       // Check if entering a config mode (main command)
       if (trimmed.startsWith('router ') || 
@@ -1494,13 +1527,18 @@ Commands:`;
       }
     }
     
-    // Remove consecutive blank lines
+    // Remove consecutive blank lines and trim
     const result = formattedLines
       .join('\n')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
     
-    return result;
+    // FINAL VALIDATION: Ensure no control characters remain
+    const finalClean = result.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g, '');
+    
+    console.log(`✅ Configuration cleaned: ${finalClean.length} chars, ${finalClean.split('\n').length} lines`);
+    
+    return finalClean;
   }
 
   /**

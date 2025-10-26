@@ -9,7 +9,6 @@ export class SSHService {
     this.maxSessionsPerDevice = 3; // Increased concurrent sessions per device
     this.commandQueue = new Map(); // Queue commands for busy sessions
     this.sessionPool = new Map(); // Pool of ready sessions per device
-    this.reconnectAttempts = new Map(); // Track reconnection attempts
     
     // Optimized cleanup - every 2 minutes instead of 1
     setInterval(() => {
@@ -21,11 +20,6 @@ export class SSHService {
     setInterval(() => {
       this.healthCheckSessions();
     }, 30000);
-    
-    // Monitor and auto-reconnect every 60 seconds
-    setInterval(() => {
-      this.monitorAndReconnect();
-    }, 60000);
   }
 
   async connect(deviceConfig) {
@@ -154,6 +148,7 @@ export class SSHService {
             'aes256-gcm@openssh.com'
           ],
           hmac: [
+            // Put legacy hmac-sha1 first (what Nexus uses)
             'hmac-sha1',
             'hmac-sha2-256',
             'hmac-sha2-512', 
@@ -162,6 +157,7 @@ export class SSHService {
             'hmac-md5-96'
           ],
           serverHostKey: [
+            // Put ssh-rsa first (what Nexus uses)
             'ssh-rsa',
             'rsa-sha2-512',
             'rsa-sha2-256', 
@@ -231,25 +227,146 @@ export class SSHService {
       console.log(`🔧 Starting configuration deployment to ${deviceConfig.ip_address}`);
       console.log(`📝 Commands to deploy:\n${commands}`);
       
-      // Use persistent session instead of creating new connection
-      const deviceId = deviceConfig.id || deviceConfig._id;
-      const sessionKey = `${deviceId}_persistent`;
-      let session = this.persistentSessions.get(sessionKey);
-      
-      // Check if we have a valid persistent session
-      if (session && this.isSessionValid(session)) {
-        console.log(`♻️ Using existing persistent session for deployment`);
-        // Use fast deploy with existing session
-        return await this.fastDeploy(deviceConfig, commands);
-      }
-      
-      // No valid session - create one and use it
-      console.log(`🔄 No valid session found, creating new persistent session`);
-      session = await this.getOrCreatePersistentSession(deviceConfig);
-      
-      // Now use fast deploy with the new session
-      return await this.fastDeploy(deviceConfig, commands);
-      
+      // CRITICAL FIX: Always create a fresh connection for config deployment
+      // Persistent connections can become stale and cause "Channel open failure"
+      console.log(`🔄 Creating fresh SSH connection for configuration deployment...`);
+      const conn = await this.connect(deviceConfig);
+
+      return new Promise((resolve, reject) => {
+        conn.shell({ pty: true }, (err, stream) => {
+          if (err) {
+            reject(new Error(`Failed to create shell: ${err.message}`));
+            return;
+          }
+
+          let output = '';
+          let currentStep = 0;
+          let commandComplete = false;
+          let errorCount = 0;  // Track errors
+          let hasErrors = false;  // Track if any errors occurred
+          
+          // Prepare commands
+          const configCommands = commands.split('\n')
+            .map(cmd => cmd.trim())
+            .filter(cmd => cmd && !cmd.startsWith('configure terminal') && !cmd.startsWith('end') && !cmd.startsWith('exit'));
+          
+          const allCommands = [
+            'enable',
+            'configure terminal',
+            ...configCommands,
+            'end',
+            'write memory'
+          ];
+          
+          console.log(`📋 Prepared commands:`, allCommands);
+          
+          const timeout = setTimeout(() => {
+            if (!commandComplete) {
+              stream.end();
+              const deviceId = deviceConfig.id || deviceConfig._id;
+              this.disconnect(deviceId);
+              reject(new Error('Configuration deployment timeout - device unresponsive'));
+            }
+          }, 30000); // Faster deployment timeout
+
+          const sendNextCommand = () => {
+            if (currentStep >= allCommands.length) {
+              commandComplete = true;
+              clearTimeout(timeout);
+              
+              if (hasErrors) {
+                console.log(`⚠️ Commands sent but device reported ${errorCount} error(s)`);
+              } else {
+                console.log(`✅ All commands sent successfully to ${deviceConfig.ip_address}`);
+              }
+              
+              // Wait a bit for final output then close
+              setTimeout(() => {
+                stream.end();
+                
+                // Close the SSH connection after deployment
+                setTimeout(() => {
+                  const deviceId = deviceConfig.id || deviceConfig._id;
+                  this.disconnect(deviceId);
+                  console.log(`🔌 SSH connection closed after deployment`);
+                }, 500);
+                
+                // Return success=false if there were errors
+                if (hasErrors) {
+                  reject(new Error(`Configuration deployment completed with ${errorCount} error(s). Check device output.`));
+                } else {
+                  resolve({
+                    success: true,
+                    output: output.trim(),
+                    commandsExecuted: allCommands
+                  });
+                }
+              }, 2000);
+              return;
+            }
+            
+            const command = allCommands[currentStep];
+            console.log(`➡️ Sending command ${currentStep + 1}/${allCommands.length}: ${command}`);
+            
+            stream.write(command + '\r\n');
+            currentStep++;
+          };
+
+          stream.on('data', (data) => {
+            const chunk = data.toString();
+            output += chunk;
+            console.log(`📥 Received: ${chunk.trim()}`);
+            
+            // Check for various Cisco prompts and send next command
+            if (chunk.includes('#') || 
+                chunk.includes('Password:') || 
+                chunk.includes('(config)#') ||
+                chunk.includes('(config-') ||
+                chunk.includes('[OK]') ||
+                chunk.includes('Building configuration')) {
+              
+              // Small delay to ensure prompt is complete
+              setTimeout(sendNextCommand, 500);
+            }
+            
+            // Handle password prompt specifically
+            if (chunk.toLowerCase().includes('password:')) {
+              stream.write(deviceConfig.password + '\r\n');
+            }
+            
+            // Check for errors - CRITICAL: Track and report them
+            if (chunk.includes('% Invalid') || 
+                chunk.includes('% Ambiguous') ||
+                chunk.includes('% Incomplete') ||
+                chunk.includes('% Unknown') ||
+                chunk.includes('Bad mask') ||
+                chunk.includes('% Error')) {
+              console.log(`❌ ERROR: Command failed: ${chunk.trim()}`);
+              errorCount++;
+              hasErrors = true;
+            }
+          });
+
+          stream.on('close', () => {
+            clearTimeout(timeout);
+            const deviceId = deviceConfig.id || deviceConfig._id;
+            this.disconnect(deviceId);
+            if (!commandComplete) {
+              reject(new Error('SSH session closed unexpectedly'));
+            }
+          });
+
+          stream.on('error', (error) => {
+            clearTimeout(timeout);
+            const deviceId = deviceConfig.id || deviceConfig._id;
+            this.disconnect(deviceId);
+            reject(new Error(`SSH stream error: ${error.message}`));
+          });
+
+          // Start the process - wait for initial prompt
+          console.log(`🚀 Waiting for initial prompt from ${deviceConfig.ip_address}`);
+        });
+      });
     } catch (error) {
       console.error(`❌ Configuration deployment failed:`, error.message);
       throw new Error(`Configuration deployment failed: ${error.message}`);
@@ -1037,49 +1154,6 @@ export class SSHService {
     
     if (totalSessions > 0) {
       console.log(`💓 Session health: ${healthySessions}/${totalSessions} healthy sessions`);
-    }
-  }
-
-  async monitorAndReconnect() {
-    const Device = (await import('../models/Device.js')).default;
-    
-    // Find all devices marked as connected
-    const connectedDevices = await Device.find({ ssh_status: 'connected' });
-    
-    for (const device of connectedDevices) {
-      const sessionKey = `${device.id}_persistent`;
-      const session = this.persistentSessions.get(sessionKey);
-      
-      // Check if session exists and is valid
-      if (!session || !this.isSessionValid(session)) {
-        console.log(`🔄 Auto-reconnecting to ${device.name} (${device.ip_address})`);
-        
-        // Track reconnection attempts
-        const attempts = this.reconnectAttempts.get(device.id) || 0;
-        
-        if (attempts < 3) {
-          try {
-            // Attempt to reconnect
-            await this.getOrCreatePersistentSession(device);
-            console.log(`✅ Successfully reconnected to ${device.name}`);
-            this.reconnectAttempts.delete(device.id); // Reset on success
-          } catch (error) {
-            console.error(`❌ Failed to reconnect to ${device.name}:`, error.message);
-            this.reconnectAttempts.set(device.id, attempts + 1);
-            
-            // Update device status if max attempts reached
-            if (attempts + 1 >= 3) {
-              device.ssh_status = 'error';
-              device.status = 'error';
-              await device.save();
-              console.log(`❌ Max reconnection attempts reached for ${device.name}`);
-            }
-          }
-        }
-      } else {
-        // Session is healthy, reset reconnection counter
-        this.reconnectAttempts.delete(device.id);
-      }
     }
   }
 
@@ -2267,7 +2341,8 @@ export class SSHService {
           name: deviceConfig.name,
           type: deviceConfig.type,
           ip_address: deviceConfig.ip_address,
-          model: deviceConfig.model
+          model: deviceConfig.model,
+          ios_version: deviceConfig.ios_version
         }
       };
       
