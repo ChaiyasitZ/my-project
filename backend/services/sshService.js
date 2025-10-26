@@ -231,123 +231,25 @@ export class SSHService {
       console.log(`🔧 Starting configuration deployment to ${deviceConfig.ip_address}`);
       console.log(`📝 Commands to deploy:\n${commands}`);
       
+      // Use persistent session instead of creating new connection
       const deviceId = deviceConfig.id || deviceConfig._id;
-      let connObj = this.connections.get(deviceId);
-      let conn = connObj ? connObj.connection : null;
+      const sessionKey = `${deviceId}_persistent`;
+      let session = this.persistentSessions.get(sessionKey);
       
-      if (!conn) {
-        conn = await this.connect(deviceConfig);
-      } else {
-        // Update last used timestamp
-        connObj.lastUsed = Date.now();
+      // Check if we have a valid persistent session
+      if (session && this.isSessionValid(session)) {
+        console.log(`♻️ Using existing persistent session for deployment`);
+        // Use fast deploy with existing session
+        return await this.fastDeploy(deviceConfig, commands);
       }
-
-      return new Promise((resolve, reject) => {
-        conn.shell({ pty: true }, (err, stream) => {
-          if (err) {
-            reject(new Error(`Failed to create shell: ${err.message}`));
-            return;
-          }
-
-          let output = '';
-          let currentStep = 0;
-          let commandComplete = false;
-          
-          // Prepare commands
-          const configCommands = commands.split('\n')
-            .map(cmd => cmd.trim())
-            .filter(cmd => cmd && !cmd.startsWith('configure terminal') && !cmd.startsWith('end') && !cmd.startsWith('exit'));
-          
-          const allCommands = [
-            'enable',
-            'configure terminal',
-            ...configCommands,
-            'end',
-            'write memory'
-          ];
-          
-          console.log(`📋 Prepared commands:`, allCommands);
-          
-          const timeout = setTimeout(() => {
-            if (!commandComplete) {
-              stream.end();
-              reject(new Error('Configuration deployment timeout - device unresponsive'));
-            }
-          }, 30000); // Faster deployment timeout
-
-          const sendNextCommand = () => {
-            if (currentStep >= allCommands.length) {
-              commandComplete = true;
-              clearTimeout(timeout);
-              
-              console.log(`✅ All commands sent successfully to ${deviceConfig.ip_address}`);
-              
-              // Wait a bit for final output then close
-              setTimeout(() => {
-                stream.end();
-                resolve({
-                  success: true,
-                  output: output.trim(),
-                  commandsExecuted: allCommands
-                });
-              }, 2000);
-              return;
-            }
-            
-            const command = allCommands[currentStep];
-            console.log(`➡️ Sending command ${currentStep + 1}/${allCommands.length}: ${command}`);
-            
-            stream.write(command + '\r\n');
-            currentStep++;
-          };
-
-          stream.on('data', (data) => {
-            const chunk = data.toString();
-            output += chunk;
-            console.log(`📥 Received: ${chunk.trim()}`);
-            
-            // Check for various Cisco prompts and send next command
-            if (chunk.includes('#') || 
-                chunk.includes('Password:') || 
-                chunk.includes('(config)#') ||
-                chunk.includes('(config-') ||
-                chunk.includes('[OK]') ||
-                chunk.includes('Building configuration')) {
-              
-              // Small delay to ensure prompt is complete
-              setTimeout(sendNextCommand, 500);
-            }
-            
-            // Handle password prompt specifically
-            if (chunk.toLowerCase().includes('password:')) {
-              stream.write(deviceConfig.password + '\r\n');
-            }
-            
-            // Check for errors
-            if (chunk.includes('% Invalid') || 
-                chunk.includes('% Ambiguous') ||
-                chunk.includes('% Incomplete') ||
-                chunk.includes('% Unknown')) {
-              console.log(`⚠️ Warning: Possible command error detected: ${chunk.trim()}`);
-            }
-          });
-
-          stream.on('close', () => {
-            clearTimeout(timeout);
-            if (!commandComplete) {
-              reject(new Error('SSH session closed unexpectedly'));
-            }
-          });
-
-          stream.on('error', (error) => {
-            clearTimeout(timeout);
-            reject(new Error(`SSH stream error: ${error.message}`));
-          });
-
-          // Start the process - wait for initial prompt
-          console.log(`🚀 Waiting for initial prompt from ${deviceConfig.ip_address}`);
-        });
-      });
+      
+      // No valid session - create one and use it
+      console.log(`🔄 No valid session found, creating new persistent session`);
+      session = await this.getOrCreatePersistentSession(deviceConfig);
+      
+      // Now use fast deploy with the new session
+      return await this.fastDeploy(deviceConfig, commands);
+      
     } catch (error) {
       console.error(`❌ Configuration deployment failed:`, error.message);
       throw new Error(`Configuration deployment failed: ${error.message}`);

@@ -1,39 +1,52 @@
 import axios from 'axios';
 
 /**
- * Clean LLM Service for Cisco Configuration Generation
- * Simple and focused text prompt processing
+ * OpenRouter LLM Service for Cisco Configuration Generation
+ * Uses OpenRouter API for access to multiple AI models
  */
 export class LLMService {
   constructor() {
     // Configuration
-    this.host = process.env.OLLAMA_HOST || 'http://localhost:11434';
-    this.model = process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b';
-    this.timeout = 60000;
+    this.provider = process.env.LLM_PROVIDER || 'openrouter';
+    this.apiKey = process.env.OPENROUTER_API_KEY || '';
+    this.model = process.env.OPENROUTER_MODEL || 'anthropic/claude-haiku-4.5';
+    this.apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
+    this.timeout = 120000; // 120 seconds
     
-    // HTTP Client
+    // HTTP Client for OpenRouter
     this.client = axios.create({
-      baseURL: this.host,
+      baseURL: 'https://openrouter.ai/api/v1',
       timeout: this.timeout,
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'HTTP-Referer': 'http://localhost:3001', // Optional: your app URL
+        'X-Title': 'Cisco Network Automation', // Optional: app name
+        'Content-Type': 'application/json'
+      }
     });
     
-    // Simple parameters for reliable generation
+    // Optimized parameters for Cisco configuration generation
     this.defaultParams = {
-      temperature: 0.3,
-      num_predict: 300,
-      top_k: 40,
-      top_p: 0.9,
-      repeat_penalty: 1.1
+      temperature: 0.1,        // Low for deterministic output
+      max_tokens: 1000,        // Enough for complex configs
+      top_p: 0.85,             // Balanced probability
+      frequency_penalty: 0.3,  // Reduce repetition
+      presence_penalty: 0.2,   // Encourage variety
+      stop: ['```', 'Here are', 'Here is', 'Sure', 'Note:', '---']
     };
     
     // Knowledge base for enhanced context
     this.knowledgeBase = this._initializeKnowledgeBase();
     
-    console.log(`🤖 LLM Service with Knowledge Context initialized - Model: ${this.model} @ ${this.host}`);
+    if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
+      console.warn(`⚠️ OpenRouter API key not configured! Please set OPENROUTER_API_KEY in .env`);
+    } else {
+      console.log(`🤖 LLM Service initialized - Provider: ${this.provider}, Model: ${this.model}`);
+    }
   }
 
   /**
-   * Generate Cisco configuration from text prompt
+   * Generate Cisco configuration from text prompt using OpenRouter
    */
   async generateConfiguration(prompt, deviceType, deviceContext = {}) {
     const startTime = Date.now();
@@ -41,34 +54,82 @@ export class LLMService {
     try {
       console.log(`🚀 Generating config for ${deviceType}: "${prompt}"`);
 
-      // Build knowledge-enhanced prompt
-      const aiPrompt = this._buildPromptWithKnowledge(prompt, deviceType, deviceContext);
-      
-      console.log(`📝 Prompt length: ${aiPrompt.length} characters`);
-      
-      // Call Ollama API
-      const response = await this.client.post("/api/generate", {
-        model: this.model,
-        prompt: aiPrompt,
-        stream: false,
-        options: this.defaultParams
-      });
+      // Check API key
+      if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
+        throw new Error('OpenRouter API key not configured. Please set OPENROUTER_API_KEY in .env file');
+      }
 
-      const rawConfig = response.data.response?.trim();
+      // Build system message with knowledge context
+      const systemMessage = this._buildSystemMessage(prompt, deviceType);
+      
+      // Build user message with the actual request
+      const userMessage = this._buildUserMessage(prompt, deviceType, deviceContext);
+      
+      console.log(`📝 System message length: ${systemMessage.length} characters`);
+      console.log(`📝 User message length: ${userMessage.length} characters`);
+      console.log(`🎯 Using model: ${this.model}`);
+      
+      // Call OpenRouter API with retry logic
+      let response;
+      let retryCount = 0;
+      const maxRetries = 2;
+      
+      while (retryCount <= maxRetries) {
+        try {
+          response = await this.client.post('/chat/completions', {
+            model: this.model,
+            messages: [
+              {
+                role: 'system',
+                content: systemMessage
+              },
+              {
+                role: 'user',
+                content: userMessage
+              }
+            ],
+            ...this.defaultParams
+          });
+          break; // Success, exit retry loop
+        } catch (apiError) {
+          retryCount++;
+          if (retryCount > maxRetries) {
+            throw apiError;
+          }
+          console.log(`⚠️ Retry ${retryCount}/${maxRetries} after error: ${apiError.message}`);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
+        }
+      }
+
+      // Parse OpenRouter response
+      const rawConfig = response.data?.choices?.[0]?.message?.content?.trim();
+      
       if (!rawConfig) {
-        console.error(`❌ Empty response received from ${this.model}`);
-        throw new Error(`Empty response from ${this.model}`);
+        console.error(`❌ Empty response from OpenRouter`);
+        console.error(`❌ Response structure:`, JSON.stringify(response.data, null, 2).substring(0, 500));
+        throw new Error(`Empty response from ${this.model} - API may have issues`);
       }
       
       console.log(`📦 Raw response: ${rawConfig.length} chars`);
+      console.log(`📄 Raw output preview:\n${rawConfig.substring(0, 200)}...`);
       
       // Clean and validate configuration
       const cleanConfig = this._cleanConfiguration(rawConfig);
+      
+      if (!cleanConfig || cleanConfig.length < 5) {
+        console.error(`❌ Configuration too short after cleaning: ${cleanConfig.length} chars`);
+        throw new Error(`Generated configuration is too short or empty`);
+      }
+      
       const deploymentConfig = this._createDeploymentVersion(cleanConfig);
       const validation = this._validateConfiguration(cleanConfig, deviceType);
       
       const executionTime = Date.now() - startTime;
-      console.log(`✅ Generated successfully (${executionTime}ms)`);
+      const tokensUsed = response.data?.usage?.total_tokens || 0;
+      
+      console.log(`✅ Generated successfully (${executionTime}ms, ${tokensUsed} tokens)`);
+      console.log(`📋 Clean config:\n${cleanConfig.substring(0, 200)}...`);
+      console.log(`✅ Validation score: ${validation.score}/100`);
       
       return {
         success: true,
@@ -76,22 +137,47 @@ export class LLMService {
         displayConfig: cleanConfig,
         deploymentConfig,
         model: this.model,
+        provider: 'openrouter',
         deviceType,
-        method: 'knowledge_enhanced',
+        method: 'openrouter_chat',
         executionTime,
+        tokensUsed,
         validation,
-        confidenceScore: validation.score
+        confidenceScore: validation.score,
+        recommendations: validation.warnings.length > 0 ? validation.warnings : ['Configuration looks good']
       };
       
     } catch (error) { 
       const executionTime = Date.now() - startTime;
       console.error("❌ Generation failed:", error.message);
+      console.error("❌ Full error:", error);
+      
+      // Provide helpful error messages
+      let userMessage = error.message;
+      if (error.response?.status === 401) {
+        userMessage = 'Invalid OpenRouter API key. Please check your OPENROUTER_API_KEY in .env';
+      } else if (error.response?.status === 429) {
+        userMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+      } else if (error.response?.status === 402) {
+        userMessage = 'Insufficient credits. Please add credits to your OpenRouter account.';
+      } else if (error.code === 'ECONNREFUSED') {
+        userMessage = 'Cannot connect to OpenRouter API. Check your internet connection.';
+      } else if (error.message.includes('timeout')) {
+        userMessage = 'Request timed out. The model may be busy.';
+      }
       
       return {
         success: false,
-        error: `Generation failed: ${error.message}`,
+        error: `Generation failed: ${userMessage}`,
         configuration: null,
-        executionTime
+        executionTime,
+        suggestions: [
+          'Check if OPENROUTER_API_KEY is set in .env file',
+          'Verify your OpenRouter account has credits',
+          'Check your internet connection',
+          'Try a different model if the current one is unavailable',
+          'Simplify your prompt if it\'s too complex'
+        ]
       };
     }
   }
@@ -955,40 +1041,59 @@ export class LLMService {
   }
 
   /**
-   * Build knowledge-enhanced prompt
+   * Build system message with role definition and rules
    */
-  _buildPromptWithKnowledge(prompt, deviceType, deviceContext) {
-    const deviceName = deviceContext.name || 'Device';
+  _buildSystemMessage(prompt, deviceType) {
+    const relevantKnowledge = this._getRelevantKnowledge(prompt);
     
-    // Pre-process CIDR notation in the prompt
-    let processedPrompt = this._preprocessCIDR(prompt);
-    
-    // Standardize interface names
-    processedPrompt = this._standardizeInterfaceNames(processedPrompt);
-    
-    // Get relevant knowledge context
-    const relevantKnowledge = this._getRelevantKnowledge(processedPrompt);
-    
-    // Build enhanced prompt with knowledge context
-    let enhancedPrompt = `You are an expert Cisco network engineer with deep knowledge of Cisco IOS commands.
+    return `You are a Cisco IOS command generator expert. Your job is to generate ONLY raw Cisco IOS configuration commands.
 
 RELEVANT KNOWLEDGE:
 ${relevantKnowledge}
 
-TASK: Generate only the raw Cisco IOS commands to send to the device. No configure terminal, no end, just the commands.
+STRICT OUTPUT RULES:
+1. Generate ONLY configuration commands (no "configure terminal", no "end", no "exit")
+2. Use proper indentation (single space before sub-commands)
+3. Use wildcard masks for OSPF network commands, NOT subnet masks
+4. Accept both full and short interface names (Gi, Fa, Te, etc.)
+5. Follow Cisco best practices
+6. NO explanations, NO comments, NO markdown, NO code blocks
+7. Start directly with the first command
 
-Device: ${deviceName} (${deviceType})
-Request: ${processedPrompt}
+EXAMPLE OUTPUT FORMAT:
+interface GigabitEthernet0/1
+ ip address 192.168.1.1 255.255.255.0
+ description Connection to Core Switch
+ no shutdown
 
-IMPORTANT: 
-- Use wildcard masks for OSPF network commands, not subnet masks
-- Follow Cisco best practices
-- Generate precise, working commands only
-- Accept both full interface names and short names (Gi, Fa, Te, etc.)
+Remember: Output ONLY the commands, nothing else.`;
+  }
 
-Commands:`;
+  /**
+   * Build user message with specific request
+   */
+  _buildUserMessage(prompt, deviceType, deviceContext) {
+    const deviceName = deviceContext.name || 'Device';
+    const deviceModel = deviceContext.model || 'Generic Cisco';
+    
+    // Pre-process the prompt
+    let processedPrompt = this._preprocessCIDR(prompt);
+    processedPrompt = this._standardizeInterfaceNames(processedPrompt);
+    
+    return `Device: ${deviceName} (${deviceType} - ${deviceModel})
 
-    return enhancedPrompt;
+Configuration Request: ${processedPrompt}
+
+Generate the Cisco IOS commands now:`;
+  }
+
+  /**
+   * Build knowledge-enhanced prompt (legacy method for compatibility)
+   */
+  _buildPromptWithKnowledge(prompt, deviceType, deviceContext) {
+    const systemMsg = this._buildSystemMessage(prompt, deviceType);
+    const userMsg = this._buildUserMessage(prompt, deviceType, deviceContext);
+    return `${systemMsg}\n\n${userMsg}`;
   }
 
   /**
@@ -1298,51 +1403,104 @@ Commands:`;
     
     let cleaned = rawConfig;
     
-    // Remove unwanted content
+    // Remove code blocks and markdown
     cleaned = cleaned
-      .replace(/```.*$/gm, '')
-      .replace(/^Here's.*$/gmi, '')
-      .replace(/^This.*$/gmi, '')
-      .replace(/^Sure.*$/gmi, '')
-      .replace(/^Commands:.*$/gmi, '')
+      .replace(/```cisco/gi, '')
+      .replace(/```ios/gi, '')
+      .replace(/```/g, '')
       .trim();
+    
+    // Remove explanatory text
+    const unwantedPhrases = [
+      /^Here's.*$/gmi,
+      /^Here are.*$/gmi,
+      /^This.*$/gmi,
+      /^Sure.*$/gmi,
+      /^Commands:.*$/gmi,
+      /^Note:.*$/gmi,
+      /^The following.*$/gmi,
+      /^These commands.*$/gmi,
+      /^Configuration:.*$/gmi,
+      /^Output:.*$/gmi,
+      /^---+$/gm,
+      /^===+$/gm,
+      /^#{1,6}\s.*$/gm, // Remove markdown headers
+    ];
+    
+    unwantedPhrases.forEach(pattern => {
+      cleaned = cleaned.replace(pattern, '');
+    });
 
-    // Get only the raw command lines
+    // Split into lines and filter
     const lines = cleaned.split('\n')
-      .map(line => line.trim())
+      .map(line => line.trimEnd()) // Keep leading spaces for indentation
       .filter(line => {
+        const trimmed = line.trim();
         // Filter out unwanted lines
-        return line && 
-               line !== 'configure terminal' && 
-               line !== 'end' && 
-               line !== 'exit' &&
-               !line.includes('Here are') &&
-               !line.includes('Commands:');
+        return trimmed && 
+               trimmed !== 'configure terminal' && 
+               trimmed !== 'end' && 
+               trimmed !== 'exit' &&
+               trimmed !== 'write memory' &&
+               trimmed !== 'copy running-config startup-config' &&
+               !trimmed.match(/^(Here|This|Sure|Commands?:|Note:|Output:)/i);
       });
     
     // Format with proper indentation for device commands
     const formattedLines = [];
     let inConfigMode = false;
+    let currentIndentLevel = 0;
     
-    for (const line of lines) {
-      // Check if entering a config mode
-      if (line.startsWith('router ') || line.startsWith('interface ') || 
-          line.startsWith('vlan ') || line.startsWith('line ')) {
-        formattedLines.push(line);
+    for (let line of lines) {
+      const trimmed = line.trim();
+      
+      // Skip empty lines
+      if (!trimmed) continue;
+      
+      // Check if entering a config mode (main command)
+      if (trimmed.startsWith('router ') || 
+          trimmed.startsWith('interface ') || 
+          trimmed.startsWith('vlan ') || 
+          trimmed.startsWith('line ') ||
+          trimmed.startsWith('ip access-list ') ||
+          trimmed.startsWith('access-list ')) {
+        formattedLines.push(trimmed);
         inConfigMode = true;
+        currentIndentLevel = 0;
       } 
-      // Sub-commands get indented
-      else if (inConfigMode && !line.startsWith('!')) {
-        formattedLines.push(' ' + line);
-      }
-      // Global commands
-      else {
-        formattedLines.push(line);
+      // Check for exit/end commands within config mode
+      else if (trimmed === '!' || trimmed.startsWith('exit') || trimmed.startsWith('end')) {
         inConfigMode = false;
+        currentIndentLevel = 0;
+        // Add blank line for readability between sections
+        if (formattedLines.length > 0) {
+          formattedLines.push('');
+        }
+      }
+      // Sub-commands get indented with single space
+      else if (inConfigMode) {
+        // If line already has indentation, preserve it; otherwise add one space
+        if (line.startsWith(' ')) {
+          formattedLines.push(line);
+        } else {
+          formattedLines.push(' ' + trimmed);
+        }
+      }
+      // Global commands (no indentation needed)
+      else {
+        formattedLines.push(trimmed);
+        inConfigMode = false;
+        currentIndentLevel = 0;
       }
     }
     
-    return formattedLines.join('\n');
+    // Remove consecutive blank lines
+    const result = formattedLines
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    
+    return result;
   }
 
   /**
@@ -1408,39 +1566,93 @@ Commands:`;
    */
   async getServiceStatus() {
     try {
-      const response = await this.client.get("/api/tags");
-      const models = response.data.models || [];
-      const currentModel = models.find(m => m.name === this.model);
+      // Check if API key is configured
+      if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
+        return {
+          status: "not_configured",
+          service: "OpenRouter API",
+          provider: this.provider,
+          model: this.model,
+          error: "API key not configured",
+          setup: [
+            "1. Sign up at https://openrouter.ai",
+            "2. Get your API key from the dashboard",
+            "3. Add OPENROUTER_API_KEY to your .env file",
+            "4. Restart the backend server"
+          ]
+        };
+      }
+
+      // Test API connection with a simple request
+      const response = await this.client.post('/chat/completions', {
+        model: this.model,
+        messages: [
+          { role: 'user', content: 'Say OK' }
+        ],
+        max_tokens: 5
+      });
+
+      const isWorking = response.data?.choices?.[0]?.message?.content;
 
       return {
-        status: "connected",
-        service: "Knowledge-Enhanced LLM Text Generation",
-        host: this.host,
+        status: isWorking ? "connected" : "error",
+        service: "OpenRouter API - Knowledge-Enhanced Generation",
+        provider: this.provider,
+        apiUrl: 'https://openrouter.ai/api/v1',
         model: this.model,
-        modelAvailable: !!currentModel,
-        availableModels: models.map(m => m.name),
+        modelAvailable: !!isWorking,
         knowledgeBase: {
           categories: Object.keys(this.knowledgeBase),
           totalProtocols: Object.keys(this.knowledgeBase.routing).length,
-          totalFeatures: Object.keys(this.knowledgeBase.switching).length + Object.keys(this.knowledgeBase.interfaces).length + Object.keys(this.knowledgeBase.security).length
+          totalFeatures: Object.keys(this.knowledgeBase.switching).length + 
+                        Object.keys(this.knowledgeBase.interfaces).length + 
+                        Object.keys(this.knowledgeBase.security).length
         },
         features: [
+          "🌐 OpenRouter API with multiple model support",
           "🧠 Comprehensive Cisco knowledge base",
           "🎯 Context-aware configuration generation",
           "📚 Protocol-specific best practices",
           "🔧 Syntax validation and examples",
           "🧹 Clean output formatting",
           "✅ CIDR to wildcard conversion"
+        ],
+        availableModels: [
+          "qwen/qwen-2.5-coder-32b-instruct (Recommended)",
+          "anthropic/claude-3.5-sonnet",
+          "openai/gpt-4-turbo",
+          "google/gemini-pro-1.5",
+          "meta-llama/llama-3.1-70b-instruct"
         ]
       };
     } catch (error) {
+      let errorMessage = error.message;
+      let status = "error";
+      
+      if (error.response?.status === 401) {
+        errorMessage = "Invalid API key";
+        status = "unauthorized";
+      } else if (error.response?.status === 402) {
+        errorMessage = "Insufficient credits";
+        status = "no_credits";
+      } else if (error.response?.status === 429) {
+        errorMessage = "Rate limit exceeded";
+        status = "rate_limited";
+      }
+      
       return {
-        status: "disconnected",
-        service: "Knowledge-Enhanced LLM Text Generation",
-        host: this.host,
+        status,
+        service: "OpenRouter API",
+        provider: this.provider,
         model: this.model,
         modelAvailable: false,
-        error: error.message
+        error: errorMessage,
+        troubleshooting: [
+          "Check your OPENROUTER_API_KEY in .env",
+          "Verify your OpenRouter account has credits",
+          "Check https://openrouter.ai/docs for status",
+          "Try a different model if current one is unavailable"
+        ]
       };
     }
   }
