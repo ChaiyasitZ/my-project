@@ -149,18 +149,22 @@ function Configurations() {
       console.log('✅ Configuration applied successfully!');
       
       // Extract deployment time from response
-      const deploymentTime = response.data?.deployment_time_seconds || 
-                            response.data?.deployment_time_ms ? 
-                            (response.data.deployment_time_ms / 1000).toFixed(2) : 
+      const deploymentTime = response.data?.deployment_time || 
+                            response.data?.deployment_time_ms || 
                             null;
+      
+      const deploymentTimeSeconds = response.data?.deployment_time_seconds || 
+                            (response.data?.deployment_time_ms ? 
+                            (response.data.deployment_time_ms / 1000).toFixed(2) : null);
       
       setGeneratedConfig({
         ...generatedConfig,
-        status: 'applied'
+        status: 'applied',
+        deployment_time: deploymentTime
       });
       
-      const successMessage = deploymentTime 
-        ? `Configuration deployed successfully in ${deploymentTime}s!` 
+      const successMessage = deploymentTimeSeconds 
+        ? `Configuration deployed successfully in ${deploymentTimeSeconds}s!` 
         : 'Configuration deployed successfully!';
       
       toast.success(successMessage, { id: toastId, duration: 5000 });
@@ -366,7 +370,10 @@ function Configurations() {
                   <BotIcon className="h-3 w-3 mr-1" />
                   <span>Generated with: <span className="font-mono font-medium">{generatedConfig.ai_model}</span></span>
                   {generatedConfig.execution_time && (
-                    <span className="ml-3">• {generatedConfig.execution_time}ms</span>
+                    <span className="ml-3">• Generation: {generatedConfig.execution_time}ms</span>
+                  )}
+                  {generatedConfig.deployment_time && (
+                    <span className="ml-3 text-green-600 font-medium">• Deploy: {(generatedConfig.deployment_time / 1000).toFixed(2)}s</span>
                   )}
                 </div>
               </div>

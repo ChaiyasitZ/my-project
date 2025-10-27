@@ -694,22 +694,22 @@ function BackupManagement() {
             <div key={backup.id} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
               {/* Card Header */}
               <div className="p-6 pb-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center space-x-2">
+                <div className="flex items-start justify-between mb-3 gap-2">
+                  <div className="flex items-center space-x-2 min-w-0 flex-1">
                     {getBackupTypeIcon(backup.backup_type)}
                     <h3 className="text-lg font-semibold text-gray-900 truncate">
                       {backup.backup_name}
                     </h3>
                   </div>
                   {backup.is_restore_point && (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 whitespace-nowrap flex-shrink-0">
                       <ShieldIcon className="h-3 w-3 mr-1" />
                       Restore Point
                     </span>
                   )}
                 </div>
 
-                <div className="flex items-center space-x-2 mb-3">
+                <div className="flex items-center space-x-2 mb-3 flex-wrap">
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getBackupTypeBadge(backup.backup_type)}`}>
                     {backup.backup_type === 'manual' ? 'Manual' : 
                      backup.backup_type === 'scheduled' ? 'Scheduled' : 
@@ -725,7 +725,7 @@ function BackupManagement() {
                 </div>
 
                 {backup.description && (
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                  <p className="text-gray-600 text-sm mb-4 line-clamp-2 break-words">
                     {backup.description}
                   </p>
                 )}
