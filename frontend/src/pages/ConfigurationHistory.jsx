@@ -314,7 +314,12 @@ function ConfigurationHistory() {
                         {item.applied_at && (
                           <span>Applied: {formatDate(item.applied_at)}</span>
                         )}
-                        {item.execution_time && (
+                        {item.deployment_time && (
+                          <span className="text-green-600 font-medium">
+                            ⚡ Deploy Time: {(item.deployment_time / 1000).toFixed(2)}s
+                          </span>
+                        )}
+                        {!item.deployment_time && item.execution_time && (
                           <span>Duration: {item.execution_time}ms</span>
                         )}
                       </div>
@@ -402,6 +407,12 @@ function ConfigurationHistory() {
                     <p className="text-sm"><strong>Created:</strong> {formatDate(selectedConfig.created_at)}</p>
                     {selectedConfig.applied_at && (
                       <p className="text-sm"><strong>Applied:</strong> {formatDate(selectedConfig.applied_at)}</p>
+                    )}
+                    {selectedConfig.deployment_time && (
+                      <p className="text-sm text-green-600 font-medium">
+                        <strong>⚡ Deployment Time:</strong> {(selectedConfig.deployment_time / 1000).toFixed(2)}s 
+                        <span className="text-gray-500 ml-2">({selectedConfig.deployment_time}ms)</span>
+                      </p>
                     )}
                   </div>
                 </div>

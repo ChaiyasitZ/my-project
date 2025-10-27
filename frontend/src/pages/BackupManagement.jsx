@@ -711,7 +711,9 @@ function BackupManagement() {
 
                 <div className="flex items-center space-x-2 mb-3">
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getBackupTypeBadge(backup.backup_type)}`}>
-                    {backup.backup_type.replace('_', ' ')}
+                    {backup.backup_type === 'manual' ? 'Manual' : 
+                     backup.backup_type === 'scheduled' ? 'Scheduled' : 
+                     backup.backup_type.charAt(0).toUpperCase() + backup.backup_type.slice(1).replace('_', ' ')}
                   </span>
                   {backup.config_type && (
                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">

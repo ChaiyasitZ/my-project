@@ -1061,6 +1061,12 @@ export class LLMService {
 RELEVANT KNOWLEDGE:
 ${relevantKnowledge}
 
+CRITICAL PROTOCOL-SPECIFIC RULES:
+1. OSPF: Does NOT support "no auto-summary" command (OSPF is classless by default)
+2. EIGRP: MUST include "no auto-summary" for modern VLSM networks
+3. RIP: Use "version 2" with "no auto-summary" for classless operation
+4. BGP: Does not use auto-summary command
+
 STRICT OUTPUT RULES:
 1. Generate ONLY configuration commands (no "configure terminal", no "end", no "exit")
 2. Use proper indentation (single space before sub-commands)
@@ -1069,6 +1075,7 @@ STRICT OUTPUT RULES:
 5. Follow Cisco best practices
 6. NO explanations, NO comments, NO markdown, NO code blocks
 7. Start directly with the first command
+8. DO NOT include commands that are invalid for the protocol being configured
 
 EXAMPLE OUTPUT FORMAT:
 interface GigabitEthernet0/1
@@ -1476,6 +1483,7 @@ Commands:`;
     const formattedLines = [];
     let inConfigMode = false;
     let currentIndentLevel = 0;
+    let currentProtocol = null; // Track current routing protocol
     
     for (let line of lines) {
       const trimmed = line.trim();
@@ -1488,6 +1496,48 @@ Commands:`;
       if (!trimmed.match(/^[a-zA-Z0-9\s\-_./:!=()\[\]]+$/)) {
         console.log(`⚠️ Skipping line with invalid characters: "${trimmed}"`);
         continue; // Skip lines with invalid characters
+      }
+      
+      // Detect routing protocol context
+      if (trimmed.startsWith('router ospf')) {
+        currentProtocol = 'ospf';
+        formattedLines.push(trimmed);
+        inConfigMode = true;
+        currentIndentLevel = 0;
+        continue;
+      } else if (trimmed.startsWith('router eigrp')) {
+        currentProtocol = 'eigrp';
+        formattedLines.push(trimmed);
+        inConfigMode = true;
+        currentIndentLevel = 0;
+        continue;
+      } else if (trimmed.startsWith('router bgp')) {
+        currentProtocol = 'bgp';
+        formattedLines.push(trimmed);
+        inConfigMode = true;
+        currentIndentLevel = 0;
+        continue;
+      } else if (trimmed.startsWith('router rip')) {
+        currentProtocol = 'rip';
+        formattedLines.push(trimmed);
+        inConfigMode = true;
+        currentIndentLevel = 0;
+        continue;
+      }
+      
+      // PROTOCOL-SPECIFIC VALIDATION: Filter out invalid commands
+      if (currentProtocol === 'ospf') {
+        // OSPF does NOT support "no auto-summary" - skip this line
+        if (trimmed === 'no auto-summary') {
+          console.log(`⚠️ Removing invalid command for OSPF: "${trimmed}"`);
+          continue;
+        }
+      } else if (currentProtocol === 'bgp') {
+        // BGP does NOT support "no auto-summary" - skip this line
+        if (trimmed === 'no auto-summary') {
+          console.log(`⚠️ Removing invalid command for BGP: "${trimmed}"`);
+          continue;
+        }
       }
       
       // Check if entering a config mode (main command)
@@ -1505,6 +1555,7 @@ Commands:`;
       else if (trimmed === '!' || trimmed.startsWith('exit') || trimmed.startsWith('end')) {
         inConfigMode = false;
         currentIndentLevel = 0;
+        currentProtocol = null; // Reset protocol context
         // Add blank line for readability between sections
         if (formattedLines.length > 0) {
           formattedLines.push('');

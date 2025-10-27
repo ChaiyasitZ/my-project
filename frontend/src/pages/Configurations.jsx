@@ -142,16 +142,28 @@ function Configurations() {
     const toastId = toast.loading('Deploying configuration...');
     
     try {
-      await axios.post('/configurations/apply', {
+      const response = await axios.post('/configurations/apply', {
         configuration_id: generatedConfig.id
       });
 
       console.log('✅ Configuration applied successfully!');
+      
+      // Extract deployment time from response
+      const deploymentTime = response.data?.deployment_time_seconds || 
+                            response.data?.deployment_time_ms ? 
+                            (response.data.deployment_time_ms / 1000).toFixed(2) : 
+                            null;
+      
       setGeneratedConfig({
         ...generatedConfig,
         status: 'applied'
       });
-      toast.success('Configuration deployed successfully!', { id: toastId });
+      
+      const successMessage = deploymentTime 
+        ? `Configuration deployed successfully in ${deploymentTime}s!` 
+        : 'Configuration deployed successfully!';
+      
+      toast.success(successMessage, { id: toastId, duration: 5000 });
     } catch (error) {
       console.error('Error applying configuration:', error);
       toast.error('Error deploying configuration: ' + (error.response?.data?.message || error.message), { id: toastId });

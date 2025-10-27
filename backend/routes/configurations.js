@@ -406,10 +406,12 @@ router.post('/session-apply', async (req, res) => {
         console.warn(`⚠️ Pre-deployment backup failed: ${err.message}`);
       }
       
+      const deploymentStart = Date.now();
       const deployResult = await sshService.fastDeployWithSession(
         configuration.device,
         configuration.deployment_config
       );
+      const deploymentTime = Date.now() - deploymentStart;
       
       if (deployResult.success) {
         // Create post-deployment backup
@@ -437,20 +439,36 @@ router.post('/session-apply', async (req, res) => {
           console.warn(`⚠️ Post-deployment backup failed: ${err.message}`);
         }
         
+        // Delete pre-deployment backup (keeping only post-deployment)
+        if (preBackupId) {
+          try {
+            await ConfigurationBackup.findByIdAndDelete(preBackupId);
+            console.log(`🗑️ Pre-deployment backup deleted`);
+          } catch (deleteError) {
+            console.warn(`⚠️ Failed to delete pre-deployment backup: ${deleteError.message}`);
+          }
+        }
+        
         configuration.status = 'applied';
         configuration.applied_at = Date.now();
+        configuration.deployment_time = deploymentTime;
         await configuration.save();
         
         res.json({
           success: true,
           message: 'Configuration applied successfully using existing SSH session with auto-backups (no enable needed)',
+          deployment_time: deploymentTime,
+          deployment_time_ms: deploymentTime,
+          deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
           output: deployResult.output,
           session_reused: true,
           use_count: deployResult.useCount,
           command_count: deployResult.commandCount,
           auto_backups: {
-            pre_deployment_backup_id: preBackupId,
-            post_deployment_backup_id: postBackupId
+            pre_deployment_backup_id: null, // Deleted after successful deployment
+            post_deployment_backup_id: postBackupId,
+            pre_deployment_deleted: !!preBackupId,
+            post_deployment_created: !!postBackupId
           }
         });
       } else {
@@ -546,10 +564,12 @@ router.post('/fast-apply', async (req, res) => {
         console.warn(`⚠️ Pre-deployment backup failed: ${err.message}`);
       }
       
+      const deploymentStart = Date.now();
       const deployResult = await sshService.fastDeploy(
         configuration.device,
         configuration.deployment_config
       );
+      const deploymentTime = Date.now() - deploymentStart;
       
       if (deployResult.success) {
         // Create post-deployment backup
@@ -577,19 +597,35 @@ router.post('/fast-apply', async (req, res) => {
           console.warn(`⚠️ Post-deployment backup failed: ${err.message}`);
         }
         
+        // Delete pre-deployment backup (keeping only post-deployment)
+        if (preBackupId) {
+          try {
+            await ConfigurationBackup.findByIdAndDelete(preBackupId);
+            console.log(`🗑️ Pre-deployment backup deleted`);
+          } catch (deleteError) {
+            console.warn(`⚠️ Failed to delete pre-deployment backup: ${deleteError.message}`);
+          }
+        }
+        
         configuration.status = 'applied';
         configuration.applied_at = Date.now();
+        configuration.deployment_time = deploymentTime;
         await configuration.save();
         
         res.json({
           success: true,
           message: 'Configuration applied successfully using persistent session with auto-backups',
+          deployment_time: deploymentTime,
+          deployment_time_ms: deploymentTime,
+          deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
           output: deployResult.output,
           session_reused: deployResult.sessionReused,
           command_count: deployResult.commandCount,
           auto_backups: {
-            pre_deployment_backup_id: preBackupId,
-            post_deployment_backup_id: postBackupId
+            pre_deployment_backup_id: null, // Deleted after successful deployment
+            post_deployment_backup_id: postBackupId,
+            pre_deployment_deleted: !!preBackupId,
+            post_deployment_created: !!postBackupId
           }
         });
       } else {
@@ -733,7 +769,17 @@ router.post('/apply', async (req, res) => {
         console.warn(`⚠️ Post-deployment backup failed: ${postBackupError.message}`);
       }
       
-      // STEP 4: Update configuration status with timestamp
+      // STEP 4: Delete pre-deployment backup (we only keep post-deployment for scheduled backups)
+      if (preDeploymentBackupId) {
+        try {
+          await ConfigurationBackup.findByIdAndDelete(preDeploymentBackupId);
+          console.log(`🗑️ Pre-deployment backup deleted (keeping only post-deployment backup)`);
+        } catch (deleteError) {
+          console.warn(`⚠️ Failed to delete pre-deployment backup: ${deleteError.message}`);
+        }
+      }
+      
+      // STEP 5: Update configuration status with timestamp
       configuration.status = 'applied';
       configuration.applied_config = configToApply;
       configuration.applied_at = Date.now();
@@ -743,12 +789,14 @@ router.post('/apply', async (req, res) => {
       res.json({
         success: true,
         message: 'Configuration applied successfully with automatic backups',
-        deploymentTime,
+        deployment_time: deploymentTime,
+        deployment_time_ms: deploymentTime,
+        deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
         output: sshResult.output,
         auto_backups: {
-          pre_deployment_backup_id: preDeploymentBackupId,
+          pre_deployment_backup_id: null, // Deleted after successful deployment
           post_deployment_backup_id: postDeploymentBackupId,
-          pre_deployment_created: !!preDeploymentBackupId,
+          pre_deployment_deleted: !!preDeploymentBackupId,
           post_deployment_created: !!postDeploymentBackupId
         }
       });
