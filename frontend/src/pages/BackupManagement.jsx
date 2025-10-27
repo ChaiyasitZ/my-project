@@ -840,7 +840,7 @@ function BackupManagement() {
               </div>
 
               {/* Card Footer */}
-              <div className="px-6 py-4 bg-gray-50 rounded-b-lg">
+              <div className="px-6 py-4 border-t border-gray-200 min-h-[72px]">
                 <div className="flex items-center justify-between">
                   <button
                     onClick={() => {
@@ -858,7 +858,7 @@ function BackupManagement() {
                     Restore
                   </button>
                   
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={() => handlePreviewBackup(backup)}
                       title="Preview Configuration"

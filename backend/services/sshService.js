@@ -2490,50 +2490,21 @@ export class SSHService {
   // Optimized restore using persistent sessions
   async applyConfigurationFromBackup(deviceConfig, configCommands) {
     try {
-      console.log(`🔄 Starting optimized restore for ${deviceConfig.ip_address}`);
+      console.log(`🔄 Starting backup restore for ${deviceConfig.ip_address}`);
       
-      const deviceId = deviceConfig.id || deviceConfig._id;
-      const sessionKey = `${deviceId}_persistent`;
-      let session = this.persistentSessions.get(sessionKey);
+      // Use traditional sendConfigCommands which properly handles config mode
+      const result = await this.sendConfigCommands(deviceConfig, configCommands);
       
-      // Check if we have a valid session, create if not
-      if (!session || !this.isSessionValid(session)) {
-        if (session) {
-          console.log(`🔄 Session corrupted for restore, recreating...`);
-          this.cleanupCorruptedSession(session, sessionKey);
-        }
-        
-        console.log(`🔄 Creating new session for restore: ${deviceConfig.ip_address}`);
-        session = await this.getOrCreatePersistentSession(deviceConfig);
-      }
-      
-      // Use session-based deployment for restore
-      const deployResult = await this.fastDeployWithSession(deviceConfig, configCommands);
-      
-      console.log(`✅ Optimized restore completed for ${deviceConfig.ip_address}`);
+      console.log(`✅ Backup configuration restored for ${deviceConfig.ip_address}`);
       return {
         success: true,
-        output: deployResult.output,
-        sessionReused: deployResult.sessionReused,
-        commandCount: deployResult.commandCount,
-        message: 'Backup configuration restored successfully using persistent session'
+        output: result.output,
+        message: 'Backup configuration restored successfully'
       };
       
     } catch (error) {
-      console.error(`❌ Optimized restore failed for ${deviceConfig.ip_address}:`, error.message);
-      
-      // Fallback to traditional method if session-based fails
-      console.log(`🔄 Falling back to traditional restore method...`);
-      try {
-        const result = await this.sendConfigCommands(deviceConfig, configCommands);
-        return {
-          success: true,
-          output: result.output,
-          message: 'Backup configuration restored successfully (traditional method)'
-        };
-      } catch (fallbackError) {
-        throw new Error(`Both optimized and traditional restore failed: ${error.message}, ${fallbackError.message}`);
-      }
+      console.error(`❌ Backup restore failed for ${deviceConfig.ip_address}:`, error.message);
+      throw new Error(`Failed to restore backup configuration: ${error.message}`);
     }
   }
 

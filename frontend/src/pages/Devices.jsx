@@ -82,6 +82,7 @@ function Devices() {
   }, [showModal]);
 
   const fetchDevices = async () => {
+    setLoading(true);
     try {
       const response = await axios.get('/devices');
       const devicesData = response.data.devices || [];
@@ -91,6 +92,7 @@ function Devices() {
       await fetchSshSessionStatuses(devicesData);
     } catch (error) {
       console.error('Error fetching devices:', error);
+      toast.error('Failed to fetch devices');
     } finally {
       setLoading(false);
     }
@@ -615,19 +617,16 @@ function Devices() {
                     <button
                       onClick={() => handleTestConnection(device)}
                       disabled={testingDevice === deviceId}
-                      className="btn btn-secondary btn-sm"
+                      className="btn btn-primary btn-sm"
                       title="Test Connection"
                     >
                       {testingDevice === deviceId ? (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                           Testing...
                         </>
                       ) : (
-                        <>
-                          <TestTubeIcon className="h-4 w-4 mr-2" />
-                          Test
-                        </>
+                        'Test Connection'
                       )}
                     </button>
                     
@@ -641,23 +640,19 @@ function Devices() {
                       >
                         {connectingDevices.has(deviceId) ? (
                           <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                             Disconnecting...
                           </>
                         ) : (
-                          <>
-                            <WifiIcon className="h-4 w-4 mr-2" />
-                            Disconnect
-                          </>
+                          'Disconnect'
                         )}
                       </button>
                     ) : device.ssh_status === 'connecting' ? (
                       <button
                         onClick={() => handleSshStop(device)}
-                        className="btn btn-danger btn-sm"
+                        className="btn btn-secondary btn-sm"
                         title="Stop Connection Attempt"
                       >
-                        <StopCircleIcon className="h-4 w-4 mr-2" />
                         Stop
                       </button>
                     ) : (
@@ -669,14 +664,11 @@ function Devices() {
                       >
                         {connectingDevices.has(deviceId) ? (
                           <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                             Connecting...
                           </>
                         ) : (
-                          <>
-                            <WifiIcon className="h-4 w-4 mr-2" />
-                            Connect
-                          </>
+                          'Connect'
                         )}
                       </button>
                     )}
@@ -686,7 +678,6 @@ function Devices() {
                       className="btn btn-secondary btn-sm"
                       title="Edit Device"
                     >
-                      <PencilIcon className="h-4 w-4 mr-2" />
                       Edit
                     </button>
                     
@@ -695,7 +686,6 @@ function Devices() {
                       className="btn btn-danger btn-sm"
                       title="Delete Device"
                     >
-                      <TrashIcon className="h-4 w-4 mr-2" />
                       Delete
                     </button>
                   </div>
