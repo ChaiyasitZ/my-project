@@ -882,7 +882,7 @@ function Devices() {
 
               </div>
               
-              <div className="px-6 py-4 bg-gray-50 flex justify-end space-x-3">
+              <div className="px-6 py-4 flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}

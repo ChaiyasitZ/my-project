@@ -1041,7 +1041,7 @@ function BackupManagement() {
                     </div>
                   </div>
 
-                  <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse mt-6">
+                  <div className="px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse mt-6">
                     <button
                       type="submit"
                       disabled={creating || !backupForm.device_id || !backupForm.backup_name}
@@ -1209,7 +1209,7 @@ function BackupManagement() {
                 )}
               </div>
 
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+              <div className="px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                 <button
                   type="button"
                   onClick={() => setShowPreviewModal(false)}
@@ -1300,7 +1300,7 @@ function BackupManagement() {
                 </div>
               </div>
 
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+              <div className="px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                 <button
                   onClick={handleRestoreBackup}
                   disabled={restoring}
