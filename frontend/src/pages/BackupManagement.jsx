@@ -968,17 +968,6 @@ function BackupManagement() {
                       <option value="manual">Manual</option>
                       <option value="scheduled">Scheduled</option>
                     </select>
-                    
-                    {/* Backup Type Explanation */}
-                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="text-sm text-blue-800">
-                        <div className="font-medium mb-2">Backup Types:</div>
-                        <div className="space-y-1 text-xs">
-                          <p><Archive className="h-3 w-3 inline mr-1" /><strong>Manual:</strong> On-demand backup created by user</p>
-                          <p><ClockIcon className="h-3 w-3 inline mr-1" /><strong>Scheduled:</strong> Automatic backup by system</p>
-                        </div>
-                      </div>
-                    </div>
                   </div>
 
                     <div>
@@ -997,14 +986,23 @@ function BackupManagement() {
                     </div>
                   </div>
 
-                  {/* Configuration Type Info */}
+                  {/* Combined Info Box */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <div className="text-sm text-blue-800">
-                      <h5 className="font-medium mb-2">Configuration Types:</h5>
-                      <div className="space-y-1 text-xs">
-                        <p><strong>Running:</strong> Current active configuration</p>
-                        <p><strong>Startup:</strong> Saved configuration (loads on boot)</p>
-                        <p><strong>Both:</strong> Backup both configurations</p>
+                    <div className="text-sm text-blue-800 grid grid-cols-2 gap-4">
+                      <div>
+                        <div className="font-medium mb-2">Backup Types:</div>
+                        <div className="space-y-1 text-xs">
+                          <p><Archive className="h-3 w-3 inline mr-1" /><strong>Manual:</strong> On-demand backup created by user</p>
+                          <p><ClockIcon className="h-3 w-3 inline mr-1" /><strong>Scheduled:</strong> Automatic backup by system</p>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="font-medium mb-2">Configuration Types:</div>
+                        <div className="space-y-1 text-xs">
+                          <p><strong>Running:</strong> Current active configuration</p>
+                          <p><strong>Startup:</strong> Saved configuration (loads on boot)</p>
+                          <p><strong>Both:</strong> Backup both configurations</p>
+                        </div>
                       </div>
                     </div>
                   </div>
