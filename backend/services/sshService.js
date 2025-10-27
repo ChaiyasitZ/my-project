@@ -2491,11 +2491,19 @@ export class SSHService {
   async applyConfigurationFromBackup(deviceConfig, configCommands) {
     try {
       console.log(`🔄 Starting backup restore for ${deviceConfig.ip_address}`);
+      console.log(`📝 Configuration to restore (${configCommands.length} characters):`);
+      console.log(`First 500 chars: ${configCommands.substring(0, 500)}`);
       
       // Use traditional sendConfigCommands which properly handles config mode
       const result = await this.sendConfigCommands(deviceConfig, configCommands);
       
       console.log(`✅ Backup configuration restored for ${deviceConfig.ip_address}`);
+      console.log(`📊 Restore result:`, {
+        success: result.success,
+        commandsExecuted: result.commandsExecuted?.length || 0,
+        outputLength: result.output?.length || 0
+      });
+      
       return {
         success: true,
         output: result.output,
@@ -2504,6 +2512,7 @@ export class SSHService {
       
     } catch (error) {
       console.error(`❌ Backup restore failed for ${deviceConfig.ip_address}:`, error.message);
+      console.error(`❌ Full error:`, error);
       throw new Error(`Failed to restore backup configuration: ${error.message}`);
     }
   }

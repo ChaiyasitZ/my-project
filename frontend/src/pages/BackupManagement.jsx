@@ -44,11 +44,9 @@ function BackupManagement() {
   // Removed excessive console logging to reduce re-render noise
   
   const [backups, setBackups] = useState([]);
-  const [schedules, setSchedules] = useState([]);
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDevice, setSelectedDevice] = useState('');
-  const [currentTab, setCurrentTab] = useState('backups'); // 'backups' or 'schedules'
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -95,22 +93,15 @@ function BackupManagement() {
         axios.get('/devices?status=active')
       ];
       
-      // Fetch schedules if on schedules tab
-      if (currentTab === 'schedules') {
-        requests.push(axios.get('/backups/schedules'));
-      }
-      
       const responses = await Promise.all(requests);
-      const [backupsResponse, devicesResponse, schedulesResponse] = responses;
+      const [backupsResponse, devicesResponse] = responses;
 
       // Ensure we have proper data structure
       const backupsData = backupsResponse.data?.backups || backupsResponse.data || [];
       const devicesData = devicesResponse.data?.devices || devicesResponse.data || [];
-      const schedulesData = schedulesResponse?.data?.schedules || [];
       
       setBackups(Array.isArray(backupsData) ? backupsData : []);
       setDevices(Array.isArray(devicesData) ? devicesData : []);
-      setSchedules(Array.isArray(schedulesData) ? schedulesData : []);
     } catch (error) {
       console.error('❌ Error fetching data:', error);
       // Don't show toast during silent refresh after backup creation
@@ -120,11 +111,10 @@ function BackupManagement() {
       // Set empty arrays as fallback
       setBackups([]);
       setDevices([]);
-      setSchedules([]);
     } finally {
       setLoading(false);
     }
-  }, [selectedDevice, filter, creating, currentTab]);
+  }, [selectedDevice, filter, creating]);
 
   useEffect(() => {
     fetchData();
@@ -308,27 +298,6 @@ function BackupManagement() {
     }
   };
 
-  const handleDeleteSchedule = async (schedule) => {
-    const confirmed = await showConfirmation({
-      title: 'Stop Backup Schedule',
-      message: `Are you sure you want to stop and delete the backup schedule "${schedule.name}"?\n\nThis will prevent automatic backups for the selected devices.\n\nExisting backups will not be deleted.`,
-      confirmText: 'Stop Schedule',
-      cancelText: 'Cancel',
-      type: 'warning'
-    });
-
-    if (!confirmed) return;
-
-    try {
-      await axios.delete(`/backups/schedules/${schedule.id}`);
-      console.log('✅ Backup schedule deleted successfully!');
-      toast.success(`Backup schedule "${schedule.name}" stopped successfully!`);
-      fetchData();
-    } catch (error) {
-      console.error('❌ Error deleting schedule:', error);
-      toast.error('Failed to stop schedule: ' + (error.response?.data?.message || error.message));
-    }
-  };
   const handleSetRestorePoint = async (backup) => {
     try {
       await axios.post(`/backups/${backup.id}/set-restore-point`);
@@ -559,43 +528,9 @@ function BackupManagement() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          <button
-            onClick={() => setCurrentTab('backups')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-              currentTab === 'backups'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <div className="flex items-center">
-              <Archive className="h-4 w-4 mr-2" />
-              Backups ({(backups || []).length})
-            </div>
-          </button>
-          <button
-            onClick={() => setCurrentTab('schedules')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-              currentTab === 'schedules'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            <div className="flex items-center">
-              <ClockIcon className="h-4 w-4 mr-2" />
-              Schedules ({(schedules || []).length})
-            </div>
-          </button>
-        </nav>
-      </div>
-
-      {/* Backups Tab Content */}
-      {currentTab === 'backups' && (
-        <>
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+      {/* Backups Section */}
+      {/* Statistics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center">
             <div className="flex-shrink-0">
@@ -616,6 +551,18 @@ function BackupManagement() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Manual</p>
               <p className="text-2xl font-semibold text-gray-900">{stats.manual}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <RefreshCwIcon className="h-8 w-8 text-cyan-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-500">Scheduled</p>
+              <p className="text-2xl font-semibold text-gray-900">{stats.scheduled}</p>
             </div>
           </div>
         </div>
@@ -1328,110 +1275,6 @@ function BackupManagement() {
               </div>
             </div>
           </div>
-        </div>
-      )}
-        </>
-      )}
-
-      {/* Schedules Tab Content */}
-      {currentTab === 'schedules' && (
-        <div className="space-y-6">
-          {loading ? (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p className="text-gray-600">Loading schedules...</p>
-              </div>
-            </div>
-          ) : schedules.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12">
-              <div className="text-center">
-                <ClockIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No backup schedules</h3>
-                <p className="text-gray-600">You haven't created any backup schedules yet.</p>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {schedules.map((schedule) => (
-                <div key={schedule.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-semibold text-gray-900 truncate">{schedule.name}</h3>
-                      {schedule.description && (
-                        <p className="text-sm text-gray-600 mt-1 line-clamp-2 break-words">{schedule.description}</p>
-                      )}
-                    </div>
-                    <span className={`ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ${
-                      schedule.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {schedule.enabled ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
-
-                  <div className="space-y-3 mb-4">
-                    <div className="flex items-center text-sm text-gray-600">
-                      <ServerIcon className="h-4 w-4 mr-2 text-gray-400" />
-                      <span className="font-medium">{schedule.device_count || schedule.device_ids?.length || 0} device(s)</span>
-                    </div>
-
-                    {schedule.devices && schedule.devices.length > 0 && (
-                      <div className="ml-6 space-y-1">
-                        {schedule.devices.slice(0, 3).map((device, idx) => (
-                          <div key={idx} className="text-xs text-gray-500 truncate">
-                            • {device.name} ({device.type})
-                          </div>
-                        ))}
-                        {schedule.devices.length > 3 && (
-                          <div className="text-xs text-gray-500">
-                            +{schedule.devices.length - 3} more
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {schedule.last_run && (
-                      <div className="flex items-center text-sm text-gray-600">
-                        <ClockIcon className="h-4 w-4 mr-2 text-gray-400" />
-                        <span>Last run: {formatDate(schedule.last_run)}</span>
-                      </div>
-                    )}
-
-                    {schedule.last_status && (
-                      <div className="flex items-center text-sm">
-                        {schedule.last_status === 'success' ? (
-                          <>
-                            <CheckCircleIcon className="h-4 w-4 mr-2 text-green-600" />
-                            <span className="text-green-600">Last Status: Success</span>
-                          </>
-                        ) : schedule.last_status === 'failed' ? (
-                          <>
-                            <XCircleIcon className="h-4 w-4 mr-2 text-red-600" />
-                            <span className="text-red-600">Last Status: Failed</span>
-                          </>
-                        ) : (
-                          <span className="text-gray-600">Status: {schedule.last_status}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                    <span className="text-xs text-gray-500">
-                      Created: {formatDate(schedule.createdAt)}
-                    </span>
-                    <button
-                      onClick={() => handleDeleteSchedule(schedule)}
-                      className="btn btn-outline-danger btn-sm"
-                    >
-                      <TrashIcon className="h-3 w-3 mr-1" />
-                      Stop Schedule
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
