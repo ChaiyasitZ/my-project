@@ -97,7 +97,7 @@ function Configurations() {
           errorMessage = 'Invalid device selection. Please refresh the page and try again.';
         } else if (errorData.message?.includes('AI generation failed')) {
           // AI generation error
-          errorMessage = 'LLM could not generate a valid configuration. Try being more specific.';
+          errorMessage = 'qwen2.5-coder:7b could not generate a valid configuration. Try being more specific.';
           showSuggestions = true;
         } else {
           errorMessage = errorData.message || 'Configuration generation failed';
@@ -196,15 +196,18 @@ function Configurations() {
   };
 
   const examplePrompts = [
-    "interface fe0/1 ip 192.168.1.1/24",
-    "vlan 100 sales", 
-    "hostname Router1",
-    "interface ge0/1 switchport mode trunk",
-    "router ospf 1 network 192.168.1.0 0.0.0.255 area 0",
-    "access-list 100 deny tcp 192.168.10.0 0.0.0.255 any eq 80",
-    "Configure OSPF area 10 for all routers",
-    "Setup EIGRP AS 100 topology",
-    "Configure BGP AS 65001 peering"
+    // Router Examples
+    "Configure OSPF routing for area 0 on GigabitEthernet0/0",
+    "Set up static routes to 10.0.0.0/24 via 192.168.1.1",
+    "Configure EIGRP AS 100 on network 192.168.0.0/16",
+    // Layer 2 Switch Examples
+    "Configure trunk port on interface GigabitEthernet1/0/1 allowing VLANs 10,20,30",
+    "Create VLAN 100 named PRODUCTION and VLAN 200 named GUEST",
+    "Set up port-security on interface FastEthernet0/1 with maximum 2 MAC addresses",
+    // Layer 3 Switch Examples
+    "Configure inter-VLAN routing for VLANs 10, 20, 30",
+    "Set up SVI for VLAN 10 with IP 192.168.10.1/24",
+    "Enable IP routing and configure default gateway 192.168.1.254"
   ];
 
   return (
@@ -216,7 +219,7 @@ function Configurations() {
             <BotIcon className="h-8 w-8 text-blue-600" />
             LLM Configuration Generator
           </h1>
-          <p className="mt-2 text-gray-600">
+          <p className="mt-1 text-sm text-gray-600">
             Generate Cisco device configurations using local LLM with Ollama
           </p>
         </div>

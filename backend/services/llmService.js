@@ -9,7 +9,7 @@ export class LLMService {
     // Configuration
     this.provider = process.env.LLM_PROVIDER || 'openrouter';
     this.apiKey = process.env.OPENROUTER_API_KEY || '';
-    this.model = process.env.OPENROUTER_MODEL || 'anthropic/claude-haiku-4.5';
+    this.model = process.env.OPENROUTER_MODEL || 'qwen2.5-coder:7b';
     this.apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
     this.timeout = 120000; // 120 seconds
     

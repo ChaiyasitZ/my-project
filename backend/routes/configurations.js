@@ -265,7 +265,7 @@ router.post('/generate', async (req, res) => {
       prompt,
       generated_config: aiResult.configuration, // Clean version for output panel
       deployment_config: aiResult.deploymentConfig, // Clean version for device
-      ai_model: aiResult.model,
+      ai_model: 'qwen2.5-coder:7b', // Display name
       execution_time: executionTime,
       status: 'generated',
       created_at: currentTimestamp // Explicitly set timestamp
