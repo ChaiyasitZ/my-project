@@ -243,10 +243,10 @@ export class ConsoleService {
         }
       };
 
-      // Add the handler for initial setup
+      // Add handler for initial setup
       parser.on('data', dialogHandler);
       
-      // Remove the handler after 60 seconds to avoid interfering with normal operation
+      // Remove handler after 60 seconds to avoid interfering with normal operation
       setTimeout(() => {
         parser.removeListener('data', dialogHandler);
         console.log(`⏰ Removed initial configuration dialog handler for device ${deviceId} after 60 seconds`);
@@ -307,7 +307,7 @@ export class ConsoleService {
 
         parser.on('data', dataHandler);
         
-        // Send the command
+        // Send command
         console.log(`➡️ Sending console command: ${command}`);
         port.write(command + '\r\n', (err) => {
           if (err) {
@@ -351,10 +351,33 @@ export class ConsoleService {
       let configResults = [];
       let currentOutput = '';
 
-      // Prepare configuration commands
-      const commands = configCommands.split('\n')
-        .map(cmd => cmd.trim())
-        .filter(cmd => cmd && !cmd.startsWith('#'));
+      // Prepare configuration commands with special banner handling
+      const lines = configCommands.split('\n');
+      const commands = [];
+      let inBanner = false;
+      let bannerCommand = '';
+      
+      // Process lines to handle banner motd as a single command
+      for (const line of lines) {
+        const trimmed = line.trim();
+        
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        
+        if (trimmed.startsWith('banner motd')) {
+          inBanner = true;
+          bannerCommand = trimmed;
+        } else if (inBanner && trimmed === '#') {
+          // End of banner - combine into single command
+          inBanner = false;
+          commands.push(bannerCommand);
+          bannerCommand = '';
+        } else if (inBanner) {
+          // Skip banner content lines - they'll be handled by the banner command
+          continue;
+        } else {
+          commands.push(trimmed);
+        }
+      }
 
       console.log(`📋 Sending ${commands.length} configuration commands`);
 
@@ -576,11 +599,11 @@ interface {{management_interface}}
  description Management Interface{{interface_description_suffix}}
 {{ip_configuration}}
  no shutdown
-banner motd # 
+banner motd ^C
 === Authorized Access Only ===
 This system is for authorized users only.
 All activities are monitored and logged.
-#
+^C
 service password-encryption
 no ip http server
 no ip http secure-server
@@ -639,7 +662,7 @@ write memory`
       variables.ip_configuration = ` ip address ${variables.management_ip || '{{management_ip}}'} ${subnetMask}`;
     }
 
-    // Replace all variables in the template
+    // Replace all variables in template
     Object.entries(variables).forEach(([key, value]) => {
       const placeholder = `{{${key}}}`;
       config = config.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
@@ -649,4 +672,4 @@ write memory`
   }
 }
 
-export default new ConsoleService(); 
+export default new ConsoleService();
