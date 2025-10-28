@@ -222,10 +222,12 @@ export class SSHService {
     }
   }
 
-  async sendConfigCommands(deviceConfig, commands) {
+  async sendConfigCommands(deviceConfig, commands, options = {}) {
     try {
+      const { tolerateErrors = false } = options; // New option for backup restore
       console.log(`🔧 Starting configuration deployment to ${deviceConfig.ip_address}`);
       console.log(`📝 Commands to deploy:\n${commands}`);
+      console.log(`⚙️ Error tolerance: ${tolerateErrors ? 'ENABLED (backup restore mode)' : 'DISABLED (normal mode)'}`);
       
       // CRITICAL FIX: Always create a fresh connection for config deployment
       // Persistent connections can become stale and cause "Channel open failure"
@@ -291,14 +293,19 @@ export class SSHService {
                   console.log(`🔌 SSH connection closed after deployment`);
                 }, 500);
                 
-                // Return success=false if there were errors
-                if (hasErrors) {
+                // Handle errors based on tolerance mode
+                if (hasErrors && !tolerateErrors) {
+                  // Normal mode: Reject on errors
                   reject(new Error(`Configuration deployment completed with ${errorCount} error(s). Check device output.`));
                 } else {
+                  // Backup restore mode or no errors: Return success with warnings if needed
                   resolve({
                     success: true,
                     output: output.trim(),
-                    commandsExecuted: allCommands
+                    commandsExecuted: allCommands,
+                    errorCount: errorCount,
+                    hasWarnings: hasErrors,
+                    warningMessage: hasErrors ? `Deployment completed with ${errorCount} warning(s) - some commands may have failed but restore continued` : null
                   });
                 }
               }, 2000);
@@ -2487,27 +2494,40 @@ export class SSHService {
     }
   }
 
-  // Optimized restore using persistent sessions
+  // Optimized restore using persistent sessions with error tolerance
   async applyConfigurationFromBackup(deviceConfig, configCommands) {
     try {
       console.log(`🔄 Starting backup restore for ${deviceConfig.ip_address}`);
       console.log(`📝 Configuration to restore (${configCommands.length} characters):`);
       console.log(`First 500 chars: ${configCommands.substring(0, 500)}`);
       
-      // Use traditional sendConfigCommands which properly handles config mode
-      const result = await this.sendConfigCommands(deviceConfig, configCommands);
+      // Use sendConfigCommands with error tolerance enabled for backup restore
+      // This allows the restore to continue even if some commands fail
+      const result = await this.sendConfigCommands(deviceConfig, configCommands, { tolerateErrors: true });
       
       console.log(`✅ Backup configuration restored for ${deviceConfig.ip_address}`);
       console.log(`📊 Restore result:`, {
         success: result.success,
         commandsExecuted: result.commandsExecuted?.length || 0,
-        outputLength: result.output?.length || 0
+        outputLength: result.output?.length || 0,
+        errorCount: result.errorCount || 0,
+        hasWarnings: result.hasWarnings || false
       });
+      
+      // Log any warnings but still return success
+      if (result.hasWarnings) {
+        console.warn(`⚠️ Restore completed with ${result.errorCount} warning(s) for ${deviceConfig.ip_address}`);
+        console.warn(`⚠️ Some commands may have failed, but configuration was mostly restored`);
+      }
       
       return {
         success: true,
         output: result.output,
-        message: 'Backup configuration restored successfully'
+        message: result.hasWarnings 
+          ? `Backup configuration restored with ${result.errorCount} warning(s) - some commands may have failed`
+          : 'Backup configuration restored successfully',
+        errorCount: result.errorCount || 0,
+        hasWarnings: result.hasWarnings || false
       };
       
     } catch (error) {
@@ -2634,4 +2654,4 @@ export class SSHService {
   }
 }
 
-export default new SSHService(); 
+export default new SSHService();

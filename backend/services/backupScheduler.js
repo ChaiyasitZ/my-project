@@ -354,7 +354,7 @@ class BackupScheduler {
     }
   }
 
-  // Trigger post-deployment backups for all schedules with trigger_on_deploy enabled
+  // Trigger post-deployment backups ONLY for devices that have active post-deploy schedules
   async triggerPostDeploySchedules(deviceIds = null) {
     try {
       const schedules = await BackupSchedule.find({ 
@@ -365,23 +365,63 @@ class BackupScheduler {
       .populate('device_ids', 'name type ip_address')
       .lean();
 
-      console.log(`📋 Found ${schedules.length} post-deployment schedules to trigger`);
+      if (schedules.length === 0) {
+        console.log(`📋 No post-deployment schedules found - skipping auto-backup`);
+        return {
+          success: true,
+          message: 'No post-deployment schedules configured',
+          results: []
+        };
+      }
 
+      console.log(`📋 Found ${schedules.length} post-deployment schedules`);
+
+      // If specific device IDs are provided, filter schedules to only those that include these devices
       const results = [];
+      const processedDeviceIds = new Set();
 
       for (const schedule of schedules) {
-        const targetDeviceIds = deviceIds || schedule.device_ids.map(d => d._id.toString());
+        // Get device IDs from this schedule
+        const scheduleDeviceIds = schedule.device_ids.map(d => d._id.toString());
         
-        console.log(`🚀 Triggering post-deployment schedule: ${schedule.name}`);
+        // If specific deviceIds are provided, only backup devices that are:
+        // 1. In the deployment list (deviceIds)
+        // 2. AND in this schedule's device list
+        let targetDeviceIds;
+        if (deviceIds && deviceIds.length > 0) {
+          targetDeviceIds = scheduleDeviceIds.filter(id => deviceIds.includes(id));
+          
+          // Skip this schedule if no matching devices
+          if (targetDeviceIds.length === 0) {
+            console.log(`⏭️ Schedule "${schedule.name}" has no devices in deployment list - skipping`);
+            continue;
+          }
+        } else {
+          targetDeviceIds = scheduleDeviceIds;
+        }
+
+        // Only backup devices that haven't been processed yet (avoid duplicates)
+        const devicesToBackup = targetDeviceIds.filter(id => !processedDeviceIds.has(id));
+        
+        if (devicesToBackup.length === 0) {
+          console.log(`⏭️ All devices for schedule "${schedule.name}" already processed - skipping`);
+          continue;
+        }
+
+        console.log(`🚀 Triggering post-deployment schedule: ${schedule.name} for ${devicesToBackup.length} device(s)`);
         
         const result = await this.executePostDeployBackup(
-          targetDeviceIds, 
+          devicesToBackup, 
           schedule.name
         );
+        
+        // Mark these devices as processed
+        devicesToBackup.forEach(id => processedDeviceIds.add(id));
         
         results.push({
           schedule_id: schedule._id,
           schedule_name: schedule.name,
+          devices_backed_up: devicesToBackup.length,
           result: result
         });
 
@@ -397,11 +437,20 @@ class BackupScheduler {
       }
 
       const totalSuccess = results.filter(r => r.result.success).length;
+      const totalDevicesBackedUp = processedDeviceIds.size;
+      
+      // If specific devices were provided but none were backed up, log info
+      if (deviceIds && deviceIds.length > 0 && totalDevicesBackedUp === 0) {
+        console.log(`ℹ️ None of the ${deviceIds.length} deployed device(s) have post-deployment schedules configured - no auto-backup created`);
+      }
       
       return {
         success: totalSuccess > 0,
-        message: `Triggered ${schedules.length} post-deployment schedules: ${totalSuccess} successful`,
-        results: results
+        message: totalDevicesBackedUp > 0 
+          ? `Post-deployment backup completed for ${totalDevicesBackedUp} device(s) with schedules`
+          : 'No devices with post-deployment schedules found',
+        results: results,
+        devices_backed_up: totalDevicesBackedUp
       };
 
     } catch (error) {

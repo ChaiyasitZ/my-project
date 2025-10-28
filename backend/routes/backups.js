@@ -728,7 +728,7 @@ router.post('/:id/restore', async (req, res) => {
         throw new Error('Failed to restore configuration');
       }
       
-      // Record the restore operation in configuration history
+      // Record the restore operation in configuration history with rollback tag
       const configHistory = new ConfigurationHistory({
         device_id: device._id,
         prompt: `Configuration restored from backup: ${backup.backup_name}`,
@@ -737,7 +737,16 @@ router.post('/:id/restore', async (req, res) => {
         status: 'applied',
         ai_model: 'backup_restore',
         execution_time: 0,
-                  applied_at: Date.now()
+        applied_at: Date.now(),
+        tags: ['rollback', 'restore', backup._id.toString()], // Add rollback tag for easy identification
+        metadata: {
+          restore_source: 'backup',
+          backup_id: backup._id,
+          backup_name: backup.backup_name,
+          restore_type: restore_type,
+          config_source: configSource,
+          checkpoint_id: checkpointId
+        }
       });
       
       await configHistory.save();
