@@ -10,6 +10,7 @@ import devicesRouter from './routes/devices.js';
 import configurationsRouter from './routes/configurations.js';
 import consoleRouter from './routes/console.js';
 import backupsRouter from './routes/backups.js';
+import backupScheduler from './services/backupScheduler.js';
 
 
 const app = express();
@@ -62,7 +63,9 @@ app.get('/api/health', async (req, res) => {
       timestamp: new Date().toISOString(),
       version: '2.0.0',
       environment: config.server.nodeEnv,
-      database: 'MongoDB Atlas'
+      database: 'MongoDB Atlas',
+      scheduler_active: backupScheduler.isInitialized,
+      active_schedules: backupScheduler.getActiveSchedules().length
     });
   } catch (error) {
     res.status(503).json({
@@ -94,7 +97,8 @@ app.get('/', (req, res) => {
       '🎯 Simple and reliable',
       '📝 Configuration validation',
       '💾 Configuration history',
-      '🔧 Real-time monitoring'
+      '🔧 Real-time monitoring',
+      '📅 Automated backup scheduling'
     ],
     endpoints: {
       health: '/api/health',
@@ -135,6 +139,10 @@ process.on('SIGTERM', async () => {
   console.log('🛑 SIGTERM received, shutting down gracefully');
   
   try {
+    // Stop backup scheduler
+    backupScheduler.stopAll();
+    console.log('✅ Backup scheduler stopped');
+    
     // Close MongoDB connection
     await mongoose.connection.close();
     console.log('✅ MongoDB connection closed');
@@ -150,6 +158,10 @@ process.on('SIGINT', async () => {
   console.log('🛑 SIGINT received, shutting down gracefully');
   
   try {
+    // Stop backup scheduler
+    backupScheduler.stopAll();
+    console.log('✅ Backup scheduler stopped');
+    
     // Close MongoDB connection
     await mongoose.connection.close();
     console.log('✅ MongoDB connection closed');
@@ -183,7 +195,15 @@ connectToMongoDB().then(() => {
     console.log(`🤖 Ollama Host: ${config.ollama.host}`);
     console.log(`🧠 AI Model: ${config.ollama.model}`);
     console.log(`🔗 Frontend URL: ${config.cors.origin}`);
+    
+    // Initialize backup scheduler after server starts
+    try {
+      await backupScheduler.initialize();
+      console.log('📅 Backup scheduler service started');
+    } catch (error) {
+      console.error('❌ Failed to initialize backup scheduler:', error);
+    }
   });
 });
 
-export default app; 
+export default app;

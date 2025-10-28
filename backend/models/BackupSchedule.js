@@ -17,7 +17,7 @@ const backupScheduleSchema = new mongoose.Schema({
   }],
   schedule_type: {
     type: String,
-    enum: ['immediate', 'daily', 'weekly', 'monthly', 'manual'],
+    enum: ['immediate', 'daily', 'weekly', 'monthly', 'manual', 'post-deploy'],
     default: 'manual'
   },
   schedule_config: {
@@ -61,6 +61,10 @@ const backupScheduleSchema = new mongoose.Schema({
   enabled: {
     type: Boolean,
     default: true
+  },
+  trigger_on_deploy: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

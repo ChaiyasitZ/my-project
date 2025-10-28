@@ -6,6 +6,7 @@ import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import ConfigurationBackup from '../models/ConfigurationBackup.js';
 import llmService from '../services/llmService.js';
 import sshService from '../services/sshService.js';
+import backupScheduler from '../services/backupScheduler.js';
 
 const router = express.Router();
 
@@ -454,6 +455,14 @@ router.post('/session-apply', async (req, res) => {
         configuration.deployment_time = deploymentTime;
         await configuration.save();
         
+        // Trigger post-deployment backup schedules
+        try {
+          console.log(`🚀 Triggering post-deployment backup schedules for device ${configuration.device._id}...`);
+          await backupScheduler.triggerPostDeploySchedules([configuration.device._id.toString()]);
+        } catch (scheduleError) {
+          console.warn(`⚠️ Failed to trigger post-deployment schedules: ${scheduleError.message}`);
+        }
+        
         res.json({
           success: true,
           message: 'Configuration applied successfully using existing SSH session with auto-backups (no enable needed)',
@@ -611,6 +620,14 @@ router.post('/fast-apply', async (req, res) => {
         configuration.applied_at = Date.now();
         configuration.deployment_time = deploymentTime;
         await configuration.save();
+        
+        // Trigger post-deployment backup schedules
+        try {
+          console.log(`🚀 Triggering post-deployment backup schedules for device ${configuration.device._id}...`);
+          await backupScheduler.triggerPostDeploySchedules([configuration.device._id.toString()]);
+        } catch (scheduleError) {
+          console.warn(`⚠️ Failed to trigger post-deployment schedules: ${scheduleError.message}`);
+        }
         
         res.json({
           success: true,
@@ -785,6 +802,14 @@ router.post('/apply', async (req, res) => {
       configuration.applied_at = Date.now();
       configuration.deployment_time = deploymentTime;
       await configuration.save();
+      
+      // Trigger post-deployment backup schedules
+      try {
+        console.log(`🚀 Triggering post-deployment backup schedules for device ${device._id}...`);
+        await backupScheduler.triggerPostDeploySchedules([device._id.toString()]);
+      } catch (scheduleError) {
+        console.warn(`⚠️ Failed to trigger post-deployment schedules: ${scheduleError.message}`);
+      }
       
       res.json({
         success: true,
@@ -1014,6 +1039,7 @@ router.post('/apply-multi', async (req, res) => {
     console.log(`📡 Applying configurations to ${configuration_ids.length} devices`);
     
     const results = [];
+    const deployedDeviceIds = [];
     
     for (const configId of configuration_ids) {
       try {
@@ -1056,6 +1082,8 @@ router.post('/apply-multi', async (req, res) => {
         configuration.applied_at = Date.now();
         await configuration.save();
         
+        deployedDeviceIds.push(device._id.toString());
+        
         results.push({
           configuration_id: configId,
           device_name: device.name,
@@ -1084,6 +1112,16 @@ router.post('/apply-multi', async (req, res) => {
       }
     }
     
+    // Trigger post-deployment backup schedules for all successfully deployed devices
+    if (deployedDeviceIds.length > 0) {
+      try {
+        console.log(`🚀 Triggering post-deployment backup schedules for ${deployedDeviceIds.length} devices...`);
+        await backupScheduler.triggerPostDeploySchedules(deployedDeviceIds);
+      } catch (scheduleError) {
+        console.warn(`⚠️ Failed to trigger post-deployment schedules: ${scheduleError.message}`);
+      }
+    }
+    
     const successCount = results.filter(r => r.success).length;
     
     console.log(`✅ Multi-device apply completed: ${successCount}/${configuration_ids.length} successful`);
@@ -1109,4 +1147,4 @@ router.post('/apply-multi', async (req, res) => {
   }
 });
 
-export default router; 
+export default router;

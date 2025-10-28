@@ -6,6 +6,7 @@ import ConfigurationBackup from '../models/ConfigurationBackup.js';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import BackupSchedule from '../models/BackupSchedule.js';
 import sshService from '../services/sshService.js';
+import backupScheduler from '../services/backupScheduler.js';
 
 const router = express.Router();
 
@@ -1358,6 +1359,29 @@ router.delete('/schedules/:id', async (req, res) => {
   }
 });
 
+// POST /api/backups/schedules/:id/trigger - Manually trigger a scheduled backup
+router.post('/schedules/:id/trigger', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = await backupScheduler.triggerSchedule(id);
+    
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json(result);
+    }
+
+  } catch (error) {
+    console.error('Error triggering backup schedule:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to trigger backup schedule',
+      error: error.message
+    });
+  }
+});
+
 // POST /api/backups/custom - Create backup with custom name and description (for post-deploy popup)
 router.post('/custom', async (req, res) => {
   try {
@@ -1439,4 +1463,87 @@ router.post('/custom', async (req, res) => {
   }
 });
 
-export default router; 
+// POST /api/backups/post-deploy-schedule - Create post-deployment backup schedule with device selection
+router.post('/post-deploy-schedule', async (req, res) => {
+  try {
+    const {
+      name,
+      description,
+      device_ids,
+      schedule_type = 'post-deploy',
+      backup_type = 'running-config',
+      enabled = true,
+      trigger_on_deploy = true
+    } = req.body;
+
+    if (!name || !device_ids || device_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Schedule name and at least one device are required'
+      });
+    }
+
+    // Validate device IDs
+    for (const device_id of device_ids) {
+      const device = await Device.findById(device_id);
+      if (!device) {
+        return res.status(404).json({
+          success: false,
+          message: `Device ${device_id} not found`
+        });
+      }
+    }
+
+    // Create post-deployment backup schedule
+    const schedule = new BackupSchedule({
+      name,
+      description: description || `Post-deployment backup schedule for selected devices: ${name}`,
+      device_ids,
+      schedule_type,
+      backup_type,
+      enabled,
+      created_by: 'user',
+      trigger_on_deploy
+    });
+
+    await schedule.save();
+    console.log(`📅 Post-deployment backup schedule created: ${name} for ${device_ids.length} devices`);
+
+    res.status(201).json({
+      success: true,
+      message: `Post-deployment backup schedule created successfully for ${device_ids.length} devices`,
+      schedule: {
+        id: schedule._id,
+        name: schedule.name,
+        description: schedule.description,
+        device_count: device_ids.length,
+        devices: await Promise.all(
+          device_ids.map(async (device_id) => {
+            const device = await Device.findById(device_id);
+            return {
+              id: device._id,
+              name: device.name,
+              type: device.type,
+              ip_address: device.ip_address
+            };
+          })
+        ),
+        schedule_type: schedule.schedule_type,
+        backup_type: schedule.backup_type,
+        enabled: schedule.enabled,
+        trigger_on_deploy: schedule.trigger_on_deploy,
+        created_at: schedule.createdAt
+      }
+    });
+
+  } catch (error) {
+    console.error('Error creating post-deployment backup schedule:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create post-deployment backup schedule',
+      error: error.message
+    });
+  }
+});
+
+export default router;
