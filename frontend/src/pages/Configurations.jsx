@@ -372,12 +372,12 @@ function Configurations() {
                 <div className="mt-2 flex items-center text-xs text-gray-500">
                   <BotIcon className="h-3 w-3 mr-1" />
                   <span>Generated with: <span className="font-mono font-medium">{generatedConfig.ai_model}</span></span>
-                  {generatedConfig.execution_time && (
-                    <span className="ml-3">• Generation: {generatedConfig.execution_time}ms</span>
-                  )}
-                  {generatedConfig.deployment_time && (
-                    <span className="ml-3 text-green-600 font-medium">• Deploy: {(generatedConfig.deployment_time / 1000).toFixed(2)}s</span>
-                  )}
+                {generatedConfig.execution_time && (
+                  <span className="ml-3 text-green-600 font-medium">• Generation: {(generatedConfig.execution_time / 1000).toFixed(2)}s</span>
+                )}
+                {generatedConfig.deployment_time && (
+                  <span className="ml-3 text-green-600 font-medium">• Deploy: {(generatedConfig.deployment_time / 1000).toFixed(2)}s</span>
+                )}
                 </div>
               </div>
 
@@ -497,4 +497,4 @@ function Configurations() {
   );
 }
 
-export default Configurations; 
+export default Configurations;
