@@ -37,6 +37,14 @@ export class LLMService {
     
     // Knowledge base for enhanced context
     this.knowledgeBase = this._initializeKnowledgeBase();
+
+    // In-memory prompt templates (can be strings or functions)
+    this.promptTemplates = {
+      cisco_cli: {
+        system: (prompt, deviceType) => this._buildSystemMessage(prompt, deviceType),
+        user: (prompt, deviceType, deviceContext) => this._buildUserMessage(prompt, deviceType, deviceContext)
+      }
+    };
     
     if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
       console.warn(`⚠️ OpenRouter API key not configured! Please set OPENROUTER_API_KEY in .env`);
@@ -48,7 +56,7 @@ export class LLMService {
   /**
    * Generate Cisco configuration from text prompt using OpenRouter
    */
-  async generateConfiguration(prompt, deviceType, deviceContext = {}) {
+  async generateConfiguration(prompt, deviceType, deviceContext = {}, templateName = 'cisco_cli') {
     const startTime = Date.now();
     
     try {
@@ -59,11 +67,19 @@ export class LLMService {
         throw new Error('OpenRouter API key not configured. Please set OPENROUTER_API_KEY in .env file');
       }
 
-      // Build system message with knowledge context
-      const systemMessage = this._buildSystemMessage(prompt, deviceType);
-      
-      // Build user message with the actual request
-      const userMessage = this._buildUserMessage(prompt, deviceType, deviceContext);
+      // Build system/user messages - use named template when available
+      let systemMessage;
+      let userMessage;
+      const built = this.buildFromTemplate(templateName, prompt, deviceType, deviceContext);
+      if (built.success) {
+        systemMessage = built.system;
+        userMessage = built.user;
+        console.log(`🧩 Using prompt template: ${templateName}`);
+      } else {
+        // Fallback to default builders
+        systemMessage = this._buildSystemMessage(prompt, deviceType);
+        userMessage = this._buildUserMessage(prompt, deviceType, deviceContext);
+      }
       
       console.log(`📝 System message length: ${systemMessage.length} characters`);
       console.log(`📝 User message length: ${userMessage.length} characters`);
@@ -131,8 +147,11 @@ export class LLMService {
       const charCodes = firstLine.split('').map(c => c.charCodeAt(0)).join(',');
       console.log(`🔍 First line char codes: ${charCodes.substring(0, 100)}...`);
       
-      const deploymentConfig = this._createDeploymentVersion(cleanConfig);
-      const validation = this._validateConfiguration(cleanConfig, deviceType);
+  // Ensure trunk allowed VLANs are present when the prompt requests a trunk
+  const ensuredConfig = this._ensureTrunkAllowed(cleanConfig, prompt);
+
+  const deploymentConfig = this._createDeploymentVersion(ensuredConfig);
+  const validation = this._validateConfiguration(ensuredConfig, deviceType);
       
       const executionTime = Date.now() - startTime;
       const tokensUsed = response.data?.usage?.total_tokens || 0;
@@ -144,7 +163,7 @@ export class LLMService {
       return {
         success: true,
         configuration: deploymentConfig,
-        displayConfig: cleanConfig,
+        displayConfig: ensuredConfig,
         deploymentConfig,
         model: this.model,
         provider: 'openrouter',
@@ -182,8 +201,6 @@ export class LLMService {
         configuration: null,
         executionTime,
         suggestions: [
-          'Check if OPENROUTER_API_KEY is set in .env file',
-          'Verify your OpenRouter account has credits',
           'Check your internet connection',
           'Try a different model if the current one is unavailable',
           'Simplify your prompt if it\'s too complex'
@@ -505,7 +522,6 @@ export class LLMService {
           syntax: [
             "vlan [vlan-id]",
             "name [vlan-name]",
-            "state [active|suspend]",
             "switchport mode access",
             "switchport access vlan [vlan-id]",
             "switchport mode trunk",
@@ -1651,6 +1667,123 @@ Commands:`;
   }
 
   /**
+   * Parse VLAN tokens from a prompt string. Returns a comma-separated list like '10,20,30'
+   */
+  _parseVlanList(prompt) {
+    if (!prompt || typeof prompt !== 'string') return null;
+
+    // First, try to find an explicit VLAN list following the word 'vlan' or 'vlans'
+    // Examples it will catch: 'vlan 10,20,30', 'vlans 10-20,30', 'allow VLANs 10,20'
+    const explicitPattern = /vlan(?:s)?\s*(?:allow(?:ed|ing)?\s*)?:?\s*([\d\s,\-]+)/i;
+    const explicitMatch = prompt.match(explicitPattern);
+    if (explicitMatch && explicitMatch[1]) {
+      const raw = explicitMatch[1];
+      // Split on commas/spaces and normalize ranges
+      const parts = raw.split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
+      const tokens = [];
+      const seen = new Set();
+      for (let p of parts) {
+        p = p.replace(/\s*-\s*/g, '-'); // normalize ranges like '10 - 20' -> '10-20'
+        if (/^\d+$/.test(p) || /^\d+-\d+$/.test(p)) {
+          if (!seen.has(p)) { seen.add(p); tokens.push(p); }
+        }
+      }
+      if (tokens.length > 0) return tokens.join(',');
+    }
+
+    // Fallback: look for numbers near keywords 'allow' or 'allowed'
+    const allowPattern = /allow(?:ing)?\s*(?:vlan(?:s)?\s*)?:?\s*([\d\s,\-]+)/i;
+    const allowMatch = prompt.match(allowPattern);
+    if (allowMatch && allowMatch[1]) {
+      const raw = allowMatch[1];
+      const parts = raw.split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
+      const tokens = [];
+      const seen = new Set();
+      for (let p of parts) {
+        p = p.replace(/\s*-\s*/g, '-');
+        if (/^\d+$/.test(p) || /^\d+-\d+$/.test(p)) {
+          if (!seen.has(p)) { seen.add(p); tokens.push(p); }
+        }
+      }
+      if (tokens.length > 0) return tokens.join(',');
+    }
+
+    // Last resort: extract numeric tokens but avoid numbers that are part of interface identifiers
+    const regex = /(\d+(?:-\d+)?)/g;
+    const tokens = [];
+    const seen = new Set();
+    let m;
+    while ((m = regex.exec(prompt)) !== null) {
+      const token = m[1];
+      const idx = m.index;
+      const before = prompt[idx - 1] || '';
+      const after = prompt[idx + token.length] || '';
+      // Skip numbers that are adjacent to a slash (part of interface like 1/0/1)
+      if (before === '/' || after === '/') continue;
+      // Skip if token is part of a larger alphanumeric token (e.g., 'Gi1')
+      if (/[A-Za-z]/.test(before) || /[A-Za-z]/.test(after)) continue;
+      if (!seen.has(token)) { seen.add(token); tokens.push(token); }
+    }
+    return tokens.length ? tokens.join(',') : null;
+  }
+
+  /**
+   * Ensure that when the prompt requests a trunk allowing specific VLANs,
+   * the generated configuration contains 'switchport trunk allowed vlan <list>'.
+   * This inserts the command after 'switchport mode trunk' or creates a trunk block
+   * under the first interface found if needed.
+   */
+  _ensureTrunkAllowed(configuration, prompt) {
+    try {
+      if (!configuration || !prompt) return configuration;
+
+      const lower = prompt.toLowerCase();
+      // Only act when prompt mentions trunk and vlan(s)
+      if (!/trunk/i.test(lower) || !/(vlan|vlans)/i.test(lower)) {
+        return configuration;
+      }
+
+      const vlanList = this._parseVlanList(prompt);
+      if (!vlanList) return configuration;
+
+      // If already present, nothing to do
+      if (/switchport trunk allowed vlan/i.test(configuration)) return configuration;
+
+      const lines = configuration.split('\n');
+
+      // Try to insert after the first 'switchport mode trunk' occurrence
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim().toLowerCase() === 'switchport mode trunk') {
+          // Insert a single-space indented allowed vlan line
+          const insertLine = ' switchport trunk allowed vlan ' + vlanList;
+          lines.splice(i + 1, 0, insertLine);
+          console.log(`ℹ️ Inserted 'switchport trunk allowed vlan ${vlanList}' after switchport mode trunk`);
+          return lines.join('\n');
+        }
+      }
+
+      // If no 'switchport mode trunk' found, attempt to add trunk commands under the first interface
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim().toLowerCase().startsWith('interface ')) {
+          const insertLines = [
+            ' switchport mode trunk',
+            ` switchport trunk allowed vlan ${vlanList}`,
+            ' no shutdown'
+          ];
+          lines.splice(i + 1, 0, ...insertLines);
+          console.log(`ℹ️ Added trunk block with allowed VLANs ${vlanList} under ${lines[i].trim()}`);
+          return lines.join('\n');
+        }
+      }
+
+      return configuration;
+    } catch (err) {
+      console.error('⚠️ _ensureTrunkAllowed error:', err.message);
+      return configuration;
+    }
+  }
+
+  /**
    * Get service status
    */
   async getServiceStatus() {
@@ -1815,6 +1948,83 @@ Commands:`;
         error: `Failed to retrieve knowledge: ${error.message}`
       };
     }
+  }
+
+  /**
+   * Prompt template helpers
+   * Templates may be functions (prompt, deviceType, deviceContext) => string
+   * or string templates using {{prompt}}, {{deviceType}} and {{deviceName}} placeholders.
+   */
+  listPromptTemplates() {
+    return Object.keys(this.promptTemplates || {});
+  }
+
+  getPromptTemplate(name) {
+    const tpl = (this.promptTemplates || {})[name];
+    if (!tpl) return { success: false, error: 'Template not found' };
+    // Provide previews by invoking functions with placeholders
+    const previewSystem = typeof tpl.system === 'function' ? tpl.system('{{prompt}}', '{{deviceType}}', { name: '{{deviceName}}' }) : tpl.system;
+    const previewUser = typeof tpl.user === 'function' ? tpl.user('{{prompt}}', '{{deviceType}}', { name: '{{deviceName}}' }) : tpl.user;
+    return { success: true, templateName: name, hasSystem: !!tpl.system, hasUser: !!tpl.user, previewSystem, previewUser };
+  }
+
+  setPromptTemplate(name, { system, user } = {}) {
+    if (!this.promptTemplates) this.promptTemplates = {};
+
+    const makeFn = (val, type) => {
+      if (!val) return undefined;
+      if (typeof val === 'function') return val;
+      if (typeof val === 'string') {
+        // Return a function that substitutes placeholders
+        return (prompt, deviceType, deviceContext) => {
+          const ctx = deviceContext || {};
+          return val
+            .replace(/\{\{prompt\}\}/g, prompt || '')
+            .replace(/\{\{deviceType\}\}/g, deviceType || '')
+            .replace(/\{\{deviceName\}\}/g, ctx.name || '');
+        };
+      }
+      throw new Error(`${type} must be a string or function`);
+    };
+
+    this.promptTemplates[name] = {
+      system: makeFn(system, 'system'),
+      user: makeFn(user, 'user')
+    };
+
+    return { success: true, message: `Template ${name} set`, template: name };
+  }
+
+  /**
+   * Runtime setters for API key, model and default params
+   */
+  setApiKey(key) {
+    this.apiKey = key;
+    if (this.client && this.client.defaults && this.client.defaults.headers) {
+      this.client.defaults.headers['Authorization'] = `Bearer ${key}`;
+    }
+    return { success: true, apiKeySet: !!key };
+  }
+
+  setModel(model) {
+    this.model = model;
+    return { success: true, model: this.model };
+  }
+
+  updateDefaultParams(params = {}) {
+    this.defaultParams = { ...this.defaultParams, ...params };
+    return { success: true, defaultParams: this.defaultParams };
+  }
+
+  /**
+   * Build system + user messages from a named template
+   */
+  buildFromTemplate(name, prompt, deviceType, deviceContext = {}) {
+    const tpl = (this.promptTemplates || {})[name];
+    if (!tpl) return { success: false, error: 'Template not found' };
+    const system = tpl.system ? tpl.system(prompt, deviceType, deviceContext) : this._buildSystemMessage(prompt, deviceType);
+    const user = tpl.user ? tpl.user(prompt, deviceType, deviceContext) : this._buildUserMessage(prompt, deviceType, deviceContext);
+    return { success: true, system, user };
   }
 
   /**
