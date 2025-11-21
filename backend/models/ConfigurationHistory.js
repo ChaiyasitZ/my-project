@@ -21,7 +21,7 @@ const configurationHistorySchema = new mongoose.Schema({
   },
   ai_model: {
     type: String,
-    default: 'ollama'
+    default: 'openrouter'
   },
   execution_time: {
     type: Number,

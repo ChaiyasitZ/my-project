@@ -192,14 +192,13 @@ connectToMongoDB().then(() => {
   app.listen(PORT, async () => {
     console.log(`🚀 Network Automation API server running on port ${PORT}`);
     console.log(`🌍 Environment: ${config.server.nodeEnv}`);
-    console.log(`🤖 Ollama Host: ${config.ollama.host}`);
-    console.log(`🧠 AI Model: ${config.ollama.model}`);
+    console.log(`🤖 LLM Provider: ${config.llm.provider}`);
+    console.log(`🧠 LLM Model: ${config.llm.model}`);
     console.log(`🔗 Frontend URL: ${config.cors.origin}`);
     
     // Initialize backup scheduler after server starts
     try {
       await backupScheduler.initialize();
-      console.log('📅 Backup scheduler service started');
     } catch (error) {
       console.error('❌ Failed to initialize backup scheduler:', error);
     }

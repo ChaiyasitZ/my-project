@@ -37,7 +37,7 @@ A comprehensive network automation platform featuring **template-based configura
 ### **Required Software**
 1. **Node.js** (v18+): [Download](https://nodejs.org/)
 2. **MongoDB** (v6+): Choose one option below
-3. **Ollama**: [Download](https://ollama.com/) for AI fallback
+3. **OpenRouter API Key**: [Get your key](https://openrouter.ai/) for AI configuration generation
 
 ### **MongoDB Setup Options**
 
@@ -110,10 +110,6 @@ node scripts/initConfigurationTemplates.js
 
 ### **3. Start Services**
 ```bash
-# Start Ollama (for AI fallback)
-ollama serve
-ollama pull codellama:13b
-
 # Start backend (terminal 1)
 cd backend
 npm start
@@ -271,9 +267,10 @@ Templates support dynamic variables with defaults:
 # MongoDB
 MONGODB_URI=mongodb://localhost:27017/network_automation
 
-# Ollama AI (for fallback)
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=codellama:13b
+# OpenRouter LLM
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=your_api_key_here
+OPENROUTER_MODEL=anthropic/claude-haiku-4.5
 
 # Server
 PORT=3001

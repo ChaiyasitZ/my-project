@@ -220,7 +220,7 @@ function Configurations() {
             LLM Configuration Generator
           </h1>
           <p className="mt-1 text-sm text-gray-600">
-            Generate Cisco device configurations using local LLM with Ollama
+            Generate Cisco device configurations using AI-powered LLM via OpenRouter
           </p>
         </div>
         <button

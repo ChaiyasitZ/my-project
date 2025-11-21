@@ -9,7 +9,7 @@ export class LLMService {
     // Configuration
     this.provider = process.env.LLM_PROVIDER || 'openrouter';
     this.apiKey = process.env.OPENROUTER_API_KEY || '';
-    this.model = process.env.OPENROUTER_MODEL || 'qwen2.5-coder:7b';
+    this.model = process.env.OPENROUTER_MODEL || '';
     this.apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
     this.timeout = 120000; // 120 seconds
     
@@ -49,7 +49,7 @@ export class LLMService {
     if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
       console.warn(`⚠️ OpenRouter API key not configured! Please set OPENROUTER_API_KEY in .env`);
     } else {
-      console.log(`🤖 LLM Service initialized - Provider: ${this.provider}, Model: ${this.model}`);
+      console.log(`..........................`);
     }
   }
 
@@ -1120,14 +1120,7 @@ Configuration Request: ${processedPrompt}
 Generate the Cisco IOS commands now:`;
   }
 
-  /**
-   * Build knowledge-enhanced prompt (legacy method for compatibility)
-   */
-  _buildPromptWithKnowledge(prompt, deviceType, deviceContext) {
-    const systemMsg = this._buildSystemMessage(prompt, deviceType);
-    const userMsg = this._buildUserMessage(prompt, deviceType, deviceContext);
-    return `${systemMsg}\n\n${userMsg}`;
-  }
+
 
   /**
    * Get relevant knowledge based on prompt content
@@ -1338,24 +1331,7 @@ Generate the Cisco IOS commands now:`;
     });
   }
 
-  /**
-   * Build prompt for raw device commands (legacy method)
-   */
-  _buildPrompt(prompt, deviceType, deviceContext) {
-    const deviceName = deviceContext.name || 'Device';
-    
-    // Pre-process CIDR notation in the prompt
-    const processedPrompt = this._preprocessCIDR(prompt);
-    
-    return `Generate only the raw Cisco IOS commands to send to the device. No configure terminal, no end, just the commands.
 
-Device: ${deviceName} (${deviceType})
-Request: ${processedPrompt}
-
-IMPORTANT: Use wildcard masks for OSPF network commands, not subnet masks.
-
-Commands:`;
-  }
 
   /**
    * Pre-process CIDR notation to include wildcard mask hints
@@ -2027,167 +2003,11 @@ Commands:`;
     return { success: true, system, user };
   }
 
-  /**
-   * Explain configuration
-   */
-  async explainConfiguration(configuration) {
-    try {
-      const prompt = `Explain this Cisco configuration:
 
-${configuration.substring(0, 400)}
 
-Brief explanation:`;
 
-      const response = await this.client.post("/api/generate", {
-        model: this.model,
-        prompt: prompt,
-        stream: false,
-        options: { temperature: 0.3, num_predict: 150 }
-      });
 
-      return {
-        success: true,
-        explanation: response.data.response?.trim() || "No explanation generated",
-        model: this.model,
-        method: 'clean_explain'
-      };
-    } catch (error) {
-      return {
-        success: false,
-        explanation: "Configuration explanation failed",
-        error: error.message
-      };
-    }
-  }
 
-  /**
-   * Multi-device configuration generation
-   */
-  async generateMultiDeviceConfiguration(devices, prompt, topologyHints = {}) {
-    const startTime = Date.now();
-    
-    try {
-      console.log(`🚀 Multi-device generation for ${devices.length} devices`);
-      
-      const promises = devices.map(async (device, index) => {
-        console.log(`🔄 Generating ${index + 1}/${devices.length}: ${device.name}`);
-        
-        const devicePrompt = `${prompt} for device ${device.name}`;
-        const result = await this.generateConfiguration(devicePrompt, device.type, {
-          name: device.name,
-          model: device.model,
-          location: device.location
-        });
-
-        return {
-          device_id: device.id,
-          device_name: device.name,
-          success: result.success,
-          configuration: result.configuration || null,
-          displayConfig: result.displayConfig || null,
-          deploymentConfig: result.deploymentConfig || null,
-          error: result.error || null,
-          validation: result.validation || null
-        };
-      });
-
-      const results = await Promise.all(promises);
-      const successCount = results.filter(r => r.success).length;
-      const executionTime = Date.now() - startTime;
-
-      console.log(`✅ Multi-device: ${successCount}/${devices.length} successful (${executionTime}ms)`);
-
-      return {
-        success: successCount > 0,
-        results,
-        executionTime,
-        method: 'clean_multi',
-        model: this.model,
-        summary: {
-          successfulDevices: successCount,
-          totalDevices: devices.length,
-          description: `${successCount}/${devices.length} devices configured`
-        }
-      };
-
-    } catch (error) {
-      console.error("❌ Multi-device error:", error.message);
-      
-      return {
-        success: false,
-        error: `Multi-device generation failed: ${error.message}`,
-        results: [],
-        executionTime: Date.now() - startTime,
-        method: 'clean_multi',
-        model: this.model,
-        summary: {
-          successfulDevices: 0,
-          totalDevices: devices.length,
-          description: 'Generation failed'
-        }
-      };
-    }
-  }
-
-  /**
-   * NETCONF XML generation
-   */
-  async generateNetconfXml(prompt, deviceType, deviceContext = {}, yangModel = null) {
-    const startTime = Date.now();
-    
-    try {
-      console.log(`🔗 NETCONF XML generation: "${prompt}"`);
-
-      const xmlPrompt = `Generate NETCONF XML configuration for Cisco device:
-
-Request: ${prompt}
-Device: ${deviceContext.name || 'Device'} (${deviceType})
-YANG Model: ${yangModel?.name || 'Cisco-IOS-XE-native'}
-
-Generate valid NETCONF XML:
-
-<?xml version="1.0" encoding="UTF-8"?>`;
-
-      const response = await this.client.post("/api/generate", {
-        model: this.model,
-        prompt: xmlPrompt,
-        stream: false,
-        options: { temperature: 0.2, num_predict: 400 }
-      });
-
-      const xmlConfiguration = response.data.response?.trim();
-      
-      if (!xmlConfiguration || !xmlConfiguration.includes('<')) {
-        throw new Error('Invalid XML response');
-      }
-      
-      const executionTime = Date.now() - startTime;
-      console.log(`✅ NETCONF XML generated (${executionTime}ms)`);
-      
-      return {
-        success: true,
-        configuration: xmlConfiguration,
-        model: this.model,
-        deviceType,
-        method: 'clean_netconf',
-        executionTime,
-        validation: { isValid: true, errors: [], warnings: [] },
-        confidenceScore: 85,
-        yangModel: yangModel?.name || 'Cisco-IOS-XE-native',
-        outputFormat: 'netconf_xml'
-      };
-      
-    } catch (error) {
-      console.error("❌ NETCONF XML error:", error.message);
-      
-      return {
-        success: false,
-        error: `NETCONF XML generation failed: ${error.message}`,
-        configuration: null,
-        executionTime: Date.now() - startTime
-      };
-    }
-  }
 
   /**
    * Generate human-readable explanation of configuration

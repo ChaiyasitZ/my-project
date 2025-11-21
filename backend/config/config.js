@@ -8,10 +8,11 @@ export const config = {
     mongodb_uri: process.env.MONGODB_URI
   },
 
-  // Ollama Local AI Configuration
-  ollama: {
-    host: process.env.OLLAMA_HOST,
-    model: process.env.OLLAMA_MODEL,
+  // OpenRouter LLM Configuration
+  llm: {
+    provider: process.env.LLM_PROVIDER || 'openrouter',
+    apiKey: process.env.OPENROUTER_API_KEY,
+    model: process.env.OPENROUTER_MODEL,
   },
 
   // Server Configuration

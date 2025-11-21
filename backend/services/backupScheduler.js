@@ -14,11 +14,9 @@ class BackupScheduler {
   // Initialize scheduler
   async initialize() {
     if (this.isInitialized) {
-      console.log('📅 Backup scheduler already initialized');
       return;
     }
 
-    console.log('📅 Initializing backup scheduler...');
     
     // Load existing schedules from database
     await this.loadSchedules();
@@ -29,7 +27,6 @@ class BackupScheduler {
     });
     
     this.isInitialized = true;
-    console.log('✅ Backup scheduler initialized successfully');
   }
 
   // Load all active schedules from database
@@ -38,8 +35,6 @@ class BackupScheduler {
       const schedules = await BackupSchedule.find({ enabled: true })
         .populate('device_ids', 'name type ip_address')
         .lean();
-
-      console.log(`📋 Loading ${schedules.length} active backup schedules`);
 
       for (const schedule of schedules) {
         await this.scheduleBackup(schedule);

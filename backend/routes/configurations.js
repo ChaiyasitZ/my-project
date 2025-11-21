@@ -219,9 +219,9 @@ router.post('/generate', async (req, res) => {
         message: 'AI service is currently unavailable',
         error: aiError.message,
         suggestions: [
-          'Ensure Ollama is running on your system',
-          'Check if the model is downloaded: ollama list',
-          'Verify Ollama is accessible at http://localhost:11434'
+          'Check your OpenRouter API key configuration',
+          'Verify OpenRouter API is accessible',
+          'Try a different model if current one is unavailable'
         ]
       });
     }
