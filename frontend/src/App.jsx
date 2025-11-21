@@ -36,8 +36,12 @@ console.log('✅ NotFound imported');
 import './App.css';
 console.log('✅ All imports completed');
 
-// API Configuration
-axios.defaults.baseURL = 'http://localhost:3001/api';
+// API Configuration - Use environment variable or current origin for API calls
+const API_BASE_URL = import.meta.env.VITE_API_URL || 
+                     (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
+
+axios.defaults.baseURL = API_BASE_URL;
+console.log('🌐 API Base URL:', API_BASE_URL);
 
 function App() {
   console.log('🏁 App component rendering...');
