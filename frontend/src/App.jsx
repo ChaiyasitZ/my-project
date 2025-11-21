@@ -36,12 +36,16 @@ console.log('✅ NotFound imported');
 import './App.css';
 console.log('✅ All imports completed');
 
-// API Configuration - Use environment variable or current origin for API calls
+// API Configuration - Detect environment based on hostname
+const isLocalhost = window.location.hostname === 'localhost' || 
+                    window.location.hostname === '127.0.0.1';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 
-                     (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
+                     (isLocalhost ? 'http://localhost:3001/api' : '/api');
 
 axios.defaults.baseURL = API_BASE_URL;
 console.log('🌐 API Base URL:', API_BASE_URL);
+console.log('🌐 Environment:', isLocalhost ? 'development' : 'production');
 
 function App() {
   console.log('🏁 App component rendering...');
