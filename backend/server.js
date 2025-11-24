@@ -184,25 +184,47 @@ async function connectToMongoDB() {
   }
 }
 
-// Start server
-const PORT = config.server.port;
+// Start server (for local development)
+const PORT = config.server.port || 3001;
 
-// Connect to MongoDB first, then start the server
-connectToMongoDB().then(() => {
-  app.listen(PORT, async () => {
-    console.log(`🚀 Network Automation API server running on port ${PORT}`);
-    console.log(`🌍 Environment: ${config.server.nodeEnv}`);
-    console.log(`🤖 LLM Provider: ${config.llm.provider}`);
-    console.log(`🧠 LLM Model: ${config.llm.model}`);
-    console.log(`🔗 Frontend URL: ${config.cors.origin}`);
-    
-    // Initialize backup scheduler after server starts
-    try {
-      await backupScheduler.initialize();
-    } catch (error) {
-      console.error('❌ Failed to initialize backup scheduler:', error);
-    }
+// For Vercel serverless, connect to MongoDB on cold start
+let isConnected = false;
+
+async function connectDB() {
+  if (isConnected) {
+    return;
+  }
+  try {
+    await connectToMongoDB();
+    isConnected = true;
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+  }
+}
+
+// Vercel serverless handler
+if (process.env.VERCEL) {
+  // Export for Vercel
+  export default async (req, res) => {
+    await connectDB();
+    return app(req, res);
+  };
+} else {
+  // Local development server
+  connectToMongoDB().then(() => {
+    app.listen(PORT, async () => {
+      console.log(`🚀 Network Automation API server running on port ${PORT}`);
+      console.log(`🌍 Environment: ${config.server.nodeEnv}`);
+      console.log(`🤖 LLM Provider: ${config.llm.provider}`);
+      console.log(`🧠 LLM Model: ${config.llm.model}`);
+      console.log(`🔗 Frontend URL: ${config.cors.origin}`);
+      
+      // Initialize backup scheduler after server starts
+      try {
+        await backupScheduler.initialize();
+      } catch (error) {
+        console.error('❌ Failed to initialize backup scheduler:', error);
+      }
+    });
   });
-});
-
-export default app;
+}
