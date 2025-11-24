@@ -202,15 +202,8 @@ async function connectDB() {
   }
 }
 
-// Vercel serverless handler
-if (process.env.VERCEL) {
-  // Export for Vercel
-  export default async (req, res) => {
-    await connectDB();
-    return app(req, res);
-  };
-} else {
-  // Local development server
+// Local development server
+if (!process.env.VERCEL) {
   connectToMongoDB().then(() => {
     app.listen(PORT, async () => {
       console.log(`🚀 Network Automation API server running on port ${PORT}`);
@@ -228,3 +221,11 @@ if (process.env.VERCEL) {
     });
   });
 }
+
+// Vercel serverless handler - must be at the end for ES module syntax
+export default async (req, res) => {
+  if (process.env.VERCEL) {
+    await connectDB();
+  }
+  return app(req, res);
+};

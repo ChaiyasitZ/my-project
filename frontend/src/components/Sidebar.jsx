@@ -72,9 +72,7 @@ function Sidebar({ serverStatus = 'checking' }) {
             </button>
             
             <Link to="/" className="flex items-center space-x-2" onClick={() => setIsMobileMenuOpen(false)}>
-              <div className="bg-blue-600 p-1.5 rounded-lg">
-                <WifiIcon className="h-5 w-5 text-white" />
-              </div>
+              <img src="/vite.svg" alt="Network Management Platform" className="h-8 w-8 rounded-lg" />
               <span className="text-lg font-bold text-gray-900">NetAutomate</span>
             </Link>
           </div>
@@ -107,12 +105,10 @@ function Sidebar({ serverStatus = 'checking' }) {
           {/* Desktop Logo */}
           <div className="hidden lg:flex items-center px-6 py-4 border-b border-gray-200">
             <Link to="/" className="flex items-center space-x-3">
-              <div className="bg-blue-600 p-2 rounded-lg">
-                <WifiIcon className="h-6 w-6 text-white" />
-              </div>
+              <img src="/vite.svg" alt="Network Management Platform" className="h-10 w-10 rounded-lg" />
               <div>
                 <span className="text-xl font-bold text-gray-900">NetAutomate</span>
-                <p className="text-sm text-gray-500">Network Management</p>
+                <p className="text-sm text-gray-500">Network Management Platform</p>
               </div>
             </Link>
           </div>

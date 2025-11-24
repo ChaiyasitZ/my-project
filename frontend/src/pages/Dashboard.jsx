@@ -106,7 +106,7 @@ function Dashboard() {
             Dashboard
           </h1>
           <p className="mt-2 text-gray-600">
-            Overview of your network automation system
+            Overview of your Network Management Platform
           </p>
         </div>
         <button
