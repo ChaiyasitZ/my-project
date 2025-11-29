@@ -3,6 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import { config } from './config/config.js';
 
 // Import routes
@@ -14,6 +16,19 @@ import backupScheduler from './services/backupScheduler.js';
 
 
 const app = express();
+const httpServer = createServer(app);
+
+// Initialize Socket.IO with CORS
+const io = new Server(httpServer, {
+  cors: {
+    origin: config.cors.origin,
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+// Export io for use in other modules
+export { io };
 
 // Security middleware
 app.use(helmet({
@@ -205,12 +220,13 @@ async function connectDB() {
 // Local development server
 if (!process.env.VERCEL) {
   connectToMongoDB().then(() => {
-    app.listen(PORT, async () => {
+    httpServer.listen(PORT, async () => {
       console.log(`🚀 Network Automation API server running on port ${PORT}`);
       console.log(`🌍 Environment: ${config.server.nodeEnv}`);
       console.log(`🤖 LLM Provider: ${config.llm.provider}`);
       console.log(`🧠 LLM Model: ${config.llm.model}`);
       console.log(`🔗 Frontend URL: ${config.cors.origin}`);
+      console.log(`🔌 WebSocket server ready for real-time notifications`);
       
       // Initialize backup scheduler after server starts
       try {
@@ -221,6 +237,20 @@ if (!process.env.VERCEL) {
     });
   });
 }
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log(`🔌 Client connected: ${socket.id}`);
+  
+  socket.on('disconnect', () => {
+    console.log(`🔌 Client disconnected: ${socket.id}`);
+  });
+  
+  socket.on('subscribe:backups', (data) => {
+    console.log(`📡 Client ${socket.id} subscribed to backup notifications`);
+    socket.join('backup-notifications');
+  });
+});
 
 // Vercel serverless handler - must be at the end for ES module syntax
 export default async (req, res) => {

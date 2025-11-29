@@ -9,7 +9,15 @@ import {
   RefreshCwIcon
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
+import BackupProgressModal from '../components/BackupProgressModal';
 import { useConfirmation } from '../hooks/useConfirmation';
+import socket, { 
+  connectSocket, 
+  disconnectSocket,
+  subscribeToBackupProgress,
+  subscribeToDeploymentProgress,
+  subscribeToScheduleResults
+} from '../services/socket';
 
 function Configurations() {
   const [devices, setDevices] = useState([]);
@@ -22,8 +30,64 @@ function Configurations() {
   const [validation, setValidation] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedConfig, setEditedConfig] = useState('');
+  const [showBackupModal, setShowBackupModal] = useState(false);
+  const [scheduleResults, setScheduleResults] = useState(null);
 
   const { confirmationState, showConfirmation } = useConfirmation();
+
+  useEffect(() => {
+    fetchDevices();
+    
+    // Connect to WebSocket
+    connectSocket();
+    
+    // Subscribe to backup progress events
+    const unsubscribeBackup = subscribeToBackupProgress((data) => {
+      console.log('📡 Backup progress:', data);
+      
+      if (data.status === 'in-progress') {
+        toast.loading(data.message, { id: data.stage });
+      } else if (data.status === 'complete') {
+        toast.success(data.message, { id: data.stage });
+      } else if (data.status === 'failed') {
+        toast.error(data.message, { id: data.stage });
+      }
+    });
+    
+    // Subscribe to deployment progress
+    const unsubscribeDeployment = subscribeToDeploymentProgress((data) => {
+      console.log('📡 Deployment progress:', data);
+      
+      if (data.status === 'in-progress') {
+        toast.loading(data.message, { id: 'deployment' });
+      } else if (data.status === 'complete') {
+        toast.success(data.message, { id: 'deployment' });
+      } else if (data.status === 'failed') {
+        toast.error(data.message, { id: 'deployment' });
+      }
+    });
+    
+    // Subscribe to schedule results
+    const unsubscribeSchedule = subscribeToScheduleResults((data) => {
+      console.log('📡 Schedule results:', data);
+      
+      if (data.summary && data.summary.total_devices_backed_up > 0) {
+        setScheduleResults(data);
+        setShowBackupModal(true);
+        toast.success(
+          `Post-deployment schedules completed: ${data.summary.total_devices_backed_up} device(s) backed up`,
+          { id: 'schedule', duration: 5000 }
+        );
+      }
+    });
+    
+    return () => {
+      unsubscribeBackup();
+      unsubscribeDeployment();
+      unsubscribeSchedule();
+      disconnectSocket();
+    };
+  }, []);
 
   useEffect(() => {
     fetchDevices();
@@ -492,6 +556,13 @@ function Configurations() {
         type={confirmationState.type}
         loading={confirmationState.loading}
         loadingText={confirmationState.loadingText}
+      />
+
+      {/* Backup Progress Modal */}
+      <BackupProgressModal
+        isOpen={showBackupModal}
+        onClose={() => setShowBackupModal(false)}
+        scheduleResults={scheduleResults}
       />
     </div>
   );

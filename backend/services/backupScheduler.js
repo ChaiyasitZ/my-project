@@ -3,6 +3,7 @@ import BackupSchedule from '../models/BackupSchedule.js';
 import ConfigurationBackup from '../models/ConfigurationBackup.js';
 import Device from '../models/Device.js';
 import sshService from './sshService.js';
+import notificationService from './notificationService.js';
 import crypto from 'crypto';
 
 class BackupScheduler {

@@ -7,6 +7,7 @@ import ConfigurationBackup from '../models/ConfigurationBackup.js';
 import llmService from '../services/llmService.js';
 import sshService from '../services/sshService.js';
 import backupScheduler from '../services/backupScheduler.js';
+import notificationService from '../services/notificationService.js';
 
 const router = express.Router();
 
@@ -715,6 +716,13 @@ router.post('/apply', async (req, res) => {
       
       // STEP 1: Create pre-deployment backup checkpoint
       console.log(`💾 Creating pre-deployment backup checkpoint...`);
+      notificationService.emitBackupProgress(
+        'pre-deployment',
+        'in-progress',
+        `Creating pre-deployment checkpoint for ${device.name}...`,
+        { deviceName: device.name, deviceId: device._id }
+      );
+      
       let preDeploymentBackupId = null;
       try {
         const preBackupResult = await sshService.createFullBackup(device);
@@ -742,19 +750,59 @@ router.post('/apply', async (req, res) => {
           await preDeploymentBackup.save();
           preDeploymentBackupId = preDeploymentBackup._id;
           console.log(`✅ Pre-deployment backup created: ${preDeploymentBackupId}`);
+          
+          notificationService.emitBackupProgress(
+            'pre-deployment',
+            'complete',
+            `Pre-deployment checkpoint created successfully`,
+            { 
+              deviceName: device.name,
+              backupId: preDeploymentBackupId,
+              fileSize: preDeploymentBackup.file_size
+            }
+          );
         }
       } catch (preBackupError) {
         console.warn(`⚠️ Pre-deployment backup failed (continuing with deployment): ${preBackupError.message}`);
+        notificationService.emitBackupProgress(
+          'pre-deployment',
+          'failed',
+          `Pre-deployment backup failed: ${preBackupError.message}`,
+          { deviceName: device.name, error: preBackupError.message }
+        );
       }
       
       // STEP 2: Deploy configuration
+      notificationService.emitDeploymentProgress(
+        'in-progress',
+        `Deploying configuration to ${device.name}...`,
+        { deviceName: device.name, deviceId: device._id }
+      );
+      
       const deploymentStart = Date.now();
       const sshResult = await sshService.sendConfigCommands(device, configToApply);
       const deploymentTime = Date.now() - deploymentStart;
       console.log(`✅ Configuration deployed successfully in ${deploymentTime}ms`);
       
+      notificationService.emitDeploymentProgress(
+        'complete',
+        `Configuration deployed successfully in ${(deploymentTime / 1000).toFixed(2)}s`,
+        { 
+          deviceName: device.name,
+          deploymentTime,
+          deploymentTimeSeconds: (deploymentTime / 1000).toFixed(2)
+        }
+      );
+      
       // STEP 3: Create post-deployment backup
       console.log(`💾 Creating post-deployment backup...`);
+      notificationService.emitBackupProgress(
+        'post-deployment',
+        'in-progress',
+        `Creating post-deployment backup for ${device.name}...`,
+        { deviceName: device.name, deviceId: device._id }
+      );
+      
       let postDeploymentBackupId = null;
       try {
         const postBackupResult = await sshService.createFullBackup(device);
@@ -781,9 +829,26 @@ router.post('/apply', async (req, res) => {
           await postDeploymentBackup.save();
           postDeploymentBackupId = postDeploymentBackup._id;
           console.log(`✅ Post-deployment backup created: ${postDeploymentBackupId}`);
+          
+          notificationService.emitBackupProgress(
+            'post-deployment',
+            'complete',
+            `Post-deployment backup created successfully`,
+            { 
+              deviceName: device.name,
+              backupId: postDeploymentBackupId,
+              fileSize: postDeploymentBackup.file_size
+            }
+          );
         }
       } catch (postBackupError) {
         console.warn(`⚠️ Post-deployment backup failed: ${postBackupError.message}`);
+        notificationService.emitBackupProgress(
+          'post-deployment',
+          'failed',
+          `Post-deployment backup failed: ${postBackupError.message}`,
+          { deviceName: device.name, error: postBackupError.message }
+        );
       }
       
       // STEP 4: Delete pre-deployment backup (we only keep post-deployment for scheduled backups)
@@ -806,9 +871,32 @@ router.post('/apply', async (req, res) => {
       // Trigger post-deployment backup schedules
       try {
         console.log(`🚀 Triggering post-deployment backup schedules for device ${device._id}...`);
-        await backupScheduler.triggerPostDeploySchedules([device._id.toString()]);
+        notificationService.emitBackupProgress(
+          'schedule',
+          'in-progress',
+          `Checking for post-deployment schedules...`,
+          { deviceName: device.name }
+        );
+        
+        const scheduleResult = await backupScheduler.triggerPostDeploySchedules([device._id.toString()]);
+        
+        if (scheduleResult.success && scheduleResult.devices_backed_up > 0) {
+          notificationService.emitPostDeployScheduleResults(
+            scheduleResult.results || [],
+            {
+              total_schedules: scheduleResult.results?.length || 0,
+              total_devices_backed_up: scheduleResult.devices_backed_up || 0,
+              success: true
+            }
+          );
+        }
       } catch (scheduleError) {
         console.warn(`⚠️ Failed to trigger post-deployment schedules: ${scheduleError.message}`);
+        notificationService.emitError(
+          'schedule_trigger_failed',
+          `Failed to trigger post-deployment schedules: ${scheduleError.message}`,
+          { deviceName: device.name }
+        );
       }
       
       res.json({
