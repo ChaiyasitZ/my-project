@@ -2126,6 +2126,379 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
       };
     }
   }
+
+  /**
+   * Generate NETCONF/YANG XML configuration for NX-OS devices
+   * @param {string} prompt - User configuration request
+   * @param {string} deviceType - Type of device (nexus, ios, etc.)
+   * @param {object} deviceContext - Device context (name, model, location)
+   * @param {array} customYangModels - Custom YANG models for reference
+   */
+  async generateNetconfConfig(prompt, deviceType, deviceContext = {}, customYangModels = []) {
+    const startTime = Date.now();
+    
+    try {
+      console.log(`🌐 Generating NETCONF/YANG config for ${deviceType}: "${prompt}"`);
+      console.log(`📚 Custom YANG models provided: ${customYangModels.length}`);
+
+      // Check API key
+      if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
+        throw new Error('OpenRouter API key not configured. Please set OPENROUTER_API_KEY in .env file');
+      }
+
+      const systemMessage = this._buildNetconfSystemMessage(prompt, deviceType, customYangModels);
+      const userMessage = this._buildNetconfUserMessage(prompt, deviceType, deviceContext);
+      
+      console.log(`📝 NETCONF System message length: ${systemMessage.length} characters`);
+      console.log(`🎯 Using model: ${this.model}`);
+      
+      // Call OpenRouter API
+      let response;
+      let retryCount = 0;
+      const maxRetries = 2;
+      
+      while (retryCount <= maxRetries) {
+        try {
+          response = await this.client.post('/chat/completions', {
+            model: this.model,
+            messages: [
+              { role: 'system', content: systemMessage },
+              { role: 'user', content: userMessage }
+            ],
+            temperature: 0.1,
+            max_tokens: 2000,
+            top_p: 0.85,
+            stop: ['```', 'Here are', 'Here is', 'Sure', 'Note:', '---']
+          });
+          break;
+        } catch (apiError) {
+          retryCount++;
+          if (retryCount > maxRetries) throw apiError;
+          console.log(`⚠️ Retry ${retryCount}/${maxRetries}: ${apiError.message}`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+
+      const rawConfig = response.data?.choices?.[0]?.message?.content?.trim();
+      
+      if (!rawConfig) {
+        throw new Error(`Empty response from ${this.model}`);
+      }
+      
+      console.log(`📦 Raw NETCONF response: ${rawConfig.length} chars`);
+      
+      // Clean and validate NETCONF configuration
+      const cleanConfig = this._cleanNetconfConfiguration(rawConfig);
+      
+      if (!cleanConfig || cleanConfig.length < 50) {
+        throw new Error('Generated NETCONF configuration is too short or invalid');
+      }
+      
+      const validation = this._validateNetconfConfiguration(cleanConfig, deviceType);
+      const executionTime = Date.now() - startTime;
+      const tokensUsed = response.data?.usage?.total_tokens || 0;
+      
+      console.log(`✅ NETCONF config generated successfully (${executionTime}ms, ${tokensUsed} tokens)`);
+      
+      return {
+        success: true,
+        configuration: cleanConfig,
+        displayConfig: cleanConfig,
+        deploymentConfig: cleanConfig,
+        model: this.model,
+        provider: 'openrouter',
+        deviceType,
+        configType: 'netconf-yang',
+        method: 'openrouter_netconf',
+        executionTime,
+        tokensUsed,
+        validation,
+        confidenceScore: validation.score,
+        recommendations: validation.warnings.length > 0 ? validation.warnings : ['NETCONF configuration looks valid']
+      };
+      
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+      console.error("❌ NETCONF generation failed:", error.message);
+      
+      return {
+        success: false,
+        error: `NETCONF generation failed: ${error.message}`,
+        configuration: null,
+        executionTime,
+        suggestions: [
+          'Check your internet connection',
+          'Ensure prompt is clear and specific',
+          'Try a simpler configuration request'
+        ]
+      };
+    }
+  }
+
+  /**
+   * Build system message for NETCONF/YANG generation
+   * @param {string} prompt - User configuration request
+   * @param {string} deviceType - Type of device
+   * @param {array} customYangModels - Custom YANG models for enhanced generation
+   */
+  _buildNetconfSystemMessage(prompt, deviceType, customYangModels = []) {
+    // Build custom YANG models section
+    let customModelsSection = '';
+    if (customYangModels && customYangModels.length > 0) {
+      customModelsSection = `\n\n=== CUSTOM YANG MODELS PROVIDED ===\nUse these YANG models as reference for generating the configuration:\n\n`;
+      
+      for (const model of customYangModels) {
+        customModelsSection += `--- ${model.name} ---\n`;
+        customModelsSection += `Namespace: ${model.namespace}\n`;
+        if (model.prefix) customModelsSection += `Prefix: ${model.prefix}\n`;
+        if (model.description) customModelsSection += `Description: ${model.description}\n`;
+        
+        // Add XML templates if available
+        if (model.templates && model.templates.length > 0) {
+          customModelsSection += `\nXML Templates:\n`;
+          for (const tmpl of model.templates) {
+            customModelsSection += `\n[${tmpl.name}]${tmpl.description ? ` - ${tmpl.description}` : ''}\n`;
+            customModelsSection += `${tmpl.template}\n`;
+          }
+        }
+        
+        // Add config paths if available
+        if (model.paths && model.paths.length > 0) {
+          customModelsSection += `\nConfiguration Paths:\n`;
+          for (const path of model.paths) {
+            customModelsSection += `- ${path.path}${path.data_type ? ` (${path.data_type})` : ''}${path.required ? ' [required]' : ''}\n`;
+            if (path.description) customModelsSection += `  ${path.description}\n`;
+          }
+        }
+        
+        customModelsSection += `\n`;
+      }
+      
+      customModelsSection += `=== END CUSTOM YANG MODELS ===\n\nPRIORITY: Use the custom YANG models above when they match the requested configuration. Fall back to built-in patterns only if no custom model applies.\n`;
+    }
+
+    return `You are a Cisco NX-OS NETCONF/YANG configuration expert. Generate ONLY valid NETCONF XML configuration payloads.
+
+NETCONF/YANG RULES FOR NX-OS:
+1. Use proper Cisco NX-OS YANG model namespaces
+2. Common namespaces:
+   - Device root: xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"
+   - Interface: use System/intf-items namespace
+   - BGP: use System/bgp-items namespace  
+   - OSPF: use System/ospf-items namespace
+   - VLAN: use System/bd-items (bridge domain) namespace
+
+STRICT OUTPUT RULES:
+1. Generate ONLY the XML content that goes inside <config> tags
+2. Do NOT include <?xml?> declaration
+3. Do NOT include <rpc> or <edit-config> wrapper
+4. Do NOT include any explanatory text or markdown
+5. Use proper indentation (2 spaces)
+6. All XML must be well-formed and valid
+7. Include required YANG namespace declarations
+8. Start directly with the root element${customModelsSection}
+
+COMMON NX-OS YANG PATTERNS:
+
+For Interface Configuration:
+<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+  <intf-items>
+    <phys-items>
+      <PhysIf-list>
+        <id>eth1/1</id>
+        <adminSt>up</adminSt>
+        <descr>Description here</descr>
+      </PhysIf-list>
+    </phys-items>
+  </intf-items>
+</System>
+
+For VLAN Configuration:
+<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+  <bd-items>
+    <bd-items>
+      <BD-list>
+        <fabEncap>vlan-100</fabEncap>
+        <name>VLAN_NAME</name>
+        <adminSt>active</adminSt>
+      </BD-list>
+    </bd-items>
+  </bd-items>
+</System>
+
+For SVI Configuration:
+<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+  <intf-items>
+    <svi-items>
+      <If-list>
+        <id>vlan100</id>
+        <adminSt>up</adminSt>
+      </If-list>
+    </svi-items>
+  </intf-items>
+  <ipv4-items>
+    <inst-items>
+      <Inst-list>
+        <name>default</name>
+        <dom-items>
+          <Dom-list>
+            <name>default</name>
+            <if-items>
+              <If-list>
+                <id>vlan100</id>
+                <addr-items>
+                  <Addr-list>
+                    <addr>192.168.100.1/24</addr>
+                  </Addr-list>
+                </addr-items>
+              </If-list>
+            </if-items>
+          </Dom-list>
+        </dom-items>
+      </Inst-list>
+    </inst-items>
+  </ipv4-items>
+</System>
+
+For OSPF Configuration:
+<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+  <ospf-items>
+    <inst-items>
+      <Inst-list>
+        <name>1</name>
+        <adminSt>enabled</adminSt>
+        <dom-items>
+          <Dom-list>
+            <name>default</name>
+            <rtrId>1.1.1.1</rtrId>
+            <area-items>
+              <Area-list>
+                <id>0.0.0.0</id>
+              </Area-list>
+            </area-items>
+          </Dom-list>
+        </dom-items>
+      </Inst-list>
+    </inst-items>
+  </ospf-items>
+</System>
+
+Output ONLY the XML configuration, nothing else.`;
+  }
+
+  /**
+   * Build user message for NETCONF/YANG generation
+   */
+  _buildNetconfUserMessage(prompt, deviceType, deviceContext) {
+    const deviceName = deviceContext.name || 'NX-OS Device';
+    const deviceModel = deviceContext.model || 'Cisco Nexus';
+    
+    return `Device: ${deviceName} (${deviceType} - ${deviceModel})
+Platform: Cisco NX-OS with NETCONF/YANG support
+
+Configuration Request: ${prompt}
+
+Generate the NETCONF/YANG XML configuration now (only XML, no explanations):`;
+  }
+
+  /**
+   * Clean NETCONF configuration output
+   */
+  _cleanNetconfConfiguration(rawConfig) {
+    if (!rawConfig) return '';
+    
+    let cleaned = rawConfig;
+    
+    // Remove code blocks and markdown
+    cleaned = cleaned
+      .replace(/```xml/gi, '')
+      .replace(/```netconf/gi, '')
+      .replace(/```/g, '')
+      .trim();
+    
+    // Remove explanatory text before XML
+    const xmlStartIndex = cleaned.indexOf('<');
+    if (xmlStartIndex > 0) {
+      cleaned = cleaned.substring(xmlStartIndex);
+    }
+    
+    // Remove any text after closing XML tag
+    const lastCloseTag = cleaned.lastIndexOf('>');
+    if (lastCloseTag > 0 && lastCloseTag < cleaned.length - 1) {
+      cleaned = cleaned.substring(0, lastCloseTag + 1);
+    }
+    
+    // Remove XML declaration if present (we add our own)
+    cleaned = cleaned.replace(/<\?xml[^?]*\?>/gi, '').trim();
+    
+    // Remove RPC wrappers if present
+    cleaned = cleaned.replace(/<rpc[^>]*>/gi, '').trim();
+    cleaned = cleaned.replace(/<\/rpc>/gi, '').trim();
+    cleaned = cleaned.replace(/<edit-config[^>]*>/gi, '').trim();
+    cleaned = cleaned.replace(/<\/edit-config>/gi, '').trim();
+    cleaned = cleaned.replace(/<config[^>]*>/gi, '').trim();
+    cleaned = cleaned.replace(/<\/config>/gi, '').trim();
+    cleaned = cleaned.replace(/<target[^>]*>[\s\S]*?<\/target>/gi, '').trim();
+    
+    return cleaned.trim();
+  }
+
+  /**
+   * Validate NETCONF configuration
+   */
+  _validateNetconfConfiguration(configuration, deviceType) {
+    const validation = {
+      isValid: true,
+      score: 100,
+      errors: [],
+      warnings: [],
+      explanation: []
+    };
+
+    if (!configuration || configuration.length < 50) {
+      validation.isValid = false;
+      validation.score = 0;
+      validation.errors.push('Configuration too short');
+      return validation;
+    }
+
+    // Check for valid XML structure
+    if (!configuration.includes('<') || !configuration.includes('>')) {
+      validation.isValid = false;
+      validation.score = 0;
+      validation.errors.push('Invalid XML structure');
+      return validation;
+    }
+
+    // Check for NX-OS namespace
+    if (!configuration.includes('cisco.com/ns/yang/cisco-nx-os-device')) {
+      validation.warnings.push('Missing NX-OS YANG namespace');
+      validation.score -= 20;
+    }
+
+    // Check for System root element
+    if (!configuration.includes('<System')) {
+      validation.warnings.push('Missing System root element');
+      validation.score -= 15;
+    }
+
+    // Check for proper closing tags
+    const openTags = (configuration.match(/<[^/][^>]*>/g) || []).length;
+    const closeTags = (configuration.match(/<\/[^>]+>/g) || []).length;
+    
+    if (openTags !== closeTags) {
+      validation.warnings.push('Possible unbalanced XML tags');
+      validation.score -= 10;
+    }
+
+    validation.explanation.push('✓ NETCONF/YANG XML configuration generated');
+    
+    if (validation.score >= 80) {
+      validation.explanation.push('✓ Configuration structure looks valid');
+    }
+    
+    return validation;
+  }
 }
 
 export default new LLMService();

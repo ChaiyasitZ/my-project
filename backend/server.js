@@ -12,6 +12,7 @@ import devicesRouter from './routes/devices.js';
 import configurationsRouter from './routes/configurations.js';
 import consoleRouter from './routes/console.js';
 import backupsRouter from './routes/backups.js';
+import yangModelsRouter from './routes/yangModels.js';
 import backupScheduler from './services/backupScheduler.js';
 
 
@@ -96,6 +97,7 @@ app.use('/api/devices', devicesRouter);
 app.use('/api/configurations', configurationsRouter);
 app.use('/api/console', consoleRouter);
 app.use('/api/backups', backupsRouter);
+app.use('/api/yang-models', yangModelsRouter);
 
 
 // Root endpoint
@@ -113,16 +115,18 @@ app.get('/', (req, res) => {
       '📝 Configuration validation',
       '💾 Configuration history',
       '🔧 Real-time monitoring',
-      '📅 Automated backup scheduling'
+      '📅 Automated backup scheduling',
+      '🌐 NETCONF/YANG support'
     ],
     endpoints: {
       health: '/api/health',
       devices: '/api/devices',
       configurations: '/api/configurations',
       console: '/api/console',
-      backups: '/api/backups'
+      backups: '/api/backups',
+      yangModels: '/api/yang-models'
     },
-    protocols: ['SSH', 'Console'],
+    protocols: ['SSH', 'Console', 'NETCONF'],
     vendors: ['Cisco']
   });
 });

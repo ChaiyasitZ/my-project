@@ -48,6 +48,16 @@ const deviceSchema = new mongoose.Schema({
     min: 1,
     max: 65535
   },
+  netconf_port: {
+    type: Number,
+    default: 830,
+    min: 1,
+    max: 65535
+  },
+  netconf_enabled: {
+    type: Boolean,
+    default: false
+  },
   username: {
     type: String,
     required: true,

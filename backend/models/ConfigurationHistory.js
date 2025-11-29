@@ -23,6 +23,11 @@ const configurationHistorySchema = new mongoose.Schema({
     type: String,
     default: 'openrouter'
   },
+  config_type: {
+    type: String,
+    enum: ['cli', 'netconf-yang'],
+    default: 'cli'
+  },
   execution_time: {
     type: Number,
     min: 0 // in milliseconds
@@ -56,10 +61,9 @@ configurationHistorySchema.pre('save', function(next) {
 });
 
 // Indexes for performance
-configurationHistorySchema.index({ device_id: 1 });
-configurationHistorySchema.index({ status: 1 });
-configurationHistorySchema.index({ created_at: -1 });
-configurationHistorySchema.index({ device_id: 1, status: 1 });
+configurationHistorySchema.index({ device_id: 1, created_at: -1 }); // Device history sorted
+configurationHistorySchema.index({ status: 1, created_at: -1 }); // Filter by status
+configurationHistorySchema.index({ device_id: 1, status: 1, created_at: -1 }); // Combined filter
 
 // Virtual to get device info
 configurationHistorySchema.virtual('device', {

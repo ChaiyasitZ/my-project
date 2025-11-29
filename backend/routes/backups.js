@@ -49,38 +49,58 @@ router.get('/', async (req, res) => {
     const sortDirection = sort_order.toLowerCase() === 'asc' ? 1 : -1;
     const sortObj = { [sortField]: sortDirection };
     
-    // Get backups with pagination
-    const backups = await ConfigurationBackup.find(filter)
-      .sort(sortObj)
-      .limit(parseInt(limit))
-      .skip(parseInt(offset))
-      .lean();
+    // Use aggregation to join with devices in a single query (eliminates N+1)
+    const [backups, countResult] = await Promise.all([
+      ConfigurationBackup.aggregate([
+        { $match: filter },
+        { $sort: sortObj },
+        { $skip: parseInt(offset) },
+        { $limit: parseInt(limit) },
+        {
+          $lookup: {
+            from: 'devices',
+            localField: 'device_id',
+            foreignField: '_id',
+            as: 'device',
+            pipeline: [{ $project: { name: 1, type: 1, ip_address: 1 } }]
+          }
+        },
+        { $unwind: { path: '$device', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            device_id: 1,
+            backup_name: 1,
+            description: 1,
+            backup_type: 1,
+            config_type: 1,
+            file_size: 1,
+            config_hash: 1,
+            created_by: 1,
+            is_restore_point: 1,
+            tags: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            device_name: '$device.name',
+            device_type: '$device.type',
+            ip_address: '$device.ip_address'
+          }
+        }
+      ]),
+      ConfigurationBackup.countDocuments(filter)
+    ]);
     
-    // Get total count for pagination
-    const total = await ConfigurationBackup.countDocuments(filter);
-    
-    // Enhance backups with device info
-    const enhancedBackups = await Promise.all(
-      backups.map(async (backup) => {
-        const device = await Device.findById(backup.device_id).select('name type ip_address').lean();
-        return {
-          ...backup,
-          id: backup._id, // Add id for compatibility
-          device_name: device?.name,
-          device_type: device?.type,
-          ip_address: device?.ip_address
-        };
-      })
-    );
+    // Add id alias for compatibility
+    const enhancedBackups = backups.map(b => ({ ...b, id: b._id }));
     
     res.json({
       success: true,
       backups: enhancedBackups,
       pagination: {
-        total,
+        total: countResult,
         limit: parseInt(limit),
         offset: parseInt(offset),
-        hasMore: parseInt(offset) + parseInt(limit) < total
+        hasMore: parseInt(offset) + parseInt(limit) < countResult
       }
     });
     
@@ -96,12 +116,7 @@ router.get('/', async (req, res) => {
 // GET /api/backups/:id/preview - Preview backup configuration content
 router.get('/:id/preview', async (req, res) => {
   try {
-    console.log('🔍 PREVIEW ENDPOINT HIT - Route params:', req.params);
-    console.log('🔍 PREVIEW ENDPOINT HIT - Full URL:', req.url);
-    
     const { id } = req.params;
-    
-    console.log(`🔍 Previewing backup configuration: ${id}`);
     
     // Get backup details
     const backup = await ConfigurationBackup.findById(id);
@@ -113,53 +128,39 @@ router.get('/:id/preview', async (req, res) => {
       });
     }
     
-    console.log(`📋 Found backup: ${backup.backup_name} (${backup.file_size} bytes)`);
+    // Return backup configuration content with metadata
+    const response = {
+      success: true,
+      backup: {
+        id: backup._id,
+        backup_name: backup.backup_name,
+        device_name: backup.device_name,
+        device_type: backup.device_type,
+        backup_type: backup.backup_type,
+        file_size: backup.file_size,
+        created_at: backup.createdAt,
+        created_by: backup.created_by,
+        description: backup.description,
+        is_restore_point: backup.is_restore_point
+      },
+      content: {
+        running_config: backup.running_config || 'No running configuration available',
+        startup_config: backup.startup_config || 'No startup configuration available',
+        has_running_config: !!backup.running_config,
+        has_startup_config: !!backup.startup_config
+      },
+      preview: {
+        running_config_lines: backup.running_config ? backup.running_config.split('\n').length : 0,
+        startup_config_lines: backup.startup_config ? backup.startup_config.split('\n').length : 0,
+        running_config_preview: backup.running_config ? backup.running_config.substring(0, 500) + (backup.running_config.length > 500 ? '...' : '') : '',
+        startup_config_preview: backup.startup_config ? backup.startup_config.substring(0, 500) + (backup.startup_config.length > 500 ? '...' : '') : ''
+      }
+    };
     
-    try {
-      // Return backup configuration content with metadata
-      const response = {
-        success: true,
-        backup: {
-          id: backup._id,
-          backup_name: backup.backup_name,
-          device_name: backup.device_name,
-          device_type: backup.device_type,
-          backup_type: backup.backup_type,
-          file_size: backup.file_size,
-          created_at: backup.createdAt,
-          created_by: backup.created_by,
-          description: backup.description,
-          is_restore_point: backup.is_restore_point
-        },
-        content: {
-          running_config: backup.running_config || 'No running configuration available',
-          startup_config: backup.startup_config || 'No startup configuration available',
-          has_running_config: !!backup.running_config,
-          has_startup_config: !!backup.startup_config
-        },
-        preview: {
-          running_config_lines: backup.running_config ? backup.running_config.split('\n').length : 0,
-          startup_config_lines: backup.startup_config ? backup.startup_config.split('\n').length : 0,
-          running_config_preview: backup.running_config ? backup.running_config.substring(0, 500) + (backup.running_config.length > 500 ? '...' : '') : '',
-          startup_config_preview: backup.startup_config ? backup.startup_config.substring(0, 500) + (backup.startup_config.length > 500 ? '...' : '') : ''
-        }
-      };
-      
-      console.log(`✅ Preview generated successfully - Running: ${response.preview.running_config_lines} lines, Startup: ${response.preview.startup_config_lines} lines`);
-      
-      res.json(response);
-      
-    } catch (configError) {
-      console.error('❌ Error reading backup configuration:', configError);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to read backup configuration',
-        error: configError.message
-      });
-    }
+    res.json(response);
     
   } catch (error) {
-    console.error('❌ Error previewing backup:', error);
+    console.error('Error previewing backup:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error',
@@ -174,7 +175,12 @@ router.get('/:id', async (req, res) => {
     const { id } = req.params;
     const { include_config = 'false' } = req.query;
     
-    const backup = await ConfigurationBackup.findById(id).lean();
+    // Only fetch config fields if explicitly requested
+    const projection = include_config === 'true' 
+      ? {} 
+      : { running_config: 0, startup_config: 0 };
+    
+    const backup = await ConfigurationBackup.findById(id, projection).lean();
     
     if (!backup) {
       return res.status(404).json({
@@ -184,25 +190,19 @@ router.get('/:id', async (req, res) => {
     }
     
     // Get device info
-    const device = await Device.findById(backup.device_id).select('name type ip_address').lean();
-    
-    const backupResponse = {
-      ...backup,
-      id: backup._id, // Add id for compatibility
-      device_name: device?.name,
-      device_type: device?.type,
-      ip_address: device?.ip_address
-    };
-    
-    // Remove config data if not requested
-    if (include_config !== 'true') {
-      delete backupResponse.running_config;
-      delete backupResponse.startup_config;
-    }
+    const device = await Device.findById(backup.device_id)
+      .select('name type ip_address')
+      .lean();
     
     res.json({
       success: true,
-      backup: backupResponse
+      backup: {
+        ...backup,
+        id: backup._id,
+        device_name: device?.name,
+        device_type: device?.type,
+        ip_address: device?.ip_address
+      }
     });
     
   } catch (error) {
@@ -227,7 +227,7 @@ router.post('/session', async (req, res) => {
       });
     }
     
-    const { device_id, backup_name, description, backup_type, created_by, tags } = value;
+    const { device_id, backup_name, description, backup_type, config_type, created_by, tags } = value;
     
     // Get device details
     const device = await Device.findById(device_id);
@@ -239,7 +239,7 @@ router.post('/session', async (req, res) => {
       });
     }
     
-    console.log(`🔗 Starting session-based backup for device ${device.name} (${device.ip_address})`);
+    console.log(`💾 Creating session-based backup for ${device.name}`);
     
     try {
       // Use existing session backup method (no enable command)
@@ -347,7 +347,7 @@ router.post('/fast', async (req, res) => {
       });
     }
     
-    console.log(`⚡ Starting fast backup for device ${device.name} (${device.ip_address})`);
+    console.log(`💾 Creating fast backup for ${device.name}`);
     
     try {
       // Use fast backup method with persistent sessions
@@ -439,7 +439,7 @@ router.post('/', async (req, res) => {
     }
     
     // Create backup using SSH service
-    console.log(`🚀 Starting backup creation for device ${device.name} (${device.ip_address})`);
+    console.log(`💾 Creating backup for ${device.name} (${device.ip_address})`);
     
     try {
       // Check if device has an active SSH session first
@@ -451,21 +451,12 @@ router.post('/', async (req, res) => {
       let backupResult;
       
       if (hasActiveSession) {
-        console.log(`🔗 Using existing SSH session for backup (no enable needed)`);
         backupResult = await sshService.optimizedBackup(device, config_type);
       } else {
-        console.log(`🔄 No active session found, using traditional backup method`);
         backupResult = await sshService.createFullBackup(device, { config_type });
       }
       
       if (!backupResult.success) {
-        console.error(`❌ Backup creation failed for ${device.name}:`, {
-          runningError: backupResult.runningError,
-          startupError: backupResult.startupError,
-          device: device.name,
-          ip: device.ip_address,
-          sessionUsed: hasActiveSession
-        });
         throw new Error(`Backup creation failed: ${backupResult.runningError || backupResult.startupError || 'Unknown error'}`);
       }
       
@@ -595,39 +586,16 @@ router.post('/', async (req, res) => {
 router.post('/:id/restore', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    console.log(`🔄 Restore request received:`, {
-      backup_id: id,
-      body: req.body,
-      restore_type: req.body.restore_type,
-      create_checkpoint: req.body.create_checkpoint
-    });
-    
-    // Manual validation to avoid schema caching issues
     const { restore_type = 'running', create_checkpoint = true } = req.body;
     
     // Validate restore_type
     if (!['running', 'startup', 'both'].includes(restore_type)) {
-      console.error('❌ Invalid restore_type:', restore_type);
       return res.status(400).json({
         success: false,
         message: 'Invalid restore_type. Must be: running, startup, or both',
-        received_restore_type: restore_type,
         valid_options: ['running', 'startup', 'both']
       });
     }
-    
-    // Validate create_checkpoint
-    if (typeof create_checkpoint !== 'boolean') {
-      console.error('❌ Invalid create_checkpoint:', create_checkpoint);
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid create_checkpoint. Must be boolean',
-        received_create_checkpoint: create_checkpoint
-      });
-    }
-    
-    console.log(`✅ Manual validation passed:`, { restore_type, create_checkpoint });
     
     // Get backup and device details
     const backup = await ConfigurationBackup.findById(id);
@@ -675,10 +643,9 @@ router.post('/:id/restore', async (req, res) => {
             
             await checkpoint.save();
             checkpointId = checkpoint._id;
-            console.log(`✅ Pre-restore checkpoint created with ID: ${checkpointId}`);
           }
         } catch (checkpointError) {
-          console.warn('⚠️ Failed to create pre-restore checkpoint:', checkpointError.message);
+          // Non-fatal: continue with restore even if checkpoint fails
         }
       }
       
@@ -719,8 +686,6 @@ router.post('/:id/restore', async (req, res) => {
           });
         }
       }
-      
-      console.log(`🔄 Restoring ${configSource} configuration (${configToRestore.length} chars) to ${device.name}`);
       
       const restoreResult = await sshService.applyConfigurationFromBackup(device, configToRestore);
       
@@ -863,18 +828,20 @@ router.get('/device/:device_id', async (req, res) => {
     const { device_id } = req.params;
     const { limit = 20, offset = 0 } = req.query;
     
-    const backups = await ConfigurationBackup.find({ device_id })
-      .sort({ created_at: -1 })
-      .limit(parseInt(limit))
-      .skip(parseInt(offset))
-      .lean();
-    
-    // Get device info
-    const device = await Device.findById(device_id).select('name type').lean();
+    // Use aggregation for efficient join
+    const [backups, device] = await Promise.all([
+      ConfigurationBackup.find({ device_id })
+        .select('-running_config -startup_config') // Exclude large fields
+        .sort({ createdAt: -1 })
+        .limit(parseInt(limit))
+        .skip(parseInt(offset))
+        .lean(),
+      Device.findById(device_id).select('name type').lean()
+    ]);
     
     const enhancedBackups = backups.map(backup => ({
       ...backup,
-      id: backup._id, // Add id for compatibility
+      id: backup._id,
       device_name: device?.name,
       device_type: device?.type
     }));
@@ -941,7 +908,7 @@ router.get('/enable-test/:device_id', async (req, res) => {
       });
     }
     
-    console.log(`🔍 Testing enable command for ${device.name} (${device.ip_address})`);
+    console.log(`🔍 Testing enable command for ${device.name}`);
     
     try {
       // Test just the enable command
@@ -1004,7 +971,7 @@ router.get('/ssh-debug/:device_id', async (req, res) => {
       });
     }
     
-    console.log(`🔍 SSH Debug for ${device.name} (${device.ip_address})`);
+    console.log(`🔍 SSH Debug for ${device.name}`);
     
     // Test connection with detailed logging
     const connectionResult = await sshService.testConnection(device);
@@ -1012,7 +979,6 @@ router.get('/ssh-debug/:device_id', async (req, res) => {
     // If full test fails, try basic connection
     let basicConnectionResult = null;
     if (!connectionResult.success) {
-      console.log(`🔄 Full test failed, trying basic connection...`);
       basicConnectionResult = await sshService.testBasicConnection(device);
     }
     
@@ -1075,7 +1041,7 @@ router.get('/test/:device_id', async (req, res) => {
       });
     }
     
-    console.log(`🧪 Testing backup configuration retrieval for ${device.name} (${device.ip_address})`);
+    console.log(`🧪 Testing backup for ${device.name}`);
     
     try {
       // Test connection first
@@ -1099,7 +1065,6 @@ router.get('/test/:device_id', async (req, res) => {
       try {
         startupConfigResult = await sshService.getStartupConfig(device);
       } catch (startupError) {
-        console.warn(`⚠️ Startup config retrieval failed (this is normal for some devices): ${startupError.message}`);
         startupConfigResult = { 
           success: false, 
           error: startupError.message,
@@ -1308,26 +1273,29 @@ router.post('/schedules', async (req, res) => {
 // GET /api/backups/schedules - Get all backup schedules
 router.get('/schedules', async (req, res) => {
   try {
-    const schedules = await BackupSchedule.find()
-      .populate('device_ids', 'name type ip_address')
-      .sort({ createdAt: -1 })
-      .lean();
-
-    const enhancedSchedules = schedules.map(schedule => ({
-      ...schedule,
-      id: schedule._id,
-      device_count: schedule.device_ids.length,
-      devices: schedule.device_ids.map(d => ({
-        id: d._id,
-        name: d.name,
-        type: d.type,
-        ip_address: d.ip_address
-      }))
-    }));
+    // Use aggregation for efficient device lookup
+    const schedules = await BackupSchedule.aggregate([
+      { $sort: { createdAt: -1 } },
+      {
+        $lookup: {
+          from: 'devices',
+          localField: 'device_ids',
+          foreignField: '_id',
+          as: 'devices',
+          pipeline: [{ $project: { name: 1, type: 1, ip_address: 1 } }]
+        }
+      },
+      {
+        $addFields: {
+          id: '$_id',
+          device_count: { $size: '$device_ids' }
+        }
+      }
+    ]);
 
     res.json({
       success: true,
-      schedules: enhancedSchedules
+      schedules
     });
 
   } catch (error) {
@@ -1492,15 +1460,18 @@ router.post('/post-deploy-schedule', async (req, res) => {
       });
     }
 
-    // Validate device IDs
-    for (const device_id of device_ids) {
-      const device = await Device.findById(device_id);
-      if (!device) {
-        return res.status(404).json({
-          success: false,
-          message: `Device ${device_id} not found`
-        });
-      }
+    // Validate all device IDs in a single query
+    const devices = await Device.find({ _id: { $in: device_ids } })
+      .select('_id name type ip_address')
+      .lean();
+    
+    if (devices.length !== device_ids.length) {
+      const foundIds = devices.map(d => d._id.toString());
+      const missingIds = device_ids.filter(id => !foundIds.includes(id));
+      return res.status(404).json({
+        success: false,
+        message: `Device(s) not found: ${missingIds.join(', ')}`
+      });
     }
 
     // Create post-deployment backup schedule
@@ -1516,7 +1487,7 @@ router.post('/post-deploy-schedule', async (req, res) => {
     });
 
     await schedule.save();
-    console.log(`📅 Post-deployment backup schedule created: ${name} for ${device_ids.length} devices`);
+    console.log(`📅 Post-deployment schedule created: ${name}`);
 
     res.status(201).json({
       success: true,
@@ -1526,17 +1497,12 @@ router.post('/post-deploy-schedule', async (req, res) => {
         name: schedule.name,
         description: schedule.description,
         device_count: device_ids.length,
-        devices: await Promise.all(
-          device_ids.map(async (device_id) => {
-            const device = await Device.findById(device_id);
-            return {
-              id: device._id,
-              name: device.name,
-              type: device.type,
-              ip_address: device.ip_address
-            };
-          })
-        ),
+        devices: devices.map(d => ({
+          id: d._id,
+          name: d.name,
+          type: d.type,
+          ip_address: d.ip_address
+        })),
         schedule_type: schedule.schedule_type,
         backup_type: schedule.backup_type,
         enabled: schedule.enabled,

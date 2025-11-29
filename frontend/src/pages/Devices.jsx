@@ -248,7 +248,8 @@ function Devices() {
     const counts = {
       all: devices.length,
       switch: devices.filter(d => d.type === 'switch').length,
-      router: devices.filter(d => d.type === 'router').length
+      router: devices.filter(d => d.type === 'router').length,
+      nexus: devices.filter(d => d.type === 'nexus').length
     };
     return counts;
   };
@@ -463,7 +464,8 @@ function Devices() {
             {[
               { key: 'all', label: 'All', count: filterCounts.all },
               { key: 'switch', label: 'Switches', count: filterCounts.switch },
-              { key: 'router', label: 'Routers', count: filterCounts.router }
+              { key: 'router', label: 'Routers', count: filterCounts.router },
+              { key: 'nexus', label: 'Nexus', count: filterCounts.nexus }
             ].map(filter => (
               <button
                 key={filter.key}
@@ -749,6 +751,7 @@ function Devices() {
                     >
                       <option value="switch">Switch</option>
                       <option value="router">Router</option>
+                      <option value="nexus">Nexus (NX-OS)</option>
                     </select>
                   </div>
                 </div>

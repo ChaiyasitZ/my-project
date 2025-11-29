@@ -707,7 +707,7 @@ function BackupManagement() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredBackups.map((backup) => (
-            <div key={backup.id} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+            <div key={backup.id} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow flex flex-col h-full">
               {/* Card Header */}
               <div className="p-6 pb-4">
                 <div className="flex items-start justify-between mb-3 gap-2">
@@ -740,15 +740,13 @@ function BackupManagement() {
                   )}
                 </div>
 
-                {backup.description && (
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-2 break-words">
-                    {backup.description}
-                  </p>
-                )}
+                <p className="text-gray-600 text-sm mb-4 line-clamp-2 break-words min-h-[2.5rem]">
+                  {backup.description || <span className="text-gray-400 italic">No description</span>}
+                </p>
               </div>
 
-              {/* Card Body */}
-              <div className="px-6 pb-4">
+              {/* Card Body - Flex grow to push footer down */}
+              <div className="px-6 pb-4 flex-grow">
                 <div className="space-y-2 text-sm text-gray-600">
                   <div className="flex items-center">
                     <ServerIcon className="h-4 w-4 mr-2 text-gray-400" />
@@ -786,8 +784,8 @@ function BackupManagement() {
                 })()}
               </div>
 
-              {/* Card Footer */}
-              <div className="px-6 py-4 border-t border-gray-200 min-h-[72px]">
+              {/* Card Footer - Always at bottom */}
+              <div className="px-6 py-4 border-t border-gray-200 mt-auto">
                 <div className="flex items-center justify-between">
                   <button
                     onClick={() => {

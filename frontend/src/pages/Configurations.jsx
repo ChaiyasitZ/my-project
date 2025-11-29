@@ -6,7 +6,18 @@ import {
   SendIcon, 
   CheckCircleIcon, 
   ServerIcon,
-  RefreshCwIcon
+  RefreshCwIcon,
+  CodeIcon,
+  NetworkIcon,
+  ToggleLeftIcon,
+  ToggleRightIcon,
+  UploadIcon,
+  FileTextIcon,
+  TrashIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  PlusIcon,
+  FolderIcon
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import BackupProgressModal from '../components/BackupProgressModal';
@@ -24,6 +35,7 @@ function Configurations() {
   const [devicesLoading, setDevicesLoading] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [configMode, setConfigMode] = useState('cli'); // 'cli' or 'netconf'
   const [isGenerating, setIsGenerating] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [generatedConfig, setGeneratedConfig] = useState(null);
@@ -32,6 +44,26 @@ function Configurations() {
   const [editedConfig, setEditedConfig] = useState('');
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [scheduleResults, setScheduleResults] = useState(null);
+  
+  // YANG Models state
+  const [yangModels, setYangModels] = useState([]);
+  const [yangModelsLoading, setYangModelsLoading] = useState(false);
+  const [showYangUploadModal, setShowYangUploadModal] = useState(false);
+  const [expandedYangModel, setExpandedYangModel] = useState(null);
+  const [yangFormData, setYangFormData] = useState({
+    name: '',
+    namespace: '',
+    prefix: '',
+    version: '1.0.0',
+    device_type: 'nexus',
+    category: 'other',
+    description: '',
+    yang_content: '',
+    xml_templates: [],
+    config_paths: []
+  });
+  const [newTemplate, setNewTemplate] = useState({ name: '', description: '', template: '' });
+  const [newPath, setNewPath] = useState({ path: '', description: '', data_type: '', required: false });
 
   const { confirmationState, showConfirmation } = useConfirmation();
 
@@ -93,6 +125,13 @@ function Configurations() {
     fetchDevices();
   }, []);
 
+  // Fetch YANG models when switching to netconf mode
+  useEffect(() => {
+    if (configMode === 'netconf') {
+      fetchYangModels();
+    }
+  }, [configMode]);
+
   const fetchDevices = async () => {
     setDevicesLoading(true);
     try {
@@ -105,12 +144,149 @@ function Configurations() {
     }
   };
 
+  const fetchYangModels = async () => {
+    setYangModelsLoading(true);
+    try {
+      const response = await axios.get('/yang-models');
+      setYangModels(response.data.yangModels || []);
+    } catch (error) {
+      console.error('Error fetching YANG models:', error);
+    } finally {
+      setYangModelsLoading(false);
+    }
+  };
+
+  const handleYangModelSubmit = async (e) => {
+    e.preventDefault();
+    if (!yangFormData.name || !yangFormData.namespace || !yangFormData.yang_content) {
+      toast.error('Please fill in required fields');
+      return;
+    }
+    
+    try {
+      await axios.post('/yang-models', yangFormData);
+      toast.success('YANG model uploaded successfully!');
+      setShowYangUploadModal(false);
+      resetYangForm();
+      fetchYangModels();
+    } catch (error) {
+      console.error('Error uploading YANG model:', error);
+      toast.error(error.response?.data?.message || 'Failed to upload YANG model');
+    }
+  };
+
+  const handleYangModelDelete = async (id) => {
+    if (!confirm('Are you sure you want to delete this YANG model?')) return;
+    try {
+      await axios.delete(`/yang-models/${id}`);
+      toast.success('YANG model deleted');
+      fetchYangModels();
+    } catch (error) {
+      toast.error('Failed to delete YANG model');
+    }
+  };
+
+  const handleYangModelToggle = async (id) => {
+    try {
+      const response = await axios.post(`/yang-models/toggle/${id}`);
+      toast.success(response.data.message);
+      fetchYangModels();
+    } catch (error) {
+      toast.error('Failed to toggle YANG model');
+    }
+  };
+
+  const addYangTemplate = () => {
+    if (!newTemplate.name || !newTemplate.template) {
+      toast.error('Template name and content are required');
+      return;
+    }
+    setYangFormData({
+      ...yangFormData,
+      xml_templates: [...yangFormData.xml_templates, { ...newTemplate }]
+    });
+    setNewTemplate({ name: '', description: '', template: '' });
+  };
+
+  const removeYangTemplate = (index) => {
+    setYangFormData({
+      ...yangFormData,
+      xml_templates: yangFormData.xml_templates.filter((_, i) => i !== index)
+    });
+  };
+
+  const addYangPath = () => {
+    if (!newPath.path) {
+      toast.error('Path is required');
+      return;
+    }
+    setYangFormData({
+      ...yangFormData,
+      config_paths: [...yangFormData.config_paths, { ...newPath }]
+    });
+    setNewPath({ path: '', description: '', data_type: '', required: false });
+  };
+
+  const removeYangPath = (index) => {
+    setYangFormData({
+      ...yangFormData,
+      config_paths: yangFormData.config_paths.filter((_, i) => i !== index)
+    });
+  };
+
+  const resetYangForm = () => {
+    setYangFormData({
+      name: '',
+      namespace: '',
+      prefix: '',
+      version: '1.0.0',
+      device_type: 'nexus',
+      category: 'other',
+      description: '',
+      yang_content: '',
+      xml_templates: [],
+      config_paths: []
+    });
+    setNewTemplate({ name: '', description: '', template: '' });
+    setNewPath({ path: '', description: '', data_type: '', required: false });
+  };
+
+  const handleYangFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target.result;
+      const nameFromFile = file.name.replace('.yang', '');
+      setYangFormData(prev => ({ 
+        ...prev, 
+        yang_content: content,
+        name: prev.name || nameFromFile
+      }));
+    };
+    reader.readAsText(file);
+  };
+
+  const getCategoryColor = (category) => {
+    const colors = {
+      interface: 'bg-blue-100 text-blue-700',
+      routing: 'bg-green-100 text-green-700',
+      switching: 'bg-yellow-100 text-yellow-700',
+      security: 'bg-red-100 text-red-700',
+      qos: 'bg-purple-100 text-purple-700',
+      system: 'bg-gray-100 text-gray-700',
+      other: 'bg-gray-100 text-gray-600'
+    };
+    return colors[category] || colors.other;
+  };
+
   const handleGenerateConfiguration = async (e) => {
     e.preventDefault();
     if (!selectedDevice || !prompt) return;
 
     setIsGenerating(true);
-    const toastId = toast.loading('Generating configuration...');
+    const modeLabel = configMode === 'netconf' ? 'NETCONF/YANG' : 'CLI';
+    const toastId = toast.loading(`Generating ${modeLabel} configuration...`);
     
     try {
       const requestData = {
@@ -118,7 +294,12 @@ function Configurations() {
         prompt: prompt
       };
 
-      const response = await axios.post('/configurations/generate', requestData);
+      // Choose endpoint based on config mode
+      const endpoint = configMode === 'netconf' 
+        ? '/configurations/netconf/generate' 
+        : '/configurations/generate';
+
+      const response = await axios.post(endpoint, requestData);
 
       if (response.data.configuration) {
         console.log('📥 Received configuration:', response.data.configuration);
@@ -192,9 +373,12 @@ function Configurations() {
   const handleApplyConfiguration = async () => {
     if (!generatedConfig) return;
 
+    const isNetconf = generatedConfig.config_type === 'netconf-yang';
+    const modeLabel = isNetconf ? 'NETCONF' : 'SSH';
+
     const confirmed = await showConfirmation({
-      title: 'Deploy Configuration',
-      message: 'Are you sure you want to apply this configuration to the device?\n\nThis action will modify the device configuration.',
+      title: `Deploy Configuration via ${modeLabel}`,
+      message: `Are you sure you want to apply this configuration to the device using ${modeLabel}?\n\nThis action will modify the device configuration.`,
       confirmText: 'Deploy',
       cancelText: 'Cancel',
       type: 'warning'
@@ -203,10 +387,15 @@ function Configurations() {
     if (!confirmed) return;
 
     setIsApplying(true);
-    const toastId = toast.loading('Deploying configuration...');
+    const toastId = toast.loading(`Deploying via ${modeLabel}...`);
     
     try {
-      const response = await axios.post('/configurations/apply', {
+      // Choose endpoint based on config type
+      const endpoint = isNetconf 
+        ? '/configurations/netconf/apply' 
+        : '/configurations/apply';
+
+      const response = await axios.post(endpoint, {
         configuration_id: generatedConfig.id
       });
 
@@ -259,7 +448,15 @@ function Configurations() {
       <CheckCircleIcon className="h-5 w-5 text-red-600" />;
   };
 
-  const examplePrompts = [
+  const examplePrompts = configMode === 'netconf' ? [
+    // NX-OS NETCONF Examples
+    "Configure VLAN 100 named PRODUCTION with active state",
+    "Set up interface Ethernet1/1 with IP address 10.0.0.1/24",
+    "Configure OSPF instance 1 with router-id 1.1.1.1 in area 0",
+    "Create SVI for VLAN 100 with IP 192.168.100.1/24",
+    "Configure BGP AS 65001 with neighbor 10.0.0.2 in AS 65002",
+    "Enable VXLAN EVPN with NVE interface",
+  ] : [
     // Router Examples
     "Configure OSPF routing for area 0 on GigabitEthernet0/0",
     "Set up static routes to 10.0.0.0/24 via 192.168.1.1",
@@ -287,23 +484,70 @@ function Configurations() {
             Generate Cisco device configurations using AI-powered LLM via OpenRouter
           </p>
         </div>
-        <button
-          onClick={fetchDevices}
-          disabled={devicesLoading}
-          className="btn btn-secondary btn-md"
-        >
-          <RefreshCwIcon className={`h-4 w-4 mr-2 ${devicesLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Config Mode Toggle */}
+          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setConfigMode('cli')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                configMode === 'cli' 
+                  ? 'bg-white text-blue-600 shadow-sm' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <CodeIcon className="h-4 w-4" />
+              CLI
+            </button>
+            <button
+              onClick={() => setConfigMode('netconf')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                configMode === 'netconf' 
+                  ? 'bg-white text-purple-600 shadow-sm' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <NetworkIcon className="h-4 w-4" />
+              NETCONF/YANG
+            </button>
+          </div>
+          <button
+            onClick={fetchDevices}
+            disabled={devicesLoading}
+            className="btn btn-secondary btn-md"
+          >
+            <RefreshCwIcon className={`h-4 w-4 mr-2 ${devicesLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Generation Form */}
         <div className="card p-6">
           <div className="flex items-center mb-4">
-            <BotIcon className="h-6 w-6 text-blue-600 mr-2" />
-            <h2 className="text-lg font-medium text-gray-900">Generate Configuration</h2>
+            {configMode === 'netconf' ? (
+              <NetworkIcon className="h-6 w-6 text-purple-600 mr-2" />
+            ) : (
+              <BotIcon className="h-6 w-6 text-blue-600 mr-2" />
+            )}
+            <h2 className="text-lg font-medium text-gray-900">
+              Generate {configMode === 'netconf' ? 'NETCONF/YANG' : 'CLI'} Configuration
+            </h2>
+            {configMode === 'netconf' && (
+              <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">
+                NX-OS
+              </span>
+            )}
           </div>
+
+          {configMode === 'netconf' && (
+            <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+              <p className="text-sm text-purple-800">
+                <strong>NETCONF/YANG Mode:</strong> Generates XML configuration for NX-OS devices using YANG models.
+                Requires NETCONF enabled on the device (port 830).
+              </p>
+            </div>
+          )}
 
           <form 
             onSubmit={handleGenerateConfiguration}
@@ -423,6 +667,11 @@ function Configurations() {
                     <span>
                       {generatedConfig.device_name} ({generatedConfig.device_type})
                     </span>
+                    {generatedConfig.config_type === 'netconf-yang' && (
+                      <span className="ml-2 px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">
+                        NETCONF
+                      </span>
+                    )}
                   </div>
                   <span className={`badge ${
                     generatedConfig.status === 'applied' ? 'badge-success' : 
@@ -433,9 +682,12 @@ function Configurations() {
                 </div>
                 
                 {/* Model Info */}
-                <div className="mt-2 flex items-center text-xs text-gray-500">
+                <div className="mt-2 flex items-center flex-wrap text-xs text-gray-500">
                   <BotIcon className="h-3 w-3 mr-1" />
                   <span>Generated with: <span className="font-mono font-medium">{generatedConfig.ai_model}</span></span>
+                  {generatedConfig.config_type === 'netconf-yang' && (
+                    <span className="ml-2 text-purple-600 font-medium">• NETCONF/YANG XML</span>
+                  )}
                 {generatedConfig.execution_time && (
                   <span className="ml-3 text-green-600 font-medium">• Generation: {(generatedConfig.execution_time / 1000).toFixed(2)}s</span>
                 )}
@@ -542,6 +794,341 @@ function Configurations() {
         </div>
       </div>
 
+      {/* YANG Models Section - Only visible in NETCONF mode */}
+      {configMode === 'netconf' && (
+        <div className="card p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center">
+              <FileTextIcon className="h-6 w-6 text-purple-600 mr-2" />
+              <h2 className="text-lg font-medium text-gray-900">YANG Models</h2>
+              <span className="ml-2 text-sm text-gray-500">
+                ({yangModels.filter(m => m.is_active).length} active)
+              </span>
+            </div>
+            <button
+              onClick={() => setShowYangUploadModal(true)}
+              className="btn btn-primary btn-sm"
+            >
+              <UploadIcon className="h-4 w-4 mr-1" />
+              Upload Model
+            </button>
+          </div>
+
+          <p className="text-sm text-gray-600 mb-4">
+            Upload custom YANG models to improve XML configuration generation accuracy.
+          </p>
+
+          {yangModelsLoading ? (
+            <div className="text-center py-6">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto"></div>
+            </div>
+          ) : yangModels.length === 0 ? (
+            <div className="text-center py-6 text-gray-500">
+              <FileTextIcon className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+              <p>No YANG models uploaded yet</p>
+              <p className="text-xs mt-1">Upload models to enhance configuration generation</p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {yangModels.map((model) => (
+                <div 
+                  key={model.id} 
+                  className={`border rounded-lg overflow-hidden ${model.is_active ? 'border-purple-200' : 'border-gray-200 opacity-60'}`}
+                >
+                  <div 
+                    className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50"
+                    onClick={() => setExpandedYangModel(expandedYangModel === model.id ? null : model.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <FileTextIcon className={`h-5 w-5 ${model.is_active ? 'text-purple-600' : 'text-gray-400'}`} />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">{model.name}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${getCategoryColor(model.category)}`}>
+                            {model.category}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 font-mono truncate max-w-xs">{model.namespace}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {model.xml_templates?.length > 0 && (
+                        <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">
+                          {model.xml_templates.length} templates
+                        </span>
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleYangModelToggle(model.id); }}
+                        className={`p-1 rounded ${model.is_active ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`}
+                        title={model.is_active ? 'Disable' : 'Enable'}
+                      >
+                        <CheckCircleIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleYangModelDelete(model.id); }}
+                        className="p-1 rounded text-red-500 hover:bg-red-50"
+                        title="Delete"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                      {expandedYangModel === model.id ? (
+                        <ChevronUpIcon className="h-4 w-4 text-gray-400" />
+                      ) : (
+                        <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                      )}
+                    </div>
+                  </div>
+                  
+                  {expandedYangModel === model.id && (
+                    <div className="border-t bg-gray-50 p-3 space-y-2">
+                      {model.description && (
+                        <p className="text-xs text-gray-600">{model.description}</p>
+                      )}
+                      {model.xml_templates?.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-gray-700 mb-1">Templates:</p>
+                          {model.xml_templates.map((tmpl, idx) => (
+                            <div key={idx} className="text-xs bg-white rounded p-2 border mb-1">
+                              <span className="font-medium">{tmpl.name}</span>
+                              {tmpl.description && <span className="text-gray-500"> - {tmpl.description}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* YANG Model Upload Modal */}
+      {showYangUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
+            <div className="p-4 border-b sticky top-0 bg-white z-10">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <UploadIcon className="h-5 w-5 text-purple-600" />
+                Upload YANG Model
+              </h2>
+            </div>
+            
+            <form onSubmit={handleYangModelSubmit} className="p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Model Name *</label>
+                  <input
+                    type="text"
+                    value={yangFormData.name}
+                    onChange={(e) => setYangFormData({ ...yangFormData, name: e.target.value })}
+                    className="input"
+                    placeholder="e.g., Cisco-NX-OS-device"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Prefix</label>
+                  <input
+                    type="text"
+                    value={yangFormData.prefix}
+                    onChange={(e) => setYangFormData({ ...yangFormData, prefix: e.target.value })}
+                    className="input"
+                    placeholder="e.g., nxos"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Namespace URI *</label>
+                <input
+                  type="url"
+                  value={yangFormData.namespace}
+                  onChange={(e) => setYangFormData({ ...yangFormData, namespace: e.target.value })}
+                  className="input font-mono text-sm"
+                  placeholder="http://cisco.com/ns/yang/cisco-nx-os-device"
+                  required
+                />
+              </div>
+              
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Device Type</label>
+                  <select
+                    value={yangFormData.device_type}
+                    onChange={(e) => setYangFormData({ ...yangFormData, device_type: e.target.value })}
+                    className="input"
+                  >
+                    <option value="nexus">Nexus (NX-OS)</option>
+                    <option value="ios">IOS</option>
+                    <option value="ios-xe">IOS-XE</option>
+                    <option value="ios-xr">IOS-XR</option>
+                    <option value="all">All Devices</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select
+                    value={yangFormData.category}
+                    onChange={(e) => setYangFormData({ ...yangFormData, category: e.target.value })}
+                    className="input"
+                  >
+                    <option value="interface">Interface</option>
+                    <option value="routing">Routing</option>
+                    <option value="switching">Switching</option>
+                    <option value="security">Security</option>
+                    <option value="qos">QoS</option>
+                    <option value="system">System</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Version</label>
+                  <input
+                    type="text"
+                    value={yangFormData.version}
+                    onChange={(e) => setYangFormData({ ...yangFormData, version: e.target.value })}
+                    className="input"
+                    placeholder="1.0.0"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <input
+                  type="text"
+                  value={yangFormData.description}
+                  onChange={(e) => setYangFormData({ ...yangFormData, description: e.target.value })}
+                  className="input"
+                  placeholder="Brief description..."
+                />
+              </div>
+              
+              {/* YANG Content */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700">YANG Model Content *</label>
+                  <label className="btn btn-secondary btn-sm cursor-pointer">
+                    <UploadIcon className="h-3 w-3 mr-1" />
+                    Upload .yang
+                    <input type="file" accept=".yang" onChange={handleYangFileUpload} className="hidden" />
+                  </label>
+                </div>
+                <textarea
+                  value={yangFormData.yang_content}
+                  onChange={(e) => setYangFormData({ ...yangFormData, yang_content: e.target.value })}
+                  className="input font-mono text-xs"
+                  rows={6}
+                  placeholder="Paste YANG model content or upload a .yang file..."
+                  required
+                />
+              </div>
+              
+              {/* XML Templates */}
+              <div className="border rounded-lg p-3">
+                <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-1">
+                  <CodeIcon className="h-4 w-4" />
+                  XML Templates (Optional)
+                </h3>
+                
+                {yangFormData.xml_templates.length > 0 && (
+                  <div className="mb-3 space-y-1">
+                    {yangFormData.xml_templates.map((tmpl, idx) => (
+                      <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded p-2 text-xs">
+                        <span className="font-medium flex-1">{tmpl.name}</span>
+                        <button type="button" onClick={() => removeYangTemplate(idx)} className="text-red-500">
+                          <TrashIcon className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={newTemplate.name}
+                      onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
+                      className="input text-sm"
+                      placeholder="Template name"
+                    />
+                    <input
+                      type="text"
+                      value={newTemplate.description}
+                      onChange={(e) => setNewTemplate({ ...newTemplate, description: e.target.value })}
+                      className="input text-sm"
+                      placeholder="Description (optional)"
+                    />
+                  </div>
+                  <textarea
+                    value={newTemplate.template}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, template: e.target.value })}
+                    className="input font-mono text-xs"
+                    rows={3}
+                    placeholder="<System xmlns=...>..."
+                  />
+                  <button type="button" onClick={addYangTemplate} className="btn btn-secondary btn-sm">
+                    <PlusIcon className="h-3 w-3 mr-1" />
+                    Add Template
+                  </button>
+                </div>
+              </div>
+              
+              {/* Config Paths */}
+              <div className="border rounded-lg p-3">
+                <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-1">
+                  <FolderIcon className="h-4 w-4" />
+                  Config Paths (Optional)
+                </h3>
+                
+                {yangFormData.config_paths.length > 0 && (
+                  <div className="mb-3 space-y-1">
+                    {yangFormData.config_paths.map((path, idx) => (
+                      <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded p-2 text-xs">
+                        <code className="font-mono text-purple-600 flex-1">{path.path}</code>
+                        <button type="button" onClick={() => removeYangPath(idx)} className="text-red-500">
+                          <TrashIcon className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newPath.path}
+                    onChange={(e) => setNewPath({ ...newPath, path: e.target.value })}
+                    className="input text-sm font-mono flex-1"
+                    placeholder="/System/intf-items/..."
+                  />
+                  <button type="button" onClick={addYangPath} className="btn btn-secondary btn-sm">
+                    <PlusIcon className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Actions */}
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <button
+                  type="button"
+                  onClick={() => { setShowYangUploadModal(false); resetYangForm(); }}
+                  className="btn btn-secondary btn-md"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary btn-md">
+                  <UploadIcon className="h-4 w-4 mr-1" />
+                  Upload Model
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
 
       {/* Confirmation Modal */}

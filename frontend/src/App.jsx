@@ -2,39 +2,20 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useState, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import axios from 'axios';
-import { StagewiseToolbar } from '@stagewise/toolbar-react';
-import ReactPlugin from '@stagewise-plugins/react';
-
-console.log('🚀 App.jsx: Starting imports...');
 
 // Components
 import Sidebar from './components/Sidebar';
-console.log('✅ Sidebar imported');
 
 // Pages
 import Dashboard from './pages/Dashboard';
-console.log('✅ Dashboard imported');
-
 import Devices from './pages/Devices';
-console.log('✅ Devices imported');
-
 import Configurations from './pages/Configurations';
-console.log('✅ Configurations imported');
-
 import ConfigurationHistory from './pages/ConfigurationHistory';
-console.log('✅ ConfigurationHistory imported');
-
 import ConsoleConfiguration from './pages/ConsoleConfiguration';
-console.log('✅ ConsoleConfiguration imported');
-
 import BackupManagement from './pages/BackupManagement';
-console.log('✅ BackupManagement imported');
-
 import NotFound from './pages/NotFound';
-console.log('✅ NotFound imported');
 
 import './App.css';
-console.log('✅ All imports completed');
 
 // API Configuration - Detect environment based on hostname
 const isLocalhost = window.location.hostname === 'localhost' || 
@@ -44,23 +25,36 @@ const API_BASE_URL = import.meta.env.VITE_API_URL ||
                      (isLocalhost ? 'http://localhost:3001/api' : '/api');
 
 axios.defaults.baseURL = API_BASE_URL;
-console.log('🌐 API Base URL:', API_BASE_URL);
-console.log('🌐 Environment:', isLocalhost ? 'development' : 'production');
+
+// Stagewise toolbar - only in development
+const isDev = import.meta.env.DEV;
 
 function App() {
-  console.log('🏁 App component rendering...');
-  
   const [serverStatus, setServerStatus] = useState('checking');
+  const [StagewiseToolbar, setStagewiseToolbar] = useState(null);
 
   useEffect(() => {
-    console.log('🔍 Setting up server status check...');
-    
+    // Dynamically load Stagewise toolbar only in development
+    if (isDev) {
+      Promise.all([
+        import('@stagewise/toolbar-react'),
+        import('@stagewise-plugins/react')
+      ]).then(([toolbar, plugin]) => {
+        setStagewiseToolbar(() => toolbar.StagewiseToolbar);
+        window.__stagewisePlugin = plugin.default;
+      }).catch(() => {
+        // Silently fail if Stagewise not available
+      });
+    }
+  }, []);
+
+  useEffect(() => {
     const checkServerStatus = async () => {
       try {
         const response = await axios.get('/health');
         setServerStatus(response.data.success ? 'connected' : 'error');
       } catch (error) {
-        console.error('Server health check failed:', error);
+        console.error('Server health check failed:', error.message);
         setServerStatus('error');
       }
     };
@@ -69,8 +63,6 @@ function App() {
     const interval = setInterval(checkServerStatus, 30000);
     return () => clearInterval(interval);
   }, []);
-
-  console.log('🎨 Rendering App JSX...');
 
   return (
     <Router>
@@ -140,12 +132,12 @@ function App() {
         />
         
         {/* Stagewise Toolbar - Only in development */}
-        <StagewiseToolbar config={{ plugins: [ReactPlugin] }} />
+        {isDev && StagewiseToolbar && (
+          <StagewiseToolbar config={{ plugins: [window.__stagewisePlugin] }} />
+        )}
       </div>
     </Router>
   );
 }
-
-console.log('✅ App component defined');
 
 export default App;

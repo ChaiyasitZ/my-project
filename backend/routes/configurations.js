@@ -1235,4 +1235,344 @@ router.post('/apply-multi', async (req, res) => {
   }
 });
 
+// ========================
+// NETCONF/YANG ROUTES
+// ========================
+
+import netconfService from '../services/netconfService.js';
+import YangModel from '../models/YangModel.js';
+
+// POST /api/configurations/netconf/generate - Generate NETCONF/YANG configuration
+router.post('/netconf/generate', async (req, res) => {
+  try {
+    console.log('🌐 NETCONF configuration generation request received');
+    
+    const { error, value } = generateConfigSchema.validate(req.body);
+    
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        details: error.details
+      });
+    }
+    
+    const { device_id, prompt } = value;
+    
+    // Get device details
+    let device;
+    try {
+      device = await Device.findById(device_id);
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid device ID format'
+      });
+    }
+    
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    // Fetch active YANG models for this device type
+    let customYangModels = [];
+    try {
+      const yangModels = await YangModel.find({
+        is_active: true,
+        device_type: { $in: [device.type, 'all'] }
+      }).select('name namespace prefix description xml_templates config_paths');
+      
+      customYangModels = yangModels.map(model => ({
+        name: model.name,
+        namespace: model.namespace,
+        prefix: model.prefix,
+        description: model.description,
+        templates: model.xml_templates,
+        paths: model.config_paths
+      }));
+      
+      console.log(`📚 Loaded ${customYangModels.length} YANG models for ${device.type}`);
+    } catch (yangError) {
+      console.warn('⚠️ Could not load custom YANG models:', yangError.message);
+    }
+    
+    // Generate NETCONF/YANG configuration with custom YANG models
+    const startTime = Date.now();
+    const aiResult = await llmService.generateNetconfConfig(prompt, device.type, {
+      name: device.name,
+      model: device.model,
+      location: device.location
+    }, customYangModels);
+    const executionTime = Date.now() - startTime;
+    
+    if (!aiResult.success) {
+      return res.status(400).json({
+        success: false,
+        message: 'NETCONF configuration generation failed',
+        error: aiResult.error,
+        executionTime
+      });
+    }
+    
+    // Generate explanation
+    const explanationResult = await llmService.generateExplanation(
+      aiResult.displayConfig,
+      device.type,
+      prompt
+    );
+    
+    // Save to configuration history
+    const currentTimestamp = Date.now();
+    const configuration = new ConfigurationHistory({
+      device_id,
+      prompt,
+      generated_config: aiResult.configuration,
+      deployment_config: aiResult.deploymentConfig,
+      ai_model: aiResult.model || 'openrouter',
+      execution_time: executionTime,
+      status: 'generated',
+      created_at: currentTimestamp,
+      config_type: 'netconf-yang' // Mark as NETCONF config
+    });
+    
+    await configuration.save();
+    
+    res.json({
+      success: true,
+      configuration: {
+        ...configuration.toObject(),
+        id: configuration._id,
+        device_name: device.name,
+        device_type: device.type,
+        config_type: 'netconf-yang',
+        validation: aiResult.validation,
+        confidenceScore: aiResult.confidenceScore,
+        recommendations: aiResult.recommendations,
+        explanation: explanationResult.success ? explanationResult.explanation : 'Explanation unavailable'
+      }
+    });
+    
+  } catch (error) {
+    console.error('NETCONF generation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate NETCONF configuration',
+      error: error.message
+    });
+  }
+});
+
+// POST /api/configurations/netconf/apply - Apply NETCONF configuration to device
+router.post('/netconf/apply', async (req, res) => {
+  try {
+    const { configuration_id } = req.body;
+    
+    if (!configuration_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Configuration ID is required'
+      });
+    }
+    
+    // Get configuration
+    const configuration = await ConfigurationHistory.findOne({
+      _id: configuration_id,
+      status: 'generated'
+    });
+    
+    if (!configuration) {
+      return res.status(404).json({
+        success: false,
+        message: 'Configuration not found or already applied'
+      });
+    }
+    
+    // Get device
+    const device = await Device.findById(configuration.device_id);
+    
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    console.log(`🌐 NETCONF: Applying configuration to ${device.name} (${device.ip_address})`);
+    
+    const deploymentStart = Date.now();
+    
+    try {
+      // Connect via NETCONF
+      const connectResult = await netconfService.connect(device);
+      
+      if (!connectResult.success) {
+        throw new Error('Failed to establish NETCONF connection');
+      }
+      
+      const deviceId = device._id.toString();
+      
+      // Apply configuration
+      const applyResult = await netconfService.applyNxosConfig(
+        deviceId,
+        configuration.deployment_config || configuration.generated_config,
+        'merge'
+      );
+      
+      const deploymentTime = Date.now() - deploymentStart;
+      
+      // Close NETCONF session
+      await netconfService.closeSession(deviceId);
+      
+      // Update configuration status
+      configuration.status = 'applied';
+      configuration.applied_at = Date.now();
+      configuration.deployment_time = deploymentTime;
+      await configuration.save();
+      
+      res.json({
+        success: true,
+        message: 'NETCONF configuration applied successfully',
+        deployment_time: deploymentTime,
+        deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
+        netconf: true,
+        response: applyResult.response
+      });
+      
+    } catch (netconfError) {
+      const deploymentTime = Date.now() - deploymentStart;
+      
+      configuration.status = 'failed';
+      configuration.error_message = netconfError.message;
+      configuration.deployment_time = deploymentTime;
+      await configuration.save();
+      
+      // Try to close session on error
+      try {
+        await netconfService.closeSession(device._id.toString());
+      } catch (closeErr) {
+        // Ignore
+      }
+      
+      res.status(500).json({
+        success: false,
+        message: `NETCONF deployment failed: ${netconfError.message}`,
+        error: netconfError.message,
+        troubleshooting: [
+          'Verify NETCONF is enabled on device (feature netconf)',
+          'Check port 830 is accessible',
+          'Ensure device supports NX-OS YANG models',
+          'Verify XML syntax is correct'
+        ]
+      });
+    }
+    
+  } catch (error) {
+    console.error('NETCONF apply error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error during NETCONF configuration',
+      error: error.message
+    });
+  }
+});
+
+// POST /api/configurations/netconf/test - Test NETCONF connectivity
+router.post('/netconf/test', async (req, res) => {
+  try {
+    const { device_id } = req.body;
+    
+    if (!device_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Device ID is required'
+      });
+    }
+    
+    const device = await Device.findById(device_id);
+    
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    console.log(`🧪 Testing NETCONF connectivity to ${device.name} (${device.ip_address})`);
+    
+    const result = await netconfService.testConnection(device);
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('NETCONF test error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'NETCONF connectivity test failed',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/configurations/netconf/session/:device_id - Get NETCONF session status
+router.get('/netconf/session/:device_id', async (req, res) => {
+  try {
+    const { device_id } = req.params;
+    
+    const status = netconfService.getSessionStatus(device_id);
+    
+    res.json({
+      success: true,
+      session: status
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get NETCONF session status',
+      error: error.message
+    });
+  }
+});
+
+// DELETE /api/configurations/netconf/session/:device_id - Close NETCONF session
+router.delete('/netconf/session/:device_id', async (req, res) => {
+  try {
+    const { device_id } = req.params;
+    
+    const result = await netconfService.closeSession(device_id);
+    
+    res.json(result);
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to close NETCONF session',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/configurations/netconf/sessions - Get all active NETCONF sessions
+router.get('/netconf/sessions', async (req, res) => {
+  try {
+    const sessions = netconfService.getActiveSessions();
+    
+    res.json({
+      success: true,
+      sessions: sessions,
+      count: sessions.length
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get active NETCONF sessions',
+      error: error.message
+    });
+  }
+});
+
 export default router;

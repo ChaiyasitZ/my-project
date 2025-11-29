@@ -18,16 +18,16 @@ class BackupScheduler {
       return;
     }
 
-    
     // Load existing schedules from database
     await this.loadSchedules();
     
-    // Set up a cron job to check for schedule changes every minute
-    cron.schedule('* * * * *', async () => {
+    // Refresh schedules every 5 minutes (reduced from 1 minute to lower DB load)
+    cron.schedule('*/5 * * * *', async () => {
       await this.refreshSchedules();
     });
     
     this.isInitialized = true;
+    console.log('📅 Backup scheduler initialized (refresh interval: 5 minutes)');
   }
 
   // Load all active schedules from database

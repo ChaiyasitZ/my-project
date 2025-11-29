@@ -70,10 +70,11 @@ const backupScheduleSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for faster queries
+// Indexes for faster queries
 backupScheduleSchema.index({ device_ids: 1 });
-backupScheduleSchema.index({ enabled: 1, schedule_type: 1 });
-backupScheduleSchema.index({ last_run: 1 });
+backupScheduleSchema.index({ enabled: 1, schedule_type: 1, trigger_on_deploy: 1 }); // Post-deploy queries
+backupScheduleSchema.index({ last_run: -1 });
+backupScheduleSchema.index({ name: 'text' }); // Text search on schedule names
 
 const BackupSchedule = mongoose.model('BackupSchedule', backupScheduleSchema);
 

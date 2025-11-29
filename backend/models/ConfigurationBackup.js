@@ -49,10 +49,11 @@ const configurationBackupSchema = new mongoose.Schema({
 // Compound unique index - device + backup name must be unique
 configurationBackupSchema.index({ device_id: 1, backup_name: 1 }, { unique: true });
 
-// Other indexes for performance
-configurationBackupSchema.index({ device_id: 1 });
-configurationBackupSchema.index({ createdAt: -1 });
-configurationBackupSchema.index({ backup_type: 1 });
+// Indexes for common query patterns
+configurationBackupSchema.index({ device_id: 1, createdAt: -1 }); // Device backups sorted by date
+configurationBackupSchema.index({ config_hash: 1 }); // Duplicate detection
+configurationBackupSchema.index({ backup_type: 1, createdAt: -1 }); // Filter by type
+configurationBackupSchema.index({ tags: 1 }); // Tag-based queries
 configurationBackupSchema.index({ is_restore_point: 1 });
 
 // Virtual to get device info
