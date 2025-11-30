@@ -436,8 +436,16 @@ function Configurations() {
       const sortedKeys = Object.keys(dict).sort((a, b) => b.length - a.length);
       
       for (const key of sortedKeys) {
-        const regex = new RegExp(`\\b${key}\\b`, 'gi');
-        translatedText = translatedText.replace(regex, dict[key]);
+        // For Thai (no word boundaries), use simple replace
+        // For English, use word boundaries
+        if (promptLanguage === 'th') {
+          // Thai: simple global replace (case-sensitive for Thai)
+          translatedText = translatedText.split(key).join(dict[key]);
+        } else {
+          // English: use word boundaries
+          const regex = new RegExp(`\\b${key}\\b`, 'gi');
+          translatedText = translatedText.replace(regex, dict[key]);
+        }
       }
       
       setPrompt(translatedText);
