@@ -3,12 +3,6 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { 
   TerminalIcon, 
-  PlayIcon, 
-  SettingsIcon,
-  WifiIcon,
-  WifiOffIcon,
-  SendIcon,
-  ClockIcon,
   RefreshCwIcon
 } from 'lucide-react';
 
@@ -701,8 +695,8 @@ function ConsoleConfiguration() {
                   {/* Template Preview */}
                   <div className="mt-6">
                     <h4 className="text-sm font-medium text-gray-700 mb-2">Configuration Preview</h4>
-                    <div className="bg-black rounded-md p-3 max-h-40 overflow-auto code-scrollbar">
-                      <pre className="text-green-400 text-xs font-mono whitespace-pre-wrap">
+                    <div className="bg-gray-900 rounded-lg p-4 max-h-64 overflow-auto code-scrollbar">
+                      <pre className="text-green-400 text-sm font-mono whitespace-pre-wrap leading-relaxed">
                         {templates[selectedTemplate] && 
                           (() => {
                             // Create a preview config with IP method processing
@@ -814,12 +808,12 @@ function ConsoleConfiguration() {
                   </div>
                 </div>
                 {result.output && (
-                  <div className="mt-2 p-2 bg-gray-100 rounded text-xs font-mono text-gray-700 overflow-auto max-h-20">
+                  <div className="mt-2 p-2 bg-gray-100 rounded text-sm font-mono text-gray-700 overflow-auto max-h-24">
                     {result.output.trim()}
                   </div>
                 )}
                 {result.error && (
-                  <div className="mt-2 p-2 bg-red-100 rounded text-xs text-red-700">
+                  <div className="mt-2 p-2 bg-red-100 rounded text-sm text-red-700">
                     <strong>Error:</strong> {result.error}
                   </div>
                 )}
@@ -831,8 +825,8 @@ function ConsoleConfiguration() {
           {configResults.fullOutput && (
             <div className="mt-6">
               <h4 className="text-sm font-medium text-gray-700 mb-2">📋 Full Console Output</h4>
-              <div className="bg-black rounded-lg p-4 max-h-96 overflow-auto code-scrollbar">
-                <pre className="text-green-400 text-xs font-mono whitespace-pre-wrap">
+              <div className="bg-gray-900 rounded-lg p-4 max-h-96 overflow-auto code-scrollbar">
+                <pre className="text-green-400 text-sm font-mono whitespace-pre-wrap leading-relaxed">
                   {configResults.fullOutput}
                 </pre>
               </div>

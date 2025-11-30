@@ -16,8 +16,6 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Legacy sidebar scroll styles - replaced by improved custom-scrollbar system */
-
 /* Navigation item hover effects */
 .nav-item-hover {
   position: relative;
@@ -53,58 +51,9 @@ html {
   animation: pulse-status 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Card component styling */
-.card {
-  background: white;
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  border: 1px solid rgba(229, 231, 235, 1);
-}
-
-/* Button styles are now managed in index.css @layer components for better organization */
-
-/* Input styling */
-.input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #D1D5DB;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  transition: all 0.2s;
-}
-
+/* Input styling enhancements */
 .input:focus {
   outline: none;
   border-color: #3B82F6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-/* Badge styling */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.badge-success {
-  background-color: #DEF7EC;
-  color: #03543F;
-}
-
-.badge-danger {
-  background-color: #FDF2F2;
-  color: #9B1C1C;
-}
-
-.badge-warning {
-  background-color: #FFFBEB;
-  color: #92400E;
-}
-
-.badge-info {
-  background-color: #EBF8FF;
-  color: #1E40AF;
 }

@@ -1,6 +1,9 @@
-import React from 'react';
+import { useState } from 'react';
+import { Server, Router, Box } from 'lucide-react';
 
 const DeviceIcon = ({ deviceType, layer, className = "h-6 w-6" }) => {
+  const [imageError, setImageError] = useState(false);
+
   const getIconPath = () => {
     switch (deviceType) {
       case 'router':
@@ -38,12 +41,32 @@ const DeviceIcon = ({ deviceType, layer, className = "h-6 w-6" }) => {
     }
   };
 
+  // Fallback to Lucide icons if SVG fails to load
+  const getFallbackIcon = () => {
+    const iconClass = className;
+    switch (deviceType) {
+      case 'router':
+        return <Router className={iconClass} style={{ color: '#059669' }} />;
+      case 'switch':
+        return <Server className={iconClass} style={{ color: '#2563eb' }} />;
+      case 'nexus':
+        return <Box className={iconClass} style={{ color: '#7c3aed' }} />;
+      default:
+        return <Server className={iconClass} style={{ color: '#6b7280' }} />;
+    }
+  };
+
+  if (imageError) {
+    return getFallbackIcon();
+  }
+
   return (
     <img
       src={getIconPath()}
       alt={getDeviceTitle()}
       title={getDeviceTitle()}
       className={className}
+      onError={() => setImageError(true)}
       style={{
         filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1))'
       }}

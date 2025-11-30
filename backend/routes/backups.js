@@ -1,6 +1,7 @@
 import express from 'express';
 import Joi from 'joi';
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 import Device from '../models/Device.js';
 import ConfigurationBackup from '../models/ConfigurationBackup.js';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
@@ -118,6 +119,14 @@ router.get('/:id/preview', async (req, res) => {
   try {
     const { id } = req.params;
     
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid backup ID format'
+      });
+    }
+    
     // Get backup details
     const backup = await ConfigurationBackup.findById(id);
     
@@ -173,6 +182,15 @@ router.get('/:id/preview', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid backup ID format'
+      });
+    }
+    
     const { include_config = 'false' } = req.query;
     
     // Only fetch config fields if explicitly requested

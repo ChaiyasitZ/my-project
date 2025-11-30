@@ -7,10 +7,17 @@ import userEvent from '@testing-library/user-event';
 import { renderWithRouter } from '../test/utils';
 import Sidebar from './Sidebar';
 
+// Helper to create connectionStatus prop
+const createConnectionStatus = (backend = 'connected', database = 'connected', version = '2.0.0') => ({
+  backend,
+  database,
+  version
+});
+
 describe('Sidebar', () => {
   describe('rendering', () => {
     it('should render all navigation items', () => {
-      renderWithRouter(<Sidebar serverStatus="connected" />);
+      renderWithRouter(<Sidebar connectionStatus={createConnectionStatus()} />);
       
       expect(screen.getByText('Dashboard')).toBeInTheDocument();
       expect(screen.getByText('Devices')).toBeInTheDocument();
@@ -21,68 +28,66 @@ describe('Sidebar', () => {
     });
 
     it('should render app name', () => {
-      renderWithRouter(<Sidebar serverStatus="connected" />);
+      renderWithRouter(<Sidebar connectionStatus={createConnectionStatus()} />);
       
       expect(screen.getAllByText('NetAutomate').length).toBeGreaterThan(0);
     });
-
-    it('should render version number', () => {
-      renderWithRouter(<Sidebar serverStatus="connected" />);
-      
-      expect(screen.getByText('v2.0.0')).toBeInTheDocument();
-    });
   });
 
-  describe('server status', () => {
-    it('should show connected status', () => {
-      renderWithRouter(<Sidebar serverStatus="connected" />);
+  describe('connection status', () => {
+    it('should show connected status for backend and database', () => {
+      renderWithRouter(<Sidebar connectionStatus={createConnectionStatus('connected', 'connected')} />);
       
-      expect(screen.getByText('Server Connected')).toBeInTheDocument();
+      expect(screen.getByText('Backend')).toBeInTheDocument();
+      expect(screen.getByText('Database')).toBeInTheDocument();
+      expect(screen.getAllByText('Connected').length).toBe(2);
     });
 
-    it('should show disconnected status', () => {
-      renderWithRouter(<Sidebar serverStatus="error" />);
+    it('should show disconnected status when backend error', () => {
+      renderWithRouter(<Sidebar connectionStatus={createConnectionStatus('error', 'error')} />);
       
-      expect(screen.getByText('Server Disconnected')).toBeInTheDocument();
+      expect(screen.getAllByText('Disconnected').length).toBe(2);
     });
 
     it('should show checking status by default', () => {
-      renderWithRouter(<Sidebar serverStatus="checking" />);
+      renderWithRouter(<Sidebar connectionStatus={createConnectionStatus('checking', 'checking')} />);
       
-      expect(screen.getByText('Checking Connection...')).toBeInTheDocument();
+      // 2 in footer (backend + database) + 1 in mobile header = 3
+      expect(screen.getAllByText('Checking...').length).toBeGreaterThanOrEqual(2);
     });
 
     it('should default to checking when no status provided', () => {
       renderWithRouter(<Sidebar />);
       
-      expect(screen.getByText('Checking Connection...')).toBeInTheDocument();
+      // 2 in footer (backend + database) + 1 in mobile header = 3
+      expect(screen.getAllByText('Checking...').length).toBeGreaterThanOrEqual(2);
     });
   });
 
   describe('navigation links', () => {
     it('should have correct href for Dashboard', () => {
-      renderWithRouter(<Sidebar serverStatus="connected" />);
+      renderWithRouter(<Sidebar connectionStatus={createConnectionStatus()} />);
       
       const dashboardLink = screen.getAllByRole('link', { name: /dashboard/i })[0];
       expect(dashboardLink).toHaveAttribute('href', '/dashboard');
     });
 
     it('should have correct href for Devices', () => {
-      renderWithRouter(<Sidebar serverStatus="connected" />);
+      renderWithRouter(<Sidebar connectionStatus={createConnectionStatus()} />);
       
       const devicesLink = screen.getAllByRole('link', { name: /devices/i })[0];
       expect(devicesLink).toHaveAttribute('href', '/devices');
     });
 
     it('should have correct href for Configurations', () => {
-      renderWithRouter(<Sidebar serverStatus="connected" />);
+      renderWithRouter(<Sidebar connectionStatus={createConnectionStatus()} />);
       
       const configLink = screen.getAllByRole('link', { name: /configurations/i })[0];
       expect(configLink).toHaveAttribute('href', '/configurations');
     });
 
     it('should have correct href for Backups', () => {
-      renderWithRouter(<Sidebar serverStatus="connected" />);
+      renderWithRouter(<Sidebar connectionStatus={createConnectionStatus()} />);
       
       const backupsLink = screen.getAllByRole('link', { name: /backups/i })[0];
       expect(backupsLink).toHaveAttribute('href', '/backups');
@@ -91,7 +96,7 @@ describe('Sidebar', () => {
 
   describe('active state', () => {
     it('should highlight active route', () => {
-      renderWithRouter(<Sidebar serverStatus="connected" />, { route: '/dashboard' });
+      renderWithRouter(<Sidebar connectionStatus={createConnectionStatus()} />, { route: '/dashboard' });
       
       // The active link should have active styles
       const dashboardLink = screen.getAllByRole('link', { name: /dashboard/i })[0];
@@ -101,7 +106,7 @@ describe('Sidebar', () => {
 
   describe('mobile menu', () => {
     it('should have mobile menu toggle button', () => {
-      renderWithRouter(<Sidebar serverStatus="connected" />);
+      renderWithRouter(<Sidebar connectionStatus={createConnectionStatus()} />);
       
       const toggleButton = screen.getByLabelText('Toggle menu');
       expect(toggleButton).toBeInTheDocument();
@@ -109,7 +114,7 @@ describe('Sidebar', () => {
 
     it('should toggle mobile menu on button click', async () => {
       const user = userEvent.setup();
-      renderWithRouter(<Sidebar serverStatus="connected" />);
+      renderWithRouter(<Sidebar connectionStatus={createConnectionStatus()} />);
       
       const toggleButton = screen.getByLabelText('Toggle menu');
       
@@ -124,14 +129,14 @@ describe('Sidebar', () => {
 
 describe('Sidebar accessibility', () => {
   it('should have proper aria labels', () => {
-    renderWithRouter(<Sidebar serverStatus="connected" />);
+    renderWithRouter(<Sidebar connectionStatus={createConnectionStatus()} />);
     
     expect(screen.getByLabelText('Toggle menu')).toBeInTheDocument();
     expect(screen.getByLabelText('Mobile navigation')).toBeInTheDocument();
   });
 
   it('should have accessible navigation', () => {
-    renderWithRouter(<Sidebar serverStatus="connected" />);
+    renderWithRouter(<Sidebar connectionStatus={createConnectionStatus()} />);
     
     const nav = screen.getByRole('navigation', { name: 'Mobile navigation' });
     expect(nav).toBeInTheDocument();

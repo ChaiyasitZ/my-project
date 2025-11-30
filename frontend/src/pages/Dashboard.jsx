@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
 import { 
   ServerIcon, 
   CogIcon, 
@@ -12,8 +11,6 @@ import {
   RefreshCwIcon,
   ArchiveIcon,
   TrendingUpIcon,
-  DatabaseIcon,
-  CalendarIcon,
   TerminalIcon
 } from 'lucide-react';
 import DeviceIcon from '../components/DeviceIcon';
@@ -51,6 +48,15 @@ function Dashboard() {
 
   const fetchDashboardData = async () => {
     try {
+      // First check server health
+      const healthResponse = await axios.get('/health').catch(() => null);
+      
+      if (!healthResponse?.data?.success) {
+        // Backend is down or database error
+        setLoading(false);
+        return;
+      }
+
       const [
         devicesResponse, 
         deviceStatsResponse,
@@ -195,73 +201,73 @@ function Dashboard() {
 
       {/* Stats Cards - Row 1: Core Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="card p-5">
+        <div className="stat-card">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500">Total Devices</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalDevices}</p>
-              <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalDevices}</p>
+              <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
                 <span>{stats.routers} routers</span>
-                <span>•</span>
+                <span className="text-gray-300">•</span>
                 <span>{stats.switches} switches</span>
               </div>
             </div>
-            <div className="p-3 bg-blue-100 rounded-full">
-              <ServerIcon className="h-6 w-6 text-blue-600" />
+            <div className="stat-icon-blue">
+              <ServerIcon className="h-6 w-6" />
             </div>
           </div>
         </div>
 
-        <div className="card p-5">
+        <div className="stat-card">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500">Device Status</p>
-              <p className="text-2xl font-bold text-green-600">{stats.activeDevices} Active</p>
-              <div className="flex items-center gap-2 mt-1 text-xs">
+              <p className="text-2xl font-bold text-green-600 mt-1">{stats.activeDevices} Active</p>
+              <div className="flex items-center gap-2 mt-2 text-xs">
                 {stats.inactiveDevices > 0 && (
                   <span className="text-red-500">{stats.inactiveDevices} inactive</span>
                 )}
                 {stats.maintenanceDevices > 0 && (
-                  <span className="text-yellow-500">{stats.maintenanceDevices} maintenance</span>
+                  <span className="text-amber-500">{stats.maintenanceDevices} maintenance</span>
                 )}
                 {stats.inactiveDevices === 0 && stats.maintenanceDevices === 0 && (
                   <span className="text-green-500">All devices online</span>
                 )}
               </div>
             </div>
-            <div className="p-3 bg-green-100 rounded-full">
-              <ActivityIcon className="h-6 w-6 text-green-600" />
+            <div className="stat-icon-green">
+              <ActivityIcon className="h-6 w-6" />
             </div>
           </div>
         </div>
 
-        <div className="card p-5">
+        <div className="stat-card">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500">Configurations</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalConfigurations}</p>
-              <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
+              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalConfigurations}</p>
+              <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
                 <TrendingUpIcon className="h-3 w-3 text-green-500" />
                 <span>{analytics.successRate}% success rate</span>
               </div>
             </div>
-            <div className="p-3 bg-purple-100 rounded-full">
-              <CogIcon className="h-6 w-6 text-purple-600" />
+            <div className="stat-icon-purple">
+              <CogIcon className="h-6 w-6" />
             </div>
           </div>
         </div>
 
-        <div className="card p-5">
+        <div className="stat-card">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-500">Backups</p>
-              <p className="text-2xl font-bold text-gray-900">{backupStats.totalBackups}</p>
-              <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+              <p className="text-2xl font-bold text-gray-900 mt-1">{backupStats.totalBackups}</p>
+              <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
                 <span>{backupStats.restorePoints} restore points</span>
               </div>
             </div>
-            <div className="p-3 bg-orange-100 rounded-full">
-              <ArchiveIcon className="h-6 w-6 text-orange-600" />
+            <div className="stat-icon-orange">
+              <ArchiveIcon className="h-6 w-6" />
             </div>
           </div>
         </div>
@@ -271,26 +277,26 @@ function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Device Health - Left Side (2 columns) */}
         <div className="lg:col-span-2 card">
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h3 className="text-lg font-medium text-gray-900">Device Health</h3>
+          <div className="card-header flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900">Device Health</h3>
             <div className="flex items-center gap-4 text-xs">
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 bg-green-500 rounded-full"></span> Active
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 bg-green-500 rounded-full ring-2 ring-green-500/20"></span> Active
               </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 bg-red-500 rounded-full"></span> Inactive
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-red-500/20"></span> Inactive
               </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 bg-yellow-500 rounded-full"></span> Maintenance
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-amber-500/20"></span> Maintenance
               </span>
             </div>
           </div>
-          <div className="p-6">
+          <div className="card-body">
             {devices.length === 0 ? (
-              <div className="text-center py-8">
-                <ServerIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">No devices found</p>
-                <p className="text-sm text-gray-400 mt-1">
+              <div className="empty-state">
+                <ServerIcon className="empty-state-icon" />
+                <p className="empty-state-title">No devices found</p>
+                <p className="empty-state-description">
                   Add devices to start monitoring your network
                 </p>
               </div>
@@ -299,11 +305,11 @@ function Dashboard() {
                 {devices.slice(0, 12).map((device) => (
                   <div 
                     key={device.id} 
-                    className={`relative p-3 rounded-lg border-2 transition-all hover:shadow-md ${
-                      device.status === 'active' ? 'border-green-200 bg-green-50' :
-                      device.status === 'inactive' ? 'border-red-200 bg-red-50' :
-                      device.status === 'maintenance' ? 'border-yellow-200 bg-yellow-50' :
-                      'border-gray-200 bg-gray-50'
+                    className={`relative p-3 rounded-xl border-2 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-pointer ${
+                      device.status === 'active' ? 'border-green-200 bg-green-50/50 hover:border-green-300' :
+                      device.status === 'inactive' ? 'border-red-200 bg-red-50/50 hover:border-red-300' :
+                      device.status === 'maintenance' ? 'border-amber-200 bg-amber-50/50 hover:border-amber-300' :
+                      'border-gray-200 bg-gray-50/50 hover:border-gray-300'
                     }`}
                   >
                     <div className="flex flex-col items-center text-center">
@@ -313,22 +319,22 @@ function Dashboard() {
                         className={`h-8 w-8 mb-2 ${
                           device.status === 'active' ? 'text-green-600' :
                           device.status === 'inactive' ? 'text-red-600' :
-                          device.status === 'maintenance' ? 'text-yellow-600' :
+                          device.status === 'maintenance' ? 'text-amber-600' :
                           'text-gray-600'
                         }`}
                       />
-                      <p className="text-xs font-medium text-gray-900 truncate w-full" title={device.name}>
+                      <p className="text-xs font-semibold text-gray-900 truncate w-full" title={device.name}>
                         {device.name}
                       </p>
-                      <p className="text-[10px] text-gray-500 truncate w-full">
+                      <p className="text-[11px] text-gray-500 truncate w-full mt-0.5">
                         {device.ip_address}
                       </p>
                     </div>
-                    <div className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
-                      device.status === 'active' ? 'bg-green-500' :
-                      device.status === 'inactive' ? 'bg-red-500' :
-                      device.status === 'maintenance' ? 'bg-yellow-500' :
-                      'bg-gray-400'
+                    <div className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ring-2 ${
+                      device.status === 'active' ? 'bg-green-500 ring-green-500/30' :
+                      device.status === 'inactive' ? 'bg-red-500 ring-red-500/30' :
+                      device.status === 'maintenance' ? 'bg-amber-500 ring-amber-500/30' :
+                      'bg-gray-400 ring-gray-400/30'
                     }`}></div>
                   </div>
                 ))}
@@ -336,7 +342,7 @@ function Dashboard() {
             )}
             {devices.length > 12 && (
               <div className="mt-4 text-center">
-                <a href="/devices" className="text-sm text-blue-600 hover:text-blue-800">
+                <a href="/devices" className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors">
                   View all {devices.length} devices →
                 </a>
               </div>
@@ -346,93 +352,85 @@ function Dashboard() {
 
         {/* Quick Actions - Right Side (1 column) */}
         <div className="card">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">Quick Actions</h3>
+          <div className="card-header">
+            <h3 className="text-lg font-semibold text-gray-900">Quick Actions</h3>
           </div>
-          <div className="p-4 space-y-3">
-            <a href="/devices" className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors">
-              <ServerIcon className="h-5 w-5 text-blue-600" />
+          <div className="p-4 space-y-2">
+            <a href="/devices" className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-100 hover:border-blue-200 transition-all duration-200 group">
+              <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
+                <ServerIcon className="h-5 w-5 text-blue-600" />
+              </div>
               <span className="text-sm font-medium text-blue-900">Manage Devices</span>
             </a>
-            <a href="/configurations" className="flex items-center gap-3 p-3 rounded-lg bg-purple-50 hover:bg-purple-100 transition-colors">
-              <CogIcon className="h-5 w-5 text-purple-600" />
+            <a href="/configurations" className="flex items-center gap-3 p-3 rounded-xl bg-purple-50 hover:bg-purple-100 border border-purple-100 hover:border-purple-200 transition-all duration-200 group">
+              <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
+                <CogIcon className="h-5 w-5 text-purple-600" />
+              </div>
               <span className="text-sm font-medium text-purple-900">Generate Config</span>
             </a>
-            <a href="/backup" className="flex items-center gap-3 p-3 rounded-lg bg-orange-50 hover:bg-orange-100 transition-colors">
-              <ArchiveIcon className="h-5 w-5 text-orange-600" />
+            <a href="/backups" className="flex items-center gap-3 p-3 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-100 hover:border-orange-200 transition-all duration-200 group">
+              <div className="p-2 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors">
+                <ArchiveIcon className="h-5 w-5 text-orange-600" />
+              </div>
               <span className="text-sm font-medium text-orange-900">Backup Management</span>
             </a>
-            <a href="/console" className="flex items-center gap-3 p-3 rounded-lg bg-green-50 hover:bg-green-100 transition-colors">
-              <TerminalIcon className="h-5 w-5 text-green-600" />
+            <a href="/console" className="flex items-center gap-3 p-3 rounded-xl bg-green-50 hover:bg-green-100 border border-green-100 hover:border-green-200 transition-all duration-200 group">
+              <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
+                <TerminalIcon className="h-5 w-5 text-green-600" />
+              </div>
               <span className="text-sm font-medium text-green-900">Console Access</span>
             </a>
-          </div>
-          
-          {/* Server Status */}
-          <div className="px-6 py-4 border-t border-gray-200">
-            <h4 className="text-sm font-medium text-gray-900 mb-3">Server Status</h4>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">Backend API</span>
-                <span className="flex items-center gap-1.5 text-xs font-medium text-green-600">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                  Connected
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-500">Database</span>
-                <span className="flex items-center gap-1.5 text-xs font-medium text-green-600">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                  Connected
-                </span>
-              </div>
-            </div>
           </div>
         </div>
       </div>
 
       {/* Recent Configurations */}
       <div className="card">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Recent Configurations</h3>
+        <div className="card-header flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900">Recent Configurations</h3>
+          <a href="/history" className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors">
+            View All →
+          </a>
         </div>
-        <div className="p-6">
+        <div className="card-body">
           {stats.recentConfigurations.length === 0 ? (
-            <div className="text-center py-8">
-              <CogIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No configurations found</p>
-              <p className="text-sm text-gray-400 mt-1">
+            <div className="empty-state">
+              <CogIcon className="empty-state-icon" />
+              <p className="empty-state-title">No configurations found</p>
+              <p className="empty-state-description">
                 Start by adding devices and generating configurations
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {stats.recentConfigurations.map((config) => (
-                <div key={config.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div key={config.id} className="flex items-center justify-between p-4 bg-gray-50/80 hover:bg-gray-100/80 rounded-xl border border-gray-100 transition-all duration-200">
                   <div className="flex items-center space-x-4">
-                    <div className="flex-shrink-0">
+                    <div className="flex-shrink-0 p-2 bg-white rounded-lg shadow-sm">
                       {getStatusIcon(config.status)}
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {config.device_name} ({config.device_type ? config.device_type.charAt(0).toUpperCase() + config.device_type.slice(1) : 'Unknown'})
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-gray-900">
+                        {config.device_name} 
+                        <span className="ml-2 text-xs font-normal text-gray-500">
+                          ({config.device_type ? config.device_type.charAt(0).toUpperCase() + config.device_type.slice(1) : 'Unknown'})
+                        </span>
                       </p>
-                      <p className="text-sm text-gray-500">
-                        {config.prompt.substring(0, 100)}
-                        {config.prompt.length > 100 ? '...' : ''}
+                      <p className="text-sm text-gray-500 mt-0.5 truncate max-w-md">
+                        {config.prompt.substring(0, 80)}
+                        {config.prompt.length > 80 ? '...' : ''}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-3 flex-shrink-0">
                     <span className={`badge ${getStatusBadge(config.status)}`}>
                       {config.status}
                     </span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-gray-400 whitespace-nowrap">
                       {(() => {
                         if (!config.created_at) return 'Unknown date';
                         
                         try {
-                          // Handle both timestamps (numbers) and date strings
                           const date = typeof config.created_at === 'number' 
                             ? new Date(config.created_at)
                             : new Date(config.created_at);

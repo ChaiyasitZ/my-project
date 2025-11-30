@@ -5,12 +5,13 @@ import {
   ServerIcon, 
   CogIcon, 
   ClockIcon,
-  WifiIcon,
   TerminalIcon,
   Archive,
   Menu,
   X,
-  Activity
+  ChevronLeft,
+  ChevronRight,
+  Database
 } from 'lucide-react';
 
 const navigation = [
@@ -22,35 +23,43 @@ const navigation = [
   { name: 'Backups', href: '/backups', icon: Archive },
 ];
 
-function Sidebar({ serverStatus = 'checking' }) {
+function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking', version: null }, isCollapsed = false, onToggleCollapse }) {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const getServerStatusDisplay = () => {
-    switch (serverStatus) {
+  const getStatusDisplay = (status) => {
+    switch (status) {
       case 'connected':
         return {
           color: 'bg-green-400',
-          text: 'Server Connected',
-          textColor: 'text-gray-500'
+          ringColor: 'ring-green-400/30',
+          textColor: 'text-green-600'
         };
       case 'error':
         return {
           color: 'bg-red-400',
-          text: 'Server Disconnected',
+          ringColor: 'ring-red-400/30',
           textColor: 'text-red-500'
         };
       case 'checking':
       default:
         return {
           color: 'bg-yellow-400',
-          text: 'Checking Connection...',
+          ringColor: 'ring-yellow-400/30',
           textColor: 'text-yellow-600'
         };
     }
   };
 
-  const statusDisplay = getServerStatusDisplay();
+  const backendStatus = getStatusDisplay(connectionStatus.backend);
+  const databaseStatus = getStatusDisplay(connectionStatus.database);
+
+  // Overall status for mobile header
+  const overallStatus = connectionStatus.backend === 'connected' && connectionStatus.database === 'connected' 
+    ? 'connected' 
+    : connectionStatus.backend === 'checking' || connectionStatus.database === 'checking'
+    ? 'checking'
+    : 'error';
 
   return (
     <>
@@ -79,9 +88,9 @@ function Sidebar({ serverStatus = 'checking' }) {
 
           {/* Right side - Status indicator */}
           <div className="flex items-center space-x-2">
-            <div className={`h-2 w-2 rounded-full ${statusDisplay.color} ${serverStatus === 'checking' ? 'status-pulse' : ''}`}></div>
+            <div className={`h-2 w-2 rounded-full ${getStatusDisplay(overallStatus).color} ${overallStatus === 'checking' ? 'status-pulse' : ''}`}></div>
             <span className="text-xs text-gray-500 hidden sm:inline">
-              {serverStatus === 'connected' ? 'Online' : serverStatus === 'error' ? 'Offline' : 'Checking...'}
+              {overallStatus === 'connected' ? 'Online' : overallStatus === 'error' ? 'Offline' : 'Checking...'}
             </span>
           </div>
         </div>
@@ -97,27 +106,44 @@ function Sidebar({ serverStatus = 'checking' }) {
 
       {/* Sidebar */}
       <div className={`
-        fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-xl border-r border-gray-200 sidebar-transition
-        lg:translate-x-0 lg:static lg:inset-0 lg:w-64
-        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        fixed inset-y-0 left-0 z-50 bg-white shadow-xl border-r border-gray-200 sidebar-transition
+        lg:translate-x-0 lg:static lg:inset-0
+        ${isCollapsed ? 'lg:w-20' : 'lg:w-64'}
+        ${isMobileMenuOpen ? 'translate-x-0 w-72' : '-translate-x-full lg:translate-x-0'}
+        transition-all duration-300 ease-in-out
       `}>
         <div className="flex flex-col h-full">
           {/* Desktop Logo */}
-          <div className="hidden lg:flex items-center px-6 py-4 border-b border-gray-200">
-            <Link to="/" className="flex items-center space-x-3">
-              <img src="/vite.svg" alt="Network Management Platform" className="h-10 w-10 rounded-lg" />
-              <div>
-                <span className="text-xl font-bold text-gray-900">NetAutomate</span>
-                <p className="text-sm text-gray-500">Network Management Platform</p>
-              </div>
+          <div className="hidden lg:flex items-center justify-between px-4 py-4 border-b border-gray-200">
+            <Link to="/" className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'space-x-3'}`}>
+              <img src="/vite.svg" alt="Network Management Platform" className="h-10 w-10 rounded-lg flex-shrink-0" />
+              {!isCollapsed && (
+                <div className="overflow-hidden">
+                  <span className="text-xl font-bold text-gray-900 whitespace-nowrap">NetAutomate</span>
+                  <p className="text-sm text-gray-500 whitespace-nowrap">Network Platform</p>
+                </div>
+              )}
             </Link>
           </div>
+
+          {/* Toggle Button - Desktop Only */}
+          <button
+            onClick={onToggleCollapse}
+            className="hidden lg:flex absolute -right-3 top-20 z-50 items-center justify-center w-6 h-6 bg-white border border-gray-300 rounded-full shadow-md hover:bg-gray-50 hover:border-gray-400 transition-colors duration-200"
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isCollapsed ? (
+              <ChevronRight className="h-4 w-4 text-gray-600" />
+            ) : (
+              <ChevronLeft className="h-4 w-4 text-gray-600" />
+            )}
+          </button>
 
           {/* Mobile Header - spacing for fixed navbar */}
           <div className="lg:hidden h-4"></div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto custom-scrollbar">
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href;
               const Icon = item.icon;
@@ -127,20 +153,25 @@ function Sidebar({ serverStatus = 'checking' }) {
                   key={item.name}
                   to={item.href}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className={`flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group nav-item-hover ${
+                  title={isCollapsed ? item.name : undefined}
+                  className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3 rounded-xl text-sm font-medium transition-all duration-200 group nav-item-hover ${
                     isActive
                       ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 shadow-sm border-l-4 border-blue-500'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
                 >
-                  <Icon className={`h-5 w-5 mr-4 flex-shrink-0 transition-colors duration-200 ${
+                  <Icon className={`h-5 w-5 flex-shrink-0 transition-colors duration-200 ${
                     isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'
-                  }`} />
-                  <span className="font-medium">{item.name}</span>
-                  {isActive && (
-                    <div className="ml-auto">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                    </div>
+                  } ${!isCollapsed && 'mr-4'}`} />
+                  {!isCollapsed && (
+                    <>
+                      <span className="font-medium whitespace-nowrap">{item.name}</span>
+                      {isActive && (
+                        <div className="ml-auto">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </Link>
               );
@@ -148,18 +179,49 @@ function Sidebar({ serverStatus = 'checking' }) {
           </nav>
 
           {/* Status indicator */}
-          <div className="p-4 border-t border-gray-200 bg-gray-50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className={`h-3 w-3 rounded-full ${statusDisplay.color} ${serverStatus === 'checking' ? 'status-pulse' : ''}`}></div>
-                <div className="flex flex-col">
-                  <span className={`text-sm font-medium ${statusDisplay.textColor}`}>
-                    {statusDisplay.text}
+          <div className={`p-4 border-t border-gray-200 bg-gray-50 ${isCollapsed ? 'flex flex-col items-center space-y-2' : ''}`}>
+            {isCollapsed ? (
+              <>
+                <div 
+                  className={`h-3 w-3 rounded-full ring-4 ${backendStatus.color} ${backendStatus.ringColor} ${connectionStatus.backend === 'checking' ? 'status-pulse' : ''}`}
+                  title={`Backend: ${connectionStatus.backend}`}
+                ></div>
+                <div 
+                  className={`h-3 w-3 rounded-full ring-4 ${databaseStatus.color} ${databaseStatus.ringColor} ${connectionStatus.database === 'checking' ? 'status-pulse' : ''}`}
+                  title={`Database: ${connectionStatus.database}`}
+                ></div>
+              </>
+            ) : (
+              <div className="space-y-3">
+                {/* Backend Status */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className={`h-2.5 w-2.5 rounded-full ring-4 ${backendStatus.color} ${backendStatus.ringColor} ${connectionStatus.backend === 'checking' ? 'status-pulse' : ''}`}></div>
+                    <div className="flex items-center space-x-2">
+                      <ServerIcon className="h-4 w-4 text-gray-400" />
+                      <span className="text-sm font-medium text-gray-700">Backend</span>
+                    </div>
+                  </div>
+                  <span className={`text-xs font-medium ${backendStatus.textColor}`}>
+                    {connectionStatus.backend === 'connected' ? 'Connected' : connectionStatus.backend === 'error' ? 'Disconnected' : 'Checking...'}
                   </span>
-                  <span className="text-xs text-gray-400">v2.0.0</span>
+                </div>
+
+                {/* Database Status */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className={`h-2.5 w-2.5 rounded-full ring-4 ${databaseStatus.color} ${databaseStatus.ringColor} ${connectionStatus.database === 'checking' ? 'status-pulse' : ''}`}></div>
+                    <div className="flex items-center space-x-2">
+                      <Database className="h-4 w-4 text-gray-400" />
+                      <span className="text-sm font-medium text-gray-700">Database</span>
+                    </div>
+                  </div>
+                  <span className={`text-xs font-medium ${databaseStatus.textColor}`}>
+                    {connectionStatus.database === 'connected' ? 'Connected' : connectionStatus.database === 'error' ? 'Disconnected' : 'Checking...'}
+                  </span>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

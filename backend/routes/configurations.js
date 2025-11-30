@@ -149,6 +149,65 @@ router.get('/analytics', async (req, res) => {
   }
 });
 
+// Validation schema for translation
+const translateSchema = Joi.object({
+  text: Joi.string().min(1).max(2000).required(),
+  from: Joi.string().valid('en', 'th').required(),
+  to: Joi.string().valid('en', 'th').required()
+});
+
+// POST /api/configurations/translate - Translate prompt between English and Thai
+router.post('/translate', async (req, res) => {
+  try {
+    const { error, value } = translateSchema.validate(req.body);
+    
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        details: error.details
+      });
+    }
+    
+    const { text, from, to } = value;
+    
+    if (from === to) {
+      return res.json({
+        success: true,
+        translatedText: text,
+        from,
+        to
+      });
+    }
+    
+    const langNames = { en: 'English', th: 'Thai' };
+    const translationPrompt = `Translate the following network configuration prompt from ${langNames[from]} to ${langNames[to]}. 
+Keep all technical terms (like IP addresses, interface names, VLAN numbers, protocol names) unchanged.
+Only translate the descriptive text.
+Return ONLY the translated text, nothing else.
+
+Text to translate:
+${text}`;
+    
+    const translatedText = await llmService.generateRawCompletion(translationPrompt);
+    
+    res.json({
+      success: true,
+      translatedText: translatedText.trim(),
+      from,
+      to
+    });
+    
+  } catch (err) {
+    console.error('Translation error:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Translation failed',
+      error: err.message
+    });
+  }
+});
+
 // POST /api/configurations/generate - Generate configuration using Enhanced AI
 router.post('/generate', async (req, res) => {
   try {

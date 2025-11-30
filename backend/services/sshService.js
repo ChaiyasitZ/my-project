@@ -10,14 +10,14 @@ export class SSHService {
     this.commandQueue = new Map(); // Queue commands for busy sessions
     this.sessionPool = new Map(); // Pool of ready sessions per device
     
-    // Optimized cleanup - every 2 minutes instead of 1
-    setInterval(() => {
+    // Store interval IDs for cleanup
+    this.cleanupInterval = setInterval(() => {
       this.cleanupExpiredSessions();
       this.optimizeSessionPool();
     }, 120000);
     
     // Health check every 30 seconds
-    setInterval(() => {
+    this.healthCheckInterval = setInterval(() => {
       this.healthCheckSessions();
     }, 30000);
   }
@@ -2735,6 +2735,45 @@ export class SSHService {
         error: error.message
       };
     }
+  }
+
+  // Graceful shutdown - stop all intervals and close connections
+  shutdown() {
+    console.log('🔌 SSH Service shutting down...');
+    
+    // Clear all intervals
+    if (this.cleanupInterval) clearInterval(this.cleanupInterval);
+    if (this.healthCheckInterval) clearInterval(this.healthCheckInterval);
+    
+    // Close all persistent sessions
+    for (const [key, session] of this.persistentSessions) {
+      try {
+        if (session.connection) {
+          session.connection.end();
+        }
+      } catch (e) {
+        // Ignore errors during shutdown
+      }
+    }
+    this.persistentSessions.clear();
+    
+    // Close all regular connections
+    for (const [key, connInfo] of this.connections) {
+      try {
+        if (connInfo.connection) {
+          connInfo.connection.end();
+        }
+      } catch (e) {
+        // Ignore errors during shutdown
+      }
+    }
+    this.connections.clear();
+    
+    // Clear session pool
+    this.sessionPool.clear();
+    this.commandQueue.clear();
+    
+    console.log('✅ SSH Service shutdown complete');
   }
 }
 

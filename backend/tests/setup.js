@@ -1,5 +1,5 @@
 // Test setup file
-import { jest } from '@jest/globals';
+import { jest, afterAll, beforeAll } from '@jest/globals';
 
 // Set test environment variables
 process.env.NODE_ENV = 'test';
@@ -10,19 +10,45 @@ process.env.OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || 'test-api-key
 // Global test timeout
 jest.setTimeout(30000);
 
-// Suppress console logs during tests (optional)
-// Uncomment to silence console output
-// global.console = {
-//   ...console,
-//   log: jest.fn(),
-//   debug: jest.fn(),
-//   info: jest.fn(),
-//   warn: jest.fn(),
-//   error: jest.fn()
-// };
+// Track services for cleanup
+let sshService, llmService, netconfService;
+
+// Lazy load services only when needed
+beforeAll(async () => {
+  // Services will be imported by tests if needed
+});
 
 // Cleanup after all tests
 afterAll(async () => {
-  // Close any open connections
+  // Dynamically import and shutdown services
+  try {
+    const sshModule = await import('../services/sshService.js');
+    if (sshModule.default && typeof sshModule.default.shutdown === 'function') {
+      sshModule.default.shutdown();
+    }
+  } catch (e) {
+    // Service not used in tests
+  }
+  
+  try {
+    const llmModule = await import('../services/llmService.js');
+    if (llmModule.default && typeof llmModule.default.shutdown === 'function') {
+      llmModule.default.shutdown();
+    }
+  } catch (e) {
+    // Service not used in tests
+  }
+  
+  try {
+    const netconfModule = await import('../services/netconfService.js');
+    if (netconfModule.default && typeof netconfModule.default.shutdown === 'function') {
+      netconfModule.default.shutdown();
+    }
+  } catch (e) {
+    // Service not used in tests
+  }
+  
+  // Clear all mocks and timers
   jest.clearAllMocks();
+  jest.clearAllTimers();
 });

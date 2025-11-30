@@ -5,6 +5,7 @@ import axios from 'axios';
 
 // Components
 import Sidebar from './components/Sidebar';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -30,8 +31,25 @@ axios.defaults.baseURL = API_BASE_URL;
 const isDev = import.meta.env.DEV;
 
 function App() {
-  const [serverStatus, setServerStatus] = useState('checking');
+  const [connectionStatus, setConnectionStatus] = useState({
+    backend: 'checking',
+    database: 'checking',
+    version: null
+  });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    // Persist sidebar state in localStorage
+    const saved = localStorage.getItem('sidebarCollapsed');
+    return saved ? JSON.parse(saved) : false;
+  });
   const [StagewiseToolbar, setStagewiseToolbar] = useState(null);
+
+  const handleToggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      const newValue = !prev;
+      localStorage.setItem('sidebarCollapsed', JSON.stringify(newValue));
+      return newValue;
+    });
+  };
 
   useEffect(() => {
     // Dynamically load Stagewise toolbar only in development
@@ -49,46 +67,67 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const checkServerStatus = async () => {
+    const checkConnectionStatus = async () => {
       try {
         const response = await axios.get('/health');
-        setServerStatus(response.data.success ? 'connected' : 'error');
+        if (response.data.success) {
+          setConnectionStatus({
+            backend: 'connected',
+            database: 'connected',
+            version: response.data.version || '2.0.0'
+          });
+        } else {
+          setConnectionStatus({
+            backend: 'connected',
+            database: 'error',
+            version: response.data.version || '2.0.0'
+          });
+        }
       } catch (error) {
         console.error('Server health check failed:', error.message);
-        setServerStatus('error');
+        setConnectionStatus({
+          backend: 'error',
+          database: 'error',
+          version: null
+        });
       }
     };
 
-    checkServerStatus();
-    const interval = setInterval(checkServerStatus, 30000);
+    checkConnectionStatus();
+    const interval = setInterval(checkConnectionStatus, 30000);
     return () => clearInterval(interval);
   }, []);
 
   return (
-    <Router>
-      <div className="flex min-h-screen bg-gray-50 w-full">
-        <Sidebar serverStatus={serverStatus} />
-        
-        {/* Main content area */}
-        <div className="flex-1 lg:ml-0 w-full">
-          <main className="pt-20 lg:pt-6 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto w-full">
-              <Routes>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/devices" element={<Devices />} />
-                <Route path="/configurations" element={<Configurations />} />
-                <Route path="/configuration-history" element={<ConfigurationHistory />} />
-                <Route path="/console" element={<ConsoleConfiguration />} />
-                <Route path="/backups" element={<BackupManagement />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </div>
-          </main>
-        </div>
-        
-        {/* Toast Notifications */}
-        <Toaster
+    <ErrorBoundary>
+      <Router>
+        <div className="flex min-h-screen bg-gray-50 w-full">
+          <Sidebar 
+            connectionStatus={connectionStatus} 
+            isCollapsed={sidebarCollapsed}
+            onToggleCollapse={handleToggleSidebar}
+          />
+          
+          {/* Main content area */}
+          <div className={`flex-1 lg:ml-0 w-full transition-all duration-300`}>
+            <main className="pt-20 lg:pt-6 px-4 sm:px-6 lg:px-8">
+              <div className="max-w-7xl mx-auto w-full">
+                <Routes>
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/devices" element={<Devices />} />
+                  <Route path="/configurations" element={<Configurations />} />
+                  <Route path="/configuration-history" element={<ConfigurationHistory />} />
+                  <Route path="/console" element={<ConsoleConfiguration />} />
+                  <Route path="/backups" element={<BackupManagement />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </div>
+            </main>
+          </div>
+          
+          {/* Toast Notifications */}
+          <Toaster
           position="top-right"
           toastOptions={{
             duration: 4000,
@@ -132,11 +171,12 @@ function App() {
         />
         
         {/* Stagewise Toolbar - Only in development */}
-        {isDev && StagewiseToolbar && (
-          <StagewiseToolbar config={{ plugins: [window.__stagewisePlugin] }} />
-        )}
-      </div>
-    </Router>
+          {isDev && StagewiseToolbar && (
+            <StagewiseToolbar config={{ plugins: [window.__stagewisePlugin] }} />
+          )}
+        </div>
+      </Router>
+    </ErrorBoundary>
   );
 }
 

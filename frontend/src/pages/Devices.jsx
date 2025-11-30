@@ -6,13 +6,10 @@ import {
   PlusIcon, 
   PencilIcon, 
   TrashIcon, 
-  TestTubeIcon,
   ServerIcon,
-  WifiIcon,
   FunnelIcon,
   SearchIcon,
-  RefreshCwIcon,
-  StopCircleIcon
+  RefreshCwIcon
 } from 'lucide-react';
 import DeviceIcon from '../components/DeviceIcon';
 
@@ -68,9 +65,15 @@ function Devices() {
   const filteredDevices = useMemo(() => {
     let filtered = [...devices];
 
-    // Filter by device type
+    // Filter by device type and layer
     if (selectedFilter !== 'all') {
-      filtered = filtered.filter(device => device.type === selectedFilter);
+      if (selectedFilter === 'layer-2') {
+        filtered = filtered.filter(device => device.type === 'switch' && device.layer === 'layer-2');
+      } else if (selectedFilter === 'layer-3') {
+        filtered = filtered.filter(device => device.type === 'switch' && device.layer === 'layer-3');
+      } else {
+        filtered = filtered.filter(device => device.type === selectedFilter);
+      }
     }
 
     // Filter by search term
@@ -91,7 +94,8 @@ function Devices() {
   // Memoize filter counts
   const filterCounts = useMemo(() => ({
     all: devices.length,
-    switch: devices.filter(d => d.type === 'switch').length,
+    'layer-2': devices.filter(d => d.type === 'switch' && d.layer === 'layer-2').length,
+    'layer-3': devices.filter(d => d.type === 'switch' && d.layer === 'layer-3').length,
     router: devices.filter(d => d.type === 'router').length,
     nexus: devices.filter(d => d.type === 'nexus').length
   }), [devices]);
@@ -254,10 +258,16 @@ function Devices() {
     if (type === 'all') {
       return <FunnelIcon className="h-4 w-4" />;
     }
+    if (type === 'layer-2') {
+      return <DeviceIcon deviceType="switch" layer="layer-2" className="h-5 w-5" />;
+    }
+    if (type === 'layer-3') {
+      return <DeviceIcon deviceType="switch" layer="layer-3" className="h-5 w-5" />;
+    }
     return <DeviceIcon 
       deviceType={type} 
       layer="layer-2" 
-      className="h-4 w-4" 
+      className="h-5 w-5" 
     />;
   };
 
@@ -419,7 +429,7 @@ function Devices() {
     return <DeviceIcon 
       deviceType={device.type} 
       layer={device.layer} 
-      className="h-5 w-5" 
+      className="h-10 w-10" 
     />;
   };
 
@@ -442,7 +452,9 @@ function Devices() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <ServerIcon className="h-8 w-8 text-blue-600" />
+            <div className="p-2 bg-blue-100 rounded-xl">
+              <ServerIcon className="h-7 w-7 text-blue-600" />
+            </div>
             Devices Management
           </h1>
           <p className="mt-2 text-gray-600">
@@ -473,186 +485,217 @@ function Devices() {
       </div>
 
       {/* Search and Filters */}
-      <div className="card p-4">
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          {/* Search */}
-          <div className="relative flex-1 max-w-md">
-            <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search devices..."
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
+      <div className="card">
+        <div className="card-body">
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            {/* Search */}
+            <div className="relative flex-1 max-w-md">
+              <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search devices..."
+                className="input pl-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
 
-          {/* Filter Buttons */}
-          <div className="flex flex-wrap gap-2">
-            {[
-              { key: 'all', label: 'All', count: filterCounts.all },
-              { key: 'switch', label: 'Switches', count: filterCounts.switch },
-              { key: 'router', label: 'Routers', count: filterCounts.router },
-              { key: 'nexus', label: 'Nexus', count: filterCounts.nexus }
-            ].map(filter => (
-              <button
-                key={filter.key}
-                onClick={() => setSelectedFilter(filter.key)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  selectedFilter === filter.key
-                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
-                }`}
-              >
-                {getFilterIcon(filter.key)}
-                {filter.label}
-                <span className={`px-2 py-0.5 rounded-full text-xs ${
-                  selectedFilter === filter.key
-                    ? 'bg-blue-200 text-blue-800'
-                    : 'bg-gray-200 text-gray-600'
-                }`}>
-                  {filter.count}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Active filters indicator */}
-        {(selectedFilter !== 'all' || searchTerm) && (
-          <div className="mt-3 pt-3 border-t border-gray-200">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <span>Active filters:</span>
-              {selectedFilter !== 'all' && (
-                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs">
-                  Type: {selectedFilter}
-                </span>
-              )}
-              {searchTerm && (
-                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-xs">
-                  Search: "{searchTerm}"
-                </span>
-              )}
-              <button
-                onClick={() => {
-                  setSelectedFilter('all');
-                  setSearchTerm('');
-                }}
-                className="text-blue-600 hover:text-blue-800 text-xs underline"
-              >
-                Clear all
-              </button>
+            {/* Filter Buttons */}
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: 'all', label: 'All', count: filterCounts.all },
+                { key: 'layer-2', label: 'L2 Switch', count: filterCounts['layer-2'] },
+                { key: 'layer-3', label: 'L3 Switch', count: filterCounts['layer-3'] },
+                { key: 'router', label: 'Routers', count: filterCounts.router },
+                { key: 'nexus', label: 'Nexus', count: filterCounts.nexus }
+              ].map(filter => (
+                <button
+                  key={filter.key}
+                  onClick={() => setSelectedFilter(filter.key)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                    selectedFilter === filter.key
+                      ? 'bg-blue-100 text-blue-700 border-2 border-blue-200 shadow-sm'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-2 border-transparent'
+                  }`}
+                >
+                  {getFilterIcon(filter.key)}
+                  {filter.label}
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                    selectedFilter === filter.key
+                      ? 'bg-blue-200 text-blue-800'
+                      : 'bg-gray-200 text-gray-600'
+                  }`}>
+                    {filter.count}
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
-        )}
+
+          {/* Active filters indicator */}
+          {(selectedFilter !== 'all' || searchTerm) && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <span className="font-medium">Active filters:</span>
+                {selectedFilter !== 'all' && (
+                  <span className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium flex items-center gap-1.5">
+                    {getFilterIcon(selectedFilter)}
+                    {selectedFilter === 'layer-2' ? 'Layer 2 Switch' : 
+                     selectedFilter === 'layer-3' ? 'Layer 3 Switch' :
+                     selectedFilter === 'router' ? 'Router' :
+                     selectedFilter === 'nexus' ? 'Nexus' : selectedFilter}
+                  </span>
+                )}
+                {searchTerm && (
+                  <span className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium">
+                    Search: "{searchTerm}"
+                  </span>
+                )}
+                <button
+                  onClick={() => {
+                    setSelectedFilter('all');
+                    setSearchTerm('');
+                  }}
+                  className="text-blue-600 hover:text-blue-800 text-xs font-medium hover:underline ml-2"
+                >
+                  Clear all
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Results Summary */}
-      <div className="text-sm text-gray-600">
-        Showing {filteredDevices.length} of {devices.length} devices
-        {selectedFilter !== 'all' && ` (${selectedFilter}s only)`}
+      <div className="text-sm text-gray-600 font-medium">
+        Showing <span className="text-gray-900">{filteredDevices.length}</span> of <span className="text-gray-900">{devices.length}</span> devices
+        {selectedFilter !== 'all' && ` (${
+          selectedFilter === 'layer-2' ? 'Layer 2 Switches' : 
+          selectedFilter === 'layer-3' ? 'Layer 3 Switches' :
+          selectedFilter === 'router' ? 'Routers' :
+          selectedFilter === 'nexus' ? 'Nexus devices' : selectedFilter
+        } only)`}
         {searchTerm && ` matching "${searchTerm}"`}
       </div>
 
       {/* Devices List */}
       {filteredDevices.length === 0 ? (
-        <div className="card p-12 text-center">
-          {devices.length === 0 ? (
-            <>
-              <ServerIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No devices found</h3>
-              <p className="text-gray-500 mb-6">Get started by adding your first network device</p>
-              <button
-                onClick={() => {
-                  resetForm();
-                  setEditingDevice(null);
-                  setShowModal(true);
-                }}
-                className="btn btn-primary btn-md"
-              >
-                <PlusIcon className="h-4 w-4 mr-2" />
-                Add First Device
-              </button>
-            </>
-          ) : (
-            <>
-              <FunnelIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No devices match your filters</h3>
-              <p className="text-gray-500 mb-6">
-                Try adjusting your search term or filter selection
-              </p>
-              <button
-                onClick={() => {
-                  setSelectedFilter('all');
-                  setSearchTerm('');
-                }}
-                className="btn btn-secondary btn-md"
-              >
-                Clear Filters
-              </button>
-            </>
-          )}
+        <div className="card">
+          <div className="card-body">
+            {devices.length === 0 ? (
+              <div className="empty-state">
+                <ServerIcon className="empty-state-icon" />
+                <h3 className="empty-state-title">No devices found</h3>
+                <p className="empty-state-description">Get started by adding your first network device</p>
+                <button
+                  onClick={() => {
+                    resetForm();
+                    setEditingDevice(null);
+                    setShowModal(true);
+                  }}
+                  className="btn btn-primary btn-md mt-4"
+                >
+                  <PlusIcon className="h-4 w-4 mr-2" />
+                  Add First Device
+                </button>
+              </div>
+            ) : (
+              <div className="empty-state">
+                <FunnelIcon className="empty-state-icon" />
+                <h3 className="empty-state-title">No devices match your filters</h3>
+                <p className="empty-state-description">
+                  Try adjusting your search term or filter selection
+                </p>
+                <button
+                  onClick={() => {
+                    setSelectedFilter('all');
+                    setSearchTerm('');
+                  }}
+                  className="btn btn-secondary btn-md mt-4"
+                >
+                  Clear Filters
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       ) : (
-        <div className="grid gap-6">
+        <div className="grid gap-4">
           {filteredDevices.map((device) => {
             const deviceId = device.id || device._id;
             return (
-            <div key={deviceId} className="card p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="flex-shrink-0 text-gray-600">
-                    {getDeviceIcon(device)}
+            <div key={deviceId} className="card card-hover">
+              <div className="card-body">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className={`flex-shrink-0 p-3 rounded-xl ${
+                      device.status === 'active' ? 'bg-green-50 text-green-600' :
+                      device.status === 'inactive' ? 'bg-red-50 text-red-600' :
+                      'bg-amber-50 text-amber-600'
+                    }`}>
+                      {getDeviceIcon(device)}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">{device.name}</h3>
+                      <p className="text-sm text-gray-500">
+                        <span className="font-medium">{device.type}</span>
+                        {device.type === 'switch' && device.layer && (
+                          <span className="ml-1 px-1.5 py-0.5 bg-gray-100 rounded text-xs">
+                            {device.layer === 'layer-2' ? 'L2' : 'L3'}
+                          </span>
+                        )} 
+                        <span className="mx-2 text-gray-300">•</span>
+                        <span className="font-mono text-gray-600">{device.ip_address}</span>
+                        {device.location && (
+                          <>
+                            <span className="mx-2 text-gray-300">•</span>
+                            <span>{device.location}</span>
+                          </>
+                        )}
+                      </p>
+                      {device.description && (
+                        <p className="text-sm text-gray-400 mt-1">{device.description}</p>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900">{device.name}</h3>
-                    <p className="text-sm text-gray-500">
-                      {device.type}
-                      {device.type === 'switch' && device.layer && ` (${device.layer === 'layer-2' ? 'L2' : 'L3'})`} • {device.ip_address}
-                      {device.location && ` • ${device.location}`}
-                    </p>
-                    {device.description && (
-                      <p className="text-sm text-gray-400 mt-1">{device.description}</p>
+                  
+                  <div className="flex items-center space-x-2">
+                    <span className={`badge ${getStatusBadge(device.status)}`}>
+                      {device.status}
+                    </span>
+                    
+                    {/* Enhanced SSH Session Status Indicator */}
+                    {device.ssh_status === 'connected' && (
+                      <span className="badge badge-success text-xs flex items-center gap-1.5">
+                        <span className="inline-block w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                        SSH Connected
+                        {sshSessions.get(deviceId)?.is_privileged && ' (Privileged)'}
+                      </span>
+                    )}
+                    {device.ssh_status === 'connecting' && (
+                      <span className="badge badge-info text-xs flex items-center gap-1.5">
+                        <div className="animate-spin rounded-full h-2 w-2 border border-blue-400 border-t-transparent"></div>
+                        Connecting...
+                      </span>
+                    )}
+                    {device.ssh_status === 'error' && (
+                      <span className="badge badge-danger text-xs flex items-center gap-1.5">
+                        <span className="inline-block w-2 h-2 bg-red-400 rounded-full"></span>
+                        SSH Error
+                      </span>
+                    )}
+
+                    {/* NETCONF Enabled Indicator */}
+                    {(device.type === 'nexus' || device.netconf_enabled) && (
+                      <span className="badge badge-cyan text-xs flex items-center gap-1">
+                        🌐 NETCONF
+                      </span>
                     )}
                   </div>
                 </div>
                 
-                <div className="flex items-center space-x-3">
-                  <span className={`badge ${getStatusBadge(device.status)}`}>
-                    {device.status}
-                  </span>
-                  
-                  {/* Enhanced SSH Session Status Indicator */}
-                  {device.ssh_status === 'connected' && (
-                    <span className="badge badge-success text-xs flex items-center gap-1">
-                      <span className="inline-block w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                      SSH Connected
-                      {sshSessions.get(deviceId)?.is_privileged && ' (Privileged)'}
-                    </span>
-                  )}
-                  {device.ssh_status === 'connecting' && (
-                    <span className="badge badge-info text-xs flex items-center gap-1">
-                      <div className="animate-spin rounded-full h-2 w-2 border border-blue-400 border-t-transparent"></div>
-                      Connecting...
-                    </span>
-                  )}
-                  {device.ssh_status === 'error' && (
-                    <span className="badge badge-danger text-xs flex items-center gap-1">
-                      <span className="inline-block w-2 h-2 bg-red-400 rounded-full"></span>
-                      SSH Error
-                    </span>
-                  )}
-
-                  {/* NETCONF Enabled Indicator */}
-                  {(device.type === 'nexus' || device.netconf_enabled) && (
-                    <span className="badge badge-info text-xs flex items-center gap-1">
-                      🌐 NETCONF
-                    </span>
-                  )}
-                </div>
-                
-                {/* Action Buttons - Moved to separate row for better layout */}
-                <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
                   {/* Test Connections Group */}
                   <div className="flex gap-2">
                     <button
@@ -744,6 +787,7 @@ function Devices() {
                       className="btn btn-secondary btn-sm"
                       title="Edit Device"
                     >
+                      <PencilIcon className="h-4 w-4 mr-1" />
                       Edit
                     </button>
                     
@@ -752,22 +796,21 @@ function Devices() {
                       className="btn btn-danger btn-sm"
                       title="Delete Device"
                     >
+                      <TrashIcon className="h-4 w-4 mr-1" />
                       Delete
                     </button>
                   </div>
                 </div>
-              </div>
-              
-              {device.model && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <div className="grid grid-cols-1 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-500">Model:</span>
-                        <span className="ml-2 text-gray-900">{device.model}</span>
-                      </div>
+                
+                {device.model && (
+                  <div className="mt-4 pt-3 border-t border-gray-100">
+                    <div className="flex items-center text-sm">
+                      <span className="text-gray-500 font-medium">Model:</span>
+                      <span className="ml-2 text-gray-700 font-mono">{device.model}</span>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
             );
           })}
@@ -776,13 +819,16 @@ function Devices() {
 
       {/* Modal */}
       {showModal && createPortal(
-        <div className="modal-overlay fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-screen overflow-y-auto modal-scrollbar">
+        <div className="modal-overlay fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-screen overflow-y-auto modal-scrollbar animate-fade-in">
             <form onSubmit={handleSubmit}>
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">
+              <div className="px-6 py-5 border-b border-gray-100">
+                <h3 className="text-xl font-semibold text-gray-900">
                   {editingDevice ? 'Edit Device' : 'Add New Device'}
                 </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {editingDevice ? 'Update device configuration' : 'Configure a new network device'}
+                </p>
               </div>
               
               <div className="px-6 py-4 space-y-4">
@@ -976,7 +1022,7 @@ function Devices() {
 
               </div>
               
-              <div className="px-6 py-4 flex justify-end space-x-3">
+              <div className="px-6 py-5 bg-gray-50 border-t border-gray-100 flex justify-end space-x-3 rounded-b-2xl">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}

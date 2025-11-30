@@ -16,11 +16,9 @@ import {
   ShieldIcon,
   FolderIcon,
   FileTextIcon,
-  FilterIcon,
   PlusIcon,
   SearchIcon,
-  EyeIcon,
-  WifiIcon
+  EyeIcon
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useConfirmation } from '../hooks/useConfirmation';
@@ -504,7 +502,9 @@ function BackupManagement() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <ShieldIcon className="h-8 w-8 text-blue-600" />
+            <div className="p-2 bg-orange-100 rounded-xl">
+              <ShieldIcon className="h-7 w-7 text-orange-600" />
+            </div>
             Backup Management
           </h1>
           <p className="mt-2 text-gray-600">
@@ -532,143 +532,145 @@ function BackupManagement() {
 
       {/* Backups Section */}
       {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+        <div className="stat-card">
           <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Archive className="h-8 w-8 text-blue-600" />
+            <div className="stat-icon-blue">
+              <Archive className="h-6 w-6" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Total Backups</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.total}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="stat-card">
           <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <ClockIcon className="h-8 w-8 text-green-600" />
+            <div className="stat-icon-green">
+              <ClockIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Manual</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.manual}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.manual}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="stat-card">
           <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <RefreshCwIcon className="h-8 w-8 text-cyan-600" />
+            <div className="stat-icon-cyan">
+              <RefreshCwIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Scheduled</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.scheduled}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.scheduled}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="stat-card">
           <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <ShieldIcon className="h-8 w-8 text-orange-600" />
+            <div className="stat-icon-orange">
+              <ShieldIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Restore Points</p>
-              <p className="text-2xl font-semibold text-gray-900">{stats.restorePoints}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.restorePoints}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="stat-card">
           <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <ServerIcon className="h-8 w-8 text-purple-600" />
+            <div className="stat-icon-purple">
+              <ServerIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Devices</p>
-              <p className="text-2xl font-semibold text-gray-900">{(devices || []).length}</p>
+              <p className="text-2xl font-bold text-gray-900">{(devices || []).length}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="stat-card">
           <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <FileTextIcon className="h-8 w-8 text-indigo-600" />
+            <div className="p-3 rounded-xl bg-indigo-100 text-indigo-600">
+              <FileTextIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500">Total Size</p>
-              <p className="text-2xl font-semibold text-gray-900">{formatFileSize(stats.totalSize)}</p>
+              <p className="text-2xl font-bold text-gray-900">{formatFileSize(stats.totalSize)}</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Filters and Search */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0 lg:space-x-6">
-          <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 flex-1">
-            {/* Search */}
-            <div className="relative flex-1 max-w-xs">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <SearchIcon className="h-5 w-5 text-gray-400" />
+      <div className="card">
+        <div className="card-body">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0 lg:space-x-6">
+            <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 flex-1">
+              {/* Search */}
+              <div className="relative flex-1 max-w-xs">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <SearchIcon className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="input pl-10"
+                  placeholder="Search backups..."
+                />
               </div>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Search backups..."
-              />
-            </div>
 
-            {/* Device Filter */}
-            <div className="flex-1 max-w-xs">
-              <select
-                value={selectedDevice}
-                onChange={(e) => setSelectedDevice(e.target.value)}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">All Devices</option>
-                {(devices || []).map((device) => (
-                  <option key={device.id} value={device.id}>
-                    {device.name} ({device.type})
-                  </option>
-                ))}
-              </select>
-            </div>
+              {/* Device Filter */}
+              <div className="flex-1 max-w-xs">
+                <select
+                  value={selectedDevice}
+                  onChange={(e) => setSelectedDevice(e.target.value)}
+                  className="input"
+                >
+                  <option value="">All Devices</option>
+                  {(devices || []).map((device) => (
+                    <option key={device.id} value={device.id}>
+                      {device.name} ({device.type})
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            {/* Type Filter */}
-            <div className="flex-1 max-w-xs">
-              <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All Types</option>
-                <option value="manual">Manual</option>
-                <option value="scheduled">Scheduled</option>
-              </select>
-            </div>
+              {/* Type Filter */}
+              <div className="flex-1 max-w-xs">
+                <select
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  className="input"
+                >
+                  <option value="all">All Types</option>
+                  <option value="manual">Manual</option>
+                  <option value="scheduled">Scheduled</option>
+                </select>
+              </div>
 
-            {/* Config Type Filter */}
-            <div className="flex-1 max-w-xs">
-              <select
-                value={configFilter}
-                onChange={(e) => setConfigFilter(e.target.value)}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All Configs</option>
-                <option value="running-config">Running Only</option>
-                <option value="startup-config">Startup Only</option>
-                <option value="both">Both Configs</option>
-              </select>
+              {/* Config Type Filter */}
+              <div className="flex-1 max-w-xs">
+                <select
+                  value={configFilter}
+                  onChange={(e) => setConfigFilter(e.target.value)}
+                  className="input"
+                >
+                  <option value="all">All Configs</option>
+                  <option value="running-config">Running Only</option>
+                  <option value="startup-config">Startup Only</option>
+                  <option value="both">Both Configs</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-gray-500 mt-4">
             {filteredBackups.length} of {(backups || []).length} backups
           </div>
         </div>

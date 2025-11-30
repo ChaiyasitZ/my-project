@@ -79,8 +79,8 @@ export class LLMService {
       console.log(`..........................`);
     }
     
-    // Clean up expired cache entries periodically
-    setInterval(() => this._cleanupCache(), 60000);
+    // Clean up expired cache entries periodically (store interval ID for shutdown)
+    this.cacheCleanupInterval = setInterval(() => this._cleanupCache(), 60000);
   }
   
   /**
@@ -169,6 +169,45 @@ export class LLMService {
   clearCache() {
     this.cache.clear();
     console.log('🗑️ LLM response cache cleared');
+  }
+
+  /**
+   * Generate a raw text completion from a simple prompt
+   * Used for translation and other simple text generation tasks
+   */
+  async generateRawCompletion(prompt) {
+    try {
+      // Check API key
+      if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
+        throw new Error('OpenRouter API key not configured');
+      }
+      
+      // Check rate limit
+      this._checkRateLimit();
+      
+      const response = await this.client.post('/chat/completions', {
+        model: this.model,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 1000
+      });
+      
+      const result = response.data?.choices?.[0]?.message?.content?.trim();
+      
+      if (!result) {
+        throw new Error('Empty response from LLM');
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Raw completion error:', error.message);
+      throw error;
+    }
   }
 
   /**
@@ -2704,6 +2743,30 @@ Generate the NETCONF/YANG XML configuration now (only XML, no explanations):`;
     }
     
     return validation;
+  }
+
+  // Graceful shutdown - clear intervals and cache
+  shutdown() {
+    console.log('🤖 LLM Service shutting down...');
+    
+    // Clear cache cleanup interval
+    if (this.cacheCleanupInterval) {
+      clearInterval(this.cacheCleanupInterval);
+    }
+    
+    // Clear cache
+    this.cache.clear();
+    
+    // Reset stats
+    this.stats = {
+      totalRequests: 0,
+      cacheHits: 0,
+      cacheMisses: 0,
+      errors: 0,
+      totalTokens: 0
+    };
+    
+    console.log('✅ LLM Service shutdown complete');
   }
 }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { 
@@ -20,12 +20,17 @@ import {
   FolderIcon,
   WifiIcon,
   XCircleIcon,
-  ActivityIcon
+  ActivityIcon,
+  PlayIcon,
+  SearchIcon,
+  TerminalIcon,
+  CopyIcon
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import BackupProgressModal from '../components/BackupProgressModal';
+import DeviceIcon from '../components/DeviceIcon';
 import { useConfirmation } from '../hooks/useConfirmation';
-import socket, { 
+import { 
   connectSocket, 
   disconnectSocket,
   subscribeToBackupProgress,
@@ -35,9 +40,12 @@ import socket, {
 
 function Configurations() {
   const [devices, setDevices] = useState([]);
+  const [showDeviceDropdown, setShowDeviceDropdown] = useState(false);
   const [devicesLoading, setDevicesLoading] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [promptLanguage, setPromptLanguage] = useState('en'); // 'en' or 'th'
+  const [isTranslating, setIsTranslating] = useState(false);
   const [configMode, setConfigMode] = useState('cli'); // 'cli' or 'netconf'
   const [isGenerating, setIsGenerating] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
@@ -77,10 +85,32 @@ function Configurations() {
   const [yangSearchTerm, setYangSearchTerm] = useState('');
   const [yangCategoryFilter, setYangCategoryFilter] = useState('all');
   
-  // NETCONF sub-tabs: 'generate', 'sessions', 'yang-models'
+  // NETCONF sub-tabs: 'generate', 'sessions', 'yang-models', 'operations'
   const [netconfSubTab, setNetconfSubTab] = useState('generate');
+  
+  // NETCONF Operations state
+  const [operationDevice, setOperationDevice] = useState('');
+  const [operationType, setOperationType] = useState('get');
+  const [operationFilter, setOperationFilter] = useState('');
+  const [customRpc, setCustomRpc] = useState('');
+  const [operationResult, setOperationResult] = useState(null);
+  const [isExecutingOperation, setIsExecutingOperation] = useState(false);
+
+  const deviceDropdownRef = useRef(null);
 
   const { confirmationState, showConfirmation } = useConfirmation();
+
+  // Close device dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (deviceDropdownRef.current && !deviceDropdownRef.current.contains(event.target)) {
+        setShowDeviceDropdown(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     fetchDevices();
@@ -216,7 +246,7 @@ function Configurations() {
       await axios.delete(`/yang-models/${id}`);
       toast.success('YANG model deleted');
       fetchYangModels();
-    } catch (error) {
+    } catch {
       toast.error('Failed to delete YANG model');
     }
   };
@@ -226,7 +256,7 @@ function Configurations() {
       const response = await axios.post(`/yang-models/toggle/${id}`);
       toast.success(response.data.message);
       fetchYangModels();
-    } catch (error) {
+    } catch {
       toast.error('Failed to toggle YANG model');
     }
   };
@@ -313,6 +343,112 @@ function Configurations() {
       other: 'bg-gray-100 text-gray-600'
     };
     return colors[category] || colors.other;
+  };
+
+  // Translation dictionary for network configuration terms
+  const translationDict = useMemo(() => ({
+    // English to Thai
+    en: {
+      'configure': 'ตั้งค่า',
+      'set up': 'กำหนด',
+      'set': 'กำหนด',
+      'create': 'สร้าง',
+      'enable': 'เปิดใช้งาน',
+      'disable': 'ปิดใช้งาน',
+      'add': 'เพิ่ม',
+      'remove': 'ลบ',
+      'delete': 'ลบ',
+      'interface': 'interface',
+      'with': 'ด้วย',
+      'and': 'และ',
+      'on': 'บน',
+      'for': 'สำหรับ',
+      'to': 'ไป',
+      'via': 'ผ่าน',
+      'using': 'ใช้',
+      'named': 'ชื่อ',
+      'as': 'เป็น',
+      'description': 'description',
+      'routing': 'routing',
+      'static route': 'static route',
+      'static routes': 'static routes',
+      'trunk port': 'trunk port',
+      'access port': 'access port',
+      'port-channel': 'port-channel',
+      'members': 'สมาชิก',
+      'allowing': 'อนุญาต',
+      'maximum': 'จำกัด',
+      'default gateway': 'default gateway',
+      'next-hop': 'next-hop',
+      'area': 'area',
+      'network': 'network',
+      'neighbor': 'neighbor',
+      'remote-as': 'remote-as',
+      'mapped': 'แมป',
+      'destination': 'destination',
+      'priority': 'priority',
+      'virtual': 'virtual',
+      'group': 'group',
+      'domain': 'domain',
+      'peer-keepalive': 'peer-keepalive',
+      'active mode': 'active mode',
+    },
+    // Thai to English  
+    th: {
+      'ตั้งค่า': 'configure',
+      'กำหนด': 'set',
+      'สร้าง': 'create',
+      'เปิดใช้งาน': 'enable',
+      'ปิดใช้งาน': 'disable',
+      'เพิ่ม': 'add',
+      'ลบ': 'remove',
+      'ด้วย': 'with',
+      'และ': 'and',
+      'บน': 'on',
+      'สำหรับ': 'for',
+      'ไป': 'to',
+      'ผ่าน': 'via',
+      'ใช้': 'using',
+      'ชื่อ': 'named',
+      'เป็น': 'as',
+      'สมาชิก': 'members',
+      'อนุญาต': 'allowing',
+      'จำกัด': 'maximum',
+      'แมป': 'mapped',
+      'พร้อม': 'with',
+      'กับ': 'with',
+    }
+  }), []);
+
+  // Translate prompt between English and Thai (client-side)
+  const handleTranslatePrompt = () => {
+    if (!prompt.trim() || isTranslating) return;
+    
+    setIsTranslating(true);
+    const targetLang = promptLanguage === 'en' ? 'th' : 'en';
+    const langNames = { en: 'English', th: 'ไทย' };
+    
+    try {
+      let translatedText = prompt;
+      const dict = translationDict[promptLanguage];
+      
+      // Sort keys by length (longest first) to avoid partial replacements
+      const sortedKeys = Object.keys(dict).sort((a, b) => b.length - a.length);
+      
+      for (const key of sortedKeys) {
+        const regex = new RegExp(`\\b${key}\\b`, 'gi');
+        translatedText = translatedText.replace(regex, dict[key]);
+      }
+      
+      setPrompt(translatedText);
+      setPromptLanguage(targetLang);
+      toast.success(`Translated to ${langNames[targetLang]}`);
+    } catch (error) {
+      console.error('Translation error:', error);
+      toast.error('Translation failed');
+    } finally {
+      setIsTranslating(false);
+    }
   };
 
   const handleGenerateConfiguration = async (e) => {
@@ -490,20 +626,16 @@ function Configurations() {
     "Configure interface Ethernet1/1 with description 'Uplink to Core' and MTU 9216",
     "Set interface Ethernet1/2 as access port on VLAN 100",
     "Configure port-channel 10 with members Ethernet1/3-4 using LACP active mode",
-    
     // VLAN Configuration
     "Create VLAN 100 named PRODUCTION and VLAN 200 named MANAGEMENT",
     "Configure SVI interface Vlan100 with IP 192.168.100.1/24 and description 'Production Gateway'",
-    
     // Routing Configuration  
     "Enable OSPF process 1 with router-id 10.0.0.1 and add interface Ethernet1/1 to area 0.0.0.0",
     "Configure BGP AS 65001 with neighbor 10.0.0.2 remote-as 65002",
     "Add static route to 172.16.0.0/16 via next-hop 10.0.0.254",
-    
     // Advanced Features
     "Configure VXLAN with VNI 10100 mapped to VLAN 100 on NVE1",
     "Enable feature vpc and configure vpc domain 100 with peer-keepalive destination 192.168.1.2",
-    "Configure HSRP group 1 on Vlan100 with virtual IP 192.168.100.254 and priority 110",
   ] : [
     // Router Examples
     "Configure OSPF routing for area 0 on GigabitEthernet0/0",
@@ -516,7 +648,7 @@ function Configurations() {
     // Layer 3 Switch Examples
     "Configure inter-VLAN routing for VLANs 10, 20, 30",
     "Set up SVI for VLAN 10 with IP 192.168.10.1/24",
-    "Enable IP routing and configure default gateway 192.168.1.254"
+    "Enable IP routing and configure default gateway 192.168.1.254",
   ], [configMode]);
 
   // Memoize filtered YANG models to prevent recalculation
@@ -545,21 +677,23 @@ function Configurations() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <BotIcon className="h-8 w-8 text-blue-600" />
+            <div className="p-2 bg-purple-100 rounded-xl">
+              <BotIcon className="h-7 w-7 text-purple-600" />
+            </div>
             LLM Configuration Generator
           </h1>
-          <p className="mt-1 text-sm text-gray-600">
+          <p className="mt-2 text-gray-600">
             Generate Cisco device configurations using AI-powered LLM via OpenRouter
           </p>
         </div>
         <div className="flex items-center gap-3">
           {/* Config Mode Toggle */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+          <div className="flex items-center bg-gray-100 rounded-xl p-1">
             <button
               onClick={() => setConfigMode('cli')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                 configMode === 'cli' 
-                  ? 'bg-white text-blue-600 shadow-sm' 
+                  ? 'bg-white text-blue-600 shadow-sm ring-1 ring-blue-100' 
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -568,9 +702,9 @@ function Configurations() {
             </button>
             <button
               onClick={() => setConfigMode('netconf')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                 configMode === 'netconf' 
-                  ? 'bg-white text-purple-600 shadow-sm' 
+                  ? 'bg-white text-purple-600 shadow-sm ring-1 ring-purple-100' 
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -594,46 +728,41 @@ function Configurations() {
         <div className="flex items-center space-x-1 border-b border-gray-200 pb-0">
           <button
             onClick={() => setNetconfSubTab('generate')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              netconfSubTab === 'generate'
-                ? 'border-purple-600 text-purple-600 bg-purple-50'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+            className={`tab ${netconfSubTab === 'generate' ? 'tab-active' : 'tab-inactive'}`}
           >
             <SendIcon className="h-4 w-4" />
             Generate Config
           </button>
           <button
             onClick={() => { setNetconfSubTab('sessions'); fetchNetconfSessions(); }}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              netconfSubTab === 'sessions'
-                ? 'border-green-600 text-green-600 bg-green-50'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+            className={`tab ${netconfSubTab === 'sessions' ? 'tab-active' : 'tab-inactive'}`}
           >
             <ActivityIcon className="h-4 w-4" />
             Active Sessions
             {netconfSessions.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
+              <span className="ml-1.5 px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full font-semibold">
                 {netconfSessions.length}
               </span>
             )}
           </button>
           <button
             onClick={() => { setNetconfSubTab('yang-models'); fetchYangModels(); }}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              netconfSubTab === 'yang-models'
-                ? 'border-purple-600 text-purple-600 bg-purple-50'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+            className={`tab ${netconfSubTab === 'yang-models' ? 'tab-active' : 'tab-inactive'}`}
           >
             <FileTextIcon className="h-4 w-4" />
             YANG Models
             {activeYangModelsCount > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded-full">
+              <span className="ml-1.5 px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded-full font-semibold">
                 {activeYangModelsCount}
               </span>
             )}
+          </button>
+          <button
+            onClick={() => setNetconfSubTab('operations')}
+            className={`tab ${netconfSubTab === 'operations' ? 'tab-active' : 'tab-inactive'}`}
+          >
+            <TerminalIcon className="h-4 w-4" />
+            Operations
           </button>
         </div>
       )}
@@ -642,106 +771,215 @@ function Configurations() {
       {(configMode === 'cli' || (configMode === 'netconf' && netconfSubTab === 'generate')) && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Generation Form */}
-        <div className="card p-6">
-          <div className="flex items-center mb-4">
+        <div className="card">
+          <div className="card-header flex items-center">
             {configMode === 'netconf' ? (
-              <NetworkIcon className="h-6 w-6 text-purple-600 mr-2" />
+              <div className="p-2 bg-purple-100 rounded-lg mr-3">
+                <NetworkIcon className="h-5 w-5 text-purple-600" />
+              </div>
             ) : (
-              <BotIcon className="h-6 w-6 text-blue-600 mr-2" />
+              <div className="p-2 bg-blue-100 rounded-lg mr-3">
+                <BotIcon className="h-5 w-5 text-blue-600" />
+              </div>
             )}
-            <h2 className="text-lg font-medium text-gray-900">
+            <h2 className="text-lg font-semibold text-gray-900">
               Generate {configMode === 'netconf' ? 'NETCONF/YANG' : 'CLI'} Configuration
             </h2>
             {configMode === 'netconf' && (
-              <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">
+              <span className="ml-2 badge badge-purple">
                 NX-OS
               </span>
             )}
           </div>
 
-          {configMode === 'netconf' && (
-            <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-              <p className="text-sm text-purple-800">
+          <div className="card-body">
+            {configMode === 'netconf' && (
+              <div className="mb-4 alert alert-info">
                 <strong>NETCONF/YANG Mode:</strong> Generates XML configuration for NX-OS devices using YANG models.
                 Requires NETCONF enabled on the device (port 830).
-              </p>
-            </div>
-          )}
+              </div>
+            )}
 
-          <form 
-            onSubmit={handleGenerateConfiguration}
-            className="space-y-4"
-          >
-            <div>
+            <form 
+              onSubmit={handleGenerateConfiguration}
+              className="space-y-4"
+            >
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Device
                 </label>
-                <select
-                  value={selectedDevice}
-                  onChange={(e) => setSelectedDevice(e.target.value)}
-                  className="input"
-                  required
-                >
-                  <option value="">Choose a device...</option>
-                  {devices.map((device) => (
-                    <option key={device.id} value={device.id}>
-                      {device.name} ({device.type}) - {device.ip_address}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative" ref={deviceDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeviceDropdown(!showDeviceDropdown)}
+                    className="input w-full text-left flex items-center justify-between"
+                  >
+                    {selectedDevice ? (
+                      <div className="flex items-center gap-3">
+                        <DeviceIcon 
+                          deviceType={devices.find(d => d.id === selectedDevice)?.type} 
+                          layer={devices.find(d => d.id === selectedDevice)?.layer}
+                          className="h-5 w-5 text-gray-600"
+                        />
+                        <span>
+                          {devices.find(d => d.id === selectedDevice)?.name} 
+                          <span className="text-gray-500 ml-1">
+                            ({devices.find(d => d.id === selectedDevice)?.type})
+                          </span>
+                          <span className="text-gray-400 ml-1">
+                            - {devices.find(d => d.id === selectedDevice)?.ip_address}
+                          </span>
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-500">Choose a device...</span>
+                    )}
+                    <ChevronDownIcon className={`h-5 w-5 text-gray-400 transition-transform ${showDeviceDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+                  
+                  {showDeviceDropdown && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                      <div 
+                        className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-500 border-b border-gray-100"
+                        onClick={() => {
+                          setSelectedDevice('');
+                          setShowDeviceDropdown(false);
+                        }}
+                      >
+                        Choose a device...
+                      </div>
+                      {devices.map((device) => (
+                        <div
+                          key={device.id}
+                          className={`px-4 py-3 hover:bg-blue-50 cursor-pointer flex items-center gap-3 transition-colors ${
+                            selectedDevice === device.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                          }`}
+                          onClick={() => {
+                            setSelectedDevice(device.id);
+                            setShowDeviceDropdown(false);
+                          }}
+                        >
+                          <div className={`p-1.5 rounded-lg ${
+                            device.status === 'active' ? 'bg-green-100' :
+                            device.status === 'inactive' ? 'bg-red-100' : 'bg-amber-100'
+                          }`}>
+                            <DeviceIcon 
+                              deviceType={device.type} 
+                              layer={device.layer}
+                              className={`h-5 w-5 ${
+                                device.status === 'active' ? 'text-green-600' :
+                                device.status === 'inactive' ? 'text-red-600' : 'text-amber-600'
+                              }`}
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-gray-900 truncate">{device.name}</div>
+                            <div className="text-xs text-gray-500 truncate">
+                              {device.type}{device.layer ? ` (${device.layer === 'layer-2' ? 'L2' : 'L3'})` : ''} • {device.ip_address}
+                            </div>
+                          </div>
+                          {device.status === 'active' && (
+                            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* Hidden input for form validation */}
+                <input type="hidden" value={selectedDevice} required />
               </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Configuration Prompt
-              </label>
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Enter Cisco commands. Example: 'interface fe0/1 ip 192.168.1.1/24'"
-                className="input"
-                rows="4"
-                required
-                minLength="10"
-              />
-            </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Configuration Prompt
+                  </label>
+                  {/* Translate Button */}
+                  <button
+                    type="button"
+                    onClick={handleTranslatePrompt}
+                    disabled={!prompt.trim() || isTranslating}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 ${
+                      !prompt.trim() || isTranslating
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600 shadow-sm hover:shadow'
+                    }`}
+                    title={promptLanguage === 'en' ? 'Translate to Thai' : 'Translate to English'}
+                  >
+                    {isTranslating ? (
+                      <>
+                        <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></div>
+                        Translating...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                        </svg>
+                        {promptLanguage === 'en' ? '🇺🇸 → 🇹🇭' : '🇹🇭 → 🇺🇸'}
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div className="relative">
+                  <textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder={promptLanguage === 'th' 
+                      ? "ใส่คำสั่งเครือข่าย เช่น 'ตั้งค่า interface fe0/1 ด้วย IP 192.168.1.1/24'"
+                      : "Enter Cisco commands. Example: 'interface fe0/1 ip 192.168.1.1/24'"
+                    }
+                    className="input pr-12"
+                    rows="4"
+                    required
+                    minLength="10"
+                  />
+                  {prompt && (
+                    <span className="absolute bottom-2 right-2 text-xs text-gray-400">
+                      {promptLanguage === 'en' ? '🇺🇸' : '🇹🇭'}
+                    </span>
+                  )}
+                </div>
+              </div>
 
-            <button
-              type="submit"
-              disabled={isGenerating || !selectedDevice || !prompt || prompt.length < 10}
-              className="btn btn-primary btn-md w-full"
-            >
-              {isGenerating ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <SendIcon className="h-4 w-4 mr-2" />
-                  Generate Configuration
-                </>
-              )}
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={isGenerating || !selectedDevice || !prompt || prompt.length < 10}
+                className="btn btn-primary btn-md w-full"
+              >
+                {isGenerating ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <SendIcon className="h-4 w-4 mr-2" />
+                    Generate Configuration
+                  </>
+                )}
+              </button>
+            </form>
 
-          {/* Example Prompts */}
-          <div className="mt-6">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">Example Prompts:</h3>
-            <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
-              {examplePrompts.map((example, index) => (
-                <button
-                  key={index}
-                  onClick={() => setPrompt(example)}
-                  className={`text-left text-sm block w-full p-2 rounded-lg transition-colors ${
-                    configMode === 'netconf' 
-                      ? 'text-purple-600 hover:text-purple-800 hover:bg-purple-50' 
-                      : 'text-blue-600 hover:text-blue-800 hover:bg-blue-50'
-                  }`}
-                >
-                  • {example}
-                </button>
-              ))}
+            {/* Example Prompts */}
+            <div className="mt-6">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Example Prompts:</h3>
+              <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+                {examplePrompts.map((example, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setPrompt(example)}
+                    className={`text-left text-sm block w-full p-2 rounded-lg transition-colors ${
+                      configMode === 'netconf' 
+                        ? 'text-purple-600 hover:text-purple-800 hover:bg-purple-50' 
+                        : 'text-blue-600 hover:text-blue-800 hover:bg-blue-50'
+                    }`}
+                  >
+                    • {example}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -1174,6 +1412,280 @@ function Configurations() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* NETCONF Operations Tab */}
+      {configMode === 'netconf' && netconfSubTab === 'operations' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Operations Form */}
+          <div className="card p-6">
+            <div className="flex items-center mb-4">
+              <TerminalIcon className="h-6 w-6 text-blue-600 mr-2" />
+              <h2 className="text-lg font-medium text-gray-900">NETCONF Operations</h2>
+            </div>
+
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Monitor Mode:</strong> Execute NETCONF operations to query device state and configuration.
+                Use &lt;get&gt; for operational data and &lt;get-config&gt; for configuration data.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Device Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Device
+                </label>
+                <select
+                  value={operationDevice}
+                  onChange={(e) => setOperationDevice(e.target.value)}
+                  className="input"
+                >
+                  <option value="">Choose a device...</option>
+                  {devices.filter(d => d.netconf_enabled || d.type === 'nexus').map((device) => (
+                    <option key={device.id} value={device.id}>
+                      {device.name} ({device.type}) - {device.ip_address}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Operation Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Operation Type
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOperationType('get')}
+                    className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                      operationType === 'get'
+                        ? 'bg-blue-50 border-blue-500 text-blue-700'
+                        : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <SearchIcon className="h-4 w-4 inline mr-1" />
+                    &lt;get&gt;
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOperationType('get-config')}
+                    className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                      operationType === 'get-config'
+                        ? 'bg-green-50 border-green-500 text-green-700'
+                        : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <CodeIcon className="h-4 w-4 inline mr-1" />
+                    &lt;get-config&gt;
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOperationType('custom')}
+                    className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                      operationType === 'custom'
+                        ? 'bg-purple-50 border-purple-500 text-purple-700'
+                        : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <TerminalIcon className="h-4 w-4 inline mr-1" />
+                    Custom RPC
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter (for get/get-config) */}
+              {operationType !== 'custom' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    XML Filter (optional)
+                  </label>
+                  <textarea
+                    value={operationFilter}
+                    onChange={(e) => setOperationFilter(e.target.value)}
+                    placeholder={`Example filter:\n<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">\n  <intf-items/>\n</System>`}
+                    className="input font-mono text-sm"
+                    rows="5"
+                  />
+                </div>
+              )}
+
+              {/* Custom RPC Content */}
+              {operationType === 'custom' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    RPC Content (without &lt;rpc&gt; wrapper)
+                  </label>
+                  <textarea
+                    value={customRpc}
+                    onChange={(e) => setCustomRpc(e.target.value)}
+                    placeholder={`Example:\n<get>\n  <filter type="subtree">\n    <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"/>\n  </filter>\n</get>`}
+                    className="input font-mono text-sm"
+                    rows="6"
+                  />
+                </div>
+              )}
+
+              {/* Execute Button */}
+              <button
+                onClick={async () => {
+                  if (!operationDevice) {
+                    toast.error('Please select a device');
+                    return;
+                  }
+                  
+                  setIsExecutingOperation(true);
+                  setOperationResult(null);
+                  const toastId = toast.loading('Executing NETCONF operation...');
+                  
+                  try {
+                    let endpoint = '';
+                    let payload = {};
+                    
+                    if (operationType === 'get') {
+                      endpoint = `/devices/${operationDevice}/netconf/get`;
+                      payload = { filter: operationFilter || undefined };
+                    } else if (operationType === 'get-config') {
+                      endpoint = `/devices/${operationDevice}/netconf/get-config`;
+                      payload = { source: 'running', filter: operationFilter || undefined };
+                    } else {
+                      endpoint = `/devices/${operationDevice}/netconf/rpc`;
+                      payload = { rpc_content: customRpc };
+                    }
+                    
+                    const response = await axios.post(endpoint, payload);
+                    
+                    setOperationResult({
+                      success: true,
+                      device_name: response.data.device_name,
+                      operation: operationType,
+                      execution_time: response.data.execution_time_ms,
+                      response: response.data.response
+                    });
+                    
+                    toast.success(`Operation completed in ${response.data.execution_time_ms}ms`, { id: toastId });
+                  } catch (error) {
+                    setOperationResult({
+                      success: false,
+                      error: error.response?.data?.message || error.message
+                    });
+                    toast.error(error.response?.data?.message || 'Operation failed', { id: toastId });
+                  } finally {
+                    setIsExecutingOperation(false);
+                  }
+                }}
+                disabled={isExecutingOperation || !operationDevice || (operationType === 'custom' && !customRpc)}
+                className="btn btn-primary btn-md w-full"
+              >
+                {isExecutingOperation ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Executing...
+                  </>
+                ) : (
+                  <>
+                    <PlayIcon className="h-4 w-4 mr-2" />
+                    Execute Operation
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Quick Filters */}
+            <div className="mt-6">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Quick Filters (NX-OS):</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { name: 'Interfaces', filter: '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><intf-items/></System>' },
+                  { name: 'VLANs', filter: '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><bd-items/></System>' },
+                  { name: 'Routing', filter: '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><ipv4-items/></System>' },
+                  { name: 'System Info', filter: '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><name/><serial/></System>' },
+                  { name: 'OSPF', filter: '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><ospf-items/></System>' },
+                  { name: 'BGP', filter: '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><bgp-items/></System>' },
+                ].map((item) => (
+                  <button
+                    key={item.name}
+                    onClick={() => {
+                      setOperationFilter(item.filter);
+                      setOperationType('get');
+                    }}
+                    className="text-left text-sm p-2 rounded-lg bg-gray-50 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                  >
+                    • {item.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Operation Result */}
+          <div className="card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-medium text-gray-900">Operation Result</h2>
+              {operationResult && (
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(operationResult.response || '');
+                    toast.success('Copied to clipboard');
+                  }}
+                  className="btn btn-secondary btn-sm"
+                >
+                  <CopyIcon className="h-4 w-4 mr-1" />
+                  Copy
+                </button>
+              )}
+            </div>
+
+            {!operationResult && (
+              <div className="text-center py-12">
+                <TerminalIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">No operation executed yet</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Select a device and operation to get started
+                </p>
+              </div>
+            )}
+
+            {operationResult && !operationResult.success && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center text-red-700 mb-2">
+                  <XCircleIcon className="h-5 w-5 mr-2" />
+                  <span className="font-medium">Operation Failed</span>
+                </div>
+                <p className="text-sm text-red-600">{operationResult.error}</p>
+              </div>
+            )}
+
+            {operationResult && operationResult.success && (
+              <div className="space-y-4">
+                {/* Result Info */}
+                <div className="bg-green-50 p-3 rounded-lg">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center text-green-700">
+                      <CheckCircleIcon className="h-4 w-4 mr-2" />
+                      <span className="font-medium">{operationResult.device_name}</span>
+                      <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded">
+                        {operationResult.operation}
+                      </span>
+                    </div>
+                    <span className="text-green-600 text-xs">
+                      {operationResult.execution_time}ms
+                    </span>
+                  </div>
+                </div>
+
+                {/* XML Response */}
+                <div className="bg-gray-900 rounded-lg p-4 overflow-auto max-h-[500px]">
+                  <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">
+                    {operationResult.response}
+                  </pre>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

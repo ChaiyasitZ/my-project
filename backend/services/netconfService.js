@@ -27,8 +27,8 @@ export class NetconfService {
 
     this.MESSAGE_DELIMITER = ']]>]]>';
     
-    // Cleanup expired connections
-    setInterval(() => {
+    // Cleanup expired connections (store interval ID for shutdown)
+    this.cleanupInterval = setInterval(() => {
       this.cleanupExpiredConnections();
     }, 60000);
   }
@@ -604,6 +604,35 @@ ${configXml}
     }
     
     return sessions;
+  }
+
+  /**
+   * Graceful shutdown - close all connections and clear intervals
+   */
+  shutdown() {
+    console.log('🌐 NETCONF Service shutting down...');
+    
+    // Clear cleanup interval
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+    }
+    
+    // Close all NETCONF sessions
+    for (const [deviceId, session] of this.connections) {
+      try {
+        if (session.stream) {
+          session.stream.end();
+        }
+        if (session.connection) {
+          session.connection.end();
+        }
+      } catch (e) {
+        // Ignore errors during shutdown
+      }
+    }
+    this.connections.clear();
+    
+    console.log('✅ NETCONF Service shutdown complete');
   }
 }
 

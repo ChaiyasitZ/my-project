@@ -856,4 +856,154 @@ router.post('/:id/netconf/disconnect', async (req, res) => {
   }
 });
 
+// POST /api/devices/:id/netconf/get - Execute NETCONF <get> operation
+router.post('/:id/netconf/get', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { filter, filter_type = 'subtree' } = req.body;
+    
+    const device = await Device.findById(id);
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    // Ensure NETCONF session is active
+    const sessionStatus = netconfService.getSessionStatus(id);
+    if (!sessionStatus?.isConnected) {
+      // Try to connect
+      await netconfService.connect(device);
+    }
+    
+    console.log(`📡 NETCONF GET on ${device.name}`);
+    
+    // Build filter XML
+    let filterXml = '';
+    if (filter) {
+      filterXml = `
+  <filter type="${filter_type}">
+    ${filter}
+  </filter>`;
+    }
+    
+    const rpcContent = `  <get>${filterXml}
+  </get>`;
+    
+    const startTime = Date.now();
+    const result = await netconfService.sendRpc(id, rpcContent);
+    const executionTime = Date.now() - startTime;
+    
+    res.json({
+      success: true,
+      device_name: device.name,
+      operation: 'get',
+      execution_time_ms: executionTime,
+      response: result.response
+    });
+    
+  } catch (error) {
+    console.error('Error executing NETCONF get:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to execute NETCONF get operation'
+    });
+  }
+});
+
+// POST /api/devices/:id/netconf/get-config - Execute NETCONF <get-config> operation
+router.post('/:id/netconf/get-config', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { source = 'running', filter, filter_type = 'subtree' } = req.body;
+    
+    const device = await Device.findById(id);
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    // Ensure NETCONF session is active
+    const sessionStatus = netconfService.getSessionStatus(id);
+    if (!sessionStatus?.isConnected) {
+      await netconfService.connect(device);
+    }
+    
+    console.log(`📡 NETCONF GET-CONFIG (${source}) on ${device.name}`);
+    
+    const startTime = Date.now();
+    const result = await netconfService.getRunningConfig(id, filter);
+    const executionTime = Date.now() - startTime;
+    
+    res.json({
+      success: true,
+      device_name: device.name,
+      operation: 'get-config',
+      source,
+      execution_time_ms: executionTime,
+      response: result.response
+    });
+    
+  } catch (error) {
+    console.error('Error executing NETCONF get-config:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to execute NETCONF get-config operation'
+    });
+  }
+});
+
+// POST /api/devices/:id/netconf/rpc - Execute custom NETCONF RPC
+router.post('/:id/netconf/rpc', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rpc_content } = req.body;
+    
+    if (!rpc_content) {
+      return res.status(400).json({
+        success: false,
+        message: 'RPC content is required'
+      });
+    }
+    
+    const device = await Device.findById(id);
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    // Ensure NETCONF session is active
+    const sessionStatus = netconfService.getSessionStatus(id);
+    if (!sessionStatus?.isConnected) {
+      await netconfService.connect(device);
+    }
+    
+    console.log(`📡 NETCONF Custom RPC on ${device.name}`);
+    
+    const startTime = Date.now();
+    const result = await netconfService.sendRpc(id, rpc_content);
+    const executionTime = Date.now() - startTime;
+    
+    res.json({
+      success: true,
+      device_name: device.name,
+      operation: 'custom-rpc',
+      execution_time_ms: executionTime,
+      response: result.response
+    });
+    
+  } catch (error) {
+    console.error('Error executing NETCONF RPC:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to execute NETCONF RPC'
+    });
+  }
+});
+
 export default router; 
