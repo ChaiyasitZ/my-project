@@ -1368,7 +1368,7 @@ router.post('/netconf/generate', async (req, res) => {
 // POST /api/configurations/netconf/apply - Apply NETCONF configuration to device
 router.post('/netconf/apply', async (req, res) => {
   try {
-    const { configuration_id } = req.body;
+    const { configuration_id, validate_before_apply = true } = req.body;
     
     if (!configuration_id) {
       return res.status(400).json({
@@ -1401,6 +1401,9 @@ router.post('/netconf/apply', async (req, res) => {
     }
     
     console.log(`🌐 NETCONF: Applying configuration to ${device.name} (${device.ip_address})`);
+    if (validate_before_apply) {
+      console.log(`🔍 NETCONF: Validation enabled before apply`);
+    }
     
     const deploymentStart = Date.now();
     
@@ -1413,11 +1416,31 @@ router.post('/netconf/apply', async (req, res) => {
       }
       
       const deviceId = device._id.toString();
+      const configToApply = configuration.deployment_config || configuration.generated_config;
+      
+      // Validate before apply if enabled
+      if (validate_before_apply) {
+        console.log(`🔍 NETCONF: Validating configuration...`);
+        const validateResult = await netconfService.validate(deviceId, configToApply);
+        
+        if (!validateResult.success) {
+          // Close session on validation failure
+          await netconfService.closeSession(deviceId);
+          
+          return res.status(400).json({
+            success: false,
+            message: 'Configuration validation failed',
+            validation_error: validateResult.error || 'Unknown validation error',
+            validated: true
+          });
+        }
+        console.log(`✅ NETCONF: Validation passed`);
+      }
       
       // Apply configuration
       const applyResult = await netconfService.applyNxosConfig(
         deviceId,
-        configuration.deployment_config || configuration.generated_config,
+        configToApply,
         'merge'
       );
       

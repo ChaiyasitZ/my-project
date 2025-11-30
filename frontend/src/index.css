@@ -195,7 +195,11 @@
   }
   
   .btn-info {
-    @apply btn bg-blue-500 text-white border-blue-500 hover:bg-blue-600 hover:border-blue-600 focus:ring-blue-400;
+    @apply btn bg-cyan-500 text-white border-cyan-500 hover:bg-cyan-600 hover:border-cyan-600 focus:ring-cyan-400;
+  }
+
+  .btn-purple {
+    @apply btn bg-purple-600 text-white border-purple-600 hover:bg-purple-700 hover:border-purple-700 focus:ring-purple-500;
   }
   
   .btn-outline-primary {

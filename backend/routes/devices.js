@@ -3,13 +3,14 @@ import Joi from 'joi';
 import Device from '../models/Device.js';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import sshService from '../services/sshService.js';
+import netconfService from '../services/netconfService.js';
 
 const router = express.Router();
 
 // Validation schemas
 const deviceSchema = Joi.object({
   name: Joi.string().required().max(255),
-  type: Joi.string().valid('router', 'switch').required(),
+  type: Joi.string().valid('router', 'switch', 'nexus').required(),
   layer: Joi.string().valid('layer-2', 'layer-3').when('type', {
     is: 'switch',
     then: Joi.string().default('layer-2').required(),
@@ -17,6 +18,8 @@ const deviceSchema = Joi.object({
   }),
   ip_address: Joi.string().ip().required(),
   ssh_port: Joi.number().integer().min(1).max(65535).default(22),
+  netconf_port: Joi.number().integer().min(1).max(65535).default(830),
+  netconf_enabled: Joi.boolean().default(false),
   username: Joi.string().required().max(255),
   password: Joi.string().required().max(255),
   description: Joi.string().allow('').max(1000),
@@ -27,7 +30,7 @@ const deviceSchema = Joi.object({
 
 const deviceUpdateSchema = Joi.object({
   name: Joi.string().max(255),
-  type: Joi.string().valid('router', 'switch'),
+  type: Joi.string().valid('router', 'switch', 'nexus'),
   layer: Joi.string().valid('layer-2', 'layer-3').when('type', {
     is: 'switch',
     then: Joi.string(),
@@ -35,6 +38,8 @@ const deviceUpdateSchema = Joi.object({
   }),
   ip_address: Joi.string().ip(),
   ssh_port: Joi.number().integer().min(1).max(65535),
+  netconf_port: Joi.number().integer().min(1).max(65535),
+  netconf_enabled: Joi.boolean(),
   username: Joi.string().max(255),
   password: Joi.string().max(255).allow(''), // Allow empty string for updates (keep existing password)
   description: Joi.string().allow('').max(1000),
@@ -671,6 +676,158 @@ router.get('/:id/ssh/status', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to get SSH session status'
+    });
+  }
+});
+
+// POST /api/devices/:id/netconf/test - Test NETCONF connection to device
+router.post('/:id/netconf/test', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const device = await Device.findById(id);
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    console.log(`🌐 Testing NETCONF connection to ${device.name} (${device.ip_address}:${device.netconf_port || 830})`);
+    
+    // Test NETCONF connection
+    const testResult = await netconfService.testConnection(device);
+    
+    res.json({
+      success: testResult.success,
+      message: testResult.success 
+        ? `NETCONF connection to ${device.name} successful` 
+        : `NETCONF connection failed: ${testResult.error}`,
+      connectionTest: {
+        success: testResult.success,
+        message: testResult.message,
+        capabilities: testResult.capabilities || [],
+        response_time: testResult.response_time
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error testing NETCONF connection:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to test NETCONF connection',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/devices/:id/netconf/capabilities - Get device NETCONF capabilities
+router.get('/:id/netconf/capabilities', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const device = await Device.findById(id);
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    // Check if there's an active session with capabilities
+    const sessionStatus = netconfService.getSessionStatus(id);
+    
+    if (sessionStatus && sessionStatus.isConnected) {
+      const capabilities = netconfService.getCapabilities(id);
+      return res.json({
+        success: true,
+        device_name: device.name,
+        is_connected: true,
+        capabilities: capabilities || []
+      });
+    }
+    
+    // Need to connect to get capabilities
+    res.json({
+      success: true,
+      device_name: device.name,
+      is_connected: false,
+      capabilities: [],
+      message: 'Connect NETCONF session to view capabilities'
+    });
+    
+  } catch (error) {
+    console.error('Error getting NETCONF capabilities:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get NETCONF capabilities'
+    });
+  }
+});
+
+// GET /api/devices/netconf/sessions - Get all active NETCONF sessions
+router.get('/netconf/sessions', async (req, res) => {
+  try {
+    const activeSessions = netconfService.getActiveSessions();
+    
+    // Enhance with device names
+    const enhancedSessions = await Promise.all(
+      activeSessions.map(async (session) => {
+        try {
+          const device = await Device.findById(session.deviceId);
+          return {
+            ...session,
+            device_name: device?.name || 'Unknown',
+            device_ip: device?.ip_address || 'Unknown'
+          };
+        } catch {
+          return session;
+        }
+      })
+    );
+    
+    res.json({
+      success: true,
+      sessions: enhancedSessions,
+      total: enhancedSessions.length
+    });
+    
+  } catch (error) {
+    console.error('Error getting NETCONF sessions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get NETCONF sessions'
+    });
+  }
+});
+
+// POST /api/devices/:id/netconf/disconnect - Disconnect NETCONF session
+router.post('/:id/netconf/disconnect', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const device = await Device.findById(id);
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    console.log(`🌐 Disconnecting NETCONF session from ${device.name}`);
+    
+    await netconfService.closeSession(id);
+    
+    res.json({
+      success: true,
+      message: `NETCONF session disconnected from ${device.name}`
+    });
+    
+  } catch (error) {
+    console.error('Error disconnecting NETCONF session:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to disconnect NETCONF session'
     });
   }
 });

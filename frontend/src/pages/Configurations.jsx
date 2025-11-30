@@ -17,7 +17,10 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   PlusIcon,
-  FolderIcon
+  FolderIcon,
+  WifiIcon,
+  XCircleIcon,
+  ActivityIcon
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import BackupProgressModal from '../components/BackupProgressModal';
@@ -64,6 +67,15 @@ function Configurations() {
   });
   const [newTemplate, setNewTemplate] = useState({ name: '', description: '', template: '' });
   const [newPath, setNewPath] = useState({ path: '', description: '', data_type: '', required: false });
+  
+  // NETCONF Sessions state
+  const [netconfSessions, setNetconfSessions] = useState([]);
+  const [netconfSessionsLoading, setNetconfSessionsLoading] = useState(false);
+  const [validateBeforeApply, setValidateBeforeApply] = useState(true); // Default enabled
+  
+  // YANG Models search/filter
+  const [yangSearchTerm, setYangSearchTerm] = useState('');
+  const [yangCategoryFilter, setYangCategoryFilter] = useState('all');
 
   const { confirmationState, showConfirmation } = useConfirmation();
 
@@ -129,6 +141,7 @@ function Configurations() {
   useEffect(() => {
     if (configMode === 'netconf') {
       fetchYangModels();
+      fetchNetconfSessions();
     }
   }, [configMode]);
 
@@ -153,6 +166,29 @@ function Configurations() {
       console.error('Error fetching YANG models:', error);
     } finally {
       setYangModelsLoading(false);
+    }
+  };
+
+  const fetchNetconfSessions = async () => {
+    setNetconfSessionsLoading(true);
+    try {
+      const response = await axios.get('/devices/netconf/sessions');
+      setNetconfSessions(response.data.sessions || []);
+    } catch (error) {
+      console.error('Error fetching NETCONF sessions:', error);
+    } finally {
+      setNetconfSessionsLoading(false);
+    }
+  };
+
+  const handleDisconnectNetconfSession = async (deviceId, deviceName) => {
+    const toastId = toast.loading(`Disconnecting NETCONF session from ${deviceName}...`);
+    try {
+      await axios.post(`/devices/${deviceId}/netconf/disconnect`);
+      toast.success(`NETCONF session disconnected from ${deviceName}`, { id: toastId });
+      fetchNetconfSessions();
+    } catch (error) {
+      toast.error(`Failed to disconnect: ${error.response?.data?.message || error.message}`, { id: toastId });
     }
   };
 
@@ -378,7 +414,7 @@ function Configurations() {
 
     const confirmed = await showConfirmation({
       title: `Deploy Configuration via ${modeLabel}`,
-      message: `Are you sure you want to apply this configuration to the device using ${modeLabel}?\n\nThis action will modify the device configuration.`,
+      message: `Are you sure you want to apply this configuration to the device using ${modeLabel}?\n\nThis action will modify the device configuration.${isNetconf && validateBeforeApply ? '\n\n✓ Validation will run before applying.' : ''}`,
       confirmText: 'Deploy',
       cancelText: 'Cancel',
       type: 'warning'
@@ -396,7 +432,8 @@ function Configurations() {
         : '/configurations/apply';
 
       const response = await axios.post(endpoint, {
-        configuration_id: generatedConfig.id
+        configuration_id: generatedConfig.id,
+        validate_before_apply: isNetconf ? validateBeforeApply : false
       });
 
       console.log('✅ Configuration applied successfully!');
@@ -449,13 +486,24 @@ function Configurations() {
   };
 
   const examplePrompts = configMode === 'netconf' ? [
-    // NX-OS NETCONF Examples
-    "Configure VLAN 100 named PRODUCTION with active state",
-    "Set up interface Ethernet1/1 with IP address 10.0.0.1/24",
-    "Configure OSPF instance 1 with router-id 1.1.1.1 in area 0",
-    "Create SVI for VLAN 100 with IP 192.168.100.1/24",
-    "Configure BGP AS 65001 with neighbor 10.0.0.2 in AS 65002",
-    "Enable VXLAN EVPN with NVE interface",
+    // NX-OS NETCONF/YANG Examples - Interface Configuration
+    "Configure interface Ethernet1/1 with description 'Uplink to Core' and MTU 9216",
+    "Set interface Ethernet1/2 as access port on VLAN 100",
+    "Configure port-channel 10 with members Ethernet1/3-4 using LACP active mode",
+    
+    // VLAN Configuration
+    "Create VLAN 100 named PRODUCTION and VLAN 200 named MANAGEMENT",
+    "Configure SVI interface Vlan100 with IP 192.168.100.1/24 and description 'Production Gateway'",
+    
+    // Routing Configuration  
+    "Enable OSPF process 1 with router-id 10.0.0.1 and add interface Ethernet1/1 to area 0.0.0.0",
+    "Configure BGP AS 65001 with neighbor 10.0.0.2 remote-as 65002",
+    "Add static route to 172.16.0.0/16 via next-hop 10.0.0.254",
+    
+    // Advanced Features
+    "Configure VXLAN with VNI 10100 mapped to VLAN 100 on NVE1",
+    "Enable feature vpc and configure vpc domain 100 with peer-keepalive destination 192.168.1.2",
+    "Configure HSRP group 1 on Vlan100 with virtual IP 192.168.100.254 and priority 110",
   ] : [
     // Router Examples
     "Configure OSPF routing for area 0 on GigabitEthernet0/0",
@@ -609,12 +657,16 @@ function Configurations() {
           {/* Example Prompts */}
           <div className="mt-6">
             <h3 className="text-sm font-medium text-gray-700 mb-3">Example Prompts:</h3>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
               {examplePrompts.map((example, index) => (
                 <button
                   key={index}
                   onClick={() => setPrompt(example)}
-                  className="text-left text-sm text-blue-600 hover:text-blue-800 block"
+                  className={`text-left text-sm block w-full p-2 rounded-lg transition-colors ${
+                    configMode === 'netconf' 
+                      ? 'text-purple-600 hover:text-purple-800 hover:bg-purple-50' 
+                      : 'text-blue-600 hover:text-blue-800 hover:bg-blue-50'
+                  }`}
                 >
                   • {example}
                 </button>
@@ -628,7 +680,19 @@ function Configurations() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-medium text-gray-900">Configuration Preview</h2>
             {generatedConfig && generatedConfig.status === 'generated' && (
-              <div className="flex space-x-2">
+              <div className="flex items-center space-x-4">
+                {/* Validate Before Apply Checkbox - only for NETCONF */}
+                {generatedConfig.config_type === 'netconf-yang' && (
+                  <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={validateBeforeApply}
+                      onChange={(e) => setValidateBeforeApply(e.target.checked)}
+                      className="h-4 w-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+                    />
+                    <span>Validate before apply</span>
+                  </label>
+                )}
                 <button
                   onClick={handleApplyConfiguration}
                   disabled={isApplying}
@@ -794,6 +858,81 @@ function Configurations() {
         </div>
       </div>
 
+      {/* Active NETCONF Sessions Panel - Only visible in NETCONF mode */}
+      {configMode === 'netconf' && (
+        <div className="card p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center">
+              <ActivityIcon className="h-6 w-6 text-green-600 mr-2" />
+              <h2 className="text-lg font-medium text-gray-900">Active NETCONF Sessions</h2>
+              <span className="ml-2 text-sm text-gray-500">
+                ({netconfSessions.length} active)
+              </span>
+            </div>
+            <button
+              onClick={fetchNetconfSessions}
+              disabled={netconfSessionsLoading}
+              className="btn btn-secondary btn-sm"
+            >
+              <RefreshCwIcon className={`h-4 w-4 mr-1 ${netconfSessionsLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+
+          {netconfSessionsLoading ? (
+            <div className="text-center py-6">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600 mx-auto"></div>
+            </div>
+          ) : netconfSessions.length === 0 ? (
+            <div className="text-center py-6 text-gray-500">
+              <WifiIcon className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+              <p>No active NETCONF sessions</p>
+              <p className="text-xs mt-1">Sessions are created when you apply NETCONF configurations</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {netconfSessions.map((session) => (
+                <div 
+                  key={session.deviceId} 
+                  className="flex items-center justify-between p-3 border border-green-200 rounded-lg bg-green-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <WifiIcon className="h-5 w-5 text-green-600" />
+                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm text-gray-900">
+                        {session.device_name || 'Unknown Device'}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {session.device_ip || session.deviceId} • Port 830
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right text-xs text-gray-500">
+                      <div>Connected: {session.connectedAt ? new Date(session.connectedAt).toLocaleTimeString() : 'N/A'}</div>
+                      {session.capabilities && (
+                        <div>{session.capabilities.length} capabilities</div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleDisconnectNetconfSession(session.deviceId, session.device_name)}
+                      className="btn btn-danger btn-sm"
+                      title="Disconnect Session"
+                    >
+                      <XCircleIcon className="h-4 w-4 mr-1" />
+                      Kill
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* YANG Models Section - Only visible in NETCONF mode */}
       {configMode === 'netconf' && (
         <div className="card p-6">
@@ -818,6 +957,41 @@ function Configurations() {
             Upload custom YANG models to improve XML configuration generation accuracy.
           </p>
 
+          {/* Search and Category Filter */}
+          {yangModels.length > 0 && (
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+              {/* Search Input */}
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder="Search YANG models..."
+                  value={yangSearchTerm}
+                  onChange={(e) => setYangSearchTerm(e.target.value)}
+                  className="input pl-9 text-sm"
+                />
+                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              
+              {/* Category Filter */}
+              <select
+                value={yangCategoryFilter}
+                onChange={(e) => setYangCategoryFilter(e.target.value)}
+                className="input text-sm w-full sm:w-40"
+              >
+                <option value="all">All Categories</option>
+                <option value="interface">Interface</option>
+                <option value="routing">Routing</option>
+                <option value="vlan">VLAN</option>
+                <option value="system">System</option>
+                <option value="security">Security</option>
+                <option value="qos">QoS</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          )}
+
           {yangModelsLoading ? (
             <div className="text-center py-6">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto"></div>
@@ -829,8 +1003,43 @@ function Configurations() {
               <p className="text-xs mt-1">Upload models to enhance configuration generation</p>
             </div>
           ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {yangModels.map((model) => (
+            (() => {
+              // Filter YANG models
+              const filteredYangModels = yangModels.filter(model => {
+                const matchesSearch = !yangSearchTerm || 
+                  model.name.toLowerCase().includes(yangSearchTerm.toLowerCase()) ||
+                  model.namespace?.toLowerCase().includes(yangSearchTerm.toLowerCase()) ||
+                  model.description?.toLowerCase().includes(yangSearchTerm.toLowerCase());
+                
+                const matchesCategory = yangCategoryFilter === 'all' || 
+                  model.category === yangCategoryFilter;
+                
+                return matchesSearch && matchesCategory;
+              });
+
+              if (filteredYangModels.length === 0) {
+                return (
+                  <div className="text-center py-6 text-gray-500">
+                    <p>No YANG models match your search</p>
+                    <button
+                      onClick={() => { setYangSearchTerm(''); setYangCategoryFilter('all'); }}
+                      className="text-purple-600 text-sm mt-2 hover:underline"
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {/* Results count */}
+                  {(yangSearchTerm || yangCategoryFilter !== 'all') && (
+                    <p className="text-xs text-gray-500 mb-2">
+                      Showing {filteredYangModels.length} of {yangModels.length} models
+                    </p>
+                  )}
+                  {filteredYangModels.map((model) => (
                 <div 
                   key={model.id} 
                   className={`border rounded-lg overflow-hidden ${model.is_active ? 'border-purple-200' : 'border-gray-200 opacity-60'}`}
@@ -899,7 +1108,9 @@ function Configurations() {
                   )}
                 </div>
               ))}
-            </div>
+                </div>
+              );
+            })()
           )}
         </div>
       )}

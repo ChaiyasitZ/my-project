@@ -3,6 +3,12 @@ import axios from 'axios';
 /**
  * OpenRouter LLM Service for Cisco Configuration Generation
  * Uses OpenRouter API for access to multiple AI models
+ * 
+ * Features:
+ * - Response caching for repeated prompts
+ * - Rate limiting protection
+ * - Comprehensive error handling
+ * - NETCONF/YANG XML generation support
  */
 export class LLMService {
   constructor() {
@@ -35,6 +41,27 @@ export class LLMService {
       stop: ['```', 'Here are', 'Here is', 'Sure', 'Note:', '---']
     };
     
+    // Response cache with TTL (5 minutes default)
+    this.cache = new Map();
+    this.cacheTTL = 5 * 60 * 1000; // 5 minutes
+    this.maxCacheSize = 100;
+    
+    // Rate limiting protection
+    this.rateLimiter = {
+      requests: [],
+      maxRequests: 30,      // Max requests per minute
+      windowMs: 60 * 1000   // 1 minute window
+    };
+    
+    // Statistics tracking
+    this.stats = {
+      totalRequests: 0,
+      cacheHits: 0,
+      cacheMisses: 0,
+      errors: 0,
+      totalTokens: 0
+    };
+    
     // Knowledge base for enhanced context
     this.knowledgeBase = this._initializeKnowledgeBase();
 
@@ -51,13 +78,105 @@ export class LLMService {
     } else {
       console.log(`..........................`);
     }
+    
+    // Clean up expired cache entries periodically
+    setInterval(() => this._cleanupCache(), 60000);
+  }
+  
+  /**
+   * Generate cache key from prompt and parameters
+   */
+  _getCacheKey(prompt, deviceType, configType = 'cli') {
+    return `${configType}:${deviceType}:${prompt.toLowerCase().trim()}`;
+  }
+  
+  /**
+   * Get cached response if available and not expired
+   */
+  _getFromCache(cacheKey) {
+    const cached = this.cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
+      this.stats.cacheHits++;
+      console.log(`📦 Cache hit for: ${cacheKey.substring(0, 50)}...`);
+      return cached.data;
+    }
+    if (cached) {
+      this.cache.delete(cacheKey);
+    }
+    this.stats.cacheMisses++;
+    return null;
+  }
+  
+  /**
+   * Store response in cache
+   */
+  _setCache(cacheKey, data) {
+    // Limit cache size
+    if (this.cache.size >= this.maxCacheSize) {
+      const oldestKey = this.cache.keys().next().value;
+      this.cache.delete(oldestKey);
+    }
+    this.cache.set(cacheKey, { data, timestamp: Date.now() });
+  }
+  
+  /**
+   * Clean up expired cache entries
+   */
+  _cleanupCache() {
+    const now = Date.now();
+    for (const [key, value] of this.cache.entries()) {
+      if (now - value.timestamp > this.cacheTTL) {
+        this.cache.delete(key);
+      }
+    }
+  }
+  
+  /**
+   * Check rate limit before making API request
+   */
+  _checkRateLimit() {
+    const now = Date.now();
+    // Remove requests outside the window
+    this.rateLimiter.requests = this.rateLimiter.requests.filter(
+      time => now - time < this.rateLimiter.windowMs
+    );
+    
+    if (this.rateLimiter.requests.length >= this.rateLimiter.maxRequests) {
+      const oldestRequest = this.rateLimiter.requests[0];
+      const waitTime = Math.ceil((this.rateLimiter.windowMs - (now - oldestRequest)) / 1000);
+      throw new Error(`Rate limit exceeded. Please wait ${waitTime} seconds before trying again.`);
+    }
+    
+    this.rateLimiter.requests.push(now);
+  }
+  
+  /**
+   * Get service statistics
+   */
+  getStats() {
+    return {
+      ...this.stats,
+      cacheSize: this.cache.size,
+      cacheHitRate: this.stats.totalRequests > 0 
+        ? ((this.stats.cacheHits / this.stats.totalRequests) * 100).toFixed(1) + '%'
+        : '0%'
+    };
+  }
+  
+  /**
+   * Clear all cached responses
+   */
+  clearCache() {
+    this.cache.clear();
+    console.log('🗑️ LLM response cache cleared');
   }
 
   /**
    * Generate Cisco configuration from text prompt using OpenRouter
    */
-  async generateConfiguration(prompt, deviceType, deviceContext = {}, templateName = 'cisco_cli') {
+  async generateConfiguration(prompt, deviceType, deviceContext = {}, templateName = 'cisco_cli', useCache = true) {
     const startTime = Date.now();
+    this.stats.totalRequests++;
     
     try {
       console.log(`🚀 Generating config for ${deviceType}: "${prompt}"`);
@@ -66,6 +185,22 @@ export class LLMService {
       if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
         throw new Error('OpenRouter API key not configured. Please set OPENROUTER_API_KEY in .env file');
       }
+      
+      // Check cache first (if enabled)
+      if (useCache) {
+        const cacheKey = this._getCacheKey(prompt, deviceType, 'cli');
+        const cachedResult = this._getFromCache(cacheKey);
+        if (cachedResult) {
+          return {
+            ...cachedResult,
+            fromCache: true,
+            executionTime: Date.now() - startTime
+          };
+        }
+      }
+      
+      // Check rate limit
+      this._checkRateLimit();
 
       // Build system/user messages - use named template when available
       let systemMessage;
@@ -110,10 +245,10 @@ export class LLMService {
         } catch (apiError) {
           retryCount++;
           if (retryCount > maxRetries) {
-            throw apiError;
+            throw this._handleApiError(apiError);
           }
           console.log(`⚠️ Retry ${retryCount}/${maxRetries} after error: ${apiError.message}`);
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
         }
       }
 
@@ -160,7 +295,7 @@ export class LLMService {
       console.log(`📋 Clean config:\n${cleanConfig.substring(0, 200)}...`);
       console.log(`✅ Validation score: ${validation.score}/100`);
       
-      return {
+      const result = {
         success: true,
         configuration: deploymentConfig,
         displayConfig: ensuredConfig,
@@ -173,11 +308,24 @@ export class LLMService {
         tokensUsed,
         validation,
         confidenceScore: validation.score,
-        recommendations: validation.warnings.length > 0 ? validation.warnings : ['Configuration looks good']
+        recommendations: validation.warnings.length > 0 ? validation.warnings : ['Configuration looks good'],
+        fromCache: false
       };
+      
+      // Cache the successful result
+      if (useCache) {
+        const cacheKey = this._getCacheKey(prompt, deviceType, 'cli');
+        this._setCache(cacheKey, result);
+      }
+      
+      // Update stats
+      this.stats.totalTokens += tokensUsed;
+      
+      return result;
       
     } catch (error) { 
       const executionTime = Date.now() - startTime;
+      this.stats.errors++;
       console.error("❌ Generation failed:", error.message);
       console.error("❌ Full error:", error);
       
@@ -207,6 +355,33 @@ export class LLMService {
         ]
       };
     }
+  }
+  
+  /**
+   * Handle API errors with specific messages
+   */
+  _handleApiError(error) {
+    const status = error.response?.status;
+    const data = error.response?.data;
+    
+    if (status === 401) {
+      return new Error('Invalid API key. Please verify your OpenRouter API key.');
+    } else if (status === 402) {
+      return new Error('Insufficient credits. Please add credits to your OpenRouter account.');
+    } else if (status === 429) {
+      const retryAfter = error.response?.headers?.['retry-after'] || 60;
+      return new Error(`Rate limited by OpenRouter. Please wait ${retryAfter} seconds.`);
+    } else if (status === 500 || status === 502 || status === 503) {
+      return new Error('OpenRouter service temporarily unavailable. Please try again later.');
+    } else if (status === 400) {
+      return new Error(`Invalid request: ${data?.error?.message || 'Check prompt format'}`);
+    } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return new Error('Cannot connect to OpenRouter. Check your internet connection.');
+    } else if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
+      return new Error('Request timed out. The AI model may be overloaded.');
+    }
+    
+    return error;
   }
 
   /**
@@ -2133,9 +2308,11 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
    * @param {string} deviceType - Type of device (nexus, ios, etc.)
    * @param {object} deviceContext - Device context (name, model, location)
    * @param {array} customYangModels - Custom YANG models for reference
+   * @param {boolean} useCache - Whether to use cached responses (default true)
    */
-  async generateNetconfConfig(prompt, deviceType, deviceContext = {}, customYangModels = []) {
+  async generateNetconfConfig(prompt, deviceType, deviceContext = {}, customYangModels = [], useCache = true) {
     const startTime = Date.now();
+    this.stats.totalRequests++;
     
     try {
       console.log(`🌐 Generating NETCONF/YANG config for ${deviceType}: "${prompt}"`);
@@ -2145,6 +2322,22 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
       if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
         throw new Error('OpenRouter API key not configured. Please set OPENROUTER_API_KEY in .env file');
       }
+      
+      // Check cache first (if enabled and no custom models)
+      if (useCache && customYangModels.length === 0) {
+        const cacheKey = this._getCacheKey(prompt, deviceType, 'netconf');
+        const cachedResult = this._getFromCache(cacheKey);
+        if (cachedResult) {
+          return {
+            ...cachedResult,
+            fromCache: true,
+            executionTime: Date.now() - startTime
+          };
+        }
+      }
+      
+      // Check rate limit
+      this._checkRateLimit();
 
       const systemMessage = this._buildNetconfSystemMessage(prompt, deviceType, customYangModels);
       const userMessage = this._buildNetconfUserMessage(prompt, deviceType, deviceContext);
@@ -2173,9 +2366,9 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
           break;
         } catch (apiError) {
           retryCount++;
-          if (retryCount > maxRetries) throw apiError;
+          if (retryCount > maxRetries) throw this._handleApiError(apiError);
           console.log(`⚠️ Retry ${retryCount}/${maxRetries}: ${apiError.message}`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
         }
       }
 
@@ -2200,7 +2393,7 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
       
       console.log(`✅ NETCONF config generated successfully (${executionTime}ms, ${tokensUsed} tokens)`);
       
-      return {
+      const result = {
         success: true,
         configuration: cleanConfig,
         displayConfig: cleanConfig,
@@ -2214,11 +2407,24 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
         tokensUsed,
         validation,
         confidenceScore: validation.score,
-        recommendations: validation.warnings.length > 0 ? validation.warnings : ['NETCONF configuration looks valid']
+        recommendations: validation.warnings.length > 0 ? validation.warnings : ['NETCONF configuration looks valid'],
+        fromCache: false
       };
+      
+      // Cache the successful result (only if no custom models were used)
+      if (useCache && customYangModels.length === 0) {
+        const cacheKey = this._getCacheKey(prompt, deviceType, 'netconf');
+        this._setCache(cacheKey, result);
+      }
+      
+      // Update stats
+      this.stats.totalTokens += tokensUsed;
+      
+      return result;
       
     } catch (error) {
       const executionTime = Date.now() - startTime;
+      this.stats.errors++;
       console.error("❌ NETCONF generation failed:", error.message);
       
       return {

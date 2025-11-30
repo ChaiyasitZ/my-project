@@ -313,15 +313,43 @@ ${configXml}
   /**
    * Validate configuration
    */
-  async validate(deviceId, source = 'candidate') {
-    const rpcContent = `  <validate>
+  async validate(deviceId, configXml = null) {
+    let rpcContent;
+    
+    if (configXml) {
+      // Validate provided config content directly
+      rpcContent = `  <validate>
     <source>
-      <${source}/>
+      <config>
+${configXml}
+      </config>
     </source>
   </validate>`;
+      console.log(`🔍 NETCONF: Validating provided configuration...`);
+    } else {
+      // Validate candidate datastore (default behavior)
+      rpcContent = `  <validate>
+    <source>
+      <candidate/>
+    </source>
+  </validate>`;
+      console.log(`🔍 NETCONF: Validating candidate configuration...`);
+    }
     
-    console.log(`🔍 NETCONF: Validating ${source} configuration...`);
-    return await this.sendRpc(deviceId, rpcContent);
+    try {
+      const result = await this.sendRpc(deviceId, rpcContent);
+      return {
+        success: true,
+        message: 'Configuration validation passed',
+        response: result.response
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        message: 'Configuration validation failed'
+      };
+    }
   }
 
   /**
@@ -542,12 +570,14 @@ ${configXml}
     
     if (!session) {
       return {
+        isConnected: false,
         connected: false,
         message: 'No active NETCONF session'
       };
     }
     
     return {
+      isConnected: true,
       connected: true,
       deviceIp: session.deviceIp,
       createdAt: session.createdAt,

@@ -23,6 +23,7 @@ function Devices() {
   const [showModal, setShowModal] = useState(false);
   const [editingDevice, setEditingDevice] = useState(null);
   const [testingDevice, setTestingDevice] = useState(null);
+  const [testingNetconf, setTestingNetconf] = useState(null);
   const [sshSessions, setSshSessions] = useState(new Map()); // Track SSH session status
   const [connectingDevices, setConnectingDevices] = useState(new Set());
   
@@ -36,6 +37,8 @@ function Devices() {
     layer: 'layer-2',
     ip_address: '',
     ssh_port: 22,
+    netconf_port: 830,
+    netconf_enabled: false,
     username: '',
     password: '',
     description: '',
@@ -297,6 +300,8 @@ function Devices() {
       layer: device.type === 'switch' ? (device.layer || 'layer-2') : undefined,
       ip_address: device.ip_address,
       ssh_port: device.ssh_port,
+      netconf_port: device.netconf_port || 830,
+      netconf_enabled: device.netconf_enabled || false,
       username: device.username,
       password: '', // Don't populate password for security
       description: device.description || '',
@@ -360,6 +365,36 @@ function Devices() {
     }
   };
 
+  const handleTestNetconf = async (device) => {
+    const deviceId = device.id || device._id;
+    setTestingNetconf(deviceId);
+    const toastId = toast.loading(`Testing NETCONF connection to ${device.name}...`);
+    
+    try {
+      const response = await axios.post(`/devices/${deviceId}/netconf/test`);
+      
+      if (response.data && response.data.success) {
+        const capabilities = response.data.connectionTest?.capabilities || [];
+        console.log('✅ NETCONF Connection successful for', device.name);
+        toast.success(
+          `NETCONF connection to ${device.name} successful! ${capabilities.length} capabilities found.`, 
+          { id: toastId }
+        );
+      } else {
+        console.warn('⚠️ NETCONF Connection failed for', device.name);
+        toast.error(
+          `NETCONF connection to ${device.name} failed: ${response.data.message}`, 
+          { id: toastId }
+        );
+      }
+    } catch (error) {
+      console.error('❌ NETCONF Connection test failed for', device.name + ':', error.response?.data?.message || error.message);
+      toast.error(`NETCONF test failed: ${error.response?.data?.message || error.message}`, { id: toastId });
+    } finally {
+      setTestingNetconf(null);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -367,6 +402,8 @@ function Devices() {
       layer: 'layer-2',
       ip_address: '',
       ssh_port: 22,
+      netconf_port: 830,
+      netconf_enabled: false,
       username: '',
       password: '',
       description: '',
@@ -614,13 +651,24 @@ function Devices() {
                       SSH Error
                     </span>
                   )}
-                  
-                  <div className="flex space-x-2">
+
+                  {/* NETCONF Enabled Indicator */}
+                  {(device.type === 'nexus' || device.netconf_enabled) && (
+                    <span className="badge badge-info text-xs flex items-center gap-1">
+                      🌐 NETCONF
+                    </span>
+                  )}
+                </div>
+                
+                {/* Action Buttons - Moved to separate row for better layout */}
+                <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
+                  {/* Test Connections Group */}
+                  <div className="flex gap-2">
                     <button
                       onClick={() => handleTestConnection(device)}
                       disabled={testingDevice === deviceId}
                       className="btn btn-primary btn-sm"
-                      title="Test Connection"
+                      title="Test SSH Connection"
                     >
                       {testingDevice === deviceId ? (
                         <>
@@ -628,10 +676,32 @@ function Devices() {
                           Testing...
                         </>
                       ) : (
-                        'Test Connection'
+                        'Test SSH'
                       )}
                     </button>
-                    
+
+                    {/* NETCONF Test Button - show for nexus or netconf-enabled devices */}
+                    {(device.type === 'nexus' || device.netconf_enabled) && (
+                      <button
+                        onClick={() => handleTestNetconf(device)}
+                        disabled={testingNetconf === deviceId}
+                        className="btn btn-purple btn-sm"
+                        title="Test NETCONF Connection"
+                      >
+                        {testingNetconf === deviceId ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Testing...
+                          </>
+                        ) : (
+                          'Test NETCONF'
+                        )}
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Session Management Group */}
+                  <div className="flex gap-2">
                     {/* SSH Session Management Buttons */}
                     {device.ssh_status === 'connected' ? (
                       <button
@@ -674,7 +744,10 @@ function Devices() {
                         )}
                       </button>
                     )}
+                  </div>
                     
+                  {/* Edit/Delete Group */}
+                  <div className="flex gap-2 ml-auto">
                     <button
                       onClick={() => handleEdit(device)}
                       className="btn btn-secondary btn-sm"
@@ -798,6 +871,43 @@ function Devices() {
                     />
                   </div>
                 </div>
+
+                {/* NETCONF Settings - show for Nexus or when enabled */}
+                {(formData.type === 'nexus' || formData.netconf_enabled) && (
+                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h4 className="text-sm font-medium text-blue-800 mb-3 flex items-center gap-2">
+                      🌐 NETCONF Settings
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">NETCONF Port</label>
+                        <input
+                          type="number"
+                          className="input mt-1"
+                          value={formData.netconf_port}
+                          onChange={(e) => setFormData({...formData, netconf_port: parseInt(e.target.value)})}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Default: 830 (RFC 6242)</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Enable NETCONF toggle - only show for non-nexus devices */}
+                {formData.type !== 'nexus' && (
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="netconf_enabled"
+                      className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      checked={formData.netconf_enabled}
+                      onChange={(e) => setFormData({...formData, netconf_enabled: e.target.checked})}
+                    />
+                    <label htmlFor="netconf_enabled" className="text-sm text-gray-700">
+                      Enable NETCONF for this device
+                    </label>
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
