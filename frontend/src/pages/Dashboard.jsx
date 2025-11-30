@@ -422,11 +422,11 @@ function Dashboard() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-3 flex-shrink-0">
-                    <span className={`badge ${getStatusBadge(config.status)}`}>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <span className={`badge ${getStatusBadge(config.status)} min-w-[80px] text-center`}>
                       {config.status}
                     </span>
-                    <span className="text-xs text-gray-400 whitespace-nowrap">
+                    <span className="text-xs text-gray-400 w-24 text-right">
                       {(() => {
                         if (!config.created_at) return 'Unknown date';
                         

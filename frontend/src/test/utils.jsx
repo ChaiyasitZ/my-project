@@ -3,6 +3,7 @@
  */
 import { render } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
+import { ThemeProvider } from '../context/ThemeContext';
 
 /**
  * Custom render function that wraps components with necessary providers
@@ -10,8 +11,14 @@ import { BrowserRouter } from 'react-router-dom';
 export function renderWithRouter(ui, { route = '/' } = {}) {
   window.history.pushState({}, 'Test page', route);
   
+  const Wrapper = ({ children }) => (
+    <ThemeProvider>
+      <BrowserRouter>{children}</BrowserRouter>
+    </ThemeProvider>
+  );
+  
   return {
-    ...render(ui, { wrapper: BrowserRouter }),
+    ...render(ui, { wrapper: Wrapper }),
   };
 }
 

@@ -11,8 +11,11 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Database
+  Database,
+  Sun,
+  Moon
 } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
@@ -26,6 +29,7 @@ const navigation = [
 function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking', version: null }, isCollapsed = false, onToggleCollapse }) {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { isDark, toggleTheme } = useTheme();
 
   const getStatusDisplay = (status) => {
     switch (status) {
@@ -64,13 +68,13 @@ function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking
   return (
     <>
       {/* Top Navigation Bar for Mobile/Tablet */}
-      <nav className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white shadow-sm border-b border-gray-200" aria-label="Mobile navigation">
+      <nav className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-700" aria-label="Mobile navigation">
         <div className="flex items-center justify-between px-4 py-3">
           {/* Left side - Hamburger menu and logo */}
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200"
+              className="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200"
               aria-label="Toggle menu"
             >
               {isMobileMenuOpen ? (
@@ -82,14 +86,21 @@ function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking
             
             <Link to="/" className="flex items-center space-x-2" onClick={() => setIsMobileMenuOpen(false)}>
               <img src="/vite.svg" alt="Network Management Platform" className="h-8 w-8 rounded-lg" />
-              <span className="text-lg font-bold text-gray-900">NetAutomate</span>
+              <span className="text-lg font-bold text-gray-900 dark:text-white">NetAutomate</span>
             </Link>
           </div>
 
-          {/* Right side - Status indicator */}
-          <div className="flex items-center space-x-2">
+          {/* Right side - Theme toggle and Status indicator */}
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </button>
             <div className={`h-2 w-2 rounded-full ${getStatusDisplay(overallStatus).color} ${overallStatus === 'checking' ? 'status-pulse' : ''}`}></div>
-            <span className="text-xs text-gray-500 hidden sm:inline">
+            <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline">
               {overallStatus === 'connected' ? 'Online' : overallStatus === 'error' ? 'Offline' : 'Checking...'}
             </span>
           </div>
@@ -106,7 +117,7 @@ function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking
 
       {/* Sidebar */}
       <div className={`
-        fixed inset-y-0 left-0 z-50 bg-white shadow-xl border-r border-gray-200 sidebar-transition
+        fixed inset-y-0 left-0 z-50 bg-white dark:bg-gray-900 shadow-xl border-r border-gray-200 dark:border-gray-700 sidebar-transition
         lg:translate-x-0 lg:static lg:inset-0
         ${isCollapsed ? 'lg:w-20' : 'lg:w-64'}
         ${isMobileMenuOpen ? 'translate-x-0 w-72' : '-translate-x-full lg:translate-x-0'}
@@ -114,13 +125,13 @@ function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking
       `}>
         <div className="flex flex-col h-full">
           {/* Desktop Logo */}
-          <div className="hidden lg:flex items-center justify-between px-4 py-4 border-b border-gray-200">
+          <div className="hidden lg:flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-gray-700">
             <Link to="/" className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'space-x-3'}`}>
               <img src="/vite.svg" alt="Network Management Platform" className="h-10 w-10 rounded-lg flex-shrink-0" />
               {!isCollapsed && (
                 <div className="overflow-hidden">
-                  <span className="text-xl font-bold text-gray-900 whitespace-nowrap">NetAutomate</span>
-                  <p className="text-sm text-gray-500 whitespace-nowrap">Network Platform</p>
+                  <span className="text-xl font-bold text-gray-900 dark:text-white whitespace-nowrap">NetAutomate</span>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">Network Platform</p>
                 </div>
               )}
             </Link>
@@ -129,13 +140,13 @@ function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking
           {/* Toggle Button - Desktop Only */}
           <button
             onClick={onToggleCollapse}
-            className="hidden lg:flex absolute -right-3 top-20 z-50 items-center justify-center w-6 h-6 bg-white border border-gray-300 rounded-full shadow-md hover:bg-gray-50 hover:border-gray-400 transition-colors duration-200"
+            className="hidden lg:flex absolute -right-3 top-20 z-50 items-center justify-center w-6 h-6 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-full shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 transition-colors duration-200"
             title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {isCollapsed ? (
-              <ChevronRight className="h-4 w-4 text-gray-600" />
+              <ChevronRight className="h-4 w-4 text-gray-600 dark:text-gray-300" />
             ) : (
-              <ChevronLeft className="h-4 w-4 text-gray-600" />
+              <ChevronLeft className="h-4 w-4 text-gray-600 dark:text-gray-300" />
             )}
           </button>
 
@@ -156,12 +167,12 @@ function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking
                   title={isCollapsed ? item.name : undefined}
                   className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'px-4'} py-3 rounded-xl text-sm font-medium transition-all duration-200 group nav-item-hover ${
                     isActive
-                      ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 shadow-sm border-l-4 border-blue-500'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      ? 'bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/50 dark:to-blue-800/50 text-blue-700 dark:text-blue-300 shadow-sm border-l-4 border-blue-500'
+                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800'
                   }`}
                 >
                   <Icon className={`h-5 w-5 flex-shrink-0 transition-colors duration-200 ${
-                    isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'
+                    isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300'
                   } ${!isCollapsed && 'mr-4'}`} />
                   {!isCollapsed && (
                     <>
@@ -178,8 +189,40 @@ function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking
             })}
           </nav>
 
-          {/* Status indicator */}
-          <div className={`p-4 border-t border-gray-200 bg-gray-50 ${isCollapsed ? 'flex flex-col items-center space-y-2' : ''}`}>
+          {/* Theme Toggle and Status */}
+          <div className={`p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 ${isCollapsed ? 'flex flex-col items-center space-y-3' : ''}`}>
+            {/* Theme Toggle */}
+            {isCollapsed ? (
+              <button
+                onClick={toggleTheme}
+                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </button>
+            ) : (
+              <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</span>
+                <button
+                  onClick={toggleTheme}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                >
+                  {isDark ? (
+                    <>
+                      <Sun className="h-4 w-4 text-yellow-500" />
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Light</span>
+                    </>
+                  ) : (
+                    <>
+                      <Moon className="h-4 w-4 text-gray-600" />
+                      <span className="text-xs font-medium text-gray-700">Dark</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+            
+            {/* Status Indicators */}
             {isCollapsed ? (
               <>
                 <div 
@@ -198,8 +241,8 @@ function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking
                   <div className="flex items-center space-x-3">
                     <div className={`h-2.5 w-2.5 rounded-full ring-4 ${backendStatus.color} ${backendStatus.ringColor} ${connectionStatus.backend === 'checking' ? 'status-pulse' : ''}`}></div>
                     <div className="flex items-center space-x-2">
-                      <ServerIcon className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm font-medium text-gray-700">Backend</span>
+                      <ServerIcon className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Backend</span>
                     </div>
                   </div>
                   <span className={`text-xs font-medium ${backendStatus.textColor}`}>
@@ -212,8 +255,8 @@ function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking
                   <div className="flex items-center space-x-3">
                     <div className={`h-2.5 w-2.5 rounded-full ring-4 ${databaseStatus.color} ${databaseStatus.ringColor} ${connectionStatus.database === 'checking' ? 'status-pulse' : ''}`}></div>
                     <div className="flex items-center space-x-2">
-                      <Database className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm font-medium text-gray-700">Database</span>
+                      <Database className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Database</span>
                     </div>
                   </div>
                   <span className={`text-xs font-medium ${databaseStatus.textColor}`}>

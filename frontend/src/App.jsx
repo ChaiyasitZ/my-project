@@ -101,7 +101,7 @@ function App() {
   return (
     <ErrorBoundary>
       <Router>
-        <div className="flex min-h-screen bg-gray-50 w-full">
+        <div className="flex min-h-screen bg-gray-50 dark:bg-gray-950 w-full transition-colors duration-300">
           <Sidebar 
             connectionStatus={connectionStatus} 
             isCollapsed={sidebarCollapsed}
