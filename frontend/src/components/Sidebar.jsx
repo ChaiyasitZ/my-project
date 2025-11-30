@@ -16,6 +16,7 @@ import {
   Moon
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import UserMenu from './UserMenu';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
@@ -191,6 +192,11 @@ function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking
 
           {/* Theme Toggle and Status */}
           <div className={`p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 ${isCollapsed ? 'flex flex-col items-center space-y-3' : ''}`}>
+            {/* User Menu */}
+            <div className={`${isCollapsed ? '' : 'mb-3 pb-3 border-b border-gray-200 dark:border-gray-700'}`}>
+              <UserMenu collapsed={isCollapsed} />
+            </div>
+            
             {/* Theme Toggle */}
             {isCollapsed ? (
               <button

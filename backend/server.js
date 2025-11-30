@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
+import session from 'express-session';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { config } from './config/config.js';
@@ -13,6 +14,7 @@ import configurationsRouter from './routes/configurations.js';
 import consoleRouter from './routes/console.js';
 import backupsRouter from './routes/backups.js';
 import yangModelsRouter from './routes/yangModels.js';
+import authRouter, { passport } from './routes/auth.js';
 import backupScheduler from './services/backupScheduler.js';
 
 
@@ -63,6 +65,22 @@ app.use(cors(config.cors));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Session configuration (required for Passport)
+app.use(session({
+  secret: config.auth.sessionSecret,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: config.server.nodeEnv === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+// Initialize Passport
+app.use(passport.initialize());
+app.use(passport.session());
+
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
   try {
@@ -93,6 +111,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 // API routes
+app.use('/api/auth', authRouter);
 app.use('/api/devices', devicesRouter);
 app.use('/api/configurations', configurationsRouter);
 app.use('/api/console', consoleRouter);

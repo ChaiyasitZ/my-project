@@ -1,6 +1,12 @@
 import mongoose from 'mongoose';
 
 const deviceSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false, // Optional for backward compatibility
+    index: true
+  },
   name: {
     type: String,
     required: true,

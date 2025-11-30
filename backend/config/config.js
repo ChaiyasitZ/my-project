@@ -21,6 +21,17 @@ export const config = {
     nodeEnv: process.env.NODE_ENV,
   },
 
+  // Authentication Configuration
+  auth: {
+    googleClientId: process.env.GOOGLE_CLIENT_ID,
+    googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3001/api/auth/google/callback',
+    jwtSecret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
+    jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    sessionSecret: process.env.SESSION_SECRET || 'your-session-secret-change-in-production',
+    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+  },
+
   // CORS Configuration
   cors: {
     origin: process.env.FRONTEND_URL ? [

@@ -4,6 +4,7 @@
 import { render } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from '../context/ThemeContext';
+import { AuthProvider } from '../context/AuthContext';
 
 /**
  * Custom render function that wraps components with necessary providers
@@ -12,9 +13,11 @@ export function renderWithRouter(ui, { route = '/' } = {}) {
   window.history.pushState({}, 'Test page', route);
   
   const Wrapper = ({ children }) => (
-    <ThemeProvider>
-      <BrowserRouter>{children}</BrowserRouter>
-    </ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider>
+        <BrowserRouter>{children}</BrowserRouter>
+      </ThemeProvider>
+    </AuthProvider>
   );
   
   return {
