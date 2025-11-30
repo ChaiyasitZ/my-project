@@ -1,14 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { 
   TerminalIcon, 
-  RefreshCwIcon
+  RefreshCwIcon,
+  UsbIcon,
+  BluetoothIcon,
+  CableIcon,
+  ChevronDownIcon
 } from 'lucide-react';
 
 function ConsoleConfiguration() {
   const [availablePorts, setAvailablePorts] = useState([]);
   const [selectedPort, setSelectedPort] = useState('');
+  const [isPortDropdownOpen, setIsPortDropdownOpen] = useState(false);
+  const portDropdownRef = useRef(null);
   const [connectionSettings, setConnectionSettings] = useState({
     baudRate: 9600,
     dataBits: 8,
@@ -76,6 +82,49 @@ function ConsoleConfiguration() {
     const totalAddresses = Math.pow(2, hostBits);
     return totalAddresses - 2;
   };
+
+  // Get port icon based on port type
+  const getPortIcon = (port) => {
+    const name = (port.friendlyName || '').toLowerCase();
+    const manufacturer = (port.manufacturer || '').toLowerCase();
+    
+    if (name.includes('bluetooth') || manufacturer.includes('bluetooth')) {
+      return <BluetoothIcon className="h-4 w-4 text-blue-500" />;
+    }
+    if (port.isUSB || name.includes('usb') || manufacturer.includes('usb') || 
+        manufacturer.includes('ftdi') || manufacturer.includes('prolific') || 
+        manufacturer.includes('silicon')) {
+      return <UsbIcon className="h-4 w-4 text-green-500" />;
+    }
+    return <CableIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />;
+  };
+
+  // Get port type label
+  const getPortTypeLabel = (port) => {
+    const name = (port.friendlyName || '').toLowerCase();
+    const manufacturer = (port.manufacturer || '').toLowerCase();
+    
+    if (name.includes('bluetooth') || manufacturer.includes('bluetooth')) {
+      return 'Bluetooth';
+    }
+    if (port.isUSB || name.includes('usb') || manufacturer.includes('usb') || 
+        manufacturer.includes('ftdi') || manufacturer.includes('prolific') || 
+        manufacturer.includes('silicon')) {
+      return 'USB';
+    }
+    return 'Serial';
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (portDropdownRef.current && !portDropdownRef.current.contains(event.target)) {
+        setIsPortDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     fetchAvailablePorts();
@@ -360,22 +409,74 @@ function ConsoleConfiguration() {
 
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          {/* Port Selection */}
+          {/* Port Selection - Custom Dropdown with Icons */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Serial Port</label>
-            <select
-              value={selectedPort}
-              onChange={(e) => setSelectedPort(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isConnected}
-            >
-              <option value="">Select Port</option>
-              {availablePorts.map((port) => (
-                <option key={port.path} value={port.path}>
-                  {port.friendlyName}
-                </option>
-              ))}
-            </select>
+            <div className="relative" ref={portDropdownRef}>
+              <button
+                type="button"
+                onClick={() => !isConnected && setIsPortDropdownOpen(!isPortDropdownOpen)}
+                className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-left flex items-center justify-between ${
+                  isConnected ? 'bg-gray-100 dark:bg-gray-600 cursor-not-allowed' : 'bg-white dark:bg-gray-700 cursor-pointer'
+                }`}
+                disabled={isConnected}
+              >
+                {selectedPort ? (
+                  <span className="flex items-center gap-2 text-gray-900 dark:text-white">
+                    {getPortIcon(availablePorts.find(p => p.path === selectedPort) || {})}
+                    <span>{availablePorts.find(p => p.path === selectedPort)?.friendlyName || selectedPort}</span>
+                  </span>
+                ) : (
+                  <span className="text-gray-500 dark:text-gray-400">Select Port</span>
+                )}
+                <ChevronDownIcon className={`h-4 w-4 text-gray-500 dark:text-gray-400 transition-transform ${isPortDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {isPortDropdownOpen && (
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-auto">
+                  <div
+                    className="px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400"
+                    onClick={() => {
+                      setSelectedPort('');
+                      setIsPortDropdownOpen(false);
+                    }}
+                  >
+                    Select Port
+                  </div>
+                  {availablePorts.map((port) => (
+                    <div
+                      key={port.path}
+                      className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center gap-2 ${
+                        selectedPort === port.path ? 'bg-blue-50 dark:bg-blue-900/30' : ''
+                      }`}
+                      onClick={() => {
+                        setSelectedPort(port.path);
+                        setIsPortDropdownOpen(false);
+                      }}
+                    >
+                      {getPortIcon(port)}
+                      <div className="flex-1">
+                        <span className="text-gray-900 dark:text-white">{port.friendlyName}</span>
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        getPortTypeLabel(port) === 'USB' 
+                          ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
+                          : getPortTypeLabel(port) === 'Bluetooth'
+                          ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                          : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
+                      }`}>
+                        {getPortTypeLabel(port)}
+                      </span>
+                    </div>
+                  ))}
+                  {availablePorts.length === 0 && (
+                    <div className="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm italic">
+                      No ports available
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             {deviceId && (
               <p className="text-xs text-green-600 mt-1">
                 💾 Session ID: {deviceId}
