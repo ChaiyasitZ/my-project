@@ -501,13 +501,13 @@ function BackupManagement() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <div className="p-2 bg-orange-100 rounded-xl">
-              <ShieldIcon className="h-7 w-7 text-orange-600" />
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            <div className="p-2 bg-orange-100 dark:bg-orange-900/50 rounded-xl">
+              <ShieldIcon className="h-7 w-7 text-orange-600 dark:text-orange-400" />
             </div>
             Backup Management
           </h1>
-          <p className="mt-2 text-gray-600">
+          <p className="mt-2 text-gray-600 dark:text-gray-400">
             Create, restore, and manage device configuration backups
           </p>
         </div>
@@ -539,8 +539,8 @@ function BackupManagement() {
               <Archive className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Total Backups</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Backups</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
             </div>
           </div>
         </div>
@@ -551,8 +551,8 @@ function BackupManagement() {
               <ClockIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Manual</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.manual}</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Manual</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.manual}</p>
             </div>
           </div>
         </div>
@@ -563,8 +563,8 @@ function BackupManagement() {
               <RefreshCwIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Scheduled</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.scheduled}</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Scheduled</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.scheduled}</p>
             </div>
           </div>
         </div>
@@ -575,8 +575,8 @@ function BackupManagement() {
               <ShieldIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Restore Points</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.restorePoints}</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Restore Points</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.restorePoints}</p>
             </div>
           </div>
         </div>
@@ -587,20 +587,20 @@ function BackupManagement() {
               <ServerIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Devices</p>
-              <p className="text-2xl font-bold text-gray-900">{(devices || []).length}</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Devices</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{(devices || []).length}</p>
             </div>
           </div>
         </div>
 
         <div className="stat-card">
           <div className="flex items-center">
-            <div className="p-3 rounded-xl bg-indigo-100 text-indigo-600">
+            <div className="p-3 rounded-xl bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400">
               <FileTextIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Total Size</p>
-              <p className="text-2xl font-bold text-gray-900">{formatFileSize(stats.totalSize)}</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Size</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatFileSize(stats.totalSize)}</p>
             </div>
           </div>
         </div>
@@ -670,7 +670,7 @@ function BackupManagement() {
             </div>
           </div>
 
-          <div className="text-sm text-gray-500 mt-4">
+          <div className="text-sm text-gray-500 dark:text-gray-400 mt-4">
             {filteredBackups.length} of {(backups || []).length} backups
           </div>
         </div>
@@ -678,20 +678,20 @@ function BackupManagement() {
 
       {/* Backup List */}
       {loading ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-12">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading backups...</p>
+            <p className="text-gray-600 dark:text-gray-400">Loading backups...</p>
           </div>
         </div>
       ) : filteredBackups.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-12">
           <div className="text-center">
             <Archive className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
               {(backups || []).length === 0 ? 'No backups found' : 'No backups match your search'}
             </h3>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
               {(backups || []).length === 0 
                 ? 'Create your first backup to get started'
                 : 'Try adjusting your search or filter criteria'
@@ -711,18 +711,18 @@ function BackupManagement() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredBackups.map((backup) => (
-            <div key={backup.id} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow flex flex-col h-full">
+            <div key={backup.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow flex flex-col h-full">
               {/* Card Header */}
               <div className="p-6 pb-4">
                 <div className="flex items-start justify-between mb-3 gap-2">
                   <div className="flex items-center space-x-2 min-w-0 flex-1">
                     {getBackupTypeIcon(backup.backup_type)}
-                    <h3 className="text-lg font-semibold text-gray-900 truncate">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
                       {backup.backup_name}
                     </h3>
                   </div>
                   {backup.is_restore_point && (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 whitespace-nowrap flex-shrink-0">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-300 whitespace-nowrap flex-shrink-0">
                       <ShieldIcon className="h-3 w-3 mr-1" />
                       Restore Point
                     </span>
@@ -736,7 +736,7 @@ function BackupManagement() {
                      backup.backup_type.charAt(0).toUpperCase() + backup.backup_type.slice(1).replace('_', ' ')}
                   </span>
                   {backup.config_type && (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-300">
                       {backup.config_type === 'running-config' ? 'Running' : 
                        backup.config_type === 'startup-config' ? 'Startup' : 
                        backup.config_type === 'both' ? 'Both' : backup.config_type}
@@ -744,14 +744,14 @@ function BackupManagement() {
                   )}
                 </div>
 
-                <p className="text-gray-600 text-sm mb-4 line-clamp-2 break-words min-h-[2.5rem]">
-                  {backup.description || <span className="text-gray-400 italic">No description</span>}
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-2 break-words min-h-[2.5rem]">
+                  {backup.description || <span className="text-gray-400 dark:text-gray-500 italic">No description</span>}
                 </p>
               </div>
 
               {/* Card Body - Flex grow to push footer down */}
               <div className="px-6 pb-4 flex-grow">
-                <div className="space-y-2 text-sm text-gray-600">
+                <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
                   <div className="flex items-center">
                     <ServerIcon className="h-4 w-4 mr-2 text-gray-400" />
                     <span className="truncate">{backup.device_name} ({backup.device_type})</span>
@@ -773,12 +773,12 @@ function BackupManagement() {
                     <div className="mt-3">
                       <div className="flex flex-wrap gap-1">
                         {tags.slice(0, 3).map((tag, index) => (
-                          <span key={index} className="inline-flex items-center px-2 py-1 rounded text-xs bg-gray-100 text-gray-800">
+                          <span key={index} className="inline-flex items-center px-2 py-1 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
                             {tag}
                           </span>
                         ))}
                         {tags.length > 3 && (
-                          <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-gray-100 text-gray-800">
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
                             +{tags.length - 3} more
                           </span>
                         )}
@@ -789,7 +789,7 @@ function BackupManagement() {
               </div>
 
               {/* Card Footer - Always at bottom */}
-              <div className="px-6 py-4 border-t border-gray-200 mt-auto">
+              <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 mt-auto">
                 <div className="flex items-center justify-between">
                   <button
                     onClick={() => {
@@ -845,13 +845,13 @@ function BackupManagement() {
           <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowCreateModal(false)}></div>
 
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">Create New Backup</h3>
+                  <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Create New Backup</h3>
                   <button
                     onClick={() => setShowCreateModal(false)}
-                    className="rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <XCircleIcon className="h-6 w-6" />
                   </button>
@@ -859,13 +859,13 @@ function BackupManagement() {
 
                 <form onSubmit={handleCreateBackup} className="space-y-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Device *
                         </label>
                         <select
                           value={backupForm.device_id}
                           onChange={(e) => setBackupForm({ ...backupForm, device_id: e.target.value })}
-                          className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                           required
                         >
                           <option value="">Select a device...</option>
@@ -878,7 +878,7 @@ function BackupManagement() {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Backup Name *
                         </label>
                         <input
@@ -886,33 +886,33 @@ function BackupManagement() {
                           value={backupForm.backup_name}
                           onChange={(e) => setBackupForm({ ...backupForm, backup_name: e.target.value })}
                           placeholder="e.g., Pre-maintenance backup"
-                          className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                           required
                         />
                       </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Description
                     </label>
                     <textarea
                       value={backupForm.description}
                       onChange={(e) => setBackupForm({ ...backupForm, description: e.target.value })}
                       placeholder="Optional description for this backup..."
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       rows="3"
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                                       <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Backup Type
                     </label>
                     <select
                       value={backupForm.backup_type}
                       onChange={(e) => setBackupForm({ ...backupForm, backup_type: e.target.value })}
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="manual">Manual</option>
                       <option value="scheduled">Scheduled</option>
@@ -920,13 +920,13 @@ function BackupManagement() {
                   </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Configuration Type
                       </label>
                       <select
                         value={backupForm.config_type}
                         onChange={(e) => setBackupForm({ ...backupForm, config_type: e.target.value })}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="running-config">Running Config Only</option>
                         <option value="startup-config">Startup Config Only</option>
@@ -936,8 +936,8 @@ function BackupManagement() {
                   </div>
 
                   {/* Combined Info Box */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <div className="text-sm text-blue-800 grid grid-cols-2 gap-4">
+                  <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                    <div className="text-sm text-blue-800 dark:text-blue-300 grid grid-cols-2 gap-4">
                       <div>
                         <div className="font-medium mb-2">Backup Types:</div>
                         <div className="space-y-1 text-xs">
@@ -957,7 +957,7 @@ function BackupManagement() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Tags
                     </label>
                     <div className="space-y-2">
@@ -968,7 +968,7 @@ function BackupManagement() {
                             value={tag}
                             onChange={(e) => updateTag(index, e.target.value)}
                             placeholder="Enter tag"
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                           />
                           <button
                             type="button"
@@ -1029,16 +1029,16 @@ function BackupManagement() {
           <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowPreviewModal(false)}></div>
 
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-6xl sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-6xl sm:w-full">
+              <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900 flex items-center">
-                    <EyeIcon className="h-5 w-5 text-blue-600 mr-2" />
+                  <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white flex items-center">
+                    <EyeIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 mr-2" />
                     Configuration Preview
                   </h3>
                   <button
                     onClick={() => setShowPreviewModal(false)}
-                    className="rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <XCircleIcon className="h-6 w-6" />
                   </button>
@@ -1047,14 +1047,14 @@ function BackupManagement() {
                 {previewLoading ? (
                   <div className="text-center py-12">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Loading configuration preview...</p>
+                    <p className="text-gray-600 dark:text-gray-400">Loading configuration preview...</p>
                   </div>
                 ) : previewData ? (
                   <div className="space-y-6">
                     {/* Backup Info */}
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h4 className="text-sm font-medium text-gray-900 mb-2">Backup Details</h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                      <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Backup Details</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600 dark:text-gray-300">
                         <div>
                           <span className="font-medium">Name:</span> {previewData.backup.backup_name}
                         </div>
@@ -1080,14 +1080,14 @@ function BackupManagement() {
                     </div>
 
                     {/* Configuration Tabs */}
-                    <div className="border-b border-gray-200">
+                    <div className="border-b border-gray-200 dark:border-gray-700">
                       <nav className="-mb-px flex space-x-8">
                         <button
                           onClick={() => setActiveTab('running')}
                           className={`py-2 px-1 border-b-2 font-medium text-sm ${ 
                             activeTab === 'running' 
-                              ? 'border-blue-500 text-blue-600' 
-                              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                              ? 'border-blue-500 text-blue-600 dark:text-blue-400' 
+                              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                           }`}
                         >
                           Running Configuration ({previewData.preview.running_config_lines} lines)
@@ -1097,8 +1097,8 @@ function BackupManagement() {
                             onClick={() => setActiveTab('startup')}
                             className={`py-2 px-1 border-b-2 font-medium text-sm ${ 
                               activeTab === 'startup' 
-                                ? 'border-blue-500 text-blue-600' 
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                ? 'border-blue-500 text-blue-600 dark:text-blue-400' 
+                                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                             }`}
                           >
                             Startup Configuration ({previewData.preview.startup_config_lines} lines)
@@ -1118,8 +1118,8 @@ function BackupManagement() {
                     </div>
                     
                     {/* Download Options */}
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                      <div className="text-sm text-gray-600">
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
                         💡 Tip: You can download individual configs or copy text directly from the preview above
                       </div>
                       <div className="flex space-x-3">
@@ -1153,7 +1153,7 @@ function BackupManagement() {
                 ) : (
                   <div className="text-center py-12">
                     <XCircleIcon className="h-12 w-12 text-red-400 mx-auto mb-4" />
-                    <p className="text-gray-600">Failed to load configuration preview</p>
+                    <p className="text-gray-600 dark:text-gray-400">Failed to load configuration preview</p>
                   </div>
                 )}
               </div>
@@ -1178,34 +1178,34 @@ function BackupManagement() {
           <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowRestoreModal(false)}></div>
 
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">Restore Configuration</h3>
+                  <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Restore Configuration</h3>
                   <button
                     onClick={() => setShowRestoreModal(false)}
-                    className="rounded-md text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <XCircleIcon className="h-6 w-6" />
                   </button>
                 </div>
 
                 <div className="space-y-4">
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
                     <div className="flex items-start">
-                      <AlertTriangleIcon className="h-5 w-5 text-yellow-600 mr-2 mt-0.5" />
+                      <AlertTriangleIcon className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mr-2 mt-0.5" />
                       <div>
-                        <p className="text-sm font-medium text-yellow-800">Warning</p>
-                        <p className="text-sm text-yellow-700 mt-1">
+                        <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">Warning</p>
+                        <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
                           This will replace the current configuration on the device. Make sure you have a recent backup if needed.
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h4 className="text-sm font-medium text-gray-900 mb-2">Backup Details</h4>
-                    <div className="space-y-1 text-sm text-gray-600">
+                  <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Backup Details</h4>
+                    <div className="space-y-1 text-sm text-gray-600 dark:text-gray-300">
                       <p><strong>Name:</strong> {selectedBackup.backup_name}</p>
                       <p><strong>Device:</strong> {selectedBackup.device_name} ({selectedBackup.device_type})</p>
                       <p><strong>Created:</strong> {formatDate(selectedBackup.createdAt || selectedBackup.created_at)}</p>
@@ -1215,13 +1215,13 @@ function BackupManagement() {
 
                   <form onSubmit={handleRestoreBackup} className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Restore Type
                       </label>
                       <select
                         value={restoreForm.restore_type}
                         onChange={(e) => setRestoreForm({ ...restoreForm, restore_type: e.target.value })}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="running">Running Configuration Only</option>
                         <option value="startup">Startup Configuration Only</option>
@@ -1235,14 +1235,14 @@ function BackupManagement() {
                         id="create_checkpoint"
                         checked={restoreForm.create_checkpoint}
                         onChange={(e) => setRestoreForm({ ...restoreForm, create_checkpoint: e.target.checked })}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
                       />
-                      <label htmlFor="create_checkpoint" className="ml-2 text-sm text-gray-700">
+                      <label htmlFor="create_checkpoint" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
                         Create checkpoint before restore (recommended)
                       </label>
                     </div>
 
-                    <div className="text-xs text-gray-500 bg-blue-50 p-3 rounded-lg">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg">
                       <p>💡 A checkpoint will automatically backup the current configuration before applying the restore.</p>
                     </div>
                   </form>

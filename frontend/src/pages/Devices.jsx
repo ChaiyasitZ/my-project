@@ -436,10 +436,10 @@ function Devices() {
   if (loading) {
     return (
       <div className="animate-pulse">
-        <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
+        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-6"></div>
         <div className="space-y-4">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-20 bg-gray-200 rounded"></div>
+            <div key={i} className="h-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
           ))}
         </div>
       </div>
@@ -451,13 +451,13 @@ function Devices() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-xl">
-              <ServerIcon className="h-7 w-7 text-blue-600" />
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-xl">
+              <ServerIcon className="h-7 w-7 text-blue-600 dark:text-blue-400" />
             </div>
             Devices Management
           </h1>
-          <p className="mt-2 text-gray-600">
+          <p className="mt-2 text-gray-600 dark:text-gray-400">
             Manage your network devices (switches and routers)
           </p>
         </div>
@@ -514,16 +514,16 @@ function Devices() {
                   onClick={() => setSelectedFilter(filter.key)}
                   className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
                     selectedFilter === filter.key
-                      ? 'bg-blue-100 text-blue-700 border-2 border-blue-200 shadow-sm'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border-2 border-transparent'
+                      ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-2 border-blue-200 dark:border-blue-700 shadow-sm'
+                      : 'bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 border-2 border-transparent'
                   }`}
                 >
                   {getFilterIcon(filter.key)}
                   {filter.label}
                   <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                     selectedFilter === filter.key
-                      ? 'bg-blue-200 text-blue-800'
-                      : 'bg-gray-200 text-gray-600'
+                      ? 'bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200'
+                      : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
                   }`}>
                     {filter.count}
                   </span>
@@ -534,11 +534,11 @@ function Devices() {
 
           {/* Active filters indicator */}
           {(selectedFilter !== 'all' || searchTerm) && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
+            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                 <span className="font-medium">Active filters:</span>
                 {selectedFilter !== 'all' && (
-                  <span className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium flex items-center gap-1.5">
+                  <span className="px-2.5 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium flex items-center gap-1.5">
                     {getFilterIcon(selectedFilter)}
                     {selectedFilter === 'layer-2' ? 'Layer 2 Switch' : 
                      selectedFilter === 'layer-3' ? 'Layer 3 Switch' :
@@ -547,7 +547,7 @@ function Devices() {
                   </span>
                 )}
                 {searchTerm && (
-                  <span className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium">
+                  <span className="px-2.5 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-medium">
                     Search: "{searchTerm}"
                   </span>
                 )}
@@ -567,8 +567,8 @@ function Devices() {
       </div>
 
       {/* Results Summary */}
-      <div className="text-sm text-gray-600 font-medium">
-        Showing <span className="text-gray-900">{filteredDevices.length}</span> of <span className="text-gray-900">{devices.length}</span> devices
+      <div className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+        Showing <span className="text-gray-900 dark:text-white">{filteredDevices.length}</span> of <span className="text-gray-900 dark:text-white">{devices.length}</span> devices
         {selectedFilter !== 'all' && ` (${
           selectedFilter === 'layer-2' ? 'Layer 2 Switches' : 
           selectedFilter === 'layer-3' ? 'Layer 3 Switches' :
@@ -629,32 +629,32 @@ function Devices() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <div className={`flex-shrink-0 p-3 rounded-xl ${
-                      device.status === 'active' ? 'bg-green-50 text-green-600' :
-                      device.status === 'inactive' ? 'bg-red-50 text-red-600' :
-                      'bg-amber-50 text-amber-600'
+                      device.status === 'active' ? 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400' :
+                      device.status === 'inactive' ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400' :
+                      'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
                     }`}>
                       {getDeviceIcon(device)}
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{device.name}</h3>
-                      <p className="text-sm text-gray-500">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{device.name}</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
                         <span className="font-medium">{device.type}</span>
                         {device.type === 'switch' && device.layer && (
-                          <span className="ml-1 px-1.5 py-0.5 bg-gray-100 rounded text-xs">
+                          <span className="ml-1 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">
                             {device.layer === 'layer-2' ? 'L2' : 'L3'}
                           </span>
                         )} 
-                        <span className="mx-2 text-gray-300">•</span>
-                        <span className="font-mono text-gray-600">{device.ip_address}</span>
+                        <span className="mx-2 text-gray-300 dark:text-gray-600">•</span>
+                        <span className="font-mono text-gray-600 dark:text-gray-400">{device.ip_address}</span>
                         {device.location && (
                           <>
-                            <span className="mx-2 text-gray-300">•</span>
+                            <span className="mx-2 text-gray-300 dark:text-gray-600">•</span>
                             <span>{device.location}</span>
                           </>
                         )}
                       </p>
                       {device.description && (
-                        <p className="text-sm text-gray-400 mt-1">{device.description}</p>
+                        <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">{device.description}</p>
                       )}
                     </div>
                   </div>
@@ -803,10 +803,10 @@ function Devices() {
                 </div>
                 
                 {device.model && (
-                  <div className="mt-4 pt-3 border-t border-gray-100">
+                  <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
                     <div className="flex items-center text-sm">
-                      <span className="text-gray-500 font-medium">Model:</span>
-                      <span className="ml-2 text-gray-700 font-mono">{device.model}</span>
+                      <span className="text-gray-500 dark:text-gray-400 font-medium">Model:</span>
+                      <span className="ml-2 text-gray-700 dark:text-gray-300 font-mono">{device.model}</span>
                     </div>
                   </div>
                 )}
@@ -820,13 +820,13 @@ function Devices() {
       {/* Modal */}
       {showModal && createPortal(
         <div className="modal-overlay fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-screen overflow-y-auto modal-scrollbar animate-fade-in">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-screen overflow-y-auto modal-scrollbar animate-fade-in">
             <form onSubmit={handleSubmit}>
-              <div className="px-6 py-5 border-b border-gray-100">
-                <h3 className="text-xl font-semibold text-gray-900">
+              <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
                   {editingDevice ? 'Edit Device' : 'Add New Device'}
                 </h3>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                   {editingDevice ? 'Update device configuration' : 'Configure a new network device'}
                 </p>
               </div>
@@ -834,7 +834,7 @@ function Devices() {
               <div className="px-6 py-4 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Name *</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Name *</label>
                     <input
                       type="text"
                       required
@@ -845,7 +845,7 @@ function Devices() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Type *</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Type *</label>
                     <select
                       required
                       className="input mt-1"
@@ -869,7 +869,7 @@ function Devices() {
                 {/* Layer Selection - only show for switches */}
                 {formData.type === 'switch' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Switch Layer *</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Switch Layer *</label>
                     <select
                       required
                       className="input mt-1"
@@ -879,7 +879,7 @@ function Devices() {
                       <option value="layer-2">Layer 2 (Data Link)</option>
                       <option value="layer-3">Layer 3 (Network/Routing)</option>
                     </select>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       Layer 2: Switching only • Layer 3: Switching + Routing capabilities
                     </p>
                   </div>
@@ -887,7 +887,7 @@ function Devices() {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">IP Address *</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">IP Address *</label>
                     <input
                       type="text"
                       required
@@ -899,7 +899,7 @@ function Devices() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">SSH Port</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">SSH Port</label>
                     <input
                       type="number"
                       className="input mt-1"
@@ -911,20 +911,20 @@ function Devices() {
 
                 {/* NETCONF Settings - show for Nexus or when enabled */}
                 {(formData.type === 'nexus' || formData.netconf_enabled) && (
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <h4 className="text-sm font-medium text-blue-800 mb-3 flex items-center gap-2">
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-700">
+                    <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-3 flex items-center gap-2">
                       🌐 NETCONF Settings
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700">NETCONF Port</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">NETCONF Port</label>
                         <input
                           type="number"
                           className="input mt-1"
                           value={formData.netconf_port}
                           onChange={(e) => setFormData({...formData, netconf_port: parseInt(e.target.value)})}
                         />
-                        <p className="text-xs text-gray-500 mt-1">Default: 830 (RFC 6242)</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Default: 830 (RFC 6242)</p>
                       </div>
                     </div>
                   </div>
@@ -936,11 +936,11 @@ function Devices() {
                     <input
                       type="checkbox"
                       id="netconf_enabled"
-                      className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      className="h-4 w-4 text-blue-600 rounded border-gray-300 dark:border-gray-600 focus:ring-blue-500"
                       checked={formData.netconf_enabled}
                       onChange={(e) => setFormData({...formData, netconf_enabled: e.target.checked})}
                     />
-                    <label htmlFor="netconf_enabled" className="text-sm text-gray-700">
+                    <label htmlFor="netconf_enabled" className="text-sm text-gray-700 dark:text-gray-300">
                       Enable NETCONF for this device
                     </label>
                   </div>
@@ -948,7 +948,7 @@ function Devices() {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Username *</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Username *</label>
                     <input
                       type="text"
                       required
@@ -959,8 +959,8 @@ function Devices() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Password {!editingDevice && '*'} {editingDevice && <span className="text-xs text-gray-500">(leave blank to keep current password)</span>}
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Password {!editingDevice && '*'} {editingDevice && <span className="text-xs text-gray-500 dark:text-gray-400">(leave blank to keep current password)</span>}
                     </label>
                     <input
                       type="password"
@@ -974,7 +974,7 @@ function Devices() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Description</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
                   <textarea
                     className="input mt-1"
                     rows="2"
@@ -985,7 +985,7 @@ function Devices() {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Location</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Location</label>
                     <input
                       type="text"
                       placeholder="Data Center A"
@@ -996,7 +996,7 @@ function Devices() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Model</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Model</label>
                     <input
                       type="text"
                       placeholder="Cisco 2960"
@@ -1008,7 +1008,7 @@ function Devices() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Status</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
                   <select
                     className="input mt-1"
                     value={formData.status}
@@ -1022,7 +1022,7 @@ function Devices() {
 
               </div>
               
-              <div className="px-6 py-5 bg-gray-50 border-t border-gray-100 flex justify-end space-x-3 rounded-b-2xl">
+              <div className="px-6 py-5 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700 flex justify-end space-x-3 rounded-b-2xl">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}

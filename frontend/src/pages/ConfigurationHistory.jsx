@@ -177,11 +177,11 @@ function ConfigurationHistory() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <HistoryIcon className="h-8 w-8 text-blue-600" />
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            <HistoryIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
             Configuration History
           </h1>
-          <p className="mt-2 text-gray-600">
+          <p className="mt-2 text-gray-600 dark:text-gray-400">
             View and manage configuration generation history
           </p>
         </div>
@@ -225,8 +225,8 @@ function ConfigurationHistory() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
-              <FilterIcon className="h-5 w-5 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Filter by Status:</span>
+              <FilterIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter by Status:</span>
             </div>
             
             {/* Filter Buttons */}
@@ -244,7 +244,7 @@ function ConfigurationHistory() {
                   className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                     filter === filterOption.key
                       ? 'bg-blue-600 text-white shadow-sm'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
                 >
                   {filterOption.label}
@@ -252,7 +252,7 @@ function ConfigurationHistory() {
                     <span className={`ml-1 px-1.5 py-0.5 text-xs rounded-full ${
                       filter === filterOption.key
                         ? 'bg-blue-500 text-white'
-                        : 'bg-gray-200 text-gray-600'
+                        : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
                     }`}>
                       {filterOption.count}
                     </span>
@@ -263,7 +263,7 @@ function ConfigurationHistory() {
           </div>
           
           {filter !== 'all' && groupedConfigurations.length > 0 && (
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-gray-500 dark:text-gray-400">
               Showing {groupedConfigurations.length} {filter} configuration{groupedConfigurations.length !== 1 ? 's' : ''}
             </div>
           )}
@@ -274,8 +274,8 @@ function ConfigurationHistory() {
       {groupedConfigurations.length === 0 ? (
         <div className="card p-12 text-center">
           <ClockIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No configurations found</h3>
-          <p className="text-gray-500 mb-6">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No configurations found</h3>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">
             {filter === 'all' 
               ? 'No configurations have been generated yet' 
               : `No configurations with status "${filter}" found`
@@ -294,10 +294,10 @@ function ConfigurationHistory() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-3 mb-2">
-                        <h3 className="text-lg font-medium text-gray-900">
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                           {item.device_name}
                         </h3>
-                        <span className="text-sm text-gray-500">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
                           ({item.device_type})
                         </span>
                         <span className="text-sm text-gray-400">
@@ -305,17 +305,17 @@ function ConfigurationHistory() {
                         </span>
                       </div>
                       
-                      <p className="text-gray-600 mb-3 line-clamp-2">
+                      <p className="text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
                         {item.prompt}
                       </p>
                       
-                      <div className="flex items-center space-x-4 text-sm text-gray-500">
+                      <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
                         <span>Created: {formatDate(item.created_at)}</span>
                         {item.applied_at && (
                           <span>Applied: {formatDate(item.applied_at)}</span>
                         )}
                         {item.deployment_time && (
-                          <span className="text-green-600 font-medium">
+                          <span className="text-green-600 dark:text-green-400 font-medium">
                             ⚡ Deploy Time: {(item.deployment_time / 1000).toFixed(2)}s
                           </span>
                         )}
@@ -325,8 +325,8 @@ function ConfigurationHistory() {
                       </div>
                       
                       {item.error_message && (
-                        <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
-                          <p className="text-sm text-red-600">
+                        <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded">
+                          <p className="text-sm text-red-600 dark:text-red-400">
                             <strong>Error:</strong> {item.error_message}
                           </p>
                         </div>
@@ -366,15 +366,15 @@ function ConfigurationHistory() {
       {/* Configuration Details Modal */}
       {showModal && selectedConfig && (
         <div className="modal-overlay fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-screen overflow-y-auto modal-scrollbar">
-            <div className="px-6 py-4 border-b border-gray-200">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-screen overflow-y-auto modal-scrollbar">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium text-gray-900">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                   Configuration Details
                 </h3>
                 <button
                   onClick={() => setShowModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -387,31 +387,31 @@ function ConfigurationHistory() {
               {/* Configuration Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Device Information</h4>
-                  <div className="bg-gray-50 p-3 rounded-lg space-y-1">
-                    <p className="text-sm"><strong>Name:</strong> {selectedConfig.device_name}</p>
-                    <p className="text-sm"><strong>Type:</strong> {selectedConfig.device_type}</p>
-                    <p className="text-sm"><strong>IP:</strong> {selectedConfig.ip_address}</p>
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Device Information</h4>
+                  <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg space-y-1">
+                    <p className="text-sm dark:text-gray-300"><strong>Name:</strong> {selectedConfig.device_name}</p>
+                    <p className="text-sm dark:text-gray-300"><strong>Type:</strong> {selectedConfig.device_type}</p>
+                    <p className="text-sm dark:text-gray-300"><strong>IP:</strong> {selectedConfig.ip_address}</p>
                   </div>
                 </div>
                 
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Configuration Status</h4>
-                  <div className="bg-gray-50 p-3 rounded-lg space-y-1">
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Configuration Status</h4>
+                  <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg space-y-1">
                     <div className="flex items-center">
-                      <span className="text-sm mr-2"><strong>Status:</strong></span>
+                      <span className="text-sm dark:text-gray-300 mr-2"><strong>Status:</strong></span>
                       <span className={`badge ${getStatusBadge(selectedConfig.status)}`}>
                         {selectedConfig.status}
                       </span>
                     </div>
-                    <p className="text-sm"><strong>Created:</strong> {formatDate(selectedConfig.created_at)}</p>
+                    <p className="text-sm dark:text-gray-300"><strong>Created:</strong> {formatDate(selectedConfig.created_at)}</p>
                     {selectedConfig.applied_at && (
-                      <p className="text-sm"><strong>Applied:</strong> {formatDate(selectedConfig.applied_at)}</p>
+                      <p className="text-sm dark:text-gray-300"><strong>Applied:</strong> {formatDate(selectedConfig.applied_at)}</p>
                     )}
                     {selectedConfig.deployment_time && (
-                      <p className="text-sm text-green-600 font-medium">
+                      <p className="text-sm text-green-600 dark:text-green-400 font-medium">
                         <strong>⚡ Deployment Time:</strong> {(selectedConfig.deployment_time / 1000).toFixed(2)}s 
-                        <span className="text-gray-500 ml-2">({selectedConfig.deployment_time}ms)</span>
+                        <span className="text-gray-500 dark:text-gray-400 ml-2">({selectedConfig.deployment_time}ms)</span>
                       </p>
                     )}
                   </div>
@@ -420,15 +420,15 @@ function ConfigurationHistory() {
               
               {/* Original Prompt */}
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Original Prompt</h4>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-800">{selectedConfig.prompt}</p>
+                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Original Prompt</h4>
+                <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                  <p className="text-sm text-gray-800 dark:text-gray-200">{selectedConfig.prompt}</p>
                 </div>
               </div>
               
               {/* Generated Configuration */}
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Generated Configuration</h4>
+                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Generated Configuration</h4>
                 <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
                   <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">
                     {selectedConfig.generated_config}
@@ -439,9 +439,9 @@ function ConfigurationHistory() {
               {/* AI Explanation */}
               {selectedConfig.explanation && selectedConfig.explanation.success && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">AI Explanation</h4>
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <p className="text-sm text-blue-800 whitespace-pre-wrap">
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">AI Explanation</h4>
+                  <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg">
+                    <p className="text-sm text-blue-800 dark:text-blue-300 whitespace-pre-wrap">
                       {selectedConfig.explanation.explanation}
                     </p>
                   </div>
@@ -451,7 +451,7 @@ function ConfigurationHistory() {
               {/* Applied Configuration (if different) */}
               {selectedConfig.applied_config && selectedConfig.applied_config !== selectedConfig.generated_config && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Applied Configuration</h4>
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Applied Configuration</h4>
                   <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
                     <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">
                       {selectedConfig.applied_config}
@@ -463,15 +463,15 @@ function ConfigurationHistory() {
               {/* Error Message */}
               {selectedConfig.error_message && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Error Details</h4>
-                  <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-                    <p className="text-sm text-red-600">{selectedConfig.error_message}</p>
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Error Details</h4>
+                  <div className="bg-red-50 dark:bg-red-900/30 p-4 rounded-lg border border-red-200 dark:border-red-700">
+                    <p className="text-sm text-red-600 dark:text-red-400">{selectedConfig.error_message}</p>
                   </div>
                 </div>
               )}
             </div>
             
-            <div className="px-6 py-4 bg-gray-50 flex justify-end">
+            <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900 flex justify-end">
               <button
                 onClick={() => setShowModal(false)}
                 className="btn btn-secondary btn-md"

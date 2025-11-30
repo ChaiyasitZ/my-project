@@ -684,25 +684,25 @@ function Configurations() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <div className="p-2 bg-purple-100 rounded-xl">
-              <BotIcon className="h-7 w-7 text-purple-600" />
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            <div className="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-xl">
+              <BotIcon className="h-7 w-7 text-purple-600 dark:text-purple-400" />
             </div>
             LLM Configuration Generator
           </h1>
-          <p className="mt-2 text-gray-600">
+          <p className="mt-2 text-gray-600 dark:text-gray-400">
             Generate Cisco device configurations using AI-powered LLM via OpenRouter
           </p>
         </div>
         <div className="flex items-center gap-3">
           {/* Config Mode Toggle */}
-          <div className="flex items-center bg-gray-100 rounded-xl p-1">
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-xl p-1">
             <button
               onClick={() => setConfigMode('cli')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                 configMode === 'cli' 
-                  ? 'bg-white text-blue-600 shadow-sm ring-1 ring-blue-100' 
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm ring-1 ring-blue-100 dark:ring-blue-800' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               <CodeIcon className="h-4 w-4" />
@@ -712,8 +712,8 @@ function Configurations() {
               onClick={() => setConfigMode('netconf')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                 configMode === 'netconf' 
-                  ? 'bg-white text-purple-600 shadow-sm ring-1 ring-purple-100' 
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm ring-1 ring-purple-100 dark:ring-purple-800' 
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               <NetworkIcon className="h-4 w-4" />
@@ -733,7 +733,7 @@ function Configurations() {
 
       {/* NETCONF Sub-Tabs Navigation - Only visible in NETCONF mode */}
       {configMode === 'netconf' && (
-        <div className="flex items-center space-x-1 border-b border-gray-200 pb-0">
+        <div className="flex items-center space-x-1 border-b border-gray-200 dark:border-gray-700 pb-0">
           <button
             onClick={() => setNetconfSubTab('generate')}
             className={`tab ${netconfSubTab === 'generate' ? 'tab-active' : 'tab-inactive'}`}
@@ -782,15 +782,15 @@ function Configurations() {
         <div className="card">
           <div className="card-header flex items-center">
             {configMode === 'netconf' ? (
-              <div className="p-2 bg-purple-100 rounded-lg mr-3">
-                <NetworkIcon className="h-5 w-5 text-purple-600" />
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-lg mr-3">
+                <NetworkIcon className="h-5 w-5 text-purple-600 dark:text-purple-400" />
               </div>
             ) : (
-              <div className="p-2 bg-blue-100 rounded-lg mr-3">
-                <BotIcon className="h-5 w-5 text-blue-600" />
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg mr-3">
+                <BotIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
             )}
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               Generate {configMode === 'netconf' ? 'NETCONF/YANG' : 'CLI'} Configuration
             </h2>
             {configMode === 'netconf' && (
@@ -827,11 +827,11 @@ function Configurations() {
                         <DeviceIcon 
                           deviceType={devices.find(d => d.id === selectedDevice)?.type} 
                           layer={devices.find(d => d.id === selectedDevice)?.layer}
-                          className="h-5 w-5 text-gray-600"
+                          className="h-5 w-5 text-gray-600 dark:text-gray-400"
                         />
                         <span>
                           {devices.find(d => d.id === selectedDevice)?.name} 
-                          <span className="text-gray-500 ml-1">
+                          <span className="text-gray-500 dark:text-gray-400 ml-1">
                             ({devices.find(d => d.id === selectedDevice)?.type})
                           </span>
                           <span className="text-gray-400 ml-1">
@@ -840,15 +840,15 @@ function Configurations() {
                         </span>
                       </div>
                     ) : (
-                      <span className="text-gray-500">Choose a device...</span>
+                      <span className="text-gray-500 dark:text-gray-400">Choose a device...</span>
                     )}
                     <ChevronDownIcon className={`h-5 w-5 text-gray-400 transition-transform ${showDeviceDropdown ? 'rotate-180' : ''}`} />
                   </button>
                   
                   {showDeviceDropdown && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                    <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg max-h-64 overflow-y-auto">
                       <div 
-                        className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-500 border-b border-gray-100"
+                        className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700"
                         onClick={() => {
                           setSelectedDevice('');
                           setShowDeviceDropdown(false);
@@ -868,21 +868,21 @@ function Configurations() {
                           }}
                         >
                           <div className={`p-1.5 rounded-lg ${
-                            device.status === 'active' ? 'bg-green-100' :
-                            device.status === 'inactive' ? 'bg-red-100' : 'bg-amber-100'
+                            device.status === 'active' ? 'bg-green-100 dark:bg-green-900/50' :
+                            device.status === 'inactive' ? 'bg-red-100 dark:bg-red-900/50' : 'bg-amber-100 dark:bg-amber-900/50'
                           }`}>
                             <DeviceIcon 
                               deviceType={device.type} 
                               layer={device.layer}
                               className={`h-5 w-5 ${
-                                device.status === 'active' ? 'text-green-600' :
-                                device.status === 'inactive' ? 'text-red-600' : 'text-amber-600'
+                                device.status === 'active' ? 'text-green-600 dark:text-green-400' :
+                                device.status === 'inactive' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
                               }`}
                             />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="font-medium text-gray-900 truncate">{device.name}</div>
-                            <div className="text-xs text-gray-500 truncate">
+                            <div className="font-medium text-gray-900 dark:text-white truncate">{device.name}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
                               {device.type}{device.layer ? ` (${device.layer === 'layer-2' ? 'L2' : 'L3'})` : ''} • {device.ip_address}
                             </div>
                           </div>
@@ -900,7 +900,7 @@ function Configurations() {
 
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Configuration Prompt
                   </label>
                   {/* Translate Button */}
@@ -910,7 +910,7 @@ function Configurations() {
                     disabled={!prompt.trim() || isTranslating}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 ${
                       !prompt.trim() || isTranslating
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                         : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600 shadow-sm hover:shadow'
                     }`}
                     title={promptLanguage === 'en' ? 'Translate to Thai' : 'Translate to English'}
@@ -972,7 +972,7 @@ function Configurations() {
 
             {/* Example Prompts */}
             <div className="mt-6">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Example Prompts:</h3>
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Example Prompts:</h3>
               <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
                 {examplePrompts.map((example, index) => (
                   <button
@@ -980,8 +980,8 @@ function Configurations() {
                     onClick={() => setPrompt(example)}
                     className={`text-left text-sm block w-full p-2 rounded-lg transition-colors ${
                       configMode === 'netconf' 
-                        ? 'text-purple-600 hover:text-purple-800 hover:bg-purple-50' 
-                        : 'text-blue-600 hover:text-blue-800 hover:bg-blue-50'
+                        ? 'text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30' 
+                        : 'text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30'
                     }`}
                   >
                     • {example}
@@ -995,17 +995,17 @@ function Configurations() {
         {/* Configuration Preview */}
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-medium text-gray-900">Configuration Preview</h2>
+            <h2 className="text-lg font-medium text-gray-900 dark:text-white">Configuration Preview</h2>
             {generatedConfig && generatedConfig.status === 'generated' && (
               <div className="flex items-center space-x-4">
                 {/* Validate Before Apply Checkbox - only for NETCONF */}
                 {generatedConfig.config_type === 'netconf-yang' && (
-                  <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                  <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={validateBeforeApply}
                       onChange={(e) => setValidateBeforeApply(e.target.checked)}
-                      className="h-4 w-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+                      className="h-4 w-4 text-purple-600 rounded border-gray-300 dark:border-gray-600 focus:ring-purple-500"
                     />
                     <span>Validate before apply</span>
                   </label>
@@ -1030,8 +1030,8 @@ function Configurations() {
           {!generatedConfig && (
             <div className="text-center py-12">
               <BotIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No configuration generated yet</p>
-              <p className="text-sm text-gray-400 mt-1">
+              <p className="text-gray-500 dark:text-gray-400">No configuration generated yet</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
                 Select a device and enter a prompt to get started
               </p>
             </div>
@@ -1041,8 +1041,8 @@ function Configurations() {
           {generatedConfig && (
             <div className="space-y-4">
               {/* Device Info */}
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <div className="flex items-center justify-between text-sm text-gray-600">
+              <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
                   <div className="flex items-center">
                     <ServerIcon className="h-4 w-4 mr-2" />
                     <span>
@@ -1063,24 +1063,24 @@ function Configurations() {
                 </div>
                 
                 {/* Model Info */}
-                <div className="mt-2 flex items-center flex-wrap text-xs text-gray-500">
+                <div className="mt-2 flex items-center flex-wrap text-xs text-gray-500 dark:text-gray-400">
                   <BotIcon className="h-3 w-3 mr-1" />
                   <span>Generated with: <span className="font-mono font-medium">{generatedConfig.ai_model}</span></span>
                   {generatedConfig.config_type === 'netconf-yang' && (
-                    <span className="ml-2 text-purple-600 font-medium">• NETCONF/YANG XML</span>
+                    <span className="ml-2 text-purple-600 dark:text-purple-400 font-medium">• NETCONF/YANG XML</span>
                   )}
                 {generatedConfig.execution_time && (
-                  <span className="ml-3 text-green-600 font-medium">• Generation: {(generatedConfig.execution_time / 1000).toFixed(2)}s</span>
+                  <span className="ml-3 text-green-600 dark:text-green-400 font-medium">• Generation: {(generatedConfig.execution_time / 1000).toFixed(2)}s</span>
                 )}
                 {generatedConfig.deployment_time && (
-                  <span className="ml-3 text-green-600 font-medium">• Deploy: {(generatedConfig.deployment_time / 1000).toFixed(2)}s</span>
+                  <span className="ml-3 text-green-600 dark:text-green-400 font-medium">• Deploy: {(generatedConfig.deployment_time / 1000).toFixed(2)}s</span>
                 )}
                 </div>
               </div>
 
               {/* Configuration Valid Tab with Explanation */}
               {validation && (
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4 border border-blue-100 dark:border-blue-800">
                   <div className="flex items-start">
                     {getValidationIcon(validation.isValid)}
                     <div className="ml-3 flex-1">
@@ -1088,7 +1088,7 @@ function Configurations() {
                         {validation.isValid ? 'Configuration Valid' : 'Configuration Issues Found'}
                       </p>
                       {generatedConfig.explanation && (
-                        <div className="text-sm text-gray-700 leading-relaxed">
+                        <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
                           {generatedConfig.explanation}
                         </div>
                       )}
@@ -1100,7 +1100,7 @@ function Configurations() {
               {/* Configuration Code */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-gray-700">Configuration</h3>
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Configuration</h3>
                   <div className="flex space-x-2">
                     {!isEditing ? (
                       <button
@@ -1166,7 +1166,7 @@ function Configurations() {
                   Generate New
                 </button>
                 
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-gray-500 dark:text-gray-400">
                   Generated: {generatedConfig.created_at ? new Date(generatedConfig.created_at).toLocaleString() : 'Just now'}
                 </div>
               </div>
@@ -1181,9 +1181,9 @@ function Configurations() {
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center">
-              <ActivityIcon className="h-6 w-6 text-green-600 mr-2" />
-              <h2 className="text-lg font-medium text-gray-900">Active NETCONF Sessions</h2>
-              <span className="ml-2 text-sm text-gray-500">
+              <ActivityIcon className="h-6 w-6 text-green-600 dark:text-green-400 mr-2" />
+              <h2 className="text-lg font-medium text-gray-900 dark:text-white">Active NETCONF Sessions</h2>
+              <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
                 ({netconfSessions.length} active)
               </span>
             </div>
@@ -1197,7 +1197,7 @@ function Configurations() {
             </button>
           </div>
           
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Monitor and manage active NETCONF connections to your NX-OS devices.
           </p>
 
@@ -1206,8 +1206,8 @@ function Configurations() {
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600 mx-auto"></div>
             </div>
           ) : netconfSessions.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <WifiIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <WifiIcon className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
               <p className="text-lg font-medium">No active NETCONF sessions</p>
               <p className="text-sm mt-1">Sessions are created when you apply NETCONF configurations</p>
               <button
@@ -1223,24 +1223,24 @@ function Configurations() {
               {netconfSessions.map((session) => (
                 <div 
                   key={session.deviceId} 
-                  className="flex items-center justify-between p-4 border border-green-200 rounded-lg bg-green-50"
+                  className="flex items-center justify-between p-4 border border-green-200 dark:border-green-700 rounded-lg bg-green-50 dark:bg-green-900/30"
                 >
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <WifiIcon className="h-6 w-6 text-green-600" />
+                      <WifiIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
                       <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
                     </div>
                     <div>
-                      <div className="font-medium text-gray-900">
+                      <div className="font-medium text-gray-900 dark:text-white">
                         {session.device_name || 'Unknown Device'}
                       </div>
-                      <div className="text-sm text-gray-500">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
                         {session.device_ip || session.deviceId} • Port 830
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="text-right text-sm text-gray-500">
+                    <div className="text-right text-sm text-gray-500 dark:text-gray-400">
                       <div>Connected: {session.connectedAt ? new Date(session.connectedAt).toLocaleTimeString() : 'N/A'}</div>
                       {session.capabilities && (
                         <div className="text-xs">{session.capabilities.length} capabilities</div>

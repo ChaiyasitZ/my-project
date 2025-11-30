@@ -336,11 +336,11 @@ function ConsoleConfiguration() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <TerminalIcon className="h-8 w-8 text-blue-600" />
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            <TerminalIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
             Console Configuration
           </h1>
-          <p className="mt-2 text-gray-600">
+          <p className="mt-2 text-gray-600 dark:text-gray-400">
             Manage device console connections and terminal access
           </p>
         </div>
@@ -355,18 +355,18 @@ function ConsoleConfiguration() {
       </div>
 
       {/* Connection Settings */}
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Serial Console Connection</h2>
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Serial Console Connection</h2>
 
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           {/* Port Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Serial Port</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Serial Port</label>
             <select
               value={selectedPort}
               onChange={(e) => setSelectedPort(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isConnected}
             >
               <option value="">Select Port</option>
@@ -385,11 +385,11 @@ function ConsoleConfiguration() {
 
           {/* Baud Rate */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Baud Rate</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Baud Rate</label>
             <select
               value={connectionSettings.baudRate}
               onChange={(e) => setConnectionSettings(prev => ({ ...prev, baudRate: parseInt(e.target.value) }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isConnected}
             >
               <option value={9600}>9600</option>
@@ -435,8 +435,8 @@ function ConsoleConfiguration() {
 
       {/* Configuration Mode */}
       {isConnected && (
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Setup Configuration</h2>
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Setup Configuration</h2>
           
           {/* Mode Selection */}
           <div className="flex space-x-4 mb-4">
@@ -466,11 +466,11 @@ function ConsoleConfiguration() {
           {configMode === 'template' && (
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Configuration Template</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Configuration Template</label>
                 <select
                   value={selectedTemplate}
                   onChange={(e) => handleTemplateChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Choose configuration template</option>
                   {Object.entries(templates).map(([key, template]) => (
@@ -483,16 +483,16 @@ function ConsoleConfiguration() {
 
               {/* Template Variables */}
               {selectedTemplate && Object.keys(templateVariables).length > 0 && (
-                <div className="bg-gray-50 p-6 rounded-lg">
-                  <h3 className="text-md font-medium text-gray-900 mb-4">Configuration Parameters</h3>
+                <div className="bg-gray-50 dark:bg-gray-700 p-6 rounded-lg">
+                  <h3 className="text-md font-medium text-gray-900 dark:text-white mb-4">Configuration Parameters</h3>
                   
                   {/* Basic Device Settings */}
                   <div className="mb-6">
-                    <h4 className="text-sm font-medium text-gray-700 mb-3">Device Settings</h4>
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Device Settings</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {['hostname', 'domain'].filter(key => Object.hasOwn(templateVariables, key)).map((varName) => (
                         <div key={varName}>
-                          <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 capitalize">
                             {varName === 'hostname' ? 'Hostname' : 'Domain Name'}
                           </label>
                           <input
@@ -500,7 +500,7 @@ function ConsoleConfiguration() {
                             value={templateVariables[varName]}
                             onChange={(e) => handleVariableChange(varName, e.target.value)}
                             placeholder={varName === 'hostname' ? 'SW-CORE-01' : 'company.local'}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           />
                         </div>
                       ))}
@@ -509,17 +509,17 @@ function ConsoleConfiguration() {
 
                   {/* Security Settings */}
                   <div className="mb-6">
-                    <h4 className="text-sm font-medium text-gray-700 mb-3">Security Settings</h4>
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Security Settings</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {Object.hasOwn(templateVariables, 'rsa_key_size') && (
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             RSA Key Size
                           </label>
                           <select
                             value={templateVariables.rsa_key_size}
                             onChange={(e) => handleVariableChange('rsa_key_size', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           >
                             <option value="1024">1024 bits</option>
                             <option value="2048">2048 bits (Recommended)</option>
@@ -529,7 +529,7 @@ function ConsoleConfiguration() {
 
                       {['username', 'user_password'].filter(key => Object.hasOwn(templateVariables, key)).map((varName) => (
                         <div key={varName}>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             {varName === 'username' && 'Username'}
                             {varName === 'user_password' && 'User Password'}
                           </label>
@@ -541,7 +541,7 @@ function ConsoleConfiguration() {
                               varName === 'username' ? 'admin' :
                               'Strong password for user'
                             }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           />
                         </div>
                       ))}
@@ -563,21 +563,21 @@ function ConsoleConfiguration() {
                             value={templateVariables.management_interface}
                             onChange={(e) => handleVariableChange('management_interface', e.target.value)}
                             placeholder="vlan1, GigabitEthernet0/1, etc."
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           />
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                             Examples: vlan1, vlan10, GigabitEthernet0/1, FastEthernet0/1, Ethernet0/0
                           </p>
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             IP Configuration Method
                           </label>
                           <select
                             value={ipConfigMethod}
                             onChange={(e) => handleIPMethodChange(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                           >
                             <option value="manual">Manual IP Address</option>
                             <option value="dhcp">DHCP</option>
@@ -694,7 +694,7 @@ function ConsoleConfiguration() {
 
                   {/* Template Preview */}
                   <div className="mt-6">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Configuration Preview</h4>
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Configuration Preview</h4>
                     <div className="bg-gray-900 rounded-lg p-4 max-h-64 overflow-auto code-scrollbar">
                       <pre className="text-green-400 text-sm font-mono whitespace-pre-wrap leading-relaxed">
                         {templates[selectedTemplate] && 
@@ -739,13 +739,13 @@ function ConsoleConfiguration() {
           {/* Custom Mode */}
           {configMode === 'custom' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Configuration Commands</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Configuration Commands</label>
               <textarea
                 value={customConfig}
                 onChange={(e) => setCustomConfig(e.target.value)}
                 placeholder="Enter Cisco IOS configuration commands, one per line..."
                 rows={10}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
               />
             </div>
           )}
@@ -767,21 +767,21 @@ function ConsoleConfiguration() {
 
       {/* Configuration Results */}
       {configResults && (
-        <div className="bg-white shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Configuration Results</h3>
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Configuration Results</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="bg-green-50 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">{configResults.summary.successful}</div>
-              <div className="text-sm text-green-700">Successful Commands</div>
+            <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{configResults.summary.successful}</div>
+              <div className="text-sm text-green-700 dark:text-green-300">Successful Commands</div>
             </div>
-            <div className="bg-red-50 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-red-600">{configResults.summary.failed}</div>
-              <div className="text-sm text-red-700">Failed Commands</div>
+            <div className="bg-red-50 dark:bg-red-900/30 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">{configResults.summary.failed}</div>
+              <div className="text-sm text-red-700 dark:text-red-300">Failed Commands</div>
             </div>
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">{configResults.summary.successRate}%</div>
-              <div className="text-sm text-blue-700">Success Rate</div>
+            <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{configResults.summary.successRate}%</div>
+              <div className="text-sm text-blue-700 dark:text-blue-300">Success Rate</div>
             </div>
           </div>
 
@@ -791,7 +791,7 @@ function ConsoleConfiguration() {
               <div
                 key={index}
                 className={`p-3 rounded ${
-                  result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+                  result.success ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700' : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700'
                 } border`}
               >
                 <div className="flex items-center justify-between mb-2">
@@ -808,12 +808,12 @@ function ConsoleConfiguration() {
                   </div>
                 </div>
                 {result.output && (
-                  <div className="mt-2 p-2 bg-gray-100 rounded text-sm font-mono text-gray-700 overflow-auto max-h-24">
+                  <div className="mt-2 p-2 bg-gray-100 dark:bg-gray-700 rounded text-sm font-mono text-gray-700 dark:text-gray-300 overflow-auto max-h-24">
                     {result.output.trim()}
                   </div>
                 )}
                 {result.error && (
-                  <div className="mt-2 p-2 bg-red-100 rounded text-sm text-red-700">
+                  <div className="mt-2 p-2 bg-red-100 dark:bg-red-900/50 rounded text-sm text-red-700 dark:text-red-300">
                     <strong>Error:</strong> {result.error}
                   </div>
                 )}
@@ -824,7 +824,7 @@ function ConsoleConfiguration() {
           {/* Full Configuration Output */}
           {configResults.fullOutput && (
             <div className="mt-6">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">📋 Full Console Output</h4>
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">📋 Full Console Output</h4>
               <div className="bg-gray-900 rounded-lg p-4 max-h-96 overflow-auto code-scrollbar">
                 <pre className="text-green-400 text-sm font-mono whitespace-pre-wrap leading-relaxed">
                   {configResults.fullOutput}
