@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { 
@@ -76,6 +76,9 @@ function Configurations() {
   // YANG Models search/filter
   const [yangSearchTerm, setYangSearchTerm] = useState('');
   const [yangCategoryFilter, setYangCategoryFilter] = useState('all');
+  
+  // NETCONF sub-tabs: 'generate', 'sessions', 'yang-models'
+  const [netconfSubTab, setNetconfSubTab] = useState('generate');
 
   const { confirmationState, showConfirmation } = useConfirmation();
 
@@ -133,10 +136,6 @@ function Configurations() {
     };
   }, []);
 
-  useEffect(() => {
-    fetchDevices();
-  }, []);
-
   // Fetch YANG models when switching to netconf mode
   useEffect(() => {
     if (configMode === 'netconf') {
@@ -145,7 +144,7 @@ function Configurations() {
     }
   }, [configMode]);
 
-  const fetchDevices = async () => {
+  const fetchDevices = useCallback(async () => {
     setDevicesLoading(true);
     try {
       const response = await axios.get('/devices?status=active');
@@ -155,9 +154,9 @@ function Configurations() {
     } finally {
       setDevicesLoading(false);
     }
-  };
+  }, []);
 
-  const fetchYangModels = async () => {
+  const fetchYangModels = useCallback(async () => {
     setYangModelsLoading(true);
     try {
       const response = await axios.get('/yang-models');
@@ -167,9 +166,9 @@ function Configurations() {
     } finally {
       setYangModelsLoading(false);
     }
-  };
+  }, []);
 
-  const fetchNetconfSessions = async () => {
+  const fetchNetconfSessions = useCallback(async () => {
     setNetconfSessionsLoading(true);
     try {
       const response = await axios.get('/devices/netconf/sessions');
@@ -179,7 +178,7 @@ function Configurations() {
     } finally {
       setNetconfSessionsLoading(false);
     }
-  };
+  }, []);
 
   const handleDisconnectNetconfSession = async (deviceId, deviceName) => {
     const toastId = toast.loading(`Disconnecting NETCONF session from ${deviceName}...`);
@@ -475,17 +474,18 @@ function Configurations() {
     setEditedConfig('');
   };
 
-  const getValidationColor = (isValid) => {
+  const getValidationColor = useCallback((isValid) => {
     return isValid ? 'text-green-600' : 'text-red-600';
-  };
+  }, []);
 
-  const getValidationIcon = (isValid) => {
+  const getValidationIcon = useCallback((isValid) => {
     return isValid ? 
       <CheckCircleIcon className="h-5 w-5 text-green-600" /> : 
       <CheckCircleIcon className="h-5 w-5 text-red-600" />;
-  };
+  }, []);
 
-  const examplePrompts = configMode === 'netconf' ? [
+  // Memoize example prompts to prevent recreation on every render
+  const examplePrompts = useMemo(() => configMode === 'netconf' ? [
     // NX-OS NETCONF/YANG Examples - Interface Configuration
     "Configure interface Ethernet1/1 with description 'Uplink to Core' and MTU 9216",
     "Set interface Ethernet1/2 as access port on VLAN 100",
@@ -517,7 +517,27 @@ function Configurations() {
     "Configure inter-VLAN routing for VLANs 10, 20, 30",
     "Set up SVI for VLAN 10 with IP 192.168.10.1/24",
     "Enable IP routing and configure default gateway 192.168.1.254"
-  ];
+  ], [configMode]);
+
+  // Memoize filtered YANG models to prevent recalculation
+  const filteredYangModels = useMemo(() => {
+    return yangModels.filter(model => {
+      const matchesSearch = !yangSearchTerm || 
+        model.name.toLowerCase().includes(yangSearchTerm.toLowerCase()) ||
+        model.namespace?.toLowerCase().includes(yangSearchTerm.toLowerCase()) ||
+        model.description?.toLowerCase().includes(yangSearchTerm.toLowerCase());
+      
+      const matchesCategory = yangCategoryFilter === 'all' || 
+        model.category === yangCategoryFilter;
+      
+      return matchesSearch && matchesCategory;
+    });
+  }, [yangModels, yangSearchTerm, yangCategoryFilter]);
+
+  // Memoize active YANG models count
+  const activeYangModelsCount = useMemo(() => 
+    yangModels.filter(m => m.is_active).length
+  , [yangModels]);
 
   return (
     <div className="space-y-6">
@@ -569,6 +589,57 @@ function Configurations() {
         </div>
       </div>
 
+      {/* NETCONF Sub-Tabs Navigation - Only visible in NETCONF mode */}
+      {configMode === 'netconf' && (
+        <div className="flex items-center space-x-1 border-b border-gray-200 pb-0">
+          <button
+            onClick={() => setNetconfSubTab('generate')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              netconfSubTab === 'generate'
+                ? 'border-purple-600 text-purple-600 bg-purple-50'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <SendIcon className="h-4 w-4" />
+            Generate Config
+          </button>
+          <button
+            onClick={() => { setNetconfSubTab('sessions'); fetchNetconfSessions(); }}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              netconfSubTab === 'sessions'
+                ? 'border-green-600 text-green-600 bg-green-50'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <ActivityIcon className="h-4 w-4" />
+            Active Sessions
+            {netconfSessions.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
+                {netconfSessions.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => { setNetconfSubTab('yang-models'); fetchYangModels(); }}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              netconfSubTab === 'yang-models'
+                ? 'border-purple-600 text-purple-600 bg-purple-50'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <FileTextIcon className="h-4 w-4" />
+            YANG Models
+            {activeYangModelsCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded-full">
+                {activeYangModelsCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* CLI Mode or NETCONF Generate Tab */}
+      {(configMode === 'cli' || (configMode === 'netconf' && netconfSubTab === 'generate')) && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Generation Form */}
         <div className="card p-6">
@@ -857,9 +928,10 @@ function Configurations() {
           )}
         </div>
       </div>
+      )}
 
-      {/* Active NETCONF Sessions Panel - Only visible in NETCONF mode */}
-      {configMode === 'netconf' && (
+      {/* Active NETCONF Sessions Tab - Only visible in NETCONF mode when sessions tab is selected */}
+      {configMode === 'netconf' && netconfSubTab === 'sessions' && (
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center">
@@ -878,43 +950,54 @@ function Configurations() {
               Refresh
             </button>
           </div>
+          
+          <p className="text-sm text-gray-600 mb-4">
+            Monitor and manage active NETCONF connections to your NX-OS devices.
+          </p>
 
           {netconfSessionsLoading ? (
             <div className="text-center py-6">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600 mx-auto"></div>
             </div>
           ) : netconfSessions.length === 0 ? (
-            <div className="text-center py-6 text-gray-500">
-              <WifiIcon className="h-10 w-10 mx-auto mb-2 text-gray-300" />
-              <p>No active NETCONF sessions</p>
-              <p className="text-xs mt-1">Sessions are created when you apply NETCONF configurations</p>
+            <div className="text-center py-12 text-gray-500">
+              <WifiIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+              <p className="text-lg font-medium">No active NETCONF sessions</p>
+              <p className="text-sm mt-1">Sessions are created when you apply NETCONF configurations</p>
+              <button
+                onClick={() => setNetconfSubTab('generate')}
+                className="mt-4 btn btn-primary btn-sm"
+              >
+                <SendIcon className="h-4 w-4 mr-1" />
+                Go to Generate Config
+              </button>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {netconfSessions.map((session) => (
                 <div 
                   key={session.deviceId} 
-                  className="flex items-center justify-between p-3 border border-green-200 rounded-lg bg-green-50"
+                  className="flex items-center justify-between p-4 border border-green-200 rounded-lg bg-green-50"
                 >
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <WifiIcon className="h-5 w-5 text-green-600" />
-                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                      <WifiIcon className="h-6 w-6 text-green-600" />
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
                     </div>
                     <div>
-                      <div className="font-medium text-sm text-gray-900">
+                      <div className="font-medium text-gray-900">
                         {session.device_name || 'Unknown Device'}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-sm text-gray-500">
                         {session.device_ip || session.deviceId} • Port 830
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right text-xs text-gray-500">
+                  <div className="flex items-center gap-4">
+                    <div className="text-right text-sm text-gray-500">
                       <div>Connected: {session.connectedAt ? new Date(session.connectedAt).toLocaleTimeString() : 'N/A'}</div>
                       {session.capabilities && (
-                        <div>{session.capabilities.length} capabilities</div>
+                        <div className="text-xs">{session.capabilities.length} capabilities</div>
                       )}
                     </div>
                     <button
@@ -923,7 +1006,7 @@ function Configurations() {
                       title="Disconnect Session"
                     >
                       <XCircleIcon className="h-4 w-4 mr-1" />
-                      Kill
+                      Disconnect
                     </button>
                   </div>
                 </div>
@@ -933,15 +1016,15 @@ function Configurations() {
         </div>
       )}
 
-      {/* YANG Models Section - Only visible in NETCONF mode */}
-      {configMode === 'netconf' && (
+      {/* YANG Models Tab - Only visible in NETCONF mode when yang-models tab is selected */}
+      {configMode === 'netconf' && netconfSubTab === 'yang-models' && (
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center">
               <FileTextIcon className="h-6 w-6 text-purple-600 mr-2" />
               <h2 className="text-lg font-medium text-gray-900">YANG Models</h2>
               <span className="ml-2 text-sm text-gray-500">
-                ({yangModels.filter(m => m.is_active).length} active)
+                ({activeYangModelsCount} active)
               </span>
             </div>
             <button
@@ -1002,44 +1085,25 @@ function Configurations() {
               <p>No YANG models uploaded yet</p>
               <p className="text-xs mt-1">Upload models to enhance configuration generation</p>
             </div>
+          ) : filteredYangModels.length === 0 ? (
+            <div className="text-center py-6 text-gray-500">
+              <p>No YANG models match your search</p>
+              <button
+                onClick={() => { setYangSearchTerm(''); setYangCategoryFilter('all'); }}
+                className="text-purple-600 text-sm mt-2 hover:underline"
+              >
+                Clear filters
+              </button>
+            </div>
           ) : (
-            (() => {
-              // Filter YANG models
-              const filteredYangModels = yangModels.filter(model => {
-                const matchesSearch = !yangSearchTerm || 
-                  model.name.toLowerCase().includes(yangSearchTerm.toLowerCase()) ||
-                  model.namespace?.toLowerCase().includes(yangSearchTerm.toLowerCase()) ||
-                  model.description?.toLowerCase().includes(yangSearchTerm.toLowerCase());
-                
-                const matchesCategory = yangCategoryFilter === 'all' || 
-                  model.category === yangCategoryFilter;
-                
-                return matchesSearch && matchesCategory;
-              });
-
-              if (filteredYangModels.length === 0) {
-                return (
-                  <div className="text-center py-6 text-gray-500">
-                    <p>No YANG models match your search</p>
-                    <button
-                      onClick={() => { setYangSearchTerm(''); setYangCategoryFilter('all'); }}
-                      className="text-purple-600 text-sm mt-2 hover:underline"
-                    >
-                      Clear filters
-                    </button>
-                  </div>
-                );
-              }
-
-              return (
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {/* Results count */}
-                  {(yangSearchTerm || yangCategoryFilter !== 'all') && (
-                    <p className="text-xs text-gray-500 mb-2">
-                      Showing {filteredYangModels.length} of {yangModels.length} models
-                    </p>
-                  )}
-                  {filteredYangModels.map((model) => (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {/* Results count */}
+              {(yangSearchTerm || yangCategoryFilter !== 'all') && (
+                <p className="text-xs text-gray-500 mb-2">
+                  Showing {filteredYangModels.length} of {yangModels.length} models
+                </p>
+              )}
+              {filteredYangModels.map((model) => (
                 <div 
                   key={model.id} 
                   className={`border rounded-lg overflow-hidden ${model.is_active ? 'border-purple-200' : 'border-gray-200 opacity-60'}`}
@@ -1108,9 +1172,7 @@ function Configurations() {
                   )}
                 </div>
               ))}
-                </div>
-              );
-            })()
+            </div>
           )}
         </div>
       )}

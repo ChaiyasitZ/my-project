@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { 
@@ -380,23 +380,25 @@ function BackupManagement() {
     });
   };
 
-  // Filter backups based on search term and config type - ensure backups is always an array
-  const filteredBackups = (backups || []).filter(backup => {
-    // Search term filter
-    const matchesSearch = !searchTerm || (
-    backup?.backup_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    backup?.device_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (backup?.description && backup.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-    
-    // Configuration type filter
-    const matchesConfigType = configFilter === 'all' || backup?.config_type === configFilter;
-    
-    return matchesSearch && matchesConfigType;
-  });
+  // Memoized: Filter backups based on search term and config type
+  const filteredBackups = useMemo(() => {
+    return (backups || []).filter(backup => {
+      // Search term filter
+      const matchesSearch = !searchTerm || (
+        backup?.backup_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        backup?.device_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (backup?.description && backup.description.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+      
+      // Configuration type filter
+      const matchesConfigType = configFilter === 'all' || backup?.config_type === configFilter;
+      
+      return matchesSearch && matchesConfigType;
+    });
+  }, [backups, searchTerm, configFilter]);
 
-  // Calculate statistics - ensure safe array operations
-  const stats = {
+  // Memoized: Calculate statistics - only recalculates when backups change
+  const stats = useMemo(() => ({
     total: (backups || []).length,
     manual: (backups || []).filter(b => b?.backup_type === 'manual').length,
     scheduled: (backups || []).filter(b => b?.backup_type === 'scheduled').length,
@@ -408,7 +410,7 @@ function BackupManagement() {
       const fileSize = b?.file_size || 0;
       return sum + (typeof fileSize === 'number' ? fileSize : 0);
     }, 0)
-  };
+  }), [backups]);
 
   const handleTestBackup = async (device) => {
     setLoading(true);

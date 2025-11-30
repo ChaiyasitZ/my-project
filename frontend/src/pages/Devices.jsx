@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -18,7 +18,6 @@ import DeviceIcon from '../components/DeviceIcon';
 
 function Devices() {
   const [devices, setDevices] = useState([]);
-  const [filteredDevices, setFilteredDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingDevice, setEditingDevice] = useState(null);
@@ -65,10 +64,37 @@ function Devices() {
     return () => clearInterval(pollInterval);
   }, []);
 
-  // Filter devices whenever devices, selectedFilter, or searchTerm changes
-  useEffect(() => {
-    filterDevices();
+  // Memoize filtered devices instead of using separate state
+  const filteredDevices = useMemo(() => {
+    let filtered = [...devices];
+
+    // Filter by device type
+    if (selectedFilter !== 'all') {
+      filtered = filtered.filter(device => device.type === selectedFilter);
+    }
+
+    // Filter by search term
+    if (searchTerm.trim()) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter(device => 
+        device.name.toLowerCase().includes(search) ||
+        device.ip_address.toLowerCase().includes(search) ||
+        (device.location && device.location.toLowerCase().includes(search)) ||
+        (device.model && device.model.toLowerCase().includes(search)) ||
+        (device.description && device.description.toLowerCase().includes(search))
+      );
+    }
+
+    return filtered;
   }, [devices, selectedFilter, searchTerm]);
+
+  // Memoize filter counts
+  const filterCounts = useMemo(() => ({
+    all: devices.length,
+    switch: devices.filter(d => d.type === 'switch').length,
+    router: devices.filter(d => d.type === 'router').length,
+    nexus: devices.filter(d => d.type === 'nexus').length
+  }), [devices]);
 
   // Manage modal body class
   useEffect(() => {
@@ -84,7 +110,7 @@ function Devices() {
     };
   }, [showModal]);
 
-  const fetchDevices = async () => {
+  const fetchDevices = useCallback(async () => {
     setLoading(true);
     try {
       const response = await axios.get('/devices');
@@ -99,7 +125,7 @@ function Devices() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const fetchSshSessionStatuses = async (deviceList) => {
     try {
@@ -222,39 +248,6 @@ function Devices() {
         return newSet;
       });
     }
-  };
-
-  const filterDevices = () => {
-    let filtered = [...devices];
-
-    // Filter by device type
-    if (selectedFilter !== 'all') {
-      filtered = filtered.filter(device => device.type === selectedFilter);
-    }
-
-    // Filter by search term
-    if (searchTerm.trim()) {
-      const search = searchTerm.toLowerCase();
-      filtered = filtered.filter(device => 
-        device.name.toLowerCase().includes(search) ||
-        device.ip_address.toLowerCase().includes(search) ||
-        (device.location && device.location.toLowerCase().includes(search)) ||
-        (device.model && device.model.toLowerCase().includes(search)) ||
-        (device.description && device.description.toLowerCase().includes(search))
-      );
-    }
-
-    setFilteredDevices(filtered);
-  };
-
-  const getFilterCounts = () => {
-    const counts = {
-      all: devices.length,
-      switch: devices.filter(d => d.type === 'switch').length,
-      router: devices.filter(d => d.type === 'router').length,
-      nexus: devices.filter(d => d.type === 'nexus').length
-    };
-    return counts;
   };
 
   const getFilterIcon = (type) => {
@@ -442,8 +435,6 @@ function Devices() {
       </div>
     );
   }
-
-  const filterCounts = getFilterCounts();
 
   return (
     <div className="space-y-6">
