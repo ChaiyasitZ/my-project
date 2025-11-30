@@ -8,8 +8,12 @@ import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import BackupSchedule from '../models/BackupSchedule.js';
 import sshService from '../services/sshService.js';
 import backupScheduler from '../services/backupScheduler.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Apply authentication middleware to all routes
+router.use(authenticateToken);
 
 // Validation schemas
 const createBackupSchema = Joi.object({
@@ -39,9 +43,24 @@ router.get('/', async (req, res) => {
       sort_order = 'desc'
     } = req.query;
     
-    // Build filter
-    const filter = {};
-    if (device_id) filter.device_id = device_id;
+    // Get user's device IDs first
+    const userDevices = await Device.find({ userId: req.userId }).select('_id');
+    const userDeviceIds = userDevices.map(d => d._id);
+    
+    // Build filter - only show backups for user's devices
+    const filter = { device_id: { $in: userDeviceIds } };
+    if (device_id) {
+      // Verify user owns the specified device
+      if (userDeviceIds.some(id => id.toString() === device_id)) {
+        filter.device_id = new mongoose.Types.ObjectId(device_id);
+      } else {
+        return res.json({
+          success: true,
+          backups: [],
+          pagination: { total: 0, limit: parseInt(limit), offset: parseInt(offset) }
+        });
+      }
+    }
     if (backup_type) filter.backup_type = backup_type;
     
     // Build sort object
@@ -137,6 +156,15 @@ router.get('/:id/preview', async (req, res) => {
       });
     }
     
+    // Verify the device belongs to the user
+    const device = await Device.findOne({ _id: backup.device_id, userId: req.userId });
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Backup not found'
+      });
+    }
+    
     // Return backup configuration content with metadata
     const response = {
       success: true,
@@ -207,10 +235,18 @@ router.get('/:id', async (req, res) => {
       });
     }
     
-    // Get device info
-    const device = await Device.findById(backup.device_id)
+    // Get device info and verify ownership
+    const device = await Device.findOne({ _id: backup.device_id, userId: req.userId })
       .select('name type ip_address')
       .lean();
+    
+    // If device not found or doesn't belong to user, return not found
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Backup not found'
+      });
+    }
     
     res.json({
       success: true,
@@ -247,8 +283,8 @@ router.post('/session', async (req, res) => {
     
     const { device_id, backup_name, description, backup_type, config_type, created_by, tags } = value;
     
-    // Get device details
-    const device = await Device.findById(device_id);
+    // Get device details and verify ownership
+    const device = await Device.findOne({ _id: device_id, userId: req.userId });
     
     if (!device) {
       return res.status(404).json({
@@ -285,7 +321,8 @@ router.post('/session', async (req, res) => {
         file_size: backupResult.runningConfigSize + backupResult.startupConfigSize,
         config_hash: configHash,
         created_by: created_by || 'system',
-        tags: tags || []
+        tags: tags || [],
+        userId: req.userId
       });
       
       await backup.save();
@@ -355,8 +392,8 @@ router.post('/fast', async (req, res) => {
     
     const { device_id, backup_name, description, backup_type, created_by, tags } = value;
     
-    // Get device details
-    const device = await Device.findById(device_id);
+    // Get device details and verify ownership
+    const device = await Device.findOne({ _id: device_id, userId: req.userId });
     
     if (!device) {
       return res.status(404).json({
@@ -392,7 +429,8 @@ router.post('/fast', async (req, res) => {
         file_size: backupResult.runningConfigSize,
         config_hash: configHash,
         created_by: created_by || 'system',
-        tags: tags || []
+        tags: tags || [],
+        userId: req.userId
       });
       
       await backup.save();
@@ -446,8 +484,8 @@ router.post('/', async (req, res) => {
     
     const { device_id, backup_name, description, backup_type, config_type, created_by, tags } = value;
     
-    // Get device details
-    const device = await Device.findById(device_id);
+    // Get device details and verify ownership
+    const device = await Device.findOne({ _id: device_id, userId: req.userId });
     
     if (!device) {
       return res.status(404).json({
@@ -511,7 +549,8 @@ router.post('/', async (req, res) => {
         file_size: (backupResult.runningConfigSize || 0) + (backupResult.startupConfigSize || 0),
         config_hash: configHash,
         created_by: created_by || 'system',
-        tags: tags || []
+        tags: tags || [],
+        userId: req.userId
       });
       
       await backup.save();
@@ -625,12 +664,13 @@ router.post('/:id/restore', async (req, res) => {
       });
     }
     
-    const device = await Device.findById(backup.device_id);
+    // Get device and verify ownership
+    const device = await Device.findOne({ _id: backup.device_id, userId: req.userId });
     
     if (!device) {
       return res.status(404).json({
         success: false,
-        message: 'Device not found'
+        message: 'Backup not found'
       });
     }
     
@@ -656,7 +696,8 @@ router.post('/:id/restore', async (req, res) => {
               file_size: checkpointResult.runningConfigSize + checkpointResult.startupConfigSize,
               config_hash: checkpointHash,
               created_by: 'system',
-              is_restore_point: true
+              is_restore_point: true,
+              userId: req.userId
             });
             
             await checkpoint.save();
@@ -807,9 +848,18 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
     
     // Check if backup exists and is not a restore point
-    const backup = await ConfigurationBackup.findById(id).select('backup_name is_restore_point');
+    const backup = await ConfigurationBackup.findById(id).select('backup_name is_restore_point device_id');
     
     if (!backup) {
+      return res.status(404).json({
+        success: false,
+        message: 'Backup not found'
+      });
+    }
+    
+    // Verify the device belongs to the user
+    const device = await Device.findOne({ _id: backup.device_id, userId: req.userId });
+    if (!device) {
       return res.status(404).json({
         success: false,
         message: 'Backup not found'
@@ -846,16 +896,23 @@ router.get('/device/:device_id', async (req, res) => {
     const { device_id } = req.params;
     const { limit = 20, offset = 0 } = req.query;
     
-    // Use aggregation for efficient join
-    const [backups, device] = await Promise.all([
-      ConfigurationBackup.find({ device_id })
-        .select('-running_config -startup_config') // Exclude large fields
-        .sort({ createdAt: -1 })
-        .limit(parseInt(limit))
-        .skip(parseInt(offset))
-        .lean(),
-      Device.findById(device_id).select('name type').lean()
-    ]);
+    // Verify device belongs to user
+    const device = await Device.findOne({ _id: device_id, userId: req.userId }).select('name type').lean();
+    
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    // Get backups for the device
+    const backups = await ConfigurationBackup.find({ device_id })
+      .select('-running_config -startup_config') // Exclude large fields
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset))
+      .lean();
     
     const enhancedBackups = backups.map(backup => ({
       ...backup,
@@ -882,6 +939,25 @@ router.get('/device/:device_id', async (req, res) => {
 router.post('/:id/set-restore-point', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // First get the backup to verify ownership
+    const existingBackup = await ConfigurationBackup.findById(id).select('device_id');
+    
+    if (!existingBackup) {
+      return res.status(404).json({
+        success: false,
+        message: 'Backup not found'
+      });
+    }
+    
+    // Verify the device belongs to the user
+    const device = await Device.findOne({ _id: existingBackup.device_id, userId: req.userId });
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Backup not found'
+      });
+    }
     
     const backup = await ConfigurationBackup.findByIdAndUpdate(
       id,
@@ -916,8 +992,8 @@ router.get('/enable-test/:device_id', async (req, res) => {
   try {
     const { device_id } = req.params;
     
-    // Get device details
-    const device = await Device.findById(device_id);
+    // Get device details and verify ownership
+    const device = await Device.findOne({ _id: device_id, userId: req.userId });
     
     if (!device) {
       return res.status(404).json({
@@ -979,8 +1055,8 @@ router.get('/ssh-debug/:device_id', async (req, res) => {
   try {
     const { device_id } = req.params;
     
-    // Get device details
-    const device = await Device.findById(device_id);
+    // Get device details and verify ownership
+    const device = await Device.findOne({ _id: device_id, userId: req.userId });
     
     if (!device) {
       return res.status(404).json({
@@ -1049,8 +1125,8 @@ router.get('/test/:device_id', async (req, res) => {
   try {
     const { device_id } = req.params;
     
-    // Get device details
-    const device = await Device.findById(device_id);
+    // Get device details and verify ownership
+    const device = await Device.findOne({ _id: device_id, userId: req.userId });
     
     if (!device) {
       return res.status(404).json({
@@ -1177,6 +1253,18 @@ router.post('/schedules', async (req, res) => {
       });
     }
 
+    // Verify all devices belong to the user
+    const userDevices = await Device.find({ _id: { $in: device_ids }, userId: req.userId }).select('_id');
+    const userDeviceIds = userDevices.map(d => d._id.toString());
+    const invalidDevices = device_ids.filter(id => !userDeviceIds.includes(id.toString()));
+    
+    if (invalidDevices.length > 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'One or more devices not found'
+      });
+    }
+
     // Create schedule
     const schedule = new BackupSchedule({
       name,
@@ -1185,7 +1273,8 @@ router.post('/schedules', async (req, res) => {
       schedule_type,
       backup_type,
       enabled,
-      created_by: 'user'
+      created_by: 'user',
+      userId: req.userId
     });
 
     await schedule.save();
@@ -1223,7 +1312,8 @@ router.post('/schedules', async (req, res) => {
             file_size: (backupResult.runningConfigSize || 0) + (backupResult.startupConfigSize || 0),
             config_hash: configHash,
             created_by: 'schedule',
-            tags: ['scheduled', 'initial', schedule._id.toString()]
+            tags: ['scheduled', 'initial', schedule._id.toString()],
+            userId: req.userId
           });
 
           await backup.save();
@@ -1291,8 +1381,9 @@ router.post('/schedules', async (req, res) => {
 // GET /api/backups/schedules - Get all backup schedules
 router.get('/schedules', async (req, res) => {
   try {
-    // Use aggregation for efficient device lookup
+    // Use aggregation for efficient device lookup, filtered by userId
     const schedules = await BackupSchedule.aggregate([
+      { $match: { userId: req.userId } },
       { $sort: { createdAt: -1 } },
       {
         $lookup: {
@@ -1330,7 +1421,8 @@ router.delete('/schedules/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const schedule = await BackupSchedule.findByIdAndDelete(id);
+    // Only delete if schedule belongs to user
+    const schedule = await BackupSchedule.findOneAndDelete({ _id: id, userId: req.userId });
 
     if (!schedule) {
       return res.status(404).json({
@@ -1358,6 +1450,15 @@ router.delete('/schedules/:id', async (req, res) => {
 router.post('/schedules/:id/trigger', async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Verify schedule belongs to user before triggering
+    const schedule = await BackupSchedule.findOne({ _id: id, userId: req.userId });
+    if (!schedule) {
+      return res.status(404).json({
+        success: false,
+        message: 'Backup schedule not found'
+      });
+    }
 
     const result = await backupScheduler.triggerSchedule(id);
     
@@ -1394,7 +1495,8 @@ router.post('/custom', async (req, res) => {
       });
     }
 
-    const device = await Device.findById(device_id);
+    // Get device and verify ownership
+    const device = await Device.findOne({ _id: device_id, userId: req.userId });
 
     if (!device) {
       return res.status(404).json({
@@ -1427,7 +1529,8 @@ router.post('/custom', async (req, res) => {
       file_size: (backupResult.runningConfigSize || 0) + (backup_type === 'both' ? backupResult.startupConfigSize || 0 : 0),
       config_hash: configHash,
       created_by: 'user',
-      tags: ['post-deploy', 'custom']
+      tags: ['post-deploy', 'custom'],
+      userId: req.userId
     });
 
     await backup.save();
@@ -1478,17 +1581,15 @@ router.post('/post-deploy-schedule', async (req, res) => {
       });
     }
 
-    // Validate all device IDs in a single query
-    const devices = await Device.find({ _id: { $in: device_ids } })
+    // Validate all device IDs belong to the user
+    const devices = await Device.find({ _id: { $in: device_ids }, userId: req.userId })
       .select('_id name type ip_address')
       .lean();
     
     if (devices.length !== device_ids.length) {
-      const foundIds = devices.map(d => d._id.toString());
-      const missingIds = device_ids.filter(id => !foundIds.includes(id));
       return res.status(404).json({
         success: false,
-        message: `Device(s) not found: ${missingIds.join(', ')}`
+        message: 'One or more devices not found'
       });
     }
 
@@ -1501,7 +1602,8 @@ router.post('/post-deploy-schedule', async (req, res) => {
       backup_type,
       enabled,
       created_by: 'user',
-      trigger_on_deploy
+      trigger_on_deploy,
+      userId: req.userId
     });
 
     await schedule.save();

@@ -4,8 +4,12 @@ import Device from '../models/Device.js';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import sshService from '../services/sshService.js';
 import netconfService from '../services/netconfService.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Apply authentication to all routes
+router.use(authenticateToken);
 
 // Validation schemas
 const deviceSchema = Joi.object({
@@ -53,8 +57,8 @@ router.get('/', async (req, res) => {
   try {
     const { status, type, limit = 50, offset = 0 } = req.query;
     
-    // Build query filter
-    const filter = {};
+    // Build query filter - include userId to filter by user
+    const filter = { userId: req.userId };
     if (status) filter.status = status;
     if (type) filter.type = type;
     
@@ -147,7 +151,7 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const device = await Device.findById(id).lean();
+    const device = await Device.findOne({ _id: id, userId: req.userId }).lean();
     
     if (!device) {
       return res.status(404).json({
@@ -190,8 +194,8 @@ router.post('/', async (req, res) => {
       });
     }
     
-    // Check for duplicate IP address
-    const existingDevice = await Device.findOne({ ip_address: value.ip_address });
+    // Check for duplicate IP address (within user's devices)
+    const existingDevice = await Device.findOne({ ip_address: value.ip_address, userId: req.userId });
     if (existingDevice) {
       return res.status(400).json({
         success: false,
@@ -199,8 +203,8 @@ router.post('/', async (req, res) => {
       });
     }
     
-    // Check for duplicate name
-    const existingName = await Device.findOne({ name: value.name });
+    // Check for duplicate name (within user's devices)
+    const existingName = await Device.findOne({ name: value.name, userId: req.userId });
     if (existingName) {
       return res.status(400).json({
         success: false,
@@ -208,7 +212,8 @@ router.post('/', async (req, res) => {
       });
     }
     
-    const device = new Device(value);
+    // Add userId to device
+    const device = new Device({ ...value, userId: req.userId });
     await device.save();
     
     // Return device without password
@@ -252,10 +257,11 @@ router.put('/:id', async (req, res) => {
       delete value.password;
     }
     
-    // Check for duplicate IP address (excluding current device)
+    // Check for duplicate IP address (excluding current device, within user's devices)
     if (value.ip_address) {
       const existingDevice = await Device.findOne({ 
         ip_address: value.ip_address,
+        userId: req.userId,
         _id: { $ne: id }
       });
       if (existingDevice) {
@@ -266,10 +272,11 @@ router.put('/:id', async (req, res) => {
       }
     }
     
-    // Check for duplicate name (excluding current device)
+    // Check for duplicate name (excluding current device, within user's devices)
     if (value.name) {
       const existingName = await Device.findOne({ 
         name: value.name,
+        userId: req.userId,
         _id: { $ne: id }
       });
       if (existingName) {
@@ -280,8 +287,8 @@ router.put('/:id', async (req, res) => {
       }
     }
     
-    const device = await Device.findByIdAndUpdate(
-      id, 
+    const device = await Device.findOneAndUpdate(
+      { _id: id, userId: req.userId }, 
       { ...value, updatedAt: new Date() }, 
       { new: true, runValidators: true }
     );
@@ -320,7 +327,7 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const device = await Device.findByIdAndDelete(id);
+    const device = await Device.findOneAndDelete({ _id: id, userId: req.userId });
     
     if (!device) {
       return res.status(404).json({
@@ -348,7 +355,7 @@ router.get('/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const device = await Device.findById(id).select('_id name type ip_address status').lean();
+    const device = await Device.findOne({ _id: id, userId: req.userId }).select('_id name type ip_address status').lean();
     
     if (!device) {
       return res.status(404).json({
@@ -380,6 +387,7 @@ router.get('/:id/status', async (req, res) => {
 router.get('/stats/summary', async (req, res) => {
   try {
     const stats = await Device.aggregate([
+      { $match: { userId: req.userId } },
       {
         $group: {
           _id: null,
@@ -438,7 +446,7 @@ router.post('/:id/test', async (req, res) => {
     const { id } = req.params;
     
     // Get device from database
-    const device = await Device.findById(id);
+    const device = await Device.findOne({ _id: id, userId: req.userId });
     
     if (!device) {
       return res.status(404).json({
@@ -474,10 +482,10 @@ router.post('/:id/test', async (req, res) => {
     // Update device status based on test result
     const newStatus = testResult.success ? 'active' : 'error';
     try {
-      await Device.findByIdAndUpdate(id, { 
-        status: newStatus,
-        updated_at: new Date()
-      });
+      await Device.findOneAndUpdate(
+        { _id: id, userId: req.userId },
+        { status: newStatus, updated_at: new Date() }
+      );
     } catch (updateError) {
       console.warn('Failed to update device status:', updateError.message);
     }
@@ -504,7 +512,7 @@ router.post('/:id/ssh/connect', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const device = await Device.findById(id);
+    const device = await Device.findOne({ _id: id, userId: req.userId });
     if (!device) {
       return res.status(404).json({
         success: false,
@@ -569,7 +577,7 @@ router.post('/:id/ssh/disconnect', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const device = await Device.findById(id);
+    const device = await Device.findOne({ _id: id, userId: req.userId });
     if (!device) {
       return res.status(404).json({
         success: false,
@@ -615,7 +623,7 @@ router.post('/:id/ssh/disconnect', async (req, res) => {
 // GET /api/devices/ssh/status-all - Get SSH status for all devices
 router.get('/ssh/status-all', async (req, res) => {
   try {
-    const devices = await Device.find({});
+    const devices = await Device.find({ userId: req.userId });
     
     const statusList = devices.map(device => {
       const sessionKey = `${device.id}_persistent`;
@@ -651,7 +659,7 @@ router.get('/:id/ssh/status', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const device = await Device.findById(id);
+    const device = await Device.findOne({ _id: id, userId: req.userId });
     if (!device) {
       return res.status(404).json({
         success: false,
@@ -709,7 +717,7 @@ router.post('/:id/netconf/test', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const device = await Device.findById(id);
+    const device = await Device.findOne({ _id: id, userId: req.userId });
     if (!device) {
       return res.status(404).json({
         success: false,
@@ -750,7 +758,7 @@ router.get('/:id/netconf/capabilities', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const device = await Device.findById(id);
+    const device = await Device.findOne({ _id: id, userId: req.userId });
     if (!device) {
       return res.status(404).json({
         success: false,
@@ -794,21 +802,20 @@ router.get('/netconf/sessions', async (req, res) => {
   try {
     const activeSessions = netconfService.getActiveSessions();
     
-    // Enhance with device names
-    const enhancedSessions = await Promise.all(
-      activeSessions.map(async (session) => {
-        try {
-          const device = await Device.findById(session.deviceId);
-          return {
-            ...session,
-            device_name: device?.name || 'Unknown',
-            device_ip: device?.ip_address || 'Unknown'
-          };
-        } catch {
-          return session;
-        }
-      })
-    );
+    // Enhance with device names - only show sessions for user's devices
+    const userDevices = await Device.find({ userId: req.userId }).select('_id name ip_address');
+    const userDeviceIds = userDevices.map(d => d._id.toString());
+    
+    const enhancedSessions = activeSessions
+      .filter(session => userDeviceIds.includes(session.deviceId))
+      .map(session => {
+        const device = userDevices.find(d => d._id.toString() === session.deviceId);
+        return {
+          ...session,
+          device_name: device?.name || 'Unknown',
+          device_ip: device?.ip_address || 'Unknown'
+        };
+      });
     
     res.json({
       success: true,
@@ -830,7 +837,7 @@ router.post('/:id/netconf/disconnect', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const device = await Device.findById(id);
+    const device = await Device.findOne({ _id: id, userId: req.userId });
     if (!device) {
       return res.status(404).json({
         success: false,
@@ -862,7 +869,7 @@ router.post('/:id/netconf/get', async (req, res) => {
     const { id } = req.params;
     const { filter, filter_type = 'subtree' } = req.body;
     
-    const device = await Device.findById(id);
+    const device = await Device.findOne({ _id: id, userId: req.userId });
     if (!device) {
       return res.status(404).json({
         success: false,
@@ -918,7 +925,7 @@ router.post('/:id/netconf/get-config', async (req, res) => {
     const { id } = req.params;
     const { source = 'running', filter, filter_type = 'subtree' } = req.body;
     
-    const device = await Device.findById(id);
+    const device = await Device.findOne({ _id: id, userId: req.userId });
     if (!device) {
       return res.status(404).json({
         success: false,
@@ -969,7 +976,7 @@ router.post('/:id/netconf/rpc', async (req, res) => {
       });
     }
     
-    const device = await Device.findById(id);
+    const device = await Device.findOne({ _id: id, userId: req.userId });
     if (!device) {
       return res.status(404).json({
         success: false,

@@ -1,8 +1,12 @@
 import express from 'express';
 import Joi from 'joi';
 import YangModel from '../models/YangModel.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Apply authentication middleware to all routes
+router.use(authenticateToken);
 
 // Validation schemas
 const yangModelSchema = Joi.object({

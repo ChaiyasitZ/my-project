@@ -8,8 +8,12 @@ import llmService from '../services/llmService.js';
 import sshService from '../services/sshService.js';
 import backupScheduler from '../services/backupScheduler.js';
 import notificationService from '../services/notificationService.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Apply authentication middleware to all routes
+router.use(authenticateToken);
 
 // Helper function for user-friendly error messages
 function getErrorMessage(errorType) {
@@ -235,7 +239,7 @@ router.post('/generate', async (req, res) => {
     // Get device details (with ObjectId validation)
     let device;
     try {
-      device = await Device.findById(device_id);
+      device = await Device.findOne({ _id: device_id, userId: req.userId });
     } catch (err) {
       console.error('❌ Invalid device ID format:', device_id, err.message);
       return res.status(400).json({
@@ -319,10 +323,11 @@ router.post('/generate', async (req, res) => {
       console.warn('⚠️ Explanation generation failed:', explanationResult.error);
     }
     
-    // Save to configuration history with timestamp
+    // Save to configuration history with timestamp and userId
     const currentTimestamp = Date.now();
     const configuration = new ConfigurationHistory({
       device_id,
+      userId: req.userId,
       prompt,
       generated_config: aiResult.configuration, // Clean version for output panel
       deployment_config: aiResult.deploymentConfig, // Clean version for device
@@ -381,9 +386,9 @@ router.post('/rate', async (req, res) => {
     
     const { configuration_id, user_rating, feedback_text } = value;
     
-    // Update configuration with simple rating
-    const configuration = await ConfigurationHistory.findByIdAndUpdate(
-      configuration_id,
+    // Update configuration with simple rating (only if user owns it)
+    const configuration = await ConfigurationHistory.findOneAndUpdate(
+      { _id: configuration_id, userId: req.userId },
       { user_rating, feedback_text },
       { new: true }
     );
@@ -421,7 +426,7 @@ router.post('/session-apply', async (req, res) => {
       });
     }
     
-    const configuration = await ConfigurationHistory.findById(configuration_id).populate('device');
+    const configuration = await ConfigurationHistory.findOne({ _id: configuration_id, userId: req.userId }).populate('device');
     
     if (!configuration) {
       return res.status(404).json({
@@ -434,6 +439,14 @@ router.post('/session-apply', async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Associated device not found'
+      });
+    }
+    
+    // Verify user owns the device
+    if (configuration.device.userId?.toString() !== req.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to apply configuration to this device'
       });
     }
     
@@ -587,7 +600,7 @@ router.post('/fast-apply', async (req, res) => {
       });
     }
     
-    const configuration = await ConfigurationHistory.findById(configuration_id).populate('device');
+    const configuration = await ConfigurationHistory.findOne({ _id: configuration_id, userId: req.userId }).populate('device');
     
     if (!configuration) {
       return res.status(404).json({
@@ -600,6 +613,14 @@ router.post('/fast-apply', async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Associated device not found'
+      });
+    }
+    
+    // Verify user owns the device
+    if (configuration.device.userId?.toString() !== req.userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to apply configuration to this device'
       });
     }
     
@@ -749,6 +770,7 @@ router.post('/apply', async (req, res) => {
     // Get configuration and device details
     const configuration = await ConfigurationHistory.findOne({
       _id: configuration_id,
+      userId: req.userId,
       status: 'generated'
     });
     
@@ -759,7 +781,7 @@ router.post('/apply', async (req, res) => {
       });
     }
     
-    const device = await Device.findById(configuration.device_id);
+    const device = await Device.findOne({ _id: configuration.device_id, userId: req.userId });
     
     if (!device) {
       return res.status(404).json({
@@ -1016,24 +1038,28 @@ router.get('/history/:device_id', async (req, res) => {
     const { device_id } = req.params;
     const { limit = 20, offset = 0 } = req.query;
     
-    const configurations = await ConfigurationHistory.find({ device_id })
+    // Verify user owns the device
+    const device = await Device.findOne({ _id: device_id, userId: req.userId });
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    const configurations = await ConfigurationHistory.find({ device_id, userId: req.userId })
       .sort({ created_at: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(offset))
       .lean();
     
     // Get device info for each configuration
-    const enhancedConfigurations = await Promise.all(
-      configurations.map(async (config) => {
-        const device = await Device.findById(config.device_id).select('name type').lean();
-        return {
-          ...config,
-          id: config._id, // Add id for compatibility
-          device_name: device?.name,
-          device_type: device?.type
-        };
-      })
-    );
+    const enhancedConfigurations = configurations.map(config => ({
+      ...config,
+      id: config._id, // Add id for compatibility
+      device_name: device.name,
+      device_type: device.type
+    }));
     
     res.json({
       success: true,
@@ -1054,8 +1080,8 @@ router.get('/history', async (req, res) => {
   try {
     const { limit = 50, offset = 0, status } = req.query;
     
-    // Build filter
-    const filter = {};
+    // Build filter with userId
+    const filter = { userId: req.userId };
     if (status) filter.status = status;
     
     // Get configurations with pagination
@@ -1065,22 +1091,24 @@ router.get('/history', async (req, res) => {
       .skip(parseInt(offset))
       .lean();
     
-    // Get total count
+    // Get total count for user
     const total = await ConfigurationHistory.countDocuments(filter);
     
+    // Get user's devices for lookup
+    const userDevices = await Device.find({ userId: req.userId }).select('name type ip_address').lean();
+    const deviceMap = new Map(userDevices.map(d => [d._id.toString(), d]));
+    
     // Enhance configurations with device info
-    const enhancedConfigurations = await Promise.all(
-      configurations.map(async (config) => {
-        const device = await Device.findById(config.device_id).select('name type ip_address').lean();
-        return {
-          ...config,
-          id: config._id, // Add id for compatibility
-          device_name: device?.name,
-          device_type: device?.type,
-          ip_address: device?.ip_address
-        };
-      })
-    );
+    const enhancedConfigurations = configurations.map(config => {
+      const device = deviceMap.get(config.device_id?.toString());
+      return {
+        ...config,
+        id: config._id, // Add id for compatibility
+        device_name: device?.name,
+        device_type: device?.type,
+        ip_address: device?.ip_address
+      };
+    });
     
     res.json({
       success: true,
@@ -1104,7 +1132,7 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const configuration = await ConfigurationHistory.findById(id).lean();
+    const configuration = await ConfigurationHistory.findOne({ _id: id, userId: req.userId }).lean();
     
     if (!configuration) {
       return res.status(404).json({
@@ -1114,7 +1142,7 @@ router.get('/:id', async (req, res) => {
     }
     
     // Get device info
-    const device = await Device.findById(configuration.device_id).select('name type ip_address').lean();
+    const device = await Device.findOne({ _id: configuration.device_id, userId: req.userId }).select('name type ip_address').lean();
     
     const enhancedConfiguration = {
       ...configuration,
@@ -1149,7 +1177,7 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const configuration = await ConfigurationHistory.findByIdAndDelete(id);
+    const configuration = await ConfigurationHistory.findOneAndDelete({ _id: id, userId: req.userId });
     
     if (!configuration) {
       return res.status(404).json({
@@ -1191,9 +1219,10 @@ router.post('/apply-multi', async (req, res) => {
     
     for (const configId of configuration_ids) {
       try {
-        // Get configuration and device
+        // Get configuration and device (filter by userId)
         const configuration = await ConfigurationHistory.findOne({
           _id: configId,
+          userId: req.userId,
           status: 'generated'
         });
         
@@ -1206,7 +1235,7 @@ router.post('/apply-multi', async (req, res) => {
           continue;
         }
         
-        const device = await Device.findById(configuration.device_id);
+        const device = await Device.findOne({ _id: configuration.device_id, userId: req.userId });
         
         if (!device) {
           results.push({
@@ -1242,12 +1271,12 @@ router.post('/apply-multi', async (req, res) => {
       } catch (error) {
         console.error(`Failed to apply configuration ${configId}:`, error);
         
-        // Update configuration status to failed
+        // Update configuration status to failed (only if user owns it)
         try {
-          await ConfigurationHistory.findByIdAndUpdate(configId, {
-            status: 'failed',
-            error_message: error.message
-          });
+          await ConfigurationHistory.findOneAndUpdate(
+            { _id: configId, userId: req.userId },
+            { status: 'failed', error_message: error.message }
+          );
         } catch (updateError) {
           console.error('Failed to update configuration status:', updateError);
         }
@@ -1319,10 +1348,10 @@ router.post('/netconf/generate', async (req, res) => {
     
     const { device_id, prompt } = value;
     
-    // Get device details
+    // Get device details (filter by userId)
     let device;
     try {
-      device = await Device.findById(device_id);
+      device = await Device.findOne({ _id: device_id, userId: req.userId });
     } catch (err) {
       return res.status(400).json({
         success: false,
@@ -1384,10 +1413,11 @@ router.post('/netconf/generate', async (req, res) => {
       prompt
     );
     
-    // Save to configuration history
+    // Save to configuration history with userId
     const currentTimestamp = Date.now();
     const configuration = new ConfigurationHistory({
       device_id,
+      userId: req.userId,
       prompt,
       generated_config: aiResult.configuration,
       deployment_config: aiResult.deploymentConfig,
@@ -1437,9 +1467,10 @@ router.post('/netconf/apply', async (req, res) => {
       });
     }
     
-    // Get configuration
+    // Get configuration (filter by userId)
     const configuration = await ConfigurationHistory.findOne({
       _id: configuration_id,
+      userId: req.userId,
       status: 'generated'
     });
     
@@ -1450,8 +1481,8 @@ router.post('/netconf/apply', async (req, res) => {
       });
     }
     
-    // Get device
-    const device = await Device.findById(configuration.device_id);
+    // Get device (filter by userId)
+    const device = await Device.findOne({ _id: configuration.device_id, userId: req.userId });
     
     if (!device) {
       return res.status(404).json({
@@ -1574,7 +1605,7 @@ router.post('/netconf/test', async (req, res) => {
       });
     }
     
-    const device = await Device.findById(device_id);
+    const device = await Device.findOne({ _id: device_id, userId: req.userId });
     
     if (!device) {
       return res.status(404).json({
@@ -1604,6 +1635,15 @@ router.get('/netconf/session/:device_id', async (req, res) => {
   try {
     const { device_id } = req.params;
     
+    // Verify user owns the device
+    const device = await Device.findOne({ _id: device_id, userId: req.userId });
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
     const status = netconfService.getSessionStatus(device_id);
     
     res.json({
@@ -1625,6 +1665,15 @@ router.delete('/netconf/session/:device_id', async (req, res) => {
   try {
     const { device_id } = req.params;
     
+    // Verify user owns the device
+    const device = await Device.findOne({ _id: device_id, userId: req.userId });
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
     const result = await netconfService.closeSession(device_id);
     
     res.json(result);
@@ -1641,7 +1690,15 @@ router.delete('/netconf/session/:device_id', async (req, res) => {
 // GET /api/configurations/netconf/sessions - Get all active NETCONF sessions
 router.get('/netconf/sessions', async (req, res) => {
   try {
-    const sessions = netconfService.getActiveSessions();
+    const allSessions = netconfService.getActiveSessions();
+    
+    // Filter to only show sessions for user's devices
+    const userDevices = await Device.find({ userId: req.userId }).select('_id');
+    const userDeviceIds = userDevices.map(d => d._id.toString());
+    
+    const sessions = allSessions.filter(session => 
+      userDeviceIds.includes(session.deviceId)
+    );
     
     res.json({
       success: true,

@@ -2,8 +2,12 @@ import express from 'express';
 import Joi from 'joi';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import consoleService from '../services/consoleService.js';
+import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Apply authentication middleware to all routes
+router.use(authenticateToken);
 
 // Validation schemas
 const consoleConnectionSchema = Joi.object({
@@ -220,6 +224,7 @@ router.post('/initial-config', async (req, res) => {
       try {
         const configHistory = new ConfigurationHistory({
           device_id: deviceId,
+          userId: req.userId,
           prompt: 'Initial console configuration',
           generated_config: configCommands,
           applied_config: result.fullOutput,
