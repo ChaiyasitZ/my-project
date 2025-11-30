@@ -224,15 +224,49 @@ export class SSHService {
 
   async sendConfigCommands(deviceConfig, commands, options = {}) {
     try {
-      const { tolerateErrors = false } = options; // New option for backup restore
+      const { tolerateErrors = false, useSession = true } = options; // useSession: reuse existing session if available
       console.log(`🔧 Starting configuration deployment to ${deviceConfig.ip_address}`);
       console.log(`📝 Commands to deploy:\n${commands}`);
       console.log(`⚙️ Error tolerance: ${tolerateErrors ? 'ENABLED (backup restore mode)' : 'DISABLED (normal mode)'}`);
+      console.log(`🔗 Session mode: ${useSession ? 'REUSE existing session if available' : 'ALWAYS create fresh connection'}`);
       
-      // CRITICAL FIX: Always create a fresh connection for config deployment
-      // Persistent connections can become stale and cause "Channel open failure"
-      console.log(`🔄 Creating fresh SSH connection for configuration deployment...`);
-      const conn = await this.connect(deviceConfig);
+      let conn;
+      let sessionReused = false;
+      const deviceId = deviceConfig.id || deviceConfig._id;
+      const sessionKey = `${deviceId}_persistent`;
+      
+      // Try to reuse existing persistent session if enabled
+      if (useSession) {
+        const existingSession = this.persistentSessions.get(sessionKey);
+        if (existingSession && this.isSessionValid(existingSession)) {
+          console.log(`♻️ Reusing persistent session for ${deviceConfig.ip_address} (use count: ${existingSession.useCount})`);
+          conn = existingSession.connection;
+          existingSession.lastUsed = Date.now();
+          existingSession.useCount++;
+          sessionReused = true;
+        } else {
+          console.log(`🔄 No valid session found, creating new SSH connection...`);
+          conn = await this.connect(deviceConfig);
+          
+          // Store as persistent session for future reuse
+          const session = {
+            connection: conn,
+            deviceId: deviceId,
+            deviceConfig: deviceConfig,
+            createdAt: Date.now(),
+            lastUsed: Date.now(),
+            useCount: 1,
+            isPrivileged: false,
+            sessionKey: sessionKey
+          };
+          this.persistentSessions.set(sessionKey, session);
+          console.log(`✅ New session created and stored for reuse`);
+        }
+      } else {
+        // Force fresh connection (legacy behavior)
+        console.log(`🔄 Creating fresh SSH connection for configuration deployment...`);
+        conn = await this.connect(deviceConfig);
+      }
 
       return new Promise((resolve, reject) => {
         conn.shell({ pty: true }, (err, stream) => {
@@ -265,8 +299,11 @@ export class SSHService {
           const timeout = setTimeout(() => {
             if (!commandComplete) {
               stream.end();
-              const deviceId = deviceConfig.id || deviceConfig._id;
-              this.disconnect(deviceId);
+              // Only disconnect if not reusing session
+              if (!sessionReused) {
+                const deviceId = deviceConfig.id || deviceConfig._id;
+                this.disconnect(deviceId);
+              }
               reject(new Error('Configuration deployment timeout - device unresponsive'));
             }
           }, 30000); // Faster deployment timeout
@@ -286,12 +323,16 @@ export class SSHService {
               setTimeout(() => {
                 stream.end();
                 
-                // Close the SSH connection after deployment
-                setTimeout(() => {
-                  const deviceId = deviceConfig.id || deviceConfig._id;
-                  this.disconnect(deviceId);
-                  console.log(`🔌 SSH connection closed after deployment`);
-                }, 500);
+                // Only close SSH connection if NOT reusing a persistent session
+                if (!sessionReused) {
+                  setTimeout(() => {
+                    const deviceId = deviceConfig.id || deviceConfig._id;
+                    this.disconnect(deviceId);
+                    console.log(`🔌 SSH connection closed after deployment`);
+                  }, 500);
+                } else {
+                  console.log(`♻️ SSH session kept alive for future reuse`);
+                }
                 
                 // Handle errors based on tolerance mode
                 if (hasErrors && !tolerateErrors) {
@@ -305,7 +346,8 @@ export class SSHService {
                     commandsExecuted: allCommands,
                     errorCount: errorCount,
                     hasWarnings: hasErrors,
-                    warningMessage: hasErrors ? `Deployment completed with ${errorCount} warning(s) - some commands may have failed but restore continued` : null
+                    warningMessage: hasErrors ? `Deployment completed with ${errorCount} warning(s) - some commands may have failed but restore continued` : null,
+                    sessionReused: sessionReused
                   });
                 }
               }, 2000);
@@ -356,8 +398,11 @@ export class SSHService {
 
           stream.on('close', () => {
             clearTimeout(timeout);
-            const deviceId = deviceConfig.id || deviceConfig._id;
-            this.disconnect(deviceId);
+            // Only disconnect if not using persistent session
+            if (!sessionReused) {
+              const deviceId = deviceConfig.id || deviceConfig._id;
+              this.disconnect(deviceId);
+            }
             if (!commandComplete) {
               reject(new Error('SSH session closed unexpectedly'));
             }
@@ -365,8 +410,15 @@ export class SSHService {
 
           stream.on('error', (error) => {
             clearTimeout(timeout);
+            // On error, always disconnect to cleanup
             const deviceId = deviceConfig.id || deviceConfig._id;
             this.disconnect(deviceId);
+            // Also remove from persistent sessions if it was stored
+            if (sessionReused) {
+              const sessionKey = `${deviceId}_persistent`;
+              this.persistentSessions.delete(sessionKey);
+              console.log(`🗑️ Removed failed session from persistent sessions`);
+            }
             reject(new Error(`SSH stream error: ${error.message}`));
           });
 
@@ -918,6 +970,38 @@ export class SSHService {
                      !session.connection._writableState?.destroyed;
     
     return !isExpired && isConnectionAlive && hasValidStream && isHealthy;
+  }
+
+  // Get stats about active sessions for monitoring
+  getSessionStats() {
+    const stats = {
+      activePersistentSessions: this.persistentSessions.size,
+      pooledSessions: 0,
+      sessions: []
+    };
+    
+    // Count pooled sessions
+    for (const [deviceKey, sessions] of this.sessionPool) {
+      stats.pooledSessions += sessions.length;
+    }
+    
+    // Get details of persistent sessions
+    for (const [sessionKey, session] of this.persistentSessions) {
+      const isValid = this.isSessionValid(session);
+      stats.sessions.push({
+        deviceId: session.deviceId,
+        deviceIp: session.deviceConfig?.ip_address,
+        createdAt: session.createdAt,
+        lastUsed: session.lastUsed,
+        useCount: session.useCount,
+        isPrivileged: session.isPrivileged,
+        isValid: isValid,
+        ageMinutes: Math.round((Date.now() - session.createdAt) / 60000),
+        idleMinutes: Math.round((Date.now() - session.lastUsed) / 60000)
+      });
+    }
+    
+    return stats;
   }
 
   async executeCommandOnPersistentSession(session, command) {

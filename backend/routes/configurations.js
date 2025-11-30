@@ -906,6 +906,7 @@ router.post('/apply', async (req, res) => {
         deployment_time_ms: deploymentTime,
         deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
         output: sshResult.output,
+        session_reused: sshResult.sessionReused || false,
         auto_backups: {
           pre_deployment_backup_id: null, // Deleted after successful deployment
           post_deployment_backup_id: postDeploymentBackupId,

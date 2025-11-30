@@ -99,6 +99,49 @@ app.use('/api/console', consoleRouter);
 app.use('/api/backups', backupsRouter);
 app.use('/api/yang-models', yangModelsRouter);
 
+// API index endpoint
+app.get('/api', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Network Automation API',
+    version: '2.0.0',
+    documentation: '/api/docs',
+    endpoints: {
+      health: {
+        url: '/api/health',
+        description: 'Server health check'
+      },
+      devices: {
+        url: '/api/devices',
+        description: 'Device management (CRUD, SSH, NETCONF)'
+      },
+      configurations: {
+        url: '/api/configurations',
+        description: 'AI-powered configuration generation and deployment'
+      },
+      backups: {
+        url: '/api/backups',
+        description: 'Configuration backups and scheduling'
+      },
+      console: {
+        url: '/api/console',
+        description: 'Serial console access for initial device setup'
+      },
+      yangModels: {
+        url: '/api/yang-models',
+        description: 'YANG model management for NETCONF'
+      }
+    },
+    protocols: ['SSH', 'NETCONF', 'Console'],
+    features: [
+      'AI Configuration Generation',
+      'SSH Session Reuse',
+      'Automated Backups',
+      'NETCONF/YANG Support',
+      'Real-time WebSocket Updates'
+    ]
+  });
+});
 
 // Root endpoint
 app.get('/', (req, res) => {

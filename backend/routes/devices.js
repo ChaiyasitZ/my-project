@@ -118,6 +118,30 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/devices/sessions/stats - Get SSH session statistics
+router.get('/sessions/stats', async (req, res) => {
+  try {
+    const stats = sshService.getSessionStats();
+    
+    res.json({
+      success: true,
+      message: 'SSH session statistics retrieved',
+      stats: {
+        activePersistentSessions: stats.activePersistentSessions,
+        pooledSessions: stats.pooledSessions,
+        sessions: stats.sessions
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error fetching session stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch session statistics'
+    });
+  }
+});
+
 // GET /api/devices/:id - Get single device
 router.get('/:id', async (req, res) => {
   try {
