@@ -800,8 +800,8 @@ router.get('/netconf/sessions', async (req, res) => {
   try {
     const activeSessions = netconfService.getActiveSessions();
     
-    // Enhance with device names - only show sessions for user's devices
-    const userDevices = await Device.find({ userId: req.userId }).select('_id name ip_address');
+    // Enhance with device names and type - only show sessions for user's devices
+    const userDevices = await Device.find({ userId: req.userId }).select('_id name ip_address type');
     const userDeviceIds = userDevices.map(d => d._id.toString());
     
     const enhancedSessions = activeSessions
@@ -811,7 +811,8 @@ router.get('/netconf/sessions', async (req, res) => {
         return {
           ...session,
           device_name: device?.name || 'Unknown',
-          device_ip: device?.ip_address || 'Unknown'
+          device_ip: device?.ip_address || 'Unknown',
+          device_type: device?.type || 'router'
         };
       });
     

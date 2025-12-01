@@ -32,7 +32,8 @@ function getErrorMessage(errorType) {
 // Validation schemas
 const generateConfigSchema = Joi.object({
   device_id: Joi.string().required(),
-  prompt: Joi.string().min(10).max(2000).required()
+  prompt: Joi.string().min(10).max(2000).required(),
+  yang_model_ids: Joi.array().items(Joi.string()).optional()
 });
 
 const applyConfigSchema = Joi.object({
@@ -1346,7 +1347,7 @@ router.post('/netconf/generate', async (req, res) => {
       });
     }
     
-    const { device_id, prompt } = value;
+    const { device_id, prompt, yang_model_ids } = value;
     
     // Get device details (filter by userId)
     let device;
@@ -1366,13 +1367,27 @@ router.post('/netconf/generate', async (req, res) => {
       });
     }
     
-    // Fetch active YANG models for this device type
+    // Fetch YANG models - either specific ones selected or all active for device type
     let customYangModels = [];
     try {
-      const yangModels = await YangModel.find({
-        is_active: true,
-        device_type: { $in: [device.type, 'all'] }
-      }).select('name namespace prefix description xml_templates config_paths');
+      let yangModels;
+      
+      if (yang_model_ids && yang_model_ids.length > 0) {
+        // Use specific YANG models selected by user
+        console.log(`📚 Using ${yang_model_ids.length} user-selected YANG models`);
+        yangModels = await YangModel.find({
+          _id: { $in: yang_model_ids },
+          userId: req.userId,
+          is_active: true
+        }).select('name namespace prefix description xml_templates config_paths content');
+      } else {
+        // Fall back to all active YANG models for device type
+        yangModels = await YangModel.find({
+          userId: req.userId,
+          is_active: true,
+          device_type: { $in: [device.type, 'all'] }
+        }).select('name namespace prefix description xml_templates config_paths content');
+      }
       
       customYangModels = yangModels.map(model => ({
         name: model.name,
@@ -1380,7 +1395,8 @@ router.post('/netconf/generate', async (req, res) => {
         prefix: model.prefix,
         description: model.description,
         templates: model.xml_templates,
-        paths: model.config_paths
+        paths: model.config_paths,
+        content: model.content // Include full YANG content for accurate generation
       }));
       
       console.log(`📚 Loaded ${customYangModels.length} YANG models for ${device.type}`);

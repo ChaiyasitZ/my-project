@@ -25,6 +25,8 @@ import {
   SearchIcon,
   TerminalIcon,
   CopyIcon,
+  EyeIcon,
+  XIcon,
   Router as RouterIcon
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
@@ -61,13 +63,15 @@ function Configurations() {
   const [yangModels, setYangModels] = useState([]);
   const [yangModelsLoading, setYangModelsLoading] = useState(false);
   const [showYangUploadModal, setShowYangUploadModal] = useState(false);
+  const [showYangDetailModal, setShowYangDetailModal] = useState(false);
+  const [selectedYangModel, setSelectedYangModel] = useState(null);
   const [expandedYangModel, setExpandedYangModel] = useState(null);
   const [yangFormData, setYangFormData] = useState({
     name: '',
     namespace: '',
     prefix: '',
     version: '1.0.0',
-    device_type: 'nexus',
+    device_type: 'all',
     category: 'other',
     description: '',
     yang_content: '',
@@ -87,6 +91,7 @@ function Configurations() {
   // YANG Models search/filter
   const [yangSearchTerm, setYangSearchTerm] = useState('');
   const [yangCategoryFilter, setYangCategoryFilter] = useState('all');
+  const [selectedYangModelsForGen, setSelectedYangModelsForGen] = useState([]); // Selected YANG models for generation
   
   // NETCONF sub-tabs: 'generate', 'sessions', 'yang-models', 'operations'
   const [netconfSubTab, setNetconfSubTab] = useState('generate');
@@ -288,6 +293,19 @@ function Configurations() {
     }
   };
 
+  const handleViewYangModel = async (id) => {
+    try {
+      const response = await axios.get(`/yang-models/${id}`);
+      if (response.data.success) {
+        setSelectedYangModel(response.data.yangModel);
+        setShowYangDetailModal(true);
+      }
+    } catch (error) {
+      toast.error('Failed to load YANG model details');
+      console.error('Error fetching YANG model:', error);
+    }
+  };
+
   const addYangTemplate = () => {
     if (!newTemplate.name || !newTemplate.template) {
       toast.error('Template name and content are required');
@@ -332,7 +350,7 @@ function Configurations() {
       namespace: '',
       prefix: '',
       version: '1.0.0',
-      device_type: 'nexus',
+      device_type: 'all',
       category: 'other',
       description: '',
       yang_content: '',
@@ -374,7 +392,7 @@ function Configurations() {
       prefix: '',
       description: '',
       version: '1.0.0',
-      device_type: 'nexus',
+      device_type: 'all',  // Default to 'all' - will auto-detect if possible
       category: 'other'
     };
     
@@ -389,16 +407,30 @@ function Configurations() {
       const namespaceMatch = content.match(/namespace\s+"([^"]+)"/);
       if (namespaceMatch) {
         result.namespace = namespaceMatch[1];
+        const nsLower = namespaceMatch[1].toLowerCase();
         
-        // Auto-detect device type from namespace
-        if (namespaceMatch[1].includes('cisco-nx-os')) {
+        // Auto-detect device type from namespace (case-insensitive)
+        if (nsLower.includes('cisco-nx-os') || nsLower.includes('nx-os')) {
           result.device_type = 'nexus';
-        } else if (namespaceMatch[1].includes('Cisco-IOS-XE')) {
+        } else if (nsLower.includes('cisco-ios-xe') || nsLower.includes('ios-xe')) {
           result.device_type = 'ios-xe';
-        } else if (namespaceMatch[1].includes('Cisco-IOS-XR')) {
+        } else if (nsLower.includes('cisco-ios-xr') || nsLower.includes('ios-xr')) {
           result.device_type = 'ios-xr';
-        } else if (namespaceMatch[1].includes('cisco')) {
+        } else if (nsLower.includes('cisco-ios') && !nsLower.includes('xe') && !nsLower.includes('xr')) {
           result.device_type = 'ios';
+        }
+        // If no match, keep 'all' as default
+      }
+      
+      // Also check module name for device type hints
+      if (result.device_type === 'all' && result.name) {
+        const nameLower = result.name.toLowerCase();
+        if (nameLower.includes('nx-os') || nameLower.includes('nxos')) {
+          result.device_type = 'nexus';
+        } else if (nameLower.includes('ios-xe') || nameLower.startsWith('cisco-ios-xe')) {
+          result.device_type = 'ios-xe';
+        } else if (nameLower.includes('ios-xr') || nameLower.startsWith('cisco-ios-xr')) {
+          result.device_type = 'ios-xr';
         }
       }
       
@@ -583,6 +615,11 @@ function Configurations() {
         device_id: selectedDevice,
         prompt: prompt
       };
+
+      // Add selected YANG models for NETCONF mode
+      if (configMode === 'netconf' && selectedYangModels.length > 0) {
+        requestData.yang_model_ids = selectedYangModels;
+      }
 
       // Choose endpoint based on config mode
       const endpoint = configMode === 'netconf' 
@@ -831,7 +868,7 @@ function Configurations() {
           {/* Config Mode Toggle */}
           <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-xl p-1">
             <button
-              onClick={() => setConfigMode('cli')}
+              onClick={() => { setConfigMode('cli'); setSelectedYangModels([]); }}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                 configMode === 'cli' 
                   ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm ring-1 ring-blue-100 dark:ring-blue-800' 
@@ -842,7 +879,7 @@ function Configurations() {
               CLI
             </button>
             <button
-              onClick={() => setConfigMode('netconf')}
+              onClick={() => { setConfigMode('netconf'); setSelectedYangModels([]); }}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                 configMode === 'netconf' 
                   ? 'bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm ring-1 ring-purple-100 dark:ring-purple-800' 
@@ -926,21 +963,9 @@ function Configurations() {
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               Generate {configMode === 'netconf' ? 'NETCONF/YANG' : 'CLI'} Configuration
             </h2>
-            {configMode === 'netconf' && (
-              <span className="ml-2 badge badge-purple">
-                NX-OS
-              </span>
-            )}
           </div>
 
           <div className="card-body">
-            {configMode === 'netconf' && (
-              <div className="mb-4 alert alert-info">
-                <strong>NETCONF/YANG Mode:</strong> Generates XML configuration for NX-OS devices using YANG models.
-                Requires NETCONF enabled on the device (port 830).
-              </div>
-            )}
-
             <form 
               onSubmit={handleGenerateConfiguration}
               className="space-y-4"
@@ -997,6 +1022,7 @@ function Configurations() {
                           }`}
                           onClick={() => {
                             setSelectedDevice(device.id);
+                            setSelectedYangModels([]); // Clear YANG selections when device changes
                             setShowDeviceDropdown(false);
                           }}
                         >
@@ -1030,6 +1056,67 @@ function Configurations() {
                 {/* Hidden input for form validation */}
                 <input type="hidden" value={selectedDevice} required />
               </div>
+
+              {/* YANG Model Selector (NETCONF mode only) */}
+              {configMode === 'netconf' && yangModels.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    YANG Models for Generation
+                    <span className="text-xs font-normal text-gray-500 ml-2">(optional - for accurate XML)</span>
+                  </label>
+                  <div className="border rounded-lg dark:border-gray-600 max-h-32 overflow-y-auto">
+                    {yangModels.filter(m => m.is_active).map((model) => (
+                      <label 
+                        key={model.id} 
+                        className="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b last:border-b-0 dark:border-gray-600"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedYangModelsForGen.includes(model.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedYangModelsForGen([...selectedYangModelsForGen, model.id]);
+                            } else {
+                              setSelectedYangModelsForGen(selectedYangModelsForGen.filter(id => id !== model.id));
+                            }
+                          }}
+                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{model.name}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                              model.device_type === 'nexus' ? 'bg-purple-100 text-purple-700' :
+                              model.device_type === 'ios-xe' ? 'bg-blue-100 text-blue-700' :
+                              model.device_type === 'ios-xr' ? 'bg-orange-100 text-orange-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {model.device_type?.toUpperCase() || 'ALL'}
+                            </span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${getCategoryColor(model.category)}`}>
+                              {model.category}
+                            </span>
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  {selectedYangModelsForGen.length > 0 && (
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-xs text-purple-600 dark:text-purple-400">
+                        {selectedYangModelsForGen.length} model(s) selected
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedYangModelsForGen([])}
+                        className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                      >
+                        Clear all
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -1449,7 +1536,31 @@ function Configurations() {
               </div>
             ) : (
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                {netconfSessions.map((session) => (
+                {netconfSessions.map((session) => {
+                  // Get device icon based on type
+                  const getDeviceIcon = () => {
+                    switch(session.device_type) {
+                      case 'nexus':
+                        return <NetworkIcon className="h-5 w-5 text-purple-600 dark:text-purple-400" />;
+                      case 'router':
+                        return <RouterIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
+                      default:
+                        return <ServerIcon className="h-5 w-5 text-green-600 dark:text-green-400" />;
+                    }
+                  };
+                  
+                  const getDeviceBgColor = () => {
+                    switch(session.device_type) {
+                      case 'nexus':
+                        return 'bg-purple-100 dark:bg-purple-900/50';
+                      case 'router':
+                        return 'bg-blue-100 dark:bg-blue-900/50';
+                      default:
+                        return 'bg-green-100 dark:bg-green-900/50';
+                    }
+                  };
+                  
+                  return (
                   <div 
                     key={session.deviceId} 
                     className="border border-green-200 dark:border-green-700 rounded-lg bg-green-50 dark:bg-green-900/30 overflow-hidden"
@@ -1459,8 +1570,8 @@ function Configurations() {
                       onClick={() => setExpandedSession(expandedSession === session.deviceId ? null : session.deviceId)}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <WifiIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
+                        <div className={`relative p-2 rounded-lg ${getDeviceBgColor()}`}>
+                          {getDeviceIcon()}
                           <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
                         </div>
                         <div>
@@ -1470,9 +1581,9 @@ function Configurations() {
                           <div className="text-sm text-gray-500 dark:text-gray-400">
                             {session.device_ip || session.deviceId} • Port 830
                           </div>
-                          {session.capabilities > 0 && (
-                            <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                              <span>{session.capabilities} capabilities</span>
+                          {(session.capabilities > 0 || session.capabilityList?.length > 0) && (
+                            <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1 mt-0.5">
+                              <span>{session.capabilityList?.length || session.capabilities} capabilities</span>
                               {expandedSession === session.deviceId ? (
                                 <ChevronUpIcon className="h-3 w-3" />
                               ) : (
@@ -1493,41 +1604,46 @@ function Configurations() {
                     </div>
                     
                     {/* Expanded Capabilities */}
-                    {expandedSession === session.deviceId && session.capabilityList?.length > 0 && (
+                    {expandedSession === session.deviceId && (session.capabilityList?.length > 0 || session.capabilities > 0) && (
                       <div className="border-t border-green-200 dark:border-green-700 bg-white dark:bg-gray-800 p-4">
                         <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Device Capabilities ({session.capabilityList.length})
+                          Device Capabilities ({session.capabilityList?.length || session.capabilities})
                         </h4>
-                        <div className="max-h-48 overflow-y-auto space-y-1">
-                          {session.capabilityList.map((cap, idx) => {
-                            // Extract module name from capability URL
-                            const moduleMatch = cap.match(/module=([^&]+)/);
-                            const revisionMatch = cap.match(/revision=([^&]+)/);
-                            const moduleName = moduleMatch ? moduleMatch[1] : null;
-                            const revision = revisionMatch ? revisionMatch[1] : null;
-                            
-                            return (
-                              <div 
-                                key={idx} 
-                                className="text-xs font-mono bg-gray-50 dark:bg-gray-700 rounded p-2 break-all"
-                              >
-                                {moduleName ? (
-                                  <div>
-                                    <span className="font-semibold text-purple-600 dark:text-purple-400">{moduleName}</span>
-                                    {revision && <span className="text-gray-500 ml-2">({revision})</span>}
-                                    <div className="text-gray-400 text-[10px] truncate">{cap}</div>
-                                  </div>
-                                ) : (
-                                  <span className="text-gray-600 dark:text-gray-400">{cap}</span>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
+                        {session.capabilityList?.length > 0 ? (
+                          <div className="max-h-48 overflow-y-auto space-y-1">
+                            {session.capabilityList.map((cap, idx) => {
+                              // Extract module name from capability URL
+                              const moduleMatch = cap.match(/module=([^&]+)/);
+                              const revisionMatch = cap.match(/revision=([^&]+)/);
+                              const moduleName = moduleMatch ? moduleMatch[1] : null;
+                              const revision = revisionMatch ? revisionMatch[1] : null;
+                              
+                              return (
+                                <div 
+                                  key={idx} 
+                                  className="text-xs font-mono bg-gray-50 dark:bg-gray-700 rounded p-2 break-all"
+                                >
+                                  {moduleName ? (
+                                    <div>
+                                      <span className="font-semibold text-purple-600 dark:text-purple-400">{moduleName}</span>
+                                      {revision && <span className="text-gray-500 ml-2">({revision})</span>}
+                                      <div className="text-gray-400 text-[10px] truncate">{cap}</div>
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-600 dark:text-gray-400">{cap}</span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500">Capability details not available. Try reconnecting.</p>
+                        )}
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1621,7 +1737,20 @@ function Configurations() {
                   Showing {filteredYangModels.length} of {yangModels.length} models
                 </p>
               )}
-              {filteredYangModels.map((model) => (
+              {filteredYangModels.map((model) => {
+                // Device type badge color
+                const getDeviceTypeBadge = (type) => {
+                  switch(type) {
+                    case 'nexus': return 'bg-purple-100 text-purple-700';
+                    case 'ios-xe': return 'bg-blue-100 text-blue-700';
+                    case 'ios-xr': return 'bg-orange-100 text-orange-700';
+                    case 'ios': return 'bg-green-100 text-green-700';
+                    case 'all': return 'bg-gray-100 text-gray-700';
+                    default: return 'bg-gray-100 text-gray-700';
+                  }
+                };
+                
+                return (
                 <div 
                   key={model.id} 
                   className={`border rounded-lg overflow-hidden ${model.is_active ? 'border-purple-200' : 'border-gray-200 opacity-60'}`}
@@ -1633,21 +1762,28 @@ function Configurations() {
                     <div className="flex items-center gap-3">
                       <FileTextIcon className={`h-5 w-5 ${model.is_active ? 'text-purple-600' : 'text-gray-400'}`} />
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium text-sm">{model.name}</span>
                           <span className={`text-xs px-1.5 py-0.5 rounded ${getCategoryColor(model.category)}`}>
                             {model.category}
                           </span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${getDeviceTypeBadge(model.device_type)}`}>
+                            {model.device_type?.toUpperCase() || 'ALL'}
+                          </span>
                         </div>
-                        <p className="text-xs text-gray-500 font-mono truncate max-w-xs">{model.namespace}</p>
+                        {model.description && (
+                          <p className="text-xs text-gray-500 truncate max-w-md">{model.description}</p>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {model.xml_templates?.length > 0 && (
-                        <span className="text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">
-                          {model.xml_templates.length} templates
-                        </span>
-                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleViewYangModel(model.id); }}
+                        className="p-1 rounded text-blue-600 hover:bg-blue-50"
+                        title="View Details"
+                      >
+                        <EyeIcon className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleYangModelToggle(model.id); }}
                         className={`p-1 rounded ${model.is_active ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`}
@@ -1658,7 +1794,7 @@ function Configurations() {
                       <button
                         onClick={(e) => { e.stopPropagation(); handleYangModelDelete(model.id); }}
                         className="p-1 rounded text-red-500 hover:bg-red-50"
-                        title="Delete"
+                        title="Delete YANG Model"
                       >
                         <TrashIcon className="h-4 w-4" />
                       </button>
@@ -1671,27 +1807,48 @@ function Configurations() {
                   </div>
                   
                   {expandedYangModel === model.id && (
-                    <div className="border-t bg-gray-50 p-3 space-y-3">
-                      {/* Metadata */}
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                          <span className="text-gray-500">Device Type:</span>
-                          <span className="ml-1 font-medium text-gray-700">{model.device_type?.toUpperCase() || 'N/A'}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Version:</span>
-                          <span className="ml-1 font-medium text-gray-700">{model.version || 'N/A'}</span>
-                        </div>
-                        {model.prefix && (
+                    <div className="border-t bg-gray-50 p-4 space-y-4">
+                      {/* Header with actions */}
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-gray-800">Model Details</h4>
+                        <button
+                          onClick={() => handleYangModelDelete(model.id)}
+                          className="btn btn-danger btn-sm"
+                        >
+                          <TrashIcon className="h-3 w-3 mr-1" />
+                          Delete Model
+                        </button>
+                      </div>
+                      
+                      {/* Metadata Grid */}
+                      <div className="bg-white rounded-lg border p-3">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                           <div>
-                            <span className="text-gray-500">Prefix:</span>
-                            <span className="ml-1 font-mono font-medium text-purple-600">{model.prefix}</span>
+                            <span className="text-gray-500 block">Device Type</span>
+                            <span className={`inline-block mt-0.5 px-2 py-0.5 rounded font-medium ${getDeviceTypeBadge(model.device_type)}`}>
+                              {model.device_type?.toUpperCase() || 'ALL'}
+                            </span>
                           </div>
-                        )}
+                          <div>
+                            <span className="text-gray-500 block">Category</span>
+                            <span className={`inline-block mt-0.5 px-2 py-0.5 rounded ${getCategoryColor(model.category)}`}>
+                              {model.category}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 block">Version</span>
+                            <span className="font-medium text-gray-700">{model.version || 'N/A'}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500 block">Prefix</span>
+                            <span className="font-mono font-medium text-purple-600">{model.prefix || 'N/A'}</span>
+                          </div>
+                        </div>
+                        
                         {model.namespace && (
-                          <div className="col-span-2">
-                            <span className="text-gray-500">Namespace:</span>
-                            <div className="font-mono text-[10px] text-gray-600 bg-white rounded p-1 mt-0.5 break-all border">
+                          <div className="mt-3 pt-3 border-t">
+                            <span className="text-xs text-gray-500 block mb-1">Namespace URI</span>
+                            <div className="font-mono text-[10px] text-gray-600 bg-gray-50 rounded p-2 break-all border">
                               {model.namespace}
                             </div>
                           </div>
@@ -1700,40 +1857,57 @@ function Configurations() {
                       
                       {/* Description */}
                       {model.description && (
-                        <div>
-                          <span className="text-xs text-gray-500">Description:</span>
-                          <p className="text-xs text-gray-600 mt-0.5">{model.description}</p>
+                        <div className="bg-white rounded-lg border p-3">
+                          <span className="text-xs text-gray-500 block mb-1">Description</span>
+                          <p className="text-sm text-gray-700">{model.description}</p>
                         </div>
                       )}
                       
                       {/* XML Templates */}
                       {model.xml_templates?.length > 0 && (
-                        <div>
-                          <p className="text-xs font-medium text-gray-700 mb-1">XML Templates ({model.xml_templates.length}):</p>
-                          {model.xml_templates.map((tmpl, idx) => (
-                            <div key={idx} className="text-xs bg-white rounded p-2 border mb-1">
-                              <span className="font-medium">{tmpl.name}</span>
-                              {tmpl.description && <span className="text-gray-500"> - {tmpl.description}</span>}
-                            </div>
-                          ))}
+                        <div className="bg-white rounded-lg border p-3">
+                          <p className="text-xs font-medium text-gray-700 mb-2">XML Templates ({model.xml_templates.length})</p>
+                          <div className="space-y-1">
+                            {model.xml_templates.map((tmpl, idx) => (
+                              <div key={idx} className="text-xs bg-gray-50 rounded p-2 border">
+                                <span className="font-medium text-purple-600">{tmpl.name}</span>
+                                {tmpl.description && <span className="text-gray-500 ml-2">— {tmpl.description}</span>}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                       
                       {/* Config Paths */}
                       {model.config_paths?.length > 0 && (
-                        <div>
-                          <p className="text-xs font-medium text-gray-700 mb-1">Config Paths ({model.config_paths.length}):</p>
-                          {model.config_paths.map((path, idx) => (
-                            <div key={idx} className="text-xs bg-white rounded p-1.5 border mb-1 font-mono text-purple-600">
-                              {path.path}
-                            </div>
-                          ))}
+                        <div className="bg-white rounded-lg border p-3">
+                          <p className="text-xs font-medium text-gray-700 mb-2">Config Paths ({model.config_paths.length})</p>
+                          <div className="space-y-1">
+                            {model.config_paths.map((path, idx) => (
+                              <div key={idx} className="text-xs bg-gray-50 rounded p-1.5 border font-mono text-purple-600">
+                                {path.path}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
+                      
+                      {/* Status info */}
+                      <div className="text-xs text-gray-400 pt-2 border-t flex items-center justify-between">
+                        <span>
+                          Status: {model.is_active ? (
+                            <span className="text-green-600 font-medium">Active</span>
+                          ) : (
+                            <span className="text-gray-500 font-medium">Disabled</span>
+                          )}
+                        </span>
+                        <span>ID: {model.id}</span>
+                      </div>
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -2288,6 +2462,177 @@ function Configurations() {
         </div>
       )}
 
+      {/* YANG Model Detail Modal */}
+      {showYangDetailModal && selectedYangModel && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/30 dark:to-blue-900/30">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
+                  <FileTextIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">{selectedYangModel.name}</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">YANG Model Details</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setShowYangDetailModal(false); setSelectedYangModel(null); }}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              >
+                <XIcon className="h-5 w-5" />
+              </button>
+            </div>
+            
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Metadata Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Device Type</span>
+                  <span className={`inline-block px-2 py-1 rounded text-sm font-medium ${
+                    selectedYangModel.device_type === 'nexus' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300' :
+                    selectedYangModel.device_type === 'ios-xe' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                    selectedYangModel.device_type === 'ios-xr' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300' :
+                    'bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-gray-300'
+                  }`}>
+                    {selectedYangModel.device_type?.toUpperCase() || 'ALL'}
+                  </span>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Category</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white capitalize">{selectedYangModel.category}</span>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Version</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">{selectedYangModel.version || 'N/A'}</span>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Prefix</span>
+                  <span className="text-sm font-mono font-medium text-purple-600 dark:text-purple-400">{selectedYangModel.prefix || 'N/A'}</span>
+                </div>
+              </div>
+
+              {/* Namespace */}
+              {selectedYangModel.namespace && (
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block mb-2">Namespace URI</span>
+                  <code className="text-sm font-mono text-gray-800 dark:text-gray-200 break-all">{selectedYangModel.namespace}</code>
+                </div>
+              )}
+
+              {/* Description */}
+              {selectedYangModel.description && (
+                <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4">
+                  <span className="text-xs text-blue-600 dark:text-blue-400 block mb-2 font-medium">Description</span>
+                  <p className="text-sm text-blue-800 dark:text-blue-200">{selectedYangModel.description}</p>
+                </div>
+              )}
+
+              {/* XML Templates */}
+              {selectedYangModel.xml_templates?.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                    <CodeIcon className="h-4 w-4" />
+                    XML Templates ({selectedYangModel.xml_templates.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {selectedYangModel.xml_templates.map((tmpl, idx) => (
+                      <details key={idx} className="bg-gray-50 dark:bg-gray-700 rounded-lg overflow-hidden">
+                        <summary className="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center justify-between">
+                          <span className="font-medium text-sm text-gray-900 dark:text-white">{tmpl.name}</span>
+                          {tmpl.description && <span className="text-xs text-gray-500 dark:text-gray-400">{tmpl.description}</span>}
+                        </summary>
+                        <div className="border-t dark:border-gray-600 bg-gray-900 p-3">
+                          <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap overflow-auto max-h-48">{tmpl.template}</pre>
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Config Paths */}
+              {selectedYangModel.config_paths?.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                    <FolderIcon className="h-4 w-4" />
+                    Config Paths ({selectedYangModel.config_paths.length})
+                  </h3>
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 space-y-1">
+                    {selectedYangModel.config_paths.map((path, idx) => (
+                      <div key={idx} className="text-sm font-mono text-purple-600 dark:text-purple-400 bg-white dark:bg-gray-800 rounded p-2">
+                        {path.path}
+                        {path.description && <span className="text-xs text-gray-500 ml-2">— {path.description}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* YANG Content */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <FileTextIcon className="h-4 w-4" />
+                    YANG Model Content
+                  </h3>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(selectedYangModel.yang_content);
+                      toast.success('YANG content copied to clipboard');
+                    }}
+                    className="btn btn-secondary btn-sm"
+                  >
+                    <CopyIcon className="h-3 w-3 mr-1" />
+                    Copy
+                  </button>
+                </div>
+                <div className="bg-gray-900 rounded-lg p-4 overflow-auto max-h-96">
+                  <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">{selectedYangModel.yang_content}</pre>
+                </div>
+              </div>
+
+              {/* Metadata Footer */}
+              <div className="text-xs text-gray-400 dark:text-gray-500 pt-4 border-t dark:border-gray-700 flex items-center justify-between">
+                <div>
+                  <span>Status: </span>
+                  {selectedYangModel.is_active ? (
+                    <span className="text-green-600 dark:text-green-400 font-medium">Active</span>
+                  ) : (
+                    <span className="text-gray-500 font-medium">Disabled</span>
+                  )}
+                </div>
+                <div>
+                  <span>ID: {selectedYangModel.id || selectedYangModel._id}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="p-4 border-t dark:border-gray-700 flex justify-between bg-gray-50 dark:bg-gray-800">
+              <button
+                onClick={() => {
+                  setShowYangDetailModal(false);
+                  setSelectedYangModel(null);
+                  handleYangModelDelete(selectedYangModel.id || selectedYangModel._id);
+                }}
+                className="btn btn-danger btn-md"
+              >
+                <TrashIcon className="h-4 w-4 mr-1" />
+                Delete Model
+              </button>
+              <button
+                onClick={() => { setShowYangDetailModal(false); setSelectedYangModel(null); }}
+                className="btn btn-secondary btn-md"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirmation Modal */}
       <ConfirmationModal

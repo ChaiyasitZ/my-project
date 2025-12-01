@@ -2509,13 +2509,23 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
     // Build custom YANG models section
     let customModelsSection = '';
     if (customYangModels && customYangModels.length > 0) {
-      customModelsSection = `\n\n=== CUSTOM YANG MODELS PROVIDED ===\nUse these YANG models as reference for generating the configuration:\n\n`;
+      customModelsSection = `\n\n=== CUSTOM YANG MODELS PROVIDED ===\nUse these YANG models as the PRIMARY reference for generating the configuration:\n\n`;
       
       for (const model of customYangModels) {
         customModelsSection += `--- ${model.name} ---\n`;
-        customModelsSection += `Namespace: ${model.namespace}\n`;
+        if (model.namespace) customModelsSection += `Namespace: ${model.namespace}\n`;
         if (model.prefix) customModelsSection += `Prefix: ${model.prefix}\n`;
         if (model.description) customModelsSection += `Description: ${model.description}\n`;
+        
+        // Add full YANG content if available (for accurate XML structure)
+        if (model.content && model.content.length > 0) {
+          // Truncate very long YANG files but include key structure
+          const maxContentLength = 8000;
+          const yangContent = model.content.length > maxContentLength 
+            ? model.content.substring(0, maxContentLength) + '\n... [YANG content truncated] ...\n'
+            : model.content;
+          customModelsSection += `\nYANG Model Definition:\n\`\`\`yang\n${yangContent}\n\`\`\`\n`;
+        }
         
         // Add XML templates if available
         if (model.templates && model.templates.length > 0) {
@@ -2538,7 +2548,7 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
         customModelsSection += `\n`;
       }
       
-      customModelsSection += `=== END CUSTOM YANG MODELS ===\n\nPRIORITY: Use the custom YANG models above when they match the requested configuration. Fall back to built-in patterns only if no custom model applies.\n`;
+      customModelsSection += `=== END CUSTOM YANG MODELS ===\n\nCRITICAL: Generate XML that strictly follows the structure defined in the YANG models above. Use the exact namespaces, containers, lists, and leaf names from the YANG definitions. Do NOT use generic patterns if a specific YANG model applies.\n`;
     }
 
     return `You are a Cisco NX-OS NETCONF/YANG configuration expert. Generate ONLY valid NETCONF XML configuration payloads.
