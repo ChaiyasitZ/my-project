@@ -24,7 +24,8 @@ import {
   PlayIcon,
   SearchIcon,
   TerminalIcon,
-  CopyIcon
+  CopyIcon,
+  Router as RouterIcon
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import BackupProgressModal from '../components/BackupProgressModal';
@@ -79,7 +80,9 @@ function Configurations() {
   // NETCONF Sessions state
   const [netconfSessions, setNetconfSessions] = useState([]);
   const [netconfSessionsLoading, setNetconfSessionsLoading] = useState(false);
-  const [validateBeforeApply, setValidateBeforeApply] = useState(true); // Default enabled
+  const [connectingDeviceId, setConnectingDeviceId] = useState(null);
+  const [validateBeforeApply, setValidateBeforeApply] = useState(false); // Default disabled - some NX-OS devices don't support validate
+  const [expandedSession, setExpandedSession] = useState(null);
   
   // YANG Models search/filter
   const [yangSearchTerm, setYangSearchTerm] = useState('');
@@ -221,10 +224,34 @@ function Configurations() {
     }
   };
 
+  const handleConnectNetconf = async (device) => {
+    const deviceId = device.id || device._id;
+    const deviceName = device.name;
+    
+    setConnectingDeviceId(deviceId);
+    const toastId = toast.loading(`Connecting NETCONF to ${deviceName}...`);
+    
+    try {
+      const response = await axios.post(`/devices/${deviceId}/netconf/connect`);
+      
+      if (response.data.success) {
+        toast.success(`NETCONF connected to ${deviceName}! (${response.data.capabilities || 0} capabilities)`, { id: toastId });
+        fetchNetconfSessions();
+      } else {
+        toast.error(`NETCONF connection failed: ${response.data.message}`, { id: toastId });
+      }
+    } catch (error) {
+      console.error('NETCONF connect error:', error);
+      toast.error(`NETCONF connection failed: ${error.response?.data?.message || error.message}`, { id: toastId });
+    } finally {
+      setConnectingDeviceId(null);
+    }
+  };
+
   const handleYangModelSubmit = async (e) => {
     e.preventDefault();
-    if (!yangFormData.name || !yangFormData.namespace || !yangFormData.yang_content) {
-      toast.error('Please fill in required fields');
+    if (!yangFormData.name || !yangFormData.yang_content) {
+      toast.error('Please upload a YANG file first');
       return;
     }
     
@@ -319,17 +346,101 @@ function Configurations() {
   const handleYangFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target.result;
       const nameFromFile = file.name.replace('.yang', '');
+      
+      // Parse YANG file to extract metadata
+      const parsedData = parseYangFile(content, nameFromFile);
+      
       setYangFormData(prev => ({ 
         ...prev, 
-        yang_content: content,
-        name: prev.name || nameFromFile
+        ...parsedData,
+        yang_content: content
       }));
+      
+      toast.success(`YANG file "${file.name}" loaded! Metadata auto-extracted.`);
     };
     reader.readAsText(file);
+  };
+
+  // Parse YANG file content to extract metadata
+  const parseYangFile = (content, fileName) => {
+    const result = {
+      name: fileName,
+      namespace: '',
+      prefix: '',
+      description: '',
+      version: '1.0.0',
+      device_type: 'nexus',
+      category: 'other'
+    };
+    
+    try {
+      // Extract module/submodule name
+      const moduleMatch = content.match(/(?:module|submodule)\s+([^\s{]+)/);
+      if (moduleMatch) {
+        result.name = moduleMatch[1];
+      }
+      
+      // Extract namespace
+      const namespaceMatch = content.match(/namespace\s+"([^"]+)"/);
+      if (namespaceMatch) {
+        result.namespace = namespaceMatch[1];
+        
+        // Auto-detect device type from namespace
+        if (namespaceMatch[1].includes('cisco-nx-os')) {
+          result.device_type = 'nexus';
+        } else if (namespaceMatch[1].includes('Cisco-IOS-XE')) {
+          result.device_type = 'ios-xe';
+        } else if (namespaceMatch[1].includes('Cisco-IOS-XR')) {
+          result.device_type = 'ios-xr';
+        } else if (namespaceMatch[1].includes('cisco')) {
+          result.device_type = 'ios';
+        }
+      }
+      
+      // Extract prefix
+      const prefixMatch = content.match(/prefix\s+([^\s;{]+)/);
+      if (prefixMatch) {
+        result.prefix = prefixMatch[1].replace(/[";]/g, '');
+      }
+      
+      // Extract description (first description found, usually module description)
+      const descMatch = content.match(/description\s+"([^"]+)"/);
+      if (descMatch) {
+        result.description = descMatch[1].substring(0, 200); // Limit to 200 chars
+      }
+      
+      // Extract revision/version
+      const revisionMatch = content.match(/revision\s+(\d{4}-\d{2}-\d{2})/);
+      if (revisionMatch) {
+        result.version = revisionMatch[1];
+      }
+      
+      // Auto-detect category from content keywords
+      const lowerContent = content.toLowerCase();
+      if (lowerContent.includes('interface') || lowerContent.includes('ethernet')) {
+        result.category = 'interface';
+      } else if (lowerContent.includes('bgp') || lowerContent.includes('ospf') || lowerContent.includes('routing')) {
+        result.category = 'routing';
+      } else if (lowerContent.includes('vlan') || lowerContent.includes('spanning-tree') || lowerContent.includes('switching')) {
+        result.category = 'switching';
+      } else if (lowerContent.includes('acl') || lowerContent.includes('security') || lowerContent.includes('aaa')) {
+        result.category = 'security';
+      } else if (lowerContent.includes('qos') || lowerContent.includes('policy-map')) {
+        result.category = 'qos';
+      } else if (lowerContent.includes('system') || lowerContent.includes('hostname') || lowerContent.includes('ntp')) {
+        result.category = 'system';
+      }
+      
+    } catch (error) {
+      console.warn('Error parsing YANG file:', error);
+    }
+    
+    return result;
   };
 
   const getCategoryColor = (category) => {
@@ -574,8 +685,21 @@ function Configurations() {
         ? '/configurations/netconf/apply' 
         : '/configurations/apply';
 
+      // Debug: Log the configuration ID being sent
+      console.log('📤 Applying configuration:', {
+        id: generatedConfig.id,
+        _id: generatedConfig._id,
+        config_type: generatedConfig.config_type,
+        fullConfig: generatedConfig
+      });
+
+      const configId = generatedConfig.id || generatedConfig._id;
+      if (!configId) {
+        throw new Error('Configuration ID is missing');
+      }
+
       const response = await axios.post(endpoint, {
-        configuration_id: generatedConfig.id,
+        configuration_id: configId,
         validate_before_apply: isNetconf ? validateBeforeApply : false
       });
 
@@ -603,7 +727,16 @@ function Configurations() {
       toast.success(successMessage, { id: toastId, duration: 5000 });
     } catch (error) {
       console.error('Error applying configuration:', error);
-      toast.error('Error deploying configuration: ' + (error.response?.data?.message || error.message), { id: toastId });
+      console.error('🔴 Server response:', error.response?.data);
+      const serverMessage = error.response?.data?.message || error.response?.data?.error || error.message;
+      const currentStatus = error.response?.data?.current_status;
+      
+      let errorMsg = `Error deploying: ${serverMessage}`;
+      if (currentStatus) {
+        errorMsg += ` (Status: ${currentStatus})`;
+      }
+      
+      toast.error(errorMsg, { id: toastId });
     } finally {
       setIsApplying(false);
     }
@@ -1178,87 +1311,226 @@ function Configurations() {
 
       {/* Active NETCONF Sessions Tab - Only visible in NETCONF mode when sessions tab is selected */}
       {configMode === 'netconf' && netconfSubTab === 'sessions' && (
-        <div className="card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center">
-              <ActivityIcon className="h-6 w-6 text-green-600 dark:text-green-400 mr-2" />
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white">Active NETCONF Sessions</h2>
-              <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-                ({netconfSessions.length} active)
-              </span>
-            </div>
-            <button
-              onClick={fetchNetconfSessions}
-              disabled={netconfSessionsLoading}
-              className="btn btn-secondary btn-sm"
-            >
-              <RefreshCwIcon className={`h-4 w-4 mr-1 ${netconfSessionsLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
-          </div>
-          
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Monitor and manage active NETCONF connections to your NX-OS devices.
-          </p>
-
-          {netconfSessionsLoading ? (
-            <div className="text-center py-6">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600 mx-auto"></div>
-            </div>
-          ) : netconfSessions.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-              <WifiIcon className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
-              <p className="text-lg font-medium">No active NETCONF sessions</p>
-              <p className="text-sm mt-1">Sessions are created when you apply NETCONF configurations</p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Available Devices for NETCONF Connection */}
+          <div className="card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <ServerIcon className="h-6 w-6 text-blue-600 dark:text-blue-400 mr-2" />
+                <h2 className="text-lg font-medium text-gray-900 dark:text-white">Available Devices</h2>
+              </div>
               <button
-                onClick={() => setNetconfSubTab('generate')}
-                className="mt-4 btn btn-primary btn-sm"
+                onClick={fetchDevices}
+                disabled={devicesLoading}
+                className="btn btn-secondary btn-sm"
               >
-                <SendIcon className="h-4 w-4 mr-1" />
-                Go to Generate Config
+                <RefreshCwIcon className={`h-4 w-4 mr-1 ${devicesLoading ? 'animate-spin' : ''}`} />
+                Refresh
               </button>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {netconfSessions.map((session) => (
-                <div 
-                  key={session.deviceId} 
-                  className="flex items-center justify-between p-4 border border-green-200 dark:border-green-700 rounded-lg bg-green-50 dark:bg-green-900/30"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <WifiIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
-                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900 dark:text-white">
-                        {session.device_name || 'Unknown Device'}
-                      </div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {session.device_ip || session.deviceId} • Port 830
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right text-sm text-gray-500 dark:text-gray-400">
-                      <div>Connected: {session.connectedAt ? new Date(session.connectedAt).toLocaleTimeString() : 'N/A'}</div>
-                      {session.capabilities && (
-                        <div className="text-xs">{session.capabilities.length} capabilities</div>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => handleDisconnectNetconfSession(session.deviceId, session.device_name)}
-                      className="btn btn-danger btn-sm"
-                      title="Disconnect Session"
+            
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Connect to NETCONF-enabled devices (Nexus/IOS-XE). Port 830 must be accessible.
+            </p>
+
+            {devicesLoading ? (
+              <div className="text-center py-6">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+              </div>
+            ) : devices.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                <ServerIcon className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+                <p>No devices found</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {devices.map((device) => {
+                  const deviceId = device.id || device._id;
+                  const isConnected = netconfSessions.some(s => s.deviceId === deviceId);
+                  const isConnecting = connectingDeviceId === deviceId;
+                  const supportsNetconf = device.type === 'nexus' || device.netconf_enabled;
+                  
+                  return (
+                    <div 
+                      key={deviceId}
+                      className={`flex items-center justify-between p-3 border rounded-lg ${
+                        isConnected 
+                          ? 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-900/20' 
+                          : 'border-gray-200 dark:border-gray-700'
+                      }`}
                     >
-                      <XCircleIcon className="h-4 w-4 mr-1" />
-                      Disconnect
-                    </button>
-                  </div>
-                </div>
-              ))}
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${
+                          device.type === 'nexus' ? 'bg-purple-100 dark:bg-purple-900/50' :
+                          device.type === 'router' ? 'bg-blue-100 dark:bg-blue-900/50' :
+                          'bg-green-100 dark:bg-green-900/50'
+                        }`}>
+                          {device.type === 'nexus' ? (
+                            <NetworkIcon className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                          ) : device.type === 'router' ? (
+                            <RouterIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                          ) : (
+                            <ServerIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-white text-sm">
+                            {device.name}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {device.ip_address} • {device.type.toUpperCase()}
+                            {supportsNetconf && <span className="ml-1 text-purple-600">• NETCONF</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        {isConnected ? (
+                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded-full">
+                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1 animate-pulse"></span>
+                            Connected
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleConnectNetconf(device)}
+                            disabled={isConnecting || !supportsNetconf}
+                            className={`btn btn-sm ${supportsNetconf ? 'btn-primary' : 'btn-secondary opacity-50 cursor-not-allowed'}`}
+                            title={supportsNetconf ? 'Connect via NETCONF' : 'NETCONF not enabled for this device'}
+                          >
+                            {isConnecting ? (
+                              <>
+                                <RefreshCwIcon className="h-3 w-3 mr-1 animate-spin" />
+                                Connecting...
+                              </>
+                            ) : (
+                              <>
+                                <WifiIcon className="h-3 w-3 mr-1" />
+                                Connect
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Active NETCONF Sessions */}
+          <div className="card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <ActivityIcon className="h-6 w-6 text-green-600 dark:text-green-400 mr-2" />
+                <h2 className="text-lg font-medium text-gray-900 dark:text-white">Active Sessions</h2>
+                <span className="ml-2 px-2 py-0.5 text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded-full font-semibold">
+                  {netconfSessions.length}
+                </span>
+              </div>
+              <button
+                onClick={fetchNetconfSessions}
+                disabled={netconfSessionsLoading}
+                className="btn btn-secondary btn-sm"
+              >
+                <RefreshCwIcon className={`h-4 w-4 mr-1 ${netconfSessionsLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
             </div>
-          )}
+
+            {netconfSessionsLoading ? (
+              <div className="text-center py-6">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600 mx-auto"></div>
+              </div>
+            ) : netconfSessions.length === 0 ? (
+              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                <WifiIcon className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+                <p className="text-lg font-medium">No active sessions</p>
+                <p className="text-sm mt-1">Select a device and click Connect</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {netconfSessions.map((session) => (
+                  <div 
+                    key={session.deviceId} 
+                    className="border border-green-200 dark:border-green-700 rounded-lg bg-green-50 dark:bg-green-900/30 overflow-hidden"
+                  >
+                    <div 
+                      className="flex items-center justify-between p-4 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/50"
+                      onClick={() => setExpandedSession(expandedSession === session.deviceId ? null : session.deviceId)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <WifiIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
+                          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-white">
+                            {session.device_name || 'Unknown Device'}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {session.device_ip || session.deviceId} • Port 830
+                          </div>
+                          {session.capabilities > 0 && (
+                            <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                              <span>{session.capabilities} capabilities</span>
+                              {expandedSession === session.deviceId ? (
+                                <ChevronUpIcon className="h-3 w-3" />
+                              ) : (
+                                <ChevronDownIcon className="h-3 w-3" />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDisconnectNetconfSession(session.deviceId, session.device_name); }}
+                        className="btn btn-danger btn-sm"
+                        title="Disconnect Session"
+                      >
+                        <XCircleIcon className="h-4 w-4 mr-1" />
+                        Disconnect
+                      </button>
+                    </div>
+                    
+                    {/* Expanded Capabilities */}
+                    {expandedSession === session.deviceId && session.capabilityList?.length > 0 && (
+                      <div className="border-t border-green-200 dark:border-green-700 bg-white dark:bg-gray-800 p-4">
+                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Device Capabilities ({session.capabilityList.length})
+                        </h4>
+                        <div className="max-h-48 overflow-y-auto space-y-1">
+                          {session.capabilityList.map((cap, idx) => {
+                            // Extract module name from capability URL
+                            const moduleMatch = cap.match(/module=([^&]+)/);
+                            const revisionMatch = cap.match(/revision=([^&]+)/);
+                            const moduleName = moduleMatch ? moduleMatch[1] : null;
+                            const revision = revisionMatch ? revisionMatch[1] : null;
+                            
+                            return (
+                              <div 
+                                key={idx} 
+                                className="text-xs font-mono bg-gray-50 dark:bg-gray-700 rounded p-2 break-all"
+                              >
+                                {moduleName ? (
+                                  <div>
+                                    <span className="font-semibold text-purple-600 dark:text-purple-400">{moduleName}</span>
+                                    {revision && <span className="text-gray-500 ml-2">({revision})</span>}
+                                    <div className="text-gray-400 text-[10px] truncate">{cap}</div>
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-600 dark:text-gray-400">{cap}</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1399,17 +1671,61 @@ function Configurations() {
                   </div>
                   
                   {expandedYangModel === model.id && (
-                    <div className="border-t bg-gray-50 p-3 space-y-2">
+                    <div className="border-t bg-gray-50 p-3 space-y-3">
+                      {/* Metadata */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-gray-500">Device Type:</span>
+                          <span className="ml-1 font-medium text-gray-700">{model.device_type?.toUpperCase() || 'N/A'}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Version:</span>
+                          <span className="ml-1 font-medium text-gray-700">{model.version || 'N/A'}</span>
+                        </div>
+                        {model.prefix && (
+                          <div>
+                            <span className="text-gray-500">Prefix:</span>
+                            <span className="ml-1 font-mono font-medium text-purple-600">{model.prefix}</span>
+                          </div>
+                        )}
+                        {model.namespace && (
+                          <div className="col-span-2">
+                            <span className="text-gray-500">Namespace:</span>
+                            <div className="font-mono text-[10px] text-gray-600 bg-white rounded p-1 mt-0.5 break-all border">
+                              {model.namespace}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Description */}
                       {model.description && (
-                        <p className="text-xs text-gray-600">{model.description}</p>
+                        <div>
+                          <span className="text-xs text-gray-500">Description:</span>
+                          <p className="text-xs text-gray-600 mt-0.5">{model.description}</p>
+                        </div>
                       )}
+                      
+                      {/* XML Templates */}
                       {model.xml_templates?.length > 0 && (
                         <div>
-                          <p className="text-xs font-medium text-gray-700 mb-1">Templates:</p>
+                          <p className="text-xs font-medium text-gray-700 mb-1">XML Templates ({model.xml_templates.length}):</p>
                           {model.xml_templates.map((tmpl, idx) => (
                             <div key={idx} className="text-xs bg-white rounded p-2 border mb-1">
                               <span className="font-medium">{tmpl.name}</span>
                               {tmpl.description && <span className="text-gray-500"> - {tmpl.description}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Config Paths */}
+                      {model.config_paths?.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-gray-700 mb-1">Config Paths ({model.config_paths.length}):</p>
+                          {model.config_paths.map((path, idx) => (
+                            <div key={idx} className="text-xs bg-white rounded p-1.5 border mb-1 font-mono text-purple-600">
+                              {path.path}
                             </div>
                           ))}
                         </div>
@@ -1706,203 +2022,248 @@ function Configurations() {
                 <UploadIcon className="h-5 w-5 text-purple-600" />
                 Upload YANG Model
               </h2>
+              <p className="text-sm text-gray-500 mt-1">Upload a .yang file to auto-extract metadata</p>
             </div>
             
             <form onSubmit={handleYangModelSubmit} className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Model Name *</label>
-                  <input
-                    type="text"
-                    value={yangFormData.name}
-                    onChange={(e) => setYangFormData({ ...yangFormData, name: e.target.value })}
-                    className="input"
-                    placeholder="e.g., Cisco-NX-OS-device"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Prefix</label>
-                  <input
-                    type="text"
-                    value={yangFormData.prefix}
-                    onChange={(e) => setYangFormData({ ...yangFormData, prefix: e.target.value })}
-                    className="input"
-                    placeholder="e.g., nxos"
-                  />
-                </div>
+              {/* Primary Upload Section */}
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-dashed border-purple-200 rounded-lg p-6 text-center">
+                <label className="cursor-pointer block">
+                  <input type="file" accept=".yang" onChange={handleYangFileUpload} className="hidden" />
+                  <UploadIcon className="h-12 w-12 text-purple-500 mx-auto mb-3" />
+                  <span className="text-lg font-medium text-gray-700 block">
+                    {yangFormData.yang_content ? `✓ ${yangFormData.name}.yang loaded` : 'Click to upload .yang file'}
+                  </span>
+                  <span className="text-sm text-gray-500 mt-1 block">
+                    Metadata will be auto-extracted from the file
+                  </span>
+                </label>
               </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Namespace URI *</label>
-                <input
-                  type="url"
-                  value={yangFormData.namespace}
-                  onChange={(e) => setYangFormData({ ...yangFormData, namespace: e.target.value })}
-                  className="input font-mono text-sm"
-                  placeholder="http://cisco.com/ns/yang/cisco-nx-os-device"
-                  required
-                />
-              </div>
-              
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Device Type</label>
-                  <select
-                    value={yangFormData.device_type}
-                    onChange={(e) => setYangFormData({ ...yangFormData, device_type: e.target.value })}
-                    className="input"
-                  >
-                    <option value="nexus">Nexus (NX-OS)</option>
-                    <option value="ios">IOS</option>
-                    <option value="ios-xe">IOS-XE</option>
-                    <option value="ios-xr">IOS-XR</option>
-                    <option value="all">All Devices</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <select
-                    value={yangFormData.category}
-                    onChange={(e) => setYangFormData({ ...yangFormData, category: e.target.value })}
-                    className="input"
-                  >
-                    <option value="interface">Interface</option>
-                    <option value="routing">Routing</option>
-                    <option value="switching">Switching</option>
-                    <option value="security">Security</option>
-                    <option value="qos">QoS</option>
-                    <option value="system">System</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Version</label>
-                  <input
-                    type="text"
-                    value={yangFormData.version}
-                    onChange={(e) => setYangFormData({ ...yangFormData, version: e.target.value })}
-                    className="input"
-                    placeholder="1.0.0"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <input
-                  type="text"
-                  value={yangFormData.description}
-                  onChange={(e) => setYangFormData({ ...yangFormData, description: e.target.value })}
-                  className="input"
-                  placeholder="Brief description..."
-                />
-              </div>
-              
-              {/* YANG Content */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium text-gray-700">YANG Model Content *</label>
-                  <label className="btn btn-secondary btn-sm cursor-pointer">
-                    <UploadIcon className="h-3 w-3 mr-1" />
-                    Upload .yang
-                    <input type="file" accept=".yang" onChange={handleYangFileUpload} className="hidden" />
-                  </label>
-                </div>
-                <textarea
-                  value={yangFormData.yang_content}
-                  onChange={(e) => setYangFormData({ ...yangFormData, yang_content: e.target.value })}
-                  className="input font-mono text-xs"
-                  rows={6}
-                  placeholder="Paste YANG model content or upload a .yang file..."
-                  required
-                />
-              </div>
-              
-              {/* XML Templates */}
-              <div className="border rounded-lg p-3">
-                <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-1">
-                  <CodeIcon className="h-4 w-4" />
-                  XML Templates (Optional)
-                </h3>
-                
-                {yangFormData.xml_templates.length > 0 && (
-                  <div className="mb-3 space-y-1">
-                    {yangFormData.xml_templates.map((tmpl, idx) => (
-                      <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded p-2 text-xs">
-                        <span className="font-medium flex-1">{tmpl.name}</span>
-                        <button type="button" onClick={() => removeYangTemplate(idx)} className="text-red-500">
-                          <TrashIcon className="h-3 w-3" />
+
+              {/* Auto-extracted Info (shown after upload) */}
+              {yangFormData.yang_content && (
+                <>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-green-700 font-medium text-sm mb-2">
+                      <CheckCircleIcon className="h-4 w-4" />
+                      Metadata Extracted
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="text-gray-500">Name:</span>
+                        <span className="ml-2 font-mono text-gray-900">{yangFormData.name}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Prefix:</span>
+                        <span className="ml-2 font-mono text-gray-900">{yangFormData.prefix || '-'}</span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-gray-500">Namespace:</span>
+                        <span className="ml-2 font-mono text-xs text-gray-900 break-all">{yangFormData.namespace || '-'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Device Type:</span>
+                        <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">{yangFormData.device_type}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Category:</span>
+                        <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">{yangFormData.category}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Version:</span>
+                        <span className="ml-2 font-mono text-gray-900">{yangFormData.version}</span>
+                      </div>
+                      {yangFormData.description && (
+                        <div className="col-span-2">
+                          <span className="text-gray-500">Description:</span>
+                          <span className="ml-2 text-gray-900">{yangFormData.description}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Editable Fields (collapsed by default) */}
+                  <details className="border rounded-lg">
+                    <summary className="p-3 cursor-pointer text-sm font-medium text-gray-700 hover:bg-gray-50">
+                      ✏️ Edit Metadata (optional)
+                    </summary>
+                    <div className="p-3 pt-0 space-y-3 border-t">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Model Name</label>
+                          <input
+                            type="text"
+                            value={yangFormData.name}
+                            onChange={(e) => setYangFormData({ ...yangFormData, name: e.target.value })}
+                            className="input text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Prefix</label>
+                          <input
+                            type="text"
+                            value={yangFormData.prefix}
+                            onChange={(e) => setYangFormData({ ...yangFormData, prefix: e.target.value })}
+                            className="input text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Namespace URI</label>
+                        <input
+                          type="url"
+                          value={yangFormData.namespace}
+                          onChange={(e) => setYangFormData({ ...yangFormData, namespace: e.target.value })}
+                          className="input font-mono text-sm"
+                        />
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Device Type</label>
+                          <select
+                            value={yangFormData.device_type}
+                            onChange={(e) => setYangFormData({ ...yangFormData, device_type: e.target.value })}
+                            className="input text-sm"
+                          >
+                            <option value="nexus">Nexus (NX-OS)</option>
+                            <option value="ios">IOS</option>
+                            <option value="ios-xe">IOS-XE</option>
+                            <option value="ios-xr">IOS-XR</option>
+                            <option value="all">All Devices</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
+                          <select
+                            value={yangFormData.category}
+                            onChange={(e) => setYangFormData({ ...yangFormData, category: e.target.value })}
+                            className="input text-sm"
+                          >
+                            <option value="interface">Interface</option>
+                            <option value="routing">Routing</option>
+                            <option value="switching">Switching</option>
+                            <option value="security">Security</option>
+                            <option value="qos">QoS</option>
+                            <option value="system">System</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Version</label>
+                          <input
+                            type="text"
+                            value={yangFormData.version}
+                            onChange={(e) => setYangFormData({ ...yangFormData, version: e.target.value })}
+                            className="input text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                        <input
+                          type="text"
+                          value={yangFormData.description}
+                          onChange={(e) => setYangFormData({ ...yangFormData, description: e.target.value })}
+                          className="input text-sm"
+                        />
+                      </div>
+                    </div>
+                  </details>
+
+                  {/* View YANG Content (collapsed) */}
+                  <details className="border rounded-lg">
+                    <summary className="p-3 cursor-pointer text-sm font-medium text-gray-700 hover:bg-gray-50">
+                      📄 View YANG Content
+                    </summary>
+                    <div className="p-3 pt-0 border-t">
+                      <pre className="bg-gray-900 text-green-400 text-xs p-3 rounded-lg overflow-auto max-h-48 font-mono">
+                        {yangFormData.yang_content}
+                      </pre>
+                    </div>
+                  </details>
+                  
+                  {/* XML Templates (collapsed) */}
+                  <details className="border rounded-lg">
+                    <summary className="p-3 cursor-pointer text-sm font-medium text-gray-700 hover:bg-gray-50">
+                      📋 XML Templates (Optional - {yangFormData.xml_templates.length} added)
+                    </summary>
+                    <div className="p-3 pt-0 border-t space-y-2">
+                      {yangFormData.xml_templates.length > 0 && (
+                        <div className="space-y-1 mb-2">
+                          {yangFormData.xml_templates.map((tmpl, idx) => (
+                            <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded p-2 text-xs">
+                              <span className="font-medium flex-1">{tmpl.name}</span>
+                              <button type="button" onClick={() => removeYangTemplate(idx)} className="text-red-500">
+                                <TrashIcon className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={newTemplate.name}
+                          onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
+                          className="input text-sm"
+                          placeholder="Template name"
+                        />
+                        <input
+                          type="text"
+                          value={newTemplate.description}
+                          onChange={(e) => setNewTemplate({ ...newTemplate, description: e.target.value })}
+                          className="input text-sm"
+                          placeholder="Description"
+                        />
+                      </div>
+                      <textarea
+                        value={newTemplate.template}
+                        onChange={(e) => setNewTemplate({ ...newTemplate, template: e.target.value })}
+                        className="input font-mono text-xs"
+                        rows={3}
+                        placeholder="<System xmlns=...>..."
+                      />
+                      <button type="button" onClick={addYangTemplate} className="btn btn-secondary btn-sm">
+                        <PlusIcon className="h-3 w-3 mr-1" />
+                        Add Template
+                      </button>
+                    </div>
+                  </details>
+                  
+                  {/* Config Paths (collapsed) */}
+                  <details className="border rounded-lg">
+                    <summary className="p-3 cursor-pointer text-sm font-medium text-gray-700 hover:bg-gray-50">
+                      📁 Config Paths (Optional - {yangFormData.config_paths.length} added)
+                    </summary>
+                    <div className="p-3 pt-0 border-t space-y-2">
+                      {yangFormData.config_paths.length > 0 && (
+                        <div className="space-y-1 mb-2">
+                          {yangFormData.config_paths.map((path, idx) => (
+                            <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded p-2 text-xs">
+                              <code className="font-mono text-purple-600 flex-1">{path.path}</code>
+                              <button type="button" onClick={() => removeYangPath(idx)} className="text-red-500">
+                                <TrashIcon className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newPath.path}
+                          onChange={(e) => setNewPath({ ...newPath, path: e.target.value })}
+                          className="input text-sm font-mono flex-1"
+                          placeholder="/System/intf-items/..."
+                        />
+                        <button type="button" onClick={addYangPath} className="btn btn-secondary btn-sm">
+                          <PlusIcon className="h-3 w-3" />
                         </button>
                       </div>
-                    ))}
-                  </div>
-                )}
-                
-                <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      value={newTemplate.name}
-                      onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
-                      className="input text-sm"
-                      placeholder="Template name"
-                    />
-                    <input
-                      type="text"
-                      value={newTemplate.description}
-                      onChange={(e) => setNewTemplate({ ...newTemplate, description: e.target.value })}
-                      className="input text-sm"
-                      placeholder="Description (optional)"
-                    />
-                  </div>
-                  <textarea
-                    value={newTemplate.template}
-                    onChange={(e) => setNewTemplate({ ...newTemplate, template: e.target.value })}
-                    className="input font-mono text-xs"
-                    rows={3}
-                    placeholder="<System xmlns=...>..."
-                  />
-                  <button type="button" onClick={addYangTemplate} className="btn btn-secondary btn-sm">
-                    <PlusIcon className="h-3 w-3 mr-1" />
-                    Add Template
-                  </button>
-                </div>
-              </div>
-              
-              {/* Config Paths */}
-              <div className="border rounded-lg p-3">
-                <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-1">
-                  <FolderIcon className="h-4 w-4" />
-                  Config Paths (Optional)
-                </h3>
-                
-                {yangFormData.config_paths.length > 0 && (
-                  <div className="mb-3 space-y-1">
-                    {yangFormData.config_paths.map((path, idx) => (
-                      <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded p-2 text-xs">
-                        <code className="font-mono text-purple-600 flex-1">{path.path}</code>
-                        <button type="button" onClick={() => removeYangPath(idx)} className="text-red-500">
-                          <TrashIcon className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newPath.path}
-                    onChange={(e) => setNewPath({ ...newPath, path: e.target.value })}
-                    className="input text-sm font-mono flex-1"
-                    placeholder="/System/intf-items/..."
-                  />
-                  <button type="button" onClick={addYangPath} className="btn btn-secondary btn-sm">
-                    <PlusIcon className="h-3 w-3" />
-                  </button>
-                </div>
-              </div>
+                    </div>
+                  </details>
+                </>
+              )}
               
               {/* Actions */}
               <div className="flex justify-end gap-2 pt-2 border-t">
@@ -1913,7 +2274,11 @@ function Configurations() {
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary btn-md">
+                <button 
+                  type="submit" 
+                  className="btn btn-primary btn-md"
+                  disabled={!yangFormData.yang_content}
+                >
                   <UploadIcon className="h-4 w-4 mr-1" />
                   Upload Model
                 </button>

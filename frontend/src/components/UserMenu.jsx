@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext';
 import { 
   UserCircleIcon, 
   ArrowRightOnRectangleIcon,
-  Cog6ToothIcon,
   ChevronDownIcon
 } from '@heroicons/react/24/outline';
 
@@ -104,22 +103,8 @@ function UserMenu({ collapsed = false }) {
             )}
           </div>
 
-          {/* Menu Items */}
-          <div className="py-1">
-            <button
-              onClick={() => {
-                setIsOpen(false);
-                // Navigate to settings or open settings modal
-              }}
-              className="flex items-center gap-3 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <Cog6ToothIcon className="w-5 h-5" />
-              Settings
-            </button>
-          </div>
-
           {/* Logout */}
-          <div className="border-t border-gray-200 dark:border-gray-700 py-1">
+          <div className="py-1">
             <button
               onClick={handleLogout}
               className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"

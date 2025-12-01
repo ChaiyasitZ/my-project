@@ -37,6 +37,7 @@ function Devices() {
     netconf_enabled: false,
     username: '',
     password: '',
+    enable_password: '',
     description: '',
     location: '',
     model: '',
@@ -291,7 +292,10 @@ function Devices() {
       fetchDevices();
     } catch (error) {
       console.error('❌ Error saving device:', error.response?.data?.message || error.message);
-      toast.error('Error saving device: ' + (error.response?.data?.message || error.message));
+      console.error('📋 Validation details:', error.response?.data?.details);
+      console.error('📋 Validation message:', error.response?.data?.validationMessage);
+      const errorMsg = error.response?.data?.validationMessage || error.response?.data?.message || error.message;
+      toast.error('Error saving device: ' + errorMsg);
     }
   };
 
@@ -307,6 +311,7 @@ function Devices() {
       netconf_enabled: device.netconf_enabled || false,
       username: device.username,
       password: '', // Don't populate password for security
+      enable_password: '', // Don't populate enable password for security
       description: device.description || '',
       location: device.location || '',
       model: device.model || '',
@@ -377,10 +382,13 @@ function Devices() {
       const response = await axios.post(`/devices/${deviceId}/netconf/test`);
       
       if (response.data && response.data.success) {
-        const capabilities = response.data.connectionTest?.capabilities || [];
-        console.log('✅ NETCONF Connection successful for', device.name);
+        const capData = response.data.connectionTest?.capabilities;
+        const capCount = typeof capData === 'number' ? capData : (Array.isArray(capData) ? capData.length : 0);
+        const supportsNxos = response.data.connectionTest?.supportsNxos;
+        
+        console.log('✅ NETCONF Connection successful for', device.name, '- Capabilities:', capCount);
         toast.success(
-          `NETCONF connection to ${device.name} successful! ${capabilities.length} capabilities found.`, 
+          `NETCONF connection to ${device.name} successful! ${capCount} capabilities found.${supportsNxos ? ' (NX-OS)' : ''}`, 
           { id: toastId }
         );
       } else {
@@ -409,6 +417,7 @@ function Devices() {
       netconf_enabled: false,
       username: '',
       password: '',
+      enable_password: '',
       description: '',
       location: '',
       model: '',
@@ -960,7 +969,7 @@ function Devices() {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Password {!editingDevice && '*'} {editingDevice && <span className="text-xs text-gray-500 dark:text-gray-400">(leave blank to keep current password)</span>}
+                      Password {!editingDevice && '*'}
                     </label>
                     <input
                       type="password"
@@ -968,8 +977,11 @@ function Devices() {
                       className="input mt-1"
                       value={formData.password}
                       onChange={(e) => setFormData({...formData, password: e.target.value})}
-                      placeholder={editingDevice ? "Leave blank to keep current password" : "Enter password"}
+                      placeholder={editingDevice ? "Keep current" : ""}
                     />
+                    {editingDevice && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Leave blank to keep current</p>
+                    )}
                   </div>
                 </div>
                 

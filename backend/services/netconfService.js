@@ -205,8 +205,9 @@ ${rpcContent}
     return new Promise((resolve, reject) => {
       let response = '';
       const timeout = setTimeout(() => {
-        reject(new Error('NETCONF RPC timeout'));
-      }, 60000);
+        console.error(`❌ NETCONF: RPC timeout after 120 seconds`);
+        reject(new Error('NETCONF RPC timeout - device not responding. Check: 1) feature netconf enabled, 2) port 830 accessible, 3) no session limits'));
+      }, 120000); // Increased to 120 seconds
       
       const dataHandler = (data) => {
         response += data.toString();
@@ -599,7 +600,8 @@ ${configXml}
         deviceIp: session.deviceIp,
         createdAt: session.createdAt,
         lastUsed: session.lastUsed,
-        capabilities: session.capabilities?.length || 0
+        capabilities: session.capabilities?.length || 0,
+        capabilityList: session.capabilities || []
       });
     }
     

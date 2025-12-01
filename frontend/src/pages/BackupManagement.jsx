@@ -532,14 +532,14 @@ function BackupManagement() {
 
       {/* Backups Section */}
       {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div className="stat-card">
           <div className="flex items-center">
             <div className="stat-icon-blue">
               <Archive className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Backups</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Backups</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
             </div>
           </div>
@@ -551,7 +551,7 @@ function BackupManagement() {
               <ClockIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Manual</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Manual</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.manual}</p>
             </div>
           </div>
@@ -563,7 +563,7 @@ function BackupManagement() {
               <RefreshCwIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Scheduled</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Scheduled</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.scheduled}</p>
             </div>
           </div>
@@ -575,7 +575,7 @@ function BackupManagement() {
               <ShieldIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Restore Points</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Restore Pts</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.restorePoints}</p>
             </div>
           </div>
@@ -587,7 +587,7 @@ function BackupManagement() {
               <ServerIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Devices</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Devices</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{(devices || []).length}</p>
             </div>
           </div>
@@ -599,7 +599,7 @@ function BackupManagement() {
               <FileTextIcon className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Size</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Total Size</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatFileSize(stats.totalSize)}</p>
             </div>
           </div>

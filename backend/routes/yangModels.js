@@ -10,33 +10,34 @@ router.use(authenticateToken);
 
 // Validation schemas
 const yangModelSchema = Joi.object({
-  name: Joi.string().required().min(3).max(100),
-  namespace: Joi.string().required().uri(),
-  prefix: Joi.string().max(50),
-  version: Joi.string().max(20),
-  device_type: Joi.string().valid('nexus', 'ios', 'ios-xe', 'ios-xr', 'all'),
-  category: Joi.string().valid('interface', 'routing', 'switching', 'security', 'qos', 'system', 'other'),
-  description: Joi.string().max(500),
-  yang_content: Joi.string().required().min(50),
+  name: Joi.string().required().min(1).max(100),
+  namespace: Joi.string().allow('', null).max(500),
+  prefix: Joi.string().allow('', null).max(50),
+  version: Joi.string().allow('', null).max(50),
+  device_type: Joi.string().valid('nexus', 'ios', 'ios-xe', 'ios-xr', 'all').default('nexus'),
+  category: Joi.string().valid('interface', 'routing', 'switching', 'security', 'qos', 'system', 'other').default('other'),
+  description: Joi.string().allow('', null).max(1000),
+  yang_content: Joi.string().required().min(1),
   xml_templates: Joi.array().items(Joi.object({
     name: Joi.string().required(),
-    description: Joi.string(),
+    description: Joi.string().allow('', null),
     template: Joi.string().required()
-  })),
+  })).default([]),
   config_paths: Joi.array().items(Joi.object({
     path: Joi.string().required(),
-    description: Joi.string(),
-    data_type: Joi.string(),
+    description: Joi.string().allow('', null),
+    data_type: Joi.string().allow('', null),
     required: Joi.boolean()
-  }))
-});
+  })).default([])
+}).options({ stripUnknown: true });
 
-// GET /api/yang-models - List all YANG models
+// GET /api/yang-models - List all YANG models for current user
 router.get('/', async (req, res) => {
   try {
     const { device_type, category, active_only = 'true' } = req.query;
+    const userId = req.user.id;
     
-    let query = {};
+    let query = { userId };
     
     if (device_type) {
       query.device_type = { $in: [device_type, 'all'] };
@@ -72,7 +73,8 @@ router.get('/', async (req, res) => {
 // GET /api/yang-models/:id - Get single YANG model with full content
 router.get('/:id', async (req, res) => {
   try {
-    const yangModel = await YangModel.findById(req.params.id);
+    const userId = req.user.id;
+    const yangModel = await YangModel.findOne({ _id: req.params.id, userId });
     
     if (!yangModel) {
       return res.status(404).json({
@@ -99,38 +101,46 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     console.log('📥 YANG model upload request received');
+    console.log('📦 Request body keys:', Object.keys(req.body));
+    const userId = req.user.id;
     
     const { error, value } = yangModelSchema.validate(req.body);
     
     if (error) {
+      console.error('❌ Validation error:', error.details.map(d => d.message).join(', '));
       return res.status(400).json({
         success: false,
-        message: 'Validation error',
+        message: 'Validation error: ' + error.details.map(d => d.message).join(', '),
         details: error.details
       });
     }
     
-    // Check if namespace already exists
-    const existingModel = await YangModel.findOne({ namespace: value.namespace });
+    // Check if model name already exists for this user
+    const existingModel = await YangModel.findOne({ userId, name: value.name });
     if (existingModel) {
       return res.status(409).json({
         success: false,
-        message: 'YANG model with this namespace already exists',
+        message: 'YANG model with this name already exists',
         existing_id: existingModel._id
       });
     }
     
-    // Parse YANG content to extract additional info
+    // Parse YANG content to extract additional info (fill in missing fields)
     const parsedInfo = parseYangContent(value.yang_content);
     
     const yangModel = new YangModel({
       ...value,
-      ...parsedInfo
+      // Only use parsed info if not provided
+      namespace: value.namespace || parsedInfo.namespace || '',
+      prefix: value.prefix || parsedInfo.prefix || '',
+      version: value.version || parsedInfo.version || '1.0.0',
+      userId,
+      uploaded_by: req.user.name || req.user.email || 'user'
     });
     
     await yangModel.save();
     
-    console.log(`✅ YANG model saved: ${yangModel.name} (${yangModel.namespace})`);
+    console.log(`✅ YANG model saved: ${yangModel.name} (user: ${userId})`);
     
     res.status(201).json({
       success: true,
@@ -153,7 +163,8 @@ router.post('/', async (req, res) => {
 // PUT /api/yang-models/:id - Update YANG model
 router.put('/:id', async (req, res) => {
   try {
-    const yangModel = await YangModel.findById(req.params.id);
+    const userId = req.user.id;
+    const yangModel = await YangModel.findOne({ _id: req.params.id, userId });
     
     if (!yangModel) {
       return res.status(404).json({
@@ -162,7 +173,7 @@ router.put('/:id', async (req, res) => {
       });
     }
     
-    const { error, value } = yangModelSchema.validate(req.body);
+    const { error, value } = yangModelSchema.validate(req.body, { stripUnknown: true });
     
     if (error) {
       return res.status(400).json({
@@ -197,7 +208,8 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/yang-models/:id - Delete YANG model
 router.delete('/:id', async (req, res) => {
   try {
-    const yangModel = await YangModel.findByIdAndDelete(req.params.id);
+    const userId = req.user.id;
+    const yangModel = await YangModel.findOneAndDelete({ _id: req.params.id, userId });
     
     if (!yangModel) {
       return res.status(404).json({
@@ -224,6 +236,7 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/templates', async (req, res) => {
   try {
     const { name, description, template } = req.body;
+    const userId = req.user.id;
     
     if (!name || !template) {
       return res.status(400).json({
@@ -232,7 +245,7 @@ router.post('/:id/templates', async (req, res) => {
       });
     }
     
-    const yangModel = await YangModel.findById(req.params.id);
+    const yangModel = await YangModel.findOne({ _id: req.params.id, userId });
     
     if (!yangModel) {
       return res.status(404).json({
@@ -264,8 +277,10 @@ router.get('/for-generation/:deviceType', async (req, res) => {
   try {
     const { deviceType } = req.params;
     const { category } = req.query;
+    const userId = req.user.id;
     
     let query = {
+      userId,
       is_active: true,
       device_type: { $in: [deviceType, 'all'] }
     };
@@ -307,7 +322,8 @@ router.get('/for-generation/:deviceType', async (req, res) => {
 // POST /api/yang-models/toggle/:id - Toggle active status
 router.post('/toggle/:id', async (req, res) => {
   try {
-    const yangModel = await YangModel.findById(req.params.id);
+    const userId = req.user.id;
+    const yangModel = await YangModel.findOne({ _id: req.params.id, userId });
     
     if (!yangModel) {
       return res.status(404).json({

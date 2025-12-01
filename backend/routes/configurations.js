@@ -1460,6 +1460,8 @@ router.post('/netconf/apply', async (req, res) => {
   try {
     const { configuration_id, validate_before_apply = true } = req.body;
     
+    console.log('📥 NETCONF Apply request:', { configuration_id, validate_before_apply });
+    
     if (!configuration_id) {
       return res.status(400).json({
         success: false,
@@ -1474,7 +1476,23 @@ router.post('/netconf/apply', async (req, res) => {
       status: 'generated'
     });
     
+    console.log('📋 Configuration lookup result:', configuration ? `Found (status: ${configuration.status})` : 'Not found');
+    
     if (!configuration) {
+      // Check if it exists but with different status
+      const anyConfig = await ConfigurationHistory.findOne({
+        _id: configuration_id,
+        userId: req.userId
+      });
+      
+      if (anyConfig) {
+        return res.status(400).json({
+          success: false,
+          message: `Configuration already ${anyConfig.status}. Generate a new configuration to apply.`,
+          current_status: anyConfig.status
+        });
+      }
+      
       return res.status(404).json({
         success: false,
         message: 'Configuration not found or already applied'

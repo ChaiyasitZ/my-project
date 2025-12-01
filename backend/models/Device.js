@@ -10,7 +10,7 @@ const deviceSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
-    unique: true,
+    // unique: true - Removed, using compound index with userId instead
     maxlength: 255
   },
   type: {
@@ -40,7 +40,7 @@ const deviceSchema = new mongoose.Schema({
   ip_address: {
     type: String,
     required: true,
-    unique: true,
+    // unique: true - Removed, using compound index with userId instead
     validate: {
       validator: function(v) {
         return /^(\d{1,3}\.){3}\d{1,3}$/.test(v);
@@ -120,6 +120,8 @@ const deviceSchema = new mongoose.Schema({
 deviceSchema.index({ status: 1 });
 deviceSchema.index({ type: 1 });
 deviceSchema.index({ vendor: 1 });
-// Note: ip_address index created by unique: true above
+// Compound unique indexes - unique per user, not globally
+deviceSchema.index({ userId: 1, ip_address: 1 }, { unique: true });
+deviceSchema.index({ userId: 1, name: 1 }, { unique: true });
 
 export default mongoose.model('Device', deviceSchema); 

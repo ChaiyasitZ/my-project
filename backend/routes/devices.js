@@ -15,42 +15,36 @@ router.use(authenticateToken);
 const deviceSchema = Joi.object({
   name: Joi.string().required().max(255),
   type: Joi.string().valid('router', 'switch', 'nexus').required(),
-  layer: Joi.string().valid('layer-2', 'layer-3').when('type', {
-    is: 'switch',
-    then: Joi.string().default('layer-2').required(),
-    otherwise: Joi.forbidden()
-  }),
+  layer: Joi.string().valid('layer-2', 'layer-3').optional().allow('', null), // Optional for all types, only used for switches
   ip_address: Joi.string().ip().required(),
   ssh_port: Joi.number().integer().min(1).max(65535).default(22),
   netconf_port: Joi.number().integer().min(1).max(65535).default(830),
   netconf_enabled: Joi.boolean().default(false),
   username: Joi.string().required().max(255),
   password: Joi.string().required().max(255),
+  enable_password: Joi.string().allow('').max(255).optional(), // Allow but ignore
   description: Joi.string().allow('').max(1000),
   location: Joi.string().allow('').max(255),
   model: Joi.string().allow('').max(255),
   status: Joi.string().valid('active', 'inactive', 'maintenance', 'error').default('active')
-});
+}).options({ stripUnknown: true });
 
 const deviceUpdateSchema = Joi.object({
   name: Joi.string().max(255),
   type: Joi.string().valid('router', 'switch', 'nexus'),
-  layer: Joi.string().valid('layer-2', 'layer-3').when('type', {
-    is: 'switch',
-    then: Joi.string(),
-    otherwise: Joi.forbidden()
-  }),
+  layer: Joi.string().valid('layer-2', 'layer-3').optional().allow('', null), // Optional for all types
   ip_address: Joi.string().ip(),
   ssh_port: Joi.number().integer().min(1).max(65535),
   netconf_port: Joi.number().integer().min(1).max(65535),
   netconf_enabled: Joi.boolean(),
   username: Joi.string().max(255),
   password: Joi.string().max(255).allow(''), // Allow empty string for updates (keep existing password)
+  enable_password: Joi.string().allow('').max(255).optional(), // Allow but ignore
   description: Joi.string().allow('').max(1000),
   location: Joi.string().allow('').max(255),
   model: Joi.string().allow('').max(255),
   status: Joi.string().valid('active', 'inactive', 'maintenance', 'error')
-});
+}).options({ stripUnknown: true });
 
 // GET /api/devices - Get all devices
 router.get('/', async (req, res) => {
@@ -184,13 +178,17 @@ router.get('/:id', async (req, res) => {
 // POST /api/devices - Create new device
 router.post('/', async (req, res) => {
   try {
+    console.log('📥 Create device request body:', JSON.stringify(req.body, null, 2));
+    
     const { error, value } = deviceSchema.validate(req.body);
     
     if (error) {
+      console.error('❌ Device validation error:', error.details);
       return res.status(400).json({
         success: false,
         message: 'Validation error',
-        details: error.details
+        details: error.details,
+        validationMessage: error.details.map(d => d.message).join(', ')
       });
     }
     
@@ -828,6 +826,64 @@ router.get('/netconf/sessions', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to get NETCONF sessions'
+    });
+  }
+});
+
+// POST /api/devices/:id/netconf/connect - Connect to device via NETCONF
+router.post('/:id/netconf/connect', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const device = await Device.findOne({ _id: id, userId: req.userId });
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    console.log(`🌐 Connecting NETCONF to ${device.name} (${device.ip_address})`);
+    
+    // Check if already connected
+    const existingSession = netconfService.getSessionStatus(id);
+    if (existingSession?.isConnected) {
+      return res.json({
+        success: true,
+        message: `Already connected to ${device.name}`,
+        capabilities: existingSession.capabilities || 0,
+        alreadyConnected: true
+      });
+    }
+    
+    // Connect via NETCONF
+    const result = await netconfService.connect(device);
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        message: `NETCONF connected to ${device.name}`,
+        capabilities: result.capabilities?.length || 0,
+        deviceId: id
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: result.message || 'NETCONF connection failed'
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error connecting NETCONF:', error);
+    res.status(500).json({
+      success: false,
+      message: `NETCONF connection failed: ${error.message}`,
+      troubleshooting: [
+        'Ensure NETCONF is enabled on device (feature netconf)',
+        'Check port 830 is accessible',
+        'Verify credentials are correct',
+        'Check NX-OS/IOS-XE version supports NETCONF'
+      ]
     });
   }
 });

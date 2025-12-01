@@ -2383,28 +2383,46 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
       
       console.log(`📝 NETCONF System message length: ${systemMessage.length} characters`);
       console.log(`🎯 Using model: ${this.model}`);
+      console.log(`📤 User message: ${userMessage.substring(0, 200)}...`);
       
       // Call OpenRouter API
       let response;
       let retryCount = 0;
       const maxRetries = 2;
       
+      const requestPayload = {
+        model: this.model,
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: 0.1,
+        max_tokens: 4000, // Increased for complex NETCONF XML
+        top_p: 0.9
+        // No stop sequences for NETCONF - let it complete the XML fully
+      };
+      
+      console.log(`📨 Sending NETCONF request to OpenRouter...`);
+      
       while (retryCount <= maxRetries) {
         try {
-          response = await this.client.post('/chat/completions', {
-            model: this.model,
-            messages: [
-              { role: 'system', content: systemMessage },
-              { role: 'user', content: userMessage }
-            ],
-            temperature: 0.1,
-            max_tokens: 2000,
-            top_p: 0.85,
-            stop: ['```', 'Here are', 'Here is', 'Sure', 'Note:', '---']
-          });
+          response = await this.client.post('/chat/completions', requestPayload);
+          console.log(`📥 Received response. Status: ${response.status}`);
+          console.log(`📊 Response data keys: ${Object.keys(response.data || {}).join(', ')}`);
+          console.log(`📊 Choices count: ${response.data?.choices?.length || 0}`);
+          if (response.data?.choices?.[0]) {
+            console.log(`📊 First choice keys: ${Object.keys(response.data.choices[0]).join(', ')}`);
+            console.log(`📊 Message keys: ${Object.keys(response.data.choices[0].message || {}).join(', ')}`);
+            console.log(`📊 Content length: ${response.data.choices[0].message?.content?.length || 0}`);
+            console.log(`📊 Finish reason: ${response.data.choices[0].finish_reason}`);
+          }
           break;
         } catch (apiError) {
           retryCount++;
+          console.error(`❌ API Error: ${apiError.message}`);
+          if (apiError.response) {
+            console.error(`❌ API Error Response: ${JSON.stringify(apiError.response.data)}`);
+          }
           if (retryCount > maxRetries) throw this._handleApiError(apiError);
           console.log(`⚠️ Retry ${retryCount}/${maxRetries}: ${apiError.message}`);
           await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
@@ -2414,6 +2432,7 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
       const rawConfig = response.data?.choices?.[0]?.message?.content?.trim();
       
       if (!rawConfig) {
+        console.error('❌ Empty response from API. Full response:', JSON.stringify(response.data, null, 2));
         throw new Error(`Empty response from ${this.model}`);
       }
       

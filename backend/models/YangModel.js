@@ -9,8 +9,8 @@ const yangModelSchema = new mongoose.Schema({
   },
   namespace: {
     type: String,
-    required: true,
-    trim: true
+    trim: true,
+    default: ''
   },
   prefix: {
     type: String,
@@ -57,6 +57,13 @@ const yangModelSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  // User who uploaded this model
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true
+  },
   // Metadata
   uploaded_by: {
     type: String,
@@ -72,10 +79,10 @@ const yangModelSchema = new mongoose.Schema({
   }
 });
 
-// Compound indexes
-yangModelSchema.index({ device_type: 1, category: 1 });
-yangModelSchema.index({ namespace: 1 }, { unique: true });
-yangModelSchema.index({ name: 1, device_type: 1 });
+// Compound indexes - unique per user
+yangModelSchema.index({ userId: 1, name: 1 }, { unique: true });
+yangModelSchema.index({ userId: 1, device_type: 1, category: 1 });
+yangModelSchema.index({ userId: 1, namespace: 1 }, { sparse: true });
 
 // Update timestamp on save
 yangModelSchema.pre('save', function(next) {

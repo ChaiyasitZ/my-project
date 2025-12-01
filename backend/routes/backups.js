@@ -1381,9 +1381,13 @@ router.post('/schedules', async (req, res) => {
 // GET /api/backups/schedules - Get all backup schedules
 router.get('/schedules', async (req, res) => {
   try {
+    // Import ObjectId for aggregation match
+    const mongoose = await import('mongoose');
+    const ObjectId = mongoose.default.Types.ObjectId;
+    
     // Use aggregation for efficient device lookup, filtered by userId
     const schedules = await BackupSchedule.aggregate([
-      { $match: { userId: req.userId } },
+      { $match: { userId: new ObjectId(req.userId) } },
       { $sort: { createdAt: -1 } },
       {
         $lookup: {
