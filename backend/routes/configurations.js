@@ -1437,7 +1437,7 @@ router.post('/netconf/generate', async (req, res) => {
       prompt,
       generated_config: aiResult.configuration,
       deployment_config: aiResult.deploymentConfig,
-      ai_model: aiResult.model || 'openrouter',
+      ai_model: 'qwen2.5-coder:7b', // Display name (same as CLI)
       execution_time: executionTime,
       status: 'generated',
       created_at: currentTimestamp,

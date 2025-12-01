@@ -617,8 +617,8 @@ function Configurations() {
       };
 
       // Add selected YANG models for NETCONF mode
-      if (configMode === 'netconf' && selectedYangModels.length > 0) {
-        requestData.yang_model_ids = selectedYangModels;
+      if (configMode === 'netconf' && selectedYangModelsForGen.length > 0) {
+        requestData.yang_model_ids = selectedYangModelsForGen;
       }
 
       // Choose endpoint based on config mode
@@ -868,7 +868,7 @@ function Configurations() {
           {/* Config Mode Toggle */}
           <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-xl p-1">
             <button
-              onClick={() => { setConfigMode('cli'); setSelectedYangModels([]); }}
+              onClick={() => { setConfigMode('cli'); setSelectedYangModelsForGen([]); }}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                 configMode === 'cli' 
                   ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm ring-1 ring-blue-100 dark:ring-blue-800' 
@@ -879,7 +879,7 @@ function Configurations() {
               CLI
             </button>
             <button
-              onClick={() => { setConfigMode('netconf'); setSelectedYangModels([]); }}
+              onClick={() => { setConfigMode('netconf'); setSelectedYangModelsForGen([]); }}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                 configMode === 'netconf' 
                   ? 'bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm ring-1 ring-purple-100 dark:ring-purple-800' 
@@ -1022,7 +1022,7 @@ function Configurations() {
                           }`}
                           onClick={() => {
                             setSelectedDevice(device.id);
-                            setSelectedYangModels([]); // Clear YANG selections when device changes
+                            setSelectedYangModelsForGen([]); // Clear YANG selections when device changes
                             setShowDeviceDropdown(false);
                           }}
                         >
@@ -1268,11 +1268,6 @@ function Configurations() {
                     <span>
                       {generatedConfig.device_name} ({generatedConfig.device_type})
                     </span>
-                    {generatedConfig.config_type === 'netconf-yang' && (
-                      <span className="ml-2 px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">
-                        NETCONF
-                      </span>
-                    )}
                   </div>
                   <span className={`badge ${
                     generatedConfig.status === 'applied' ? 'badge-success' : 
@@ -1286,9 +1281,6 @@ function Configurations() {
                 <div className="mt-2 flex items-center flex-wrap text-xs text-gray-500 dark:text-gray-400">
                   <BotIcon className="h-3 w-3 mr-1" />
                   <span>Generated with: <span className="font-mono font-medium">{generatedConfig.ai_model}</span></span>
-                  {generatedConfig.config_type === 'netconf-yang' && (
-                    <span className="ml-2 text-purple-600 dark:text-purple-400 font-medium">• NETCONF/YANG XML</span>
-                  )}
                 {generatedConfig.execution_time && (
                   <span className="ml-3 text-green-600 dark:text-green-400 font-medium">• Generation: {(generatedConfig.execution_time / 1000).toFixed(2)}s</span>
                 )}
@@ -1999,12 +1991,12 @@ function Configurations() {
               {operationType !== 'custom' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    XML Filter (optional)
+                    XML Filter <span className="text-amber-600 font-normal">(recommended to avoid timeout)</span>
                   </label>
                   <textarea
                     value={operationFilter}
                     onChange={(e) => setOperationFilter(e.target.value)}
-                    placeholder={`Example filter:\n<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">\n  <intf-items/>\n</System>`}
+                    placeholder={`Use a filter to avoid timeout. Use Quick Filters below or enter your own.`}
                     className="input font-mono text-sm"
                     rows="5"
                   />
@@ -2092,30 +2084,53 @@ function Configurations() {
               </button>
             </div>
 
-            {/* Quick Filters */}
+            {/* Quick Filters - Dynamic based on selected device type */}
             <div className="mt-6">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Quick Filters (NX-OS):</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {[
+              {(() => {
+                const selectedDeviceData = devices.find(d => d.id === operationDevice);
+                const isIosXe = selectedDeviceData?.type === 'router' || selectedDeviceData?.type === 'ios-xe';
+                
+                const nxosFilters = [
                   { name: 'Interfaces', filter: '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><intf-items/></System>' },
                   { name: 'VLANs', filter: '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><bd-items/></System>' },
                   { name: 'Routing', filter: '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><ipv4-items/></System>' },
                   { name: 'System Info', filter: '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><name/><serial/></System>' },
                   { name: 'OSPF', filter: '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><ospf-items/></System>' },
                   { name: 'BGP', filter: '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><bgp-items/></System>' },
-                ].map((item) => (
-                  <button
-                    key={item.name}
-                    onClick={() => {
-                      setOperationFilter(item.filter);
-                      setOperationType('get');
-                    }}
-                    className="text-left text-sm p-2 rounded-lg bg-gray-50 hover:bg-blue-50 hover:text-blue-700 transition-colors"
-                  >
-                    • {item.name}
-                  </button>
-                ))}
-              </div>
+                ];
+                
+                const iosXeFilters = [
+                  { name: 'Interfaces', filter: '<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces"/>' },
+                  { name: 'Native Config', filter: '<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native"/>' },
+                  { name: 'Routing', filter: '<routing xmlns="urn:ietf:params:xml:ns:yang:ietf-routing"/>' },
+                  { name: 'OSPF', filter: '<ospf xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-ospf"/>' },
+                  { name: 'BGP', filter: '<bgp xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-bgp"/>' },
+                  { name: 'Platform', filter: '<device-hardware-data xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-device-hardware-oper"/>' },
+                ];
+                
+                const filters = isIosXe ? iosXeFilters : nxosFilters;
+                const platformLabel = isIosXe ? 'IOS-XE' : 'NX-OS';
+                
+                return (
+                  <>
+                    <h3 className="text-sm font-medium text-gray-700 mb-3">Quick Filters ({platformLabel}):</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {filters.map((item) => (
+                        <button
+                          key={item.name}
+                          onClick={() => {
+                            setOperationFilter(item.filter);
+                            setOperationType('get');
+                          }}
+                          className="text-left text-sm p-2 rounded-lg bg-gray-50 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                        >
+                          • {item.name}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
 

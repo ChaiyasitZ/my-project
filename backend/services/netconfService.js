@@ -204,17 +204,30 @@ ${rpcContent}
     
     return new Promise((resolve, reject) => {
       let response = '';
+      let lastDataTime = Date.now();
+      let dataSize = 0;
+      
       const timeout = setTimeout(() => {
-        console.error(`❌ NETCONF: RPC timeout after 120 seconds`);
-        reject(new Error('NETCONF RPC timeout - device not responding. Check: 1) feature netconf enabled, 2) port 830 accessible, 3) no session limits'));
-      }, 120000); // Increased to 120 seconds
+        console.error(`❌ NETCONF: RPC timeout after 180 seconds (received ${dataSize} bytes)`);
+        reject(new Error('NETCONF RPC timeout - device not responding or response too large. Try using a more specific filter.'));
+      }, 180000); // Increased to 180 seconds for large responses
       
       const dataHandler = (data) => {
-        response += data.toString();
+        const chunk = data.toString();
+        response += chunk;
+        dataSize += chunk.length;
+        lastDataTime = Date.now();
+        
+        // Log progress for large responses
+        if (dataSize > 100000 && dataSize % 100000 < chunk.length) {
+          console.log(`📦 NETCONF: Receiving data... ${Math.round(dataSize / 1024)}KB`);
+        }
         
         if (response.includes(this.MESSAGE_DELIMITER)) {
           clearTimeout(timeout);
           session.stream.removeListener('data', dataHandler);
+          
+          console.log(`📦 NETCONF: Total response size: ${Math.round(dataSize / 1024)}KB`);
           
           // Parse response
           const cleanResponse = response.replace(this.MESSAGE_DELIMITER, '').trim();
