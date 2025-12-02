@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { 
   ServerIcon, 
@@ -41,15 +41,32 @@ function Dashboard() {
   const [devices, setDevices] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // AbortController ref for request cancellation
+  const abortControllerRef = useRef(null);
 
   useEffect(() => {
     fetchDashboardData();
+    
+    // Cleanup: Cancel pending requests on unmount
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
+    // Cancel any previous pending request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+    
     try {
       // First check server health
-      const healthResponse = await axios.get('/health').catch(() => null);
+      const healthResponse = await axios.get('/health', { signal }).catch(() => null);
       
       if (!healthResponse?.data?.success) {
         // Backend is down or database error
@@ -65,12 +82,12 @@ function Dashboard() {
         schedulesResponse,
         analyticsResponse
       ] = await Promise.all([
-        axios.get('/devices'),
-        axios.get('/devices/stats/summary').catch(() => ({ data: { stats: {} } })),
-        axios.get('/configurations/history?limit=5'),
-        axios.get('/backups?limit=100').catch(() => ({ data: { backups: [], pagination: { total: 0 } } })),
-        axios.get('/backups/schedules').catch(() => ({ data: { schedules: [] } })),
-        axios.get('/configurations/analytics?days=7').catch(() => ({ data: { analytics: {} } }))
+        axios.get('/devices', { signal }),
+        axios.get('/devices/stats/summary', { signal }).catch(() => ({ data: { stats: {} } })),
+        axios.get('/configurations/history?limit=5', { signal }),
+        axios.get('/backups?limit=100', { signal }).catch(() => ({ data: { backups: [], pagination: { total: 0 } } })),
+        axios.get('/backups/schedules', { signal }).catch(() => ({ data: { schedules: [] } })),
+        axios.get('/configurations/analytics?days=7', { signal }).catch(() => ({ data: { analytics: {} } }))
       ]);
 
       const devicesData = devicesResponse.data.devices || [];
@@ -125,11 +142,15 @@ function Dashboard() {
       });
 
     } catch (error) {
+      // Ignore cancelled request errors
+      if (axios.isCancel(error) || error?.name === 'CanceledError') {
+        return;
+      }
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const getStatusBadge = (status) => {
     const styles = {
@@ -316,21 +337,26 @@ function Dashboard() {
                       <DeviceIcon 
                         deviceType={device.type} 
                         layer={device.layer}
-                        className={`h-8 w-8 mb-2 ${
+                        className={`h-7 w-7 mb-1.5 ${
                           device.status === 'active' ? 'text-green-600' :
                           device.status === 'inactive' ? 'text-red-600' :
                           device.status === 'maintenance' ? 'text-amber-600' :
                           'text-gray-600'
                         }`}
                       />
-                      <p className="text-xs font-semibold text-gray-900 dark:text-white truncate w-full" title={device.name}>
+                      <p className="text-[11px] font-semibold text-gray-900 dark:text-white truncate w-full" title={device.name}>
                         {device.name}
                       </p>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate w-full mt-0.5">
+                      {device.model && (
+                        <p className="text-[10px] text-gray-600 dark:text-gray-300 truncate w-full" title={device.model}>
+                          {device.model}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate w-full mt-0.5">
                         {device.ip_address}
                       </p>
                     </div>
-                    <div className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ring-2 ${
+                    <div className={`absolute top-2 right-2 w-2 h-2 rounded-full ring-2 ${
                       device.status === 'active' ? 'bg-green-500 ring-green-500/30' :
                       device.status === 'inactive' ? 'bg-red-500 ring-red-500/30' :
                       device.status === 'maintenance' ? 'bg-amber-500 ring-amber-500/30' :

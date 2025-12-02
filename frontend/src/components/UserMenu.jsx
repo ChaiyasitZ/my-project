@@ -88,7 +88,7 @@ function UserMenu({ collapsed = false }) {
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className={`absolute ${collapsed ? 'left-full ml-2' : 'left-0 right-0'} bottom-full mb-2 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 min-w-[260px]`}>
+        <div className={`absolute ${collapsed ? 'left-full ml-2' : 'left-0 right-0'} bottom-full mb-2 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden z-50 min-w-max`}>
           {/* User Info Header */}
           <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-750">
             <div className="flex items-center gap-3">
@@ -100,15 +100,15 @@ function UserMenu({ collapsed = false }) {
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-semibold shadow-md">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-lg font-semibold shadow-md flex-shrink-0">
                   {getInitials(user.name)}
                 </div>
               )}
-              <div className="min-w-0 flex-1">
-                <p className="text-base font-semibold text-gray-900 dark:text-white truncate">
+              <div>
+                <p className="text-base font-semibold text-gray-900 dark:text-white">
                   {user.name}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   {user.email}
                 </p>
                 {user.role === 'admin' && (

@@ -23,24 +23,53 @@ import {
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useConfirmation } from '../hooks/useConfirmation';
 
-function BackupManagement() {
-  // Helper function to safely parse JSON tags
-  const parseTagsSafely = (tags) => {
-    if (!tags) return [];
-    if (Array.isArray(tags)) return tags;
-    if (typeof tags === 'string') {
-      if (tags.trim() === '') return [];
-      try {
-        return JSON.parse(tags);
-      } catch (error) {
-        console.warn('Failed to parse tags:', tags, error);
-        return [];
-      }
+// Helper function to safely parse JSON tags (moved outside component to prevent recreation)
+const parseTagsSafely = (tags) => {
+  if (!tags) return [];
+  if (Array.isArray(tags)) return tags;
+  if (typeof tags === 'string') {
+    if (tags.trim() === '') return [];
+    try {
+      return JSON.parse(tags);
+    } catch (error) {
+      console.warn('Failed to parse tags:', tags, error);
+      return [];
     }
-    return [];
-  };
-  // Removed excessive console logging to reduce re-render noise
+  }
+  return [];
+};
+
+// Helper to format file size (moved outside component)
+const formatFileSize = (bytes) => {
+  if (!bytes || bytes === 0) return '0 B';
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${Math.round(bytes / Math.pow(1024, i) * 100) / 100} ${sizes[i]}`;
+};
+
+// Helper to format date (moved outside component)
+const formatDate = (dateValue) => {
+  if (!dateValue || dateValue === undefined || dateValue === null) {
+    return 'No date available';
+  }
   
+  try {
+    // Handle both timestamps (numbers) and date strings
+    const date = typeof dateValue === 'number' 
+      ? new Date(dateValue)
+      : new Date(dateValue);
+    
+    if (isNaN(date.getTime())) {
+      return 'Invalid date';
+    }
+    
+    return date.toLocaleString();
+  } catch {
+    return 'Date error';
+  }
+};
+
+function BackupManagement() {
   const [backups, setBackups] = useState([]);
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -305,34 +334,6 @@ function BackupManagement() {
     } catch (error) {
       console.error('❌ Error setting restore point:', error);
       toast.error('Failed to set restore point: ' + (error.response?.data?.message || error.message));
-    }
-  };
-
-  const formatFileSize = (bytes) => {
-    if (!bytes || bytes === 0) return '0 B';
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return `${Math.round(bytes / Math.pow(1024, i) * 100) / 100} ${sizes[i]}`;
-  };
-
-  const formatDate = (dateValue) => {
-    if (!dateValue || dateValue === undefined || dateValue === null) {
-      return 'No date available';
-    }
-    
-    try {
-      // Handle both timestamps (numbers) and date strings
-      const date = typeof dateValue === 'number' 
-        ? new Date(dateValue)
-        : new Date(dateValue);
-      
-      if (isNaN(date.getTime())) {
-        return 'Invalid date';
-      }
-      
-      return date.toLocaleString();
-    } catch {
-      return 'Date error';
     }
   };
 

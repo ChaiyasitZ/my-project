@@ -56,48 +56,45 @@ router.get('/', async (req, res) => {
     if (status) filter.status = status;
     if (type) filter.type = type;
     
-    // Get devices with pagination
-    const devices = await Device.find(filter)
-      .sort({ created_at: -1 })
-      .limit(parseInt(limit))
-      .skip(parseInt(offset))
-      .lean();
-    
     // Get total count for pagination
     const total = await Device.countDocuments(filter);
     
-    // Enhance devices with configuration stats
-    const enhancedDevices = await Promise.all(
-      devices.map(async (device) => {
-        const configStats = await ConfigurationHistory.aggregate([
-          { $match: { device_id: device._id } },
-          {
-            $group: {
-              _id: null,
-              total_configs: { $sum: 1 },
-              applied_configs: {
-                $sum: { $cond: [{ $eq: ['$status', 'applied'] }, 1, 0] }
-              },
-              last_config_date: { $max: '$created_at' }
+    // Use aggregation with $lookup to get config stats in a single query (fixes N+1)
+    const enhancedDevices = await Device.aggregate([
+      { $match: filter },
+      { $sort: { created_at: -1 } },
+      { $skip: parseInt(offset) },
+      { $limit: parseInt(limit) },
+      {
+        $lookup: {
+          from: 'configurationhistories',
+          localField: '_id',
+          foreignField: 'device_id',
+          as: 'config_history'
+        }
+      },
+      {
+        $addFields: {
+          id: '$_id',
+          total_configs: { $size: '$config_history' },
+          applied_configs: {
+            $size: {
+              $filter: {
+                input: '$config_history',
+                as: 'config',
+                cond: { $eq: ['$$config.status', 'applied'] }
+              }
             }
-          }
-        ]);
-        
-        const stats = configStats[0] || {
-          total_configs: 0,
-          applied_configs: 0,
-          last_config_date: null
-        };
-        
-        return {
-          ...device,
-          id: device._id, // Add id for compatibility
-          total_configs: stats.total_configs,
-          applied_configs: stats.applied_configs,
-          last_config_date: stats.last_config_date
-        };
-      })
-    );
+          },
+          last_config_date: { $max: '$config_history.created_at' }
+        }
+      },
+      {
+        $project: {
+          config_history: 0 // Remove the large array from response
+        }
+      }
+    ]);
     
     res.json({
       success: true,

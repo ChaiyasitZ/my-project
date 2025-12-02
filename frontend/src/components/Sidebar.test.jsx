@@ -38,29 +38,28 @@ describe('Sidebar', () => {
     it('should show connected status for backend and database', () => {
       renderWithRouter(<Sidebar connectionStatus={createConnectionStatus('connected', 'connected')} />);
       
-      expect(screen.getByText('Backend')).toBeInTheDocument();
-      expect(screen.getByText('Database')).toBeInTheDocument();
-      expect(screen.getAllByText('Connected').length).toBe(2);
+      // Simplified sidebar now shows Online/Offline status only in mobile header
+      expect(screen.getByText('Online')).toBeInTheDocument();
     });
 
     it('should show disconnected status when backend error', () => {
       renderWithRouter(<Sidebar connectionStatus={createConnectionStatus('error', 'error')} />);
       
-      expect(screen.getAllByText('Disconnected').length).toBe(2);
+      expect(screen.getByText('Offline')).toBeInTheDocument();
     });
 
     it('should show checking status by default', () => {
       renderWithRouter(<Sidebar connectionStatus={createConnectionStatus('checking', 'checking')} />);
       
-      // 2 in footer (backend + database) + 1 in mobile header = 3
-      expect(screen.getAllByText('Checking...').length).toBeGreaterThanOrEqual(2);
+      // Shows Checking... in mobile header
+      expect(screen.getByText('Checking...')).toBeInTheDocument();
     });
 
     it('should default to checking when no status provided', () => {
       renderWithRouter(<Sidebar />);
       
-      // 2 in footer (backend + database) + 1 in mobile header = 3
-      expect(screen.getAllByText('Checking...').length).toBeGreaterThanOrEqual(2);
+      // Shows Checking... in mobile header when no status provided
+      expect(screen.getByText('Checking...')).toBeInTheDocument();
     });
   });
 

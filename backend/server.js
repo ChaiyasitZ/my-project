@@ -7,6 +7,7 @@ import session from 'express-session';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { config } from './config/config.js';
+import { mongooseOptions } from './lib/mongodb.js';
 
 // Import routes
 import devicesRouter from './routes/devices.js';
@@ -257,7 +258,7 @@ process.on('SIGINT', async () => {
 // Initialize MongoDB connection
 async function connectToMongoDB() {
   try {
-    await mongoose.connect(config.database.mongodb_uri);
+    await mongoose.connect(config.database.mongodb_uri, mongooseOptions);
     console.log('🍃 Connected to MongoDB Atlas');
   } catch (error) {
     console.error('❌ Failed to connect to MongoDB:', error);

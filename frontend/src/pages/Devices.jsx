@@ -47,17 +47,17 @@ function Devices() {
   useEffect(() => {
     fetchDevices();
     
-    // Poll for SSH status updates every 10 seconds
+    // Poll for SSH status updates every 30 seconds (increased from 10s for performance)
     const pollInterval = setInterval(() => {
       if (devices.length > 0) {
-        fetchSshSessionStatuses(devices);
+        fetchSshSessionStatuses();
         // Silently refresh device list to get latest ssh_status
         axios.get('/devices').then(response => {
           const devicesData = response.data.devices || [];
           setDevices(devicesData);
         }).catch(err => console.error('Error polling devices:', err));
       }
-    }, 10000);
+    }, 30000);
     
     return () => clearInterval(pollInterval);
   }, []);
@@ -122,8 +122,8 @@ function Devices() {
       const devicesData = response.data.devices || [];
       setDevices(devicesData);
       
-      // Fetch SSH session status for each device
-      await fetchSshSessionStatuses(devicesData);
+      // Fetch SSH session status using batch endpoint
+      await fetchSshSessionStatuses();
     } catch (error) {
       console.error('Error fetching devices:', error);
       toast.error('Failed to fetch devices');
@@ -132,35 +132,26 @@ function Devices() {
     }
   }, []);
 
-  const fetchSshSessionStatuses = async (deviceList) => {
+  // Use batch endpoint instead of N+1 individual calls
+  const fetchSshSessionStatuses = useCallback(async () => {
     try {
-      const sessionPromises = deviceList.map(async (device) => {
-        try {
-          const response = await axios.get(`/devices/${device.id}/ssh/status`);
-          return {
-            deviceId: device.id,
-            session: response.data.ssh_session
-          };
-        } catch (error) {
-          return {
-            deviceId: device.id,
-            session: { is_connected: false }
-          };
-        }
-      });
-      
-      const sessionResults = await Promise.all(sessionPromises);
-      const newSessions = new Map();
-      
-      sessionResults.forEach(result => {
-        newSessions.set(result.deviceId, result.session);
-      });
-      
-      setSshSessions(newSessions);
+      const response = await axios.get('/devices/ssh/status-all');
+      if (response.data.success) {
+        const newSessions = new Map();
+        response.data.devices.forEach(device => {
+          newSessions.set(device.device_id, {
+            is_connected: device.is_connected,
+            session_id: device.session_id,
+            connected_at: device.connected_at,
+            ssh_status: device.ssh_status
+          });
+        });
+        setSshSessions(newSessions);
+      }
     } catch (error) {
       console.error('Error fetching SSH session statuses:', error);
     }
-  };
+  }, []);
 
   const handleSshConnect = async (device) => {
     const deviceId = device.id || device._id;
