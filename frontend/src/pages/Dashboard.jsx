@@ -388,7 +388,7 @@ function Dashboard() {
       <div className="card">
         <div className="card-header flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Configurations</h3>
-          <a href="/history" className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
+          <a href="/configuration-history" className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
             View All →
           </a>
         </div>

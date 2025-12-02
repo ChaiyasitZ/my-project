@@ -190,87 +190,9 @@ function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking
             })}
           </nav>
 
-          {/* Theme Toggle and Status */}
-          <div className={`p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 ${isCollapsed ? 'flex flex-col items-center space-y-3' : ''}`}>
-            {/* User Menu */}
-            <div className={`${isCollapsed ? '' : 'mb-3 pb-3 border-b border-gray-200 dark:border-gray-700'}`}>
-              <UserMenu collapsed={isCollapsed} />
-            </div>
-            
-            {/* Theme Toggle */}
-            {isCollapsed ? (
-              <button
-                onClick={toggleTheme}
-                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-              >
-                {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-              </button>
-            ) : (
-              <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</span>
-                <button
-                  onClick={toggleTheme}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-                >
-                  {isDark ? (
-                    <>
-                      <Sun className="h-4 w-4 text-yellow-500" />
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Light</span>
-                    </>
-                  ) : (
-                    <>
-                      <Moon className="h-4 w-4 text-gray-600" />
-                      <span className="text-xs font-medium text-gray-700">Dark</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-            
-            {/* Status Indicators */}
-            {isCollapsed ? (
-              <>
-                <div 
-                  className={`h-3 w-3 rounded-full ring-4 ${backendStatus.color} ${backendStatus.ringColor} ${connectionStatus.backend === 'checking' ? 'status-pulse' : ''}`}
-                  title={`Backend: ${connectionStatus.backend}`}
-                ></div>
-                <div 
-                  className={`h-3 w-3 rounded-full ring-4 ${databaseStatus.color} ${databaseStatus.ringColor} ${connectionStatus.database === 'checking' ? 'status-pulse' : ''}`}
-                  title={`Database: ${connectionStatus.database}`}
-                ></div>
-              </>
-            ) : (
-              <div className="space-y-3">
-                {/* Backend Status */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className={`h-2.5 w-2.5 rounded-full ring-4 ${backendStatus.color} ${backendStatus.ringColor} ${connectionStatus.backend === 'checking' ? 'status-pulse' : ''}`}></div>
-                    <div className="flex items-center space-x-2">
-                      <ServerIcon className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Backend</span>
-                    </div>
-                  </div>
-                  <span className={`text-xs font-medium ${backendStatus.textColor}`}>
-                    {connectionStatus.backend === 'connected' ? 'Connected' : connectionStatus.backend === 'error' ? 'Disconnected' : 'Checking...'}
-                  </span>
-                </div>
-
-                {/* Database Status */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className={`h-2.5 w-2.5 rounded-full ring-4 ${databaseStatus.color} ${databaseStatus.ringColor} ${connectionStatus.database === 'checking' ? 'status-pulse' : ''}`}></div>
-                    <div className="flex items-center space-x-2">
-                      <Database className="h-4 w-4 text-gray-400 dark:text-gray-500" />
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Database</span>
-                    </div>
-                  </div>
-                  <span className={`text-xs font-medium ${databaseStatus.textColor}`}>
-                    {connectionStatus.database === 'connected' ? 'Connected' : connectionStatus.database === 'error' ? 'Disconnected' : 'Checking...'}
-                  </span>
-                </div>
-              </div>
-            )}
+          {/* User Menu */}
+          <div className={`p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
+            <UserMenu collapsed={isCollapsed} />
           </div>
         </div>
       </div>

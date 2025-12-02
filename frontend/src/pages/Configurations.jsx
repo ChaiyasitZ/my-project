@@ -1653,13 +1653,23 @@ function Configurations() {
                 ({activeYangModelsCount} active)
               </span>
             </div>
-            <button
-              onClick={() => setShowYangUploadModal(true)}
-              className="btn btn-primary btn-sm"
-            >
-              <UploadIcon className="h-4 w-4 mr-1" />
-              Upload Model
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchYangModels}
+                disabled={yangModelsLoading}
+                className="btn btn-secondary btn-sm"
+              >
+                <RefreshCwIcon className={`h-4 w-4 mr-1 ${yangModelsLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+              <button
+                onClick={() => setShowYangUploadModal(true)}
+                className="btn btn-primary btn-sm"
+              >
+                <UploadIcon className="h-4 w-4 mr-1" />
+                Upload Model
+              </button>
+            </div>
           </div>
 
           <p className="text-sm text-gray-600 mb-4">
