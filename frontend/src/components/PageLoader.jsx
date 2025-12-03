@@ -1,5 +1,3 @@
-import { Loader2Icon } from 'lucide-react';
-
 function PageLoader({ message = 'Loading...' }) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4 animate-fadeIn">
