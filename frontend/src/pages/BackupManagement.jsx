@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { 
@@ -850,187 +851,171 @@ function BackupManagement() {
       )}
 
       {/* Create Backup Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto overlay-scrollbar">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowCreateModal(false)}></div>
-
-            <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Create New Backup</h3>
-                  <button
-                    onClick={() => setShowCreateModal(false)}
-                    className="rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      {showCreateModal && createPortal(
+        <div className="modal-overlay fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full mx-4 max-h-screen overflow-y-auto modal-scrollbar animate-fade-in">
+            <form onSubmit={handleCreateBackup}>
+              <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Create New Backup
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Create a configuration backup for a network device
+                </p>
+              </div>
+              
+              <div className="px-6 py-4 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Device *</label>
+                  <select
+                    required
+                    className="input mt-1"
+                    value={backupForm.device_id}
+                    onChange={(e) => setBackupForm({ ...backupForm, device_id: e.target.value })}
                   >
-                    <XCircleIcon className="h-6 w-6" />
-                  </button>
+                    <option value="">Select a device...</option>
+                    {(devices || []).map((device) => (
+                      <option key={device.id} value={device.id}>
+                        {device.name} ({device.type}) - {device.ip_address}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <form onSubmit={handleCreateBackup} className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Device *
-                        </label>
-                        <select
-                          value={backupForm.device_id}
-                          onChange={(e) => setBackupForm({ ...backupForm, device_id: e.target.value })}
-                          className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          required
-                        >
-                          <option value="">Select a device...</option>
-                          {(devices || []).map((device) => (
-                            <option key={device.id} value={device.id}>
-                              {device.name} ({device.type}) - {device.ip_address}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Backup Name *</label>
+                  <input
+                    type="text"
+                    required
+                    className="input mt-1"
+                    placeholder="e.g., Pre-maintenance backup"
+                    value={backupForm.backup_name}
+                    onChange={(e) => setBackupForm({ ...backupForm, backup_name: e.target.value })}
+                  />
+                </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Backup Name *
-                        </label>
-                        <input
-                          type="text"
-                          value={backupForm.backup_name}
-                          onChange={(e) => setBackupForm({ ...backupForm, backup_name: e.target.value })}
-                          placeholder="e.g., Pre-maintenance backup"
-                          className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          required
-                        />
-                      </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+                  <textarea
+                    className="input mt-1"
+                    rows="2"
+                    placeholder="Optional description for this backup..."
+                    value={backupForm.description}
+                    onChange={(e) => setBackupForm({ ...backupForm, description: e.target.value })}
+                  />
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Description
-                    </label>
-                    <textarea
-                      value={backupForm.description}
-                      onChange={(e) => setBackupForm({ ...backupForm, description: e.target.value })}
-                      placeholder="Optional description for this backup..."
-                      className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      rows="3"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                                      <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Backup Type
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Backup Type</label>
                     <select
+                      className="input mt-1"
                       value={backupForm.backup_type}
                       onChange={(e) => setBackupForm({ ...backupForm, backup_type: e.target.value })}
-                      className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="manual">Manual</option>
                       <option value="scheduled">Scheduled</option>
                     </select>
                   </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Configuration Type
-                      </label>
-                      <select
-                        value={backupForm.config_type}
-                        onChange={(e) => setBackupForm({ ...backupForm, config_type: e.target.value })}
-                        className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="running-config">Running Config Only</option>
-                        <option value="startup-config">Startup Config Only</option>
-                        <option value="both">Both Running & Startup</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Combined Info Box */}
-                  <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                    <div className="text-sm text-blue-800 dark:text-blue-300 grid grid-cols-2 gap-4">
-                      <div>
-                        <div className="font-medium mb-2">Backup Types:</div>
-                        <div className="space-y-1 text-xs">
-                          <p><Archive className="h-3 w-3 inline mr-1" /><strong>Manual:</strong> On-demand backup created by user</p>
-                          <p><ClockIcon className="h-3 w-3 inline mr-1" /><strong>Scheduled:</strong> Automatic backup by system</p>
-                        </div>
-                      </div>
-                      <div>
-                        <div className="font-medium mb-2">Configuration Types:</div>
-                        <div className="space-y-1 text-xs">
-                          <p><strong>Running:</strong> Current active configuration</p>
-                          <p><strong>Startup:</strong> Saved configuration (loads on boot)</p>
-                          <p><strong>Both:</strong> Backup both configurations</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Tags
-                    </label>
-                    <div className="space-y-2">
-                      {backupForm.tags.map((tag, index) => (
-                        <div key={index} className="flex space-x-2">
-                          <input
-                            type="text"
-                            value={tag}
-                            onChange={(e) => updateTag(index, e.target.value)}
-                            placeholder="Enter tag"
-                            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeTag(index)}
-                            className="btn btn-outline-danger btn-sm"
-                          >
-                            <XCircleIcon className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => addTag()}
-                        className="btn btn-secondary btn-sm"
-                      >
-                        <TagIcon className="h-4 w-4 mr-2" />
-                        Add Tag
-                      </button>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Configuration Type</label>
+                    <select
+                      className="input mt-1"
+                      value={backupForm.config_type}
+                      onChange={(e) => setBackupForm({ ...backupForm, config_type: e.target.value })}
+                    >
+                      <option value="running-config">Running Config Only</option>
+                      <option value="startup-config">Startup Config Only</option>
+                      <option value="both">Both Running & Startup</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Info Box */}
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-700">
+                  <div className="text-sm text-blue-800 dark:text-blue-300 grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="font-medium mb-2">Backup Types:</div>
+                      <div className="space-y-1 text-xs">
+                        <p><Archive className="h-3 w-3 inline mr-1" /><strong>Manual:</strong> On-demand backup</p>
+                        <p><ClockIcon className="h-3 w-3 inline mr-1" /><strong>Scheduled:</strong> Automatic backup</p>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="font-medium mb-2">Config Types:</div>
+                      <div className="space-y-1 text-xs">
+                        <p><strong>Running:</strong> Current active config</p>
+                        <p><strong>Startup:</strong> Saved config (boot)</p>
+                        <p><strong>Both:</strong> Backup both configs</p>
+                      </div>
                     </div>
                   </div>
+                </div>
 
-                  <div className="px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse mt-6">
-                    <button
-                      type="submit"
-                      disabled={creating || !backupForm.device_id || !backupForm.backup_name}
-                      className="btn btn-primary btn-md w-full sm:w-auto"
-                    >
-                      {creating ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Creating...
-                        </>
-                      ) : (
-                        <>
-                          <Archive className="h-4 w-4 mr-2" />
-                          Create Backup
-                        </>
-                      )}
-                    </button>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tags</label>
+                  <div className="mt-1 space-y-2">
+                    {backupForm.tags.map((tag, index) => (
+                      <div key={index} className="flex space-x-2">
+                        <input
+                          type="text"
+                          value={tag}
+                          onChange={(e) => updateTag(index, e.target.value)}
+                          placeholder="Enter tag"
+                          className="input flex-1"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeTag(index)}
+                          className="btn btn-outline-danger btn-sm"
+                        >
+                          <XCircleIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
                     <button
                       type="button"
-                      onClick={() => setShowCreateModal(false)}
-                      className="btn btn-secondary btn-md w-full sm:w-auto mt-3 sm:mt-0 sm:ml-3"
+                      onClick={() => addTag()}
+                      className="btn btn-secondary btn-sm"
                     >
-                      Cancel
+                      <TagIcon className="h-4 w-4 mr-2" />
+                      Add Tag
                     </button>
                   </div>
-                </form>
+                </div>
               </div>
-            </div>
+              
+              <div className="px-6 py-5 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700 flex justify-end space-x-3 rounded-b-2xl">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="btn btn-secondary btn-md"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating || !backupForm.device_id || !backupForm.backup_name}
+                  className="btn btn-primary btn-md"
+                >
+                  {creating ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Archive className="h-4 w-4 mr-2" />
+                      Create Backup
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Preview Modal */}

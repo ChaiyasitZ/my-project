@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { 
@@ -2454,19 +2455,9 @@ function Configurations() {
       )}
 
       {/* Custom YANG Model Modal */}
-      {showCustomYangModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
-            <div className="p-4 border-b dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <PlusIcon className="h-5 w-5 text-amber-600" />
-                Create Custom YANG Model
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Create a simplified custom model to guide LLM configuration generation
-              </p>
-            </div>
-            
+      {showCustomYangModal && createPortal(
+        <div className="modal-overlay fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-screen overflow-y-auto modal-scrollbar animate-fade-in">
             <form onSubmit={async (e) => {
               e.preventDefault();
               const toastId = toast.loading('Creating custom YANG model...');
@@ -2504,7 +2495,18 @@ function Configurations() {
               } catch (error) {
                 toast.error(error.response?.data?.message || 'Failed to create custom model', { id: toastId });
               }
-            }} className="p-4 space-y-4">
+            }}>
+              <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <PlusIcon className="h-5 w-5 text-amber-600" />
+                  Create Custom YANG Model
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Create a simplified custom model to guide LLM configuration generation
+                </p>
+              </div>
+              
+              <div className="px-6 py-4 space-y-4">
               {/* Basic Info */}
               <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
                 <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-3 flex items-center gap-2">
@@ -2638,9 +2640,9 @@ function Configurations() {
                   </button>
                 </div>
               </div>
+              </div>
               
-              {/* Actions */}
-              <div className="flex justify-end gap-2 pt-2 border-t dark:border-gray-700">
+              <div className="px-6 py-5 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700 flex justify-end space-x-3 rounded-b-2xl">
                 <button
                   type="button"
                   onClick={() => { setShowCustomYangModal(false); resetYangForm(); }}
@@ -2659,7 +2661,8 @@ function Configurations() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* YANG Model Detail Modal */}
