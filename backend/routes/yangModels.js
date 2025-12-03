@@ -18,6 +18,7 @@ const yangModelSchema = Joi.object({
   category: Joi.string().valid('interface', 'routing', 'switching', 'security', 'qos', 'system', 'other').default('other'),
   description: Joi.string().allow('', null).max(1000),
   yang_content: Joi.string().required().min(1),
+  is_custom: Joi.boolean().default(false),
   xml_templates: Joi.array().items(Joi.object({
     name: Joi.string().required(),
     description: Joi.string().allow('', null),

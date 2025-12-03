@@ -63,6 +63,7 @@ function Configurations() {
   const [yangModels, setYangModels] = useState([]);
   const [yangModelsLoading, setYangModelsLoading] = useState(false);
   const [showYangUploadModal, setShowYangUploadModal] = useState(false);
+  const [showCustomYangModal, setShowCustomYangModal] = useState(false);
   const [showYangDetailModal, setShowYangDetailModal] = useState(false);
   const [selectedYangModel, setSelectedYangModel] = useState(null);
   const [expandedYangModel, setExpandedYangModel] = useState(null);
@@ -1639,17 +1640,24 @@ function Configurations() {
                 Refresh
               </button>
               <button
+                onClick={() => setShowCustomYangModal(true)}
+                className="btn btn-secondary btn-sm"
+              >
+                <PlusIcon className="h-4 w-4 mr-1" />
+                Create Custom
+              </button>
+              <button
                 onClick={() => setShowYangUploadModal(true)}
                 className="btn btn-primary btn-sm"
               >
                 <UploadIcon className="h-4 w-4 mr-1" />
-                Upload Model
+                Upload File
               </button>
             </div>
           </div>
 
-          <p className="text-sm text-gray-600 mb-4">
-            Upload custom YANG models to improve XML configuration generation accuracy.
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Upload YANG files or create custom models to improve XML configuration generation.
           </p>
 
           {/* Search and Category Filter */}
@@ -1742,6 +1750,11 @@ function Configurations() {
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium text-sm">{model.name}</span>
+                          {model.is_custom && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-medium">
+                              Custom
+                            </span>
+                          )}
                           <span className={`text-xs px-1.5 py-0.5 rounded ${getCategoryColor(model.category)}`}>
                             {model.category}
                           </span>
@@ -2433,6 +2446,215 @@ function Configurations() {
                 >
                   <UploadIcon className="h-4 w-4 mr-1" />
                   Upload Model
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Custom YANG Model Modal */}
+      {showCustomYangModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
+            <div className="p-4 border-b dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <PlusIcon className="h-5 w-5 text-amber-600" />
+                Create Custom YANG Model
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Create a simplified custom model to guide LLM configuration generation
+              </p>
+            </div>
+            
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const toastId = toast.loading('Creating custom YANG model...');
+              try {
+                // Create minimal YANG content from custom data
+                const customContent = `module ${yangFormData.name.replace(/[^a-zA-Z0-9_-]/g, '-')} {
+  namespace "urn:custom:${yangFormData.name.replace(/[^a-zA-Z0-9_-]/g, '-')}";
+  prefix "${yangFormData.prefix || yangFormData.name.substring(0, 4).toLowerCase()}";
+  
+  // Custom YANG Model
+  // Description: ${yangFormData.description || 'User-defined configuration model'}
+  // Device Type: ${yangFormData.device_type}
+  // Category: ${yangFormData.category}
+  
+  revision "${new Date().toISOString().split('T')[0]}" {
+    description "Custom model created by user";
+  }
+  
+  /*
+   * Configuration paths and templates defined by user
+   * for LLM reference during configuration generation.
+   */
+}`;
+                
+                await axios.post('/yang-models', {
+                  ...yangFormData,
+                  yang_content: customContent,
+                  is_custom: true
+                });
+                
+                toast.success('Custom YANG model created!', { id: toastId });
+                setShowCustomYangModal(false);
+                resetYangForm();
+                fetchYangModels();
+              } catch (error) {
+                toast.error(error.response?.data?.message || 'Failed to create custom model', { id: toastId });
+              }
+            }} className="p-4 space-y-4">
+              {/* Basic Info */}
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-3 flex items-center gap-2">
+                  <FileTextIcon className="h-4 w-4" />
+                  Model Information
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Model Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={yangFormData.name}
+                      onChange={(e) => setYangFormData({ ...yangFormData, name: e.target.value })}
+                      className="input text-sm"
+                      placeholder="e.g., my-vlan-config"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Device Type</label>
+                    <select
+                      value={yangFormData.device_type}
+                      onChange={(e) => setYangFormData({ ...yangFormData, device_type: e.target.value })}
+                      className="input text-sm"
+                    >
+                      <option value="all">All Devices</option>
+                      <option value="nexus">Nexus (NX-OS)</option>
+                      <option value="ios">IOS</option>
+                      <option value="ios-xe">IOS-XE</option>
+                      <option value="ios-xr">IOS-XR</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                    <select
+                      value={yangFormData.category}
+                      onChange={(e) => setYangFormData({ ...yangFormData, category: e.target.value })}
+                      className="input text-sm"
+                    >
+                      <option value="interface">Interface</option>
+                      <option value="routing">Routing</option>
+                      <option value="switching">Switching</option>
+                      <option value="security">Security</option>
+                      <option value="qos">QoS</option>
+                      <option value="system">System</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Description <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={yangFormData.description}
+                      onChange={(e) => setYangFormData({ ...yangFormData, description: e.target.value })}
+                      className="input text-sm"
+                      rows={2}
+                      placeholder="Describe what this model is for (e.g., Configure VLANs with specific naming convention)"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* XML Templates Section */}
+              <div className="border dark:border-gray-700 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
+                  📋 XML Templates 
+                  <span className="text-xs font-normal text-gray-500">({yangFormData.xml_templates.length} added)</span>
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  Add example XML configurations for the LLM to reference
+                </p>
+                
+                {yangFormData.xml_templates.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {yangFormData.xml_templates.map((tmpl, idx) => (
+                      <div key={idx} className="flex items-start gap-2 bg-gray-50 dark:bg-gray-700 rounded-lg p-2">
+                        <div className="flex-1">
+                          <span className="font-medium text-sm text-gray-900 dark:text-gray-100">{tmpl.name}</span>
+                          {tmpl.description && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{tmpl.description}</p>
+                          )}
+                        </div>
+                        <button type="button" onClick={() => removeYangTemplate(idx)} className="text-red-500 dark:text-red-400 p-1">
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                <div className="space-y-2 bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={newTemplate.name}
+                      onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
+                      className="input text-sm"
+                      placeholder="Template name"
+                    />
+                    <input
+                      type="text"
+                      value={newTemplate.description}
+                      onChange={(e) => setNewTemplate({ ...newTemplate, description: e.target.value })}
+                      className="input text-sm"
+                      placeholder="Description (optional)"
+                    />
+                  </div>
+                  <textarea
+                    value={newTemplate.template}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, template: e.target.value })}
+                    className="input font-mono text-xs"
+                    rows={4}
+                    placeholder={`<config>
+  <System xmlns="http://cisco.com/ns/yang/...">
+    ...
+  </System>
+</config>`}
+                  />
+                  <button 
+                    type="button" 
+                    onClick={addYangTemplate} 
+                    className="btn btn-secondary btn-sm"
+                    disabled={!newTemplate.name || !newTemplate.template}
+                  >
+                    <PlusIcon className="h-3 w-3 mr-1" />
+                    Add Template
+                  </button>
+                </div>
+              </div>
+              
+              {/* Actions */}
+              <div className="flex justify-end gap-2 pt-2 border-t dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => { setShowCustomYangModal(false); resetYangForm(); }}
+                  className="btn btn-secondary btn-md"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary btn-md"
+                  disabled={!yangFormData.name || !yangFormData.description}
+                >
+                  <PlusIcon className="h-4 w-4 mr-1" />
+                  Create Model
                 </button>
               </div>
             </form>

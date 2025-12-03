@@ -57,6 +57,11 @@ const yangModelSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  // Custom model flag (user-created vs uploaded)
+  is_custom: {
+    type: Boolean,
+    default: false
+  },
   // User who uploaded this model
   userId: {
     type: mongoose.Schema.Types.ObjectId,
