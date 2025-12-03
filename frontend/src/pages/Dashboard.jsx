@@ -239,14 +239,20 @@ function Dashboard() {
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Device Status</p>
               <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{stats.activeDevices} Active</p>
               <div className="flex items-center gap-2 mt-2 text-xs">
-                {stats.inactiveDevices > 0 && (
-                  <span className="text-red-500">{stats.inactiveDevices} inactive</span>
-                )}
-                {stats.maintenanceDevices > 0 && (
-                  <span className="text-amber-500">{stats.maintenanceDevices} maintenance</span>
-                )}
-                {stats.inactiveDevices === 0 && stats.maintenanceDevices === 0 && (
-                  <span className="text-green-500">All devices online</span>
+                {stats.totalDevices === 0 ? (
+                  <span className="text-gray-400">No devices added yet</span>
+                ) : (
+                  <>
+                    {stats.inactiveDevices > 0 && (
+                      <span className="text-red-500">{stats.inactiveDevices} inactive</span>
+                    )}
+                    {stats.maintenanceDevices > 0 && (
+                      <span className="text-amber-500">{stats.maintenanceDevices} maintenance</span>
+                    )}
+                    {stats.inactiveDevices === 0 && stats.maintenanceDevices === 0 && (
+                      <span className="text-green-500">All devices online</span>
+                    )}
+                  </>
                 )}
               </div>
             </div>

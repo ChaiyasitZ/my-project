@@ -86,7 +86,7 @@ function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking
             </button>
             
             <Link to="/" className="flex items-center space-x-2" onClick={() => setIsMobileMenuOpen(false)}>
-              <img src="/vite.svg" alt="Network Management Platform" className="h-8 w-8 rounded-lg" />
+              <img src="/Logo-Project - New.svg" alt="Network Management Platform" className="h-8 w-8 rounded-lg" />
               <span className="text-lg font-bold text-gray-900 dark:text-white">NetAutomate</span>
             </Link>
           </div>
@@ -128,7 +128,7 @@ function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking
           {/* Desktop Logo */}
           <div className="hidden lg:flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-gray-700">
             <Link to="/" className={`flex items-center ${isCollapsed ? 'justify-center w-full' : 'space-x-3'}`}>
-              <img src="/vite.svg" alt="Network Management Platform" className="h-10 w-10 rounded-lg flex-shrink-0" />
+              <img src="/Logo-Project - New.svg" alt="Network Management Platform" className="h-10 w-10 rounded-lg flex-shrink-0" />
               {!isCollapsed && (
                 <div className="overflow-hidden">
                   <span className="text-xl font-bold text-gray-900 dark:text-white whitespace-nowrap">NetAutomate</span>
