@@ -25,6 +25,14 @@ export const AuthProvider = ({ children }) => {
 
   // Set auth header for axios
   const setAuthHeader = (token) => {
+    // Ensure headers object exists (may be undefined in test environments)
+    if (!axios.defaults.headers) {
+      axios.defaults.headers = {};
+    }
+    if (!axios.defaults.headers.common) {
+      axios.defaults.headers.common = {};
+    }
+    
     if (token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     } else {
