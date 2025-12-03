@@ -10,8 +10,6 @@ import {
   RefreshCwIcon,
   CodeIcon,
   NetworkIcon,
-  ToggleLeftIcon,
-  ToggleRightIcon,
   UploadIcon,
   FileTextIcon,
   TrashIcon,
