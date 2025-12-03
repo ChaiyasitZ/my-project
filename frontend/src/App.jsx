@@ -7,6 +7,7 @@ import axios from 'axios';
 import Sidebar from './components/Sidebar';
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
+import PageTransition from './components/PageTransition';
 
 // Context
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -47,7 +48,9 @@ function AuthenticatedLayout({ children, connectionStatus, sidebarCollapsed, onT
       <div className="flex-1 lg:ml-0 w-full">
         <main className="pt-20 lg:pt-6 px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto w-full">
-            {children}
+            <PageTransition>
+              {children}
+            </PageTransition>
           </div>
         </main>
       </div>
