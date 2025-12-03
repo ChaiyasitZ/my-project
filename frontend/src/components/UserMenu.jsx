@@ -3,11 +3,11 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { 
   UserCircleIcon, 
-  ArrowRightOnRectangleIcon,
+  LogOutIcon,
   ChevronDownIcon,
   SunIcon,
   MoonIcon
-} from '@heroicons/react/24/outline';
+} from 'lucide-react';
 
 function UserMenu({ collapsed = false }) {
   const { user, logout, isAuthenticated } = useAuth();
@@ -151,7 +151,7 @@ function UserMenu({ collapsed = false }) {
               onClick={handleLogout}
               className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
             >
-              <ArrowRightOnRectangleIcon className="w-5 h-5" />
+              <LogOutIcon className="w-5 h-5" />
               Sign out
             </button>
           </div>

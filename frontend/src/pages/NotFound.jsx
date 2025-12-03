@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { HomeIcon, ArrowLeftIcon } from 'lucide-react';
+import { LayoutDashboardIcon, ArrowLeftIcon } from 'lucide-react';
 
 function NotFound() {
   const navigate = useNavigate();
@@ -30,7 +30,7 @@ function NotFound() {
             onClick={() => navigate('/')}
             className="btn btn-primary btn-md w-full"
           >
-            <HomeIcon className="h-4 w-4 mr-2" />
+            <LayoutDashboardIcon className="h-4 w-4 mr-2" />
             Back to Dashboard
           </button>
         </div>

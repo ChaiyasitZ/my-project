@@ -379,14 +379,15 @@ function ConsoleConfiguration() {
   };
 
 
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <TerminalIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+            <div className="p-2 bg-green-100 dark:bg-green-900/50 rounded-xl">
+              <TerminalIcon className="h-7 w-7 text-green-600 dark:text-green-400" />
+            </div>
             Console Configuration
           </h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
@@ -652,11 +653,11 @@ function ConsoleConfiguration() {
                   {/* Management Interface Settings */}
                   {Object.hasOwn(templateVariables, 'management_interface') && (
                     <div className="mb-6">
-                      <h4 className="text-sm font-medium text-gray-700 mb-3">Management Interface</h4>
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Management Interface</h4>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                             Interface
                           </label>
                           <input
@@ -688,11 +689,11 @@ function ConsoleConfiguration() {
 
                       {/* IP Configuration Fields - Only show for manual */}
                       {ipConfigMethod === 'manual' && (
-                        <div className="bg-blue-50 p-4 rounded-md">
-                          <h5 className="text-sm font-medium text-blue-900 mb-3">Manual IP Configuration</h5>
+                        <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-md">
+                          <h5 className="text-sm font-medium text-blue-900 dark:text-blue-300 mb-3">Manual IP Configuration</h5>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                              <label className="block text-sm font-medium text-blue-700 mb-1">
+                              <label className="block text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
                                 IP Address
                               </label>
                               <input
@@ -700,13 +701,13 @@ function ConsoleConfiguration() {
                                 value={templateVariables.management_ip || ''}
                                 onChange={(e) => handleVariableChange('management_ip', e.target.value)}
                                 placeholder="192.168.1.10"
-                                className="w-full px-3 py-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full px-3 py-2 border border-blue-300 dark:border-blue-700 dark:bg-gray-800 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                               />
                             </div>
                             <div>
-                              <label className="block text-sm font-medium text-blue-700 mb-1">
+                              <label className="block text-sm font-medium text-blue-700 dark:text-blue-400 mb-1">
                                 Subnet Mask
-                                <span className="text-xs text-blue-500 ml-2">(Support CIDR: /24, /25, etc.)</span>
+                                <span className="text-xs text-blue-500 dark:text-blue-400 ml-2">(Support CIDR: /24, /25, etc.)</span>
                               </label>
                               <input
                                 type="text"
@@ -721,10 +722,10 @@ function ConsoleConfiguration() {
                                   handleVariableChange('management_mask', value);
                                 }}
                                 placeholder="/24 or 255.255.255.0"
-                                                                 className="w-full px-3 py-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                                 className="w-full px-3 py-2 border border-blue-300 dark:border-blue-700 dark:bg-gray-800 dark:text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                                />
                                <div className="mt-2">
-                                 <span className="text-xs text-blue-700 block mb-2">Quick Select CIDR (showing usable hosts):</span>
+                                 <span className="text-xs text-blue-700 dark:text-blue-400 block mb-2">Quick Select CIDR (showing usable hosts):</span>
                                  <div className="grid grid-cols-8 gap-1">
                                    {Array.from({length: 22}, (_, i) => i + 10).map(num => {
                                      const cidr = `/${num}`;
@@ -767,8 +768,8 @@ function ConsoleConfiguration() {
                                </div>
                             </div>
                           </div>
-                          <div className="mt-3 p-3 bg-blue-100 rounded-md">
-                            <p className="text-sm text-blue-800">
+                          <div className="mt-3 p-3 bg-blue-100 dark:bg-blue-900/30 rounded-md">
+                            <p className="text-sm text-blue-800 dark:text-blue-300">
                               <strong>Note:</strong> No gateway configuration - device will be accessible only within local subnet
                             </p>
                           </div>
@@ -776,14 +777,14 @@ function ConsoleConfiguration() {
                       )}
 
                       {ipConfigMethod === 'dhcp' && (
-                        <div className="bg-green-50 p-4 rounded-md">
+                        <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-md">
                           <div className="flex items-center">
                             <div className="flex-shrink-0">
                               <span className="text-green-400 text-xl">✅</span>
                             </div>
                             <div className="ml-3">
-                              <h5 className="text-sm font-medium text-green-800">DHCP Configuration</h5>
-                              <p className="text-sm text-green-700">
+                              <h5 className="text-sm font-medium text-green-800 dark:text-green-300">DHCP Configuration</h5>
+                              <p className="text-sm text-green-700 dark:text-green-400">
                                 Interface will automatically obtain IP address from DHCP server
                               </p>
                             </div>

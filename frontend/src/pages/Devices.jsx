@@ -12,10 +12,12 @@ import {
   RefreshCwIcon
 } from 'lucide-react';
 import DeviceIcon from '../components/DeviceIcon';
+import PageLoader from '../components/PageLoader';
 
 function Devices() {
   const [devices, setDevices] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingDevice, setEditingDevice] = useState(null);
   const [testingDevice, setTestingDevice] = useState(null);
@@ -115,8 +117,8 @@ function Devices() {
     };
   }, [showModal]);
 
-  const fetchDevices = useCallback(async () => {
-    setLoading(true);
+  const fetchDevices = useCallback(async (showLoadingState = false) => {
+    if (showLoadingState) setLoading(true);
     try {
       const response = await axios.get('/devices');
       const devicesData = response.data.devices || [];
@@ -129,6 +131,7 @@ function Devices() {
       toast.error('Failed to fetch devices');
     } finally {
       setLoading(false);
+      setInitialLoad(false);
     }
   }, []);
 
@@ -433,17 +436,8 @@ function Devices() {
     />;
   };
 
-  if (loading) {
-    return (
-      <div className="animate-pulse">
-        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-6"></div>
-        <div className="space-y-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
-          ))}
-        </div>
-      </div>
-    );
+  if (loading && initialLoad) {
+    return <PageLoader message="Loading devices..." />;
   }
 
   return (
@@ -695,7 +689,7 @@ function Devices() {
                 </div>
                 
                 {/* Action Buttons */}
-                <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
+                <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                   {/* Test Connections Group */}
                   <div className="flex gap-2">
                     <button

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { 
+  HardDriveDownloadIcon,
   Archive,
   RefreshCwIcon,
   DownloadIcon,
@@ -21,6 +22,7 @@ import {
   EyeIcon
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
+import PageLoader from '../components/PageLoader';
 import { useConfirmation } from '../hooks/useConfirmation';
 
 // Helper function to safely parse JSON tags (moved outside component to prevent recreation)
@@ -72,7 +74,8 @@ const formatDate = (dateValue) => {
 function BackupManagement() {
   const [backups, setBackups] = useState([]);
   const [devices, setDevices] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [selectedDevice, setSelectedDevice] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
@@ -107,7 +110,7 @@ function BackupManagement() {
   // Define fetchData before using it in useEffect
   const fetchData = useCallback(async () => {
     try {
-      setLoading(true);
+      if (initialLoad) setLoading(true);
       
       const requests = [
         axios.get('/backups', {
@@ -140,8 +143,9 @@ function BackupManagement() {
       setDevices([]);
     } finally {
       setLoading(false);
+      setInitialLoad(false);
     }
-  }, [selectedDevice, filter, creating]);
+  }, [selectedDevice, filter, creating, initialLoad]);
 
   useEffect(() => {
     fetchData();
@@ -340,20 +344,20 @@ function BackupManagement() {
   const getBackupTypeIcon = (type) => {
     switch (type) {
       case 'manual':
-        return <Archive className="h-4 w-4 text-blue-600" />;
+        return <Archive className="h-4 w-4 text-blue-600 dark:text-blue-400" />;
       case 'scheduled':
-        return <ClockIcon className="h-4 w-4 text-green-600" />;
+        return <ClockIcon className="h-4 w-4 text-green-600 dark:text-green-400" />;
       default:
-        return <FolderIcon className="h-4 w-4 text-gray-600" />;
+        return <FolderIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" />;
     }
   };
 
   const getBackupTypeBadge = (type) => {
     const styles = {
-      manual: 'bg-blue-100 text-blue-800',
-      scheduled: 'bg-green-100 text-green-800'
+      manual: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300',
+      scheduled: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300'
     };
-    return styles[type] || 'bg-gray-100 text-gray-800';
+    return styles[type] || 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300';
   };
 
   const addTag = () => {
@@ -497,6 +501,11 @@ function BackupManagement() {
     }
   };
 
+  // Loading state
+  if (loading && initialLoad) {
+    return <PageLoader message="Loading backups..." />;
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -504,7 +513,7 @@ function BackupManagement() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
             <div className="p-2 bg-orange-100 dark:bg-orange-900/50 rounded-xl">
-              <ShieldIcon className="h-7 w-7 text-orange-600 dark:text-orange-400" />
+              <HardDriveDownloadIcon className="h-7 w-7 text-orange-600 dark:text-orange-400" />
             </div>
             Backup Management
           </h1>

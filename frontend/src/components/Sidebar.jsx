@@ -1,12 +1,12 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import { 
-  HomeIcon, 
+  LayoutDashboardIcon, 
   ServerIcon, 
-  CogIcon, 
+  BrainCircuitIcon, 
   ClockIcon,
   TerminalIcon,
-  Archive,
+  HardDriveDownloadIcon,
   Menu,
   X,
   ChevronLeft,
@@ -19,12 +19,12 @@ import { useTheme } from '../context/ThemeContext';
 import UserMenu from './UserMenu';
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboardIcon },
   { name: 'Devices', href: '/devices', icon: ServerIcon },
-  { name: 'Configurations', href: '/configurations', icon: CogIcon },
+  { name: 'Configurations', href: '/configurations', icon: BrainCircuitIcon },
   { name: 'Console Setup', href: '/console', icon: TerminalIcon },
   { name: 'History', href: '/configuration-history', icon: ClockIcon },
-  { name: 'Backups', href: '/backups', icon: Archive },
+  { name: 'Backups', href: '/backups', icon: HardDriveDownloadIcon },
 ];
 
 function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking', version: null }, isCollapsed = false, onToggleCollapse }) {

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { 
-  BotIcon, 
+  BrainCircuitIcon, 
   SendIcon, 
   CheckCircleIcon, 
   ServerIcon,
@@ -280,16 +280,6 @@ function Configurations() {
       fetchYangModels();
     } catch {
       toast.error('Failed to delete YANG model');
-    }
-  };
-
-  const handleYangModelToggle = async (id) => {
-    try {
-      const response = await axios.post(`/yang-models/toggle/${id}`);
-      toast.success(response.data.message);
-      fetchYangModels();
-    } catch {
-      toast.error('Failed to toggle YANG model');
     }
   };
 
@@ -844,11 +834,6 @@ function Configurations() {
     });
   }, [yangModels, yangSearchTerm, yangCategoryFilter]);
 
-  // Memoize active YANG models count
-  const activeYangModelsCount = useMemo(() => 
-    yangModels.filter(m => m.is_active).length
-  , [yangModels]);
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -856,7 +841,7 @@ function Configurations() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
             <div className="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-xl">
-              <BotIcon className="h-7 w-7 text-purple-600 dark:text-purple-400" />
+              <BrainCircuitIcon className="h-7 w-7 text-purple-600 dark:text-purple-400" />
             </div>
             LLM Configuration Generator
           </h1>
@@ -929,9 +914,9 @@ function Configurations() {
           >
             <FileTextIcon className="h-4 w-4" />
             YANG Models
-            {activeYangModelsCount > 0 && (
-              <span className="ml-1.5 px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded-full font-semibold">
-                {activeYangModelsCount}
+            {yangModels.length > 0 && (
+              <span className="ml-1.5 px-2 py-0.5 text-xs bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-full font-semibold">
+                {yangModels.length}
               </span>
             )}
           </button>
@@ -950,16 +935,7 @@ function Configurations() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Generation Form */}
         <div className="card">
-          <div className="card-header flex items-center">
-            {configMode === 'netconf' ? (
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-lg mr-3">
-                <NetworkIcon className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-              </div>
-            ) : (
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg mr-3">
-                <BotIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-            )}
+          <div className="card-header">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               Generate {configMode === 'netconf' ? 'NETCONF/YANG' : 'CLI'} Configuration
             </h2>
@@ -1017,8 +993,8 @@ function Configurations() {
                       {devices.map((device) => (
                         <div
                           key={device.id}
-                          className={`px-4 py-3 hover:bg-blue-50 cursor-pointer flex items-center gap-3 transition-colors ${
-                            selectedDevice === device.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                          className={`px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer flex items-center gap-3 transition-colors ${
+                            selectedDevice === device.id ? 'bg-blue-50 dark:bg-blue-900/30 border-l-4 border-blue-500' : ''
                           }`}
                           onClick={() => {
                             setSelectedDevice(device.id);
@@ -1065,7 +1041,7 @@ function Configurations() {
                     <span className="text-xs font-normal text-gray-500 ml-2">(optional - for accurate XML)</span>
                   </label>
                   <div className="border rounded-lg dark:border-gray-600 max-h-32 overflow-y-auto">
-                    {yangModels.filter(m => m.is_active).map((model) => (
+                    {yangModels.map((model) => (
                       <label 
                         key={model.id} 
                         className="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b last:border-b-0 dark:border-gray-600"
@@ -1249,7 +1225,7 @@ function Configurations() {
           {/* No Configuration Display */}
           {!generatedConfig && (
             <div className="text-center py-12">
-              <BotIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <BrainCircuitIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500 dark:text-gray-400">No configuration generated yet</p>
               <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
                 Select a device and enter a prompt to get started
@@ -1279,7 +1255,7 @@ function Configurations() {
                 
                 {/* Model Info */}
                 <div className="mt-2 flex items-center flex-wrap text-xs text-gray-500 dark:text-gray-400">
-                  <BotIcon className="h-3 w-3 mr-1" />
+                  <BrainCircuitIcon className="h-3 w-3 mr-1" />
                   <span>Generated with: <span className="font-mono font-medium">{generatedConfig.ai_model}</span></span>
                 {generatedConfig.execution_time && (
                   <span className="ml-3 text-green-600 dark:text-green-400 font-medium">• Generation: {(generatedConfig.execution_time / 1000).toFixed(2)}s</span>
@@ -1647,10 +1623,10 @@ function Configurations() {
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center">
-              <FileTextIcon className="h-6 w-6 text-purple-600 mr-2" />
-              <h2 className="text-lg font-medium text-gray-900">YANG Models</h2>
-              <span className="ml-2 text-sm text-gray-500">
-                ({activeYangModelsCount} active)
+              <FileTextIcon className="h-6 w-6 text-purple-600 dark:text-purple-400 mr-2" />
+              <h2 className="text-lg font-medium text-gray-900 dark:text-white">YANG Models</h2>
+              <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+                ({yangModels.length} models)
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -1755,14 +1731,14 @@ function Configurations() {
                 return (
                 <div 
                   key={model.id} 
-                  className={`border rounded-lg overflow-hidden ${model.is_active ? 'border-purple-200' : 'border-gray-200 opacity-60'}`}
+                  className="border border-purple-200 dark:border-purple-800 rounded-lg overflow-hidden"
                 >
                   <div 
-                    className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50"
+                    className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
                     onClick={() => setExpandedYangModel(expandedYangModel === model.id ? null : model.id)}
                   >
                     <div className="flex items-center gap-3">
-                      <FileTextIcon className={`h-5 w-5 ${model.is_active ? 'text-purple-600' : 'text-gray-400'}`} />
+                      <FileTextIcon className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-medium text-sm">{model.name}</span>
@@ -1774,28 +1750,21 @@ function Configurations() {
                           </span>
                         </div>
                         {model.description && (
-                          <p className="text-xs text-gray-500 truncate max-w-md">{model.description}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-md">{model.description}</p>
                         )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={(e) => { e.stopPropagation(); handleViewYangModel(model.id); }}
-                        className="p-1 rounded text-blue-600 hover:bg-blue-50"
+                        className="p-1 rounded text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30"
                         title="View Details"
                       >
                         <EyeIcon className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleYangModelToggle(model.id); }}
-                        className={`p-1 rounded ${model.is_active ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`}
-                        title={model.is_active ? 'Disable' : 'Enable'}
-                      >
-                        <CheckCircleIcon className="h-4 w-4" />
-                      </button>
-                      <button
                         onClick={(e) => { e.stopPropagation(); handleYangModelDelete(model.id); }}
-                        className="p-1 rounded text-red-500 hover:bg-red-50"
+                        className="p-1 rounded text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
                         title="Delete YANG Model"
                       >
                         <TrashIcon className="h-4 w-4" />
@@ -1809,48 +1778,39 @@ function Configurations() {
                   </div>
                   
                   {expandedYangModel === model.id && (
-                    <div className="border-t bg-gray-50 p-4 space-y-4">
-                      {/* Header with actions */}
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-semibold text-gray-800">Model Details</h4>
-                        <button
-                          onClick={() => handleYangModelDelete(model.id)}
-                          className="btn btn-danger btn-sm"
-                        >
-                          <TrashIcon className="h-3 w-3 mr-1" />
-                          Delete Model
-                        </button>
-                      </div>
+                    <div className="border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4 space-y-4">
+                      {/* Header */}
+                      <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Model Details</h4>
                       
                       {/* Metadata Grid */}
-                      <div className="bg-white rounded-lg border p-3">
+                      <div className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-3">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                           <div>
-                            <span className="text-gray-500 block">Device Type</span>
+                            <span className="text-gray-500 dark:text-gray-400 block">Device Type</span>
                             <span className={`inline-block mt-0.5 px-2 py-0.5 rounded font-medium ${getDeviceTypeBadge(model.device_type)}`}>
                               {model.device_type?.toUpperCase() || 'ALL'}
                             </span>
                           </div>
                           <div>
-                            <span className="text-gray-500 block">Category</span>
+                            <span className="text-gray-500 dark:text-gray-400 block">Category</span>
                             <span className={`inline-block mt-0.5 px-2 py-0.5 rounded ${getCategoryColor(model.category)}`}>
                               {model.category}
                             </span>
                           </div>
                           <div>
-                            <span className="text-gray-500 block">Version</span>
-                            <span className="font-medium text-gray-700">{model.version || 'N/A'}</span>
+                            <span className="text-gray-500 dark:text-gray-400 block">Version</span>
+                            <span className="font-medium text-gray-700 dark:text-gray-300">{model.version || 'N/A'}</span>
                           </div>
                           <div>
-                            <span className="text-gray-500 block">Prefix</span>
-                            <span className="font-mono font-medium text-purple-600">{model.prefix || 'N/A'}</span>
+                            <span className="text-gray-500 dark:text-gray-400 block">Prefix</span>
+                            <span className="font-mono font-medium text-purple-600 dark:text-purple-400">{model.prefix || 'N/A'}</span>
                           </div>
                         </div>
                         
                         {model.namespace && (
-                          <div className="mt-3 pt-3 border-t">
-                            <span className="text-xs text-gray-500 block mb-1">Namespace URI</span>
-                            <div className="font-mono text-[10px] text-gray-600 bg-gray-50 rounded p-2 break-all border">
+                          <div className="mt-3 pt-3 border-t dark:border-gray-700">
+                            <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Namespace URI</span>
+                            <div className="font-mono text-[10px] text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 rounded p-2 break-all border dark:border-gray-600">
                               {model.namespace}
                             </div>
                           </div>
@@ -1859,21 +1819,21 @@ function Configurations() {
                       
                       {/* Description */}
                       {model.description && (
-                        <div className="bg-white rounded-lg border p-3">
-                          <span className="text-xs text-gray-500 block mb-1">Description</span>
-                          <p className="text-sm text-gray-700">{model.description}</p>
+                        <div className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-3">
+                          <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Description</span>
+                          <p className="text-sm text-gray-700 dark:text-gray-300">{model.description}</p>
                         </div>
                       )}
                       
                       {/* XML Templates */}
                       {model.xml_templates?.length > 0 && (
-                        <div className="bg-white rounded-lg border p-3">
-                          <p className="text-xs font-medium text-gray-700 mb-2">XML Templates ({model.xml_templates.length})</p>
+                        <div className="bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-3">
+                          <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">XML Templates ({model.xml_templates.length})</p>
                           <div className="space-y-1">
                             {model.xml_templates.map((tmpl, idx) => (
-                              <div key={idx} className="text-xs bg-gray-50 rounded p-2 border">
-                                <span className="font-medium text-purple-600">{tmpl.name}</span>
-                                {tmpl.description && <span className="text-gray-500 ml-2">— {tmpl.description}</span>}
+                              <div key={idx} className="text-xs bg-gray-50 dark:bg-gray-700 rounded p-2 border dark:border-gray-600">
+                                <span className="font-medium text-purple-600 dark:text-purple-400">{tmpl.name}</span>
+                                {tmpl.description && <span className="text-gray-500 dark:text-gray-400 ml-2">— {tmpl.description}</span>}
                               </div>
                             ))}
                           </div>
@@ -1894,15 +1854,8 @@ function Configurations() {
                         </div>
                       )}
                       
-                      {/* Status info */}
-                      <div className="text-xs text-gray-400 pt-2 border-t flex items-center justify-between">
-                        <span>
-                          Status: {model.is_active ? (
-                            <span className="text-green-600 font-medium">Active</span>
-                          ) : (
-                            <span className="text-gray-500 font-medium">Disabled</span>
-                          )}
-                        </span>
+                      {/* Model ID */}
+                      <div className="text-xs text-gray-400 pt-2 border-t">
                         <span>ID: {model.id}</span>
                       </div>
                     </div>
@@ -1954,7 +1907,7 @@ function Configurations() {
 
               {/* Operation Type */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Operation Type
                 </label>
                 <div className="flex gap-2">
@@ -1963,8 +1916,8 @@ function Configurations() {
                     onClick={() => setOperationType('get')}
                     className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
                       operationType === 'get'
-                        ? 'bg-blue-50 border-blue-500 text-blue-700'
-                        : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                        ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-300'
+                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
                     <SearchIcon className="h-4 w-4 inline mr-1" />
@@ -1975,8 +1928,8 @@ function Configurations() {
                     onClick={() => setOperationType('get-config')}
                     className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
                       operationType === 'get-config'
-                        ? 'bg-green-50 border-green-500 text-green-700'
-                        : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                        ? 'bg-green-50 dark:bg-green-900/30 border-green-500 text-green-700 dark:text-green-300'
+                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
                     <CodeIcon className="h-4 w-4 inline mr-1" />
@@ -1987,8 +1940,8 @@ function Configurations() {
                     onClick={() => setOperationType('custom')}
                     className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
                       operationType === 'custom'
-                        ? 'bg-purple-50 border-purple-500 text-purple-700'
-                        : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                        ? 'bg-purple-50 dark:bg-purple-900/30 border-purple-500 text-purple-700 dark:text-purple-300'
+                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                   >
                     <TerminalIcon className="h-4 w-4 inline mr-1" />
@@ -2000,8 +1953,8 @@ function Configurations() {
               {/* Filter (for get/get-config) */}
               {operationType !== 'custom' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    XML Filter <span className="text-amber-600 font-normal">(recommended to avoid timeout)</span>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    XML Filter <span className="text-amber-600 dark:text-amber-400 font-normal">(recommended to avoid timeout)</span>
                   </label>
                   <textarea
                     value={operationFilter}
@@ -2016,7 +1969,7 @@ function Configurations() {
               {/* Custom RPC Content */}
               {operationType === 'custom' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     RPC Content (without &lt;rpc&gt; wrapper)
                   </label>
                   <textarea
@@ -2123,7 +2076,7 @@ function Configurations() {
                 
                 return (
                   <>
-                    <h3 className="text-sm font-medium text-gray-700 mb-3">Quick Filters ({platformLabel}):</h3>
+                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Quick Filters ({platformLabel}):</h3>
                     <div className="grid grid-cols-2 gap-2">
                       {filters.map((item) => (
                         <button
@@ -2132,7 +2085,7 @@ function Configurations() {
                             setOperationFilter(item.filter);
                             setOperationType('get');
                           }}
-                          className="text-left text-sm p-2 rounded-lg bg-gray-50 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                          className="text-left text-sm p-2 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 transition-colors text-gray-700 dark:text-gray-300"
                         >
                           • {item.name}
                         </button>
@@ -2147,7 +2100,7 @@ function Configurations() {
           {/* Operation Result */}
           <div className="card p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-medium text-gray-900">Operation Result</h2>
+              <h2 className="text-lg font-medium text-gray-900 dark:text-white">Operation Result</h2>
               {operationResult && (
                 <button
                   onClick={() => {
@@ -2164,37 +2117,37 @@ function Configurations() {
 
             {!operationResult && (
               <div className="text-center py-12">
-                <TerminalIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">No operation executed yet</p>
-                <p className="text-sm text-gray-400 mt-1">
+                <TerminalIcon className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+                <p className="text-gray-500 dark:text-gray-400">No operation executed yet</p>
+                <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
                   Select a device and operation to get started
                 </p>
               </div>
             )}
 
             {operationResult && !operationResult.success && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-center text-red-700 mb-2">
+              <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <div className="flex items-center text-red-700 dark:text-red-400 mb-2">
                   <XCircleIcon className="h-5 w-5 mr-2" />
                   <span className="font-medium">Operation Failed</span>
                 </div>
-                <p className="text-sm text-red-600">{operationResult.error}</p>
+                <p className="text-sm text-red-600 dark:text-red-400">{operationResult.error}</p>
               </div>
             )}
 
             {operationResult && operationResult.success && (
               <div className="space-y-4">
                 {/* Result Info */}
-                <div className="bg-green-50 p-3 rounded-lg">
+                <div className="bg-green-50 dark:bg-green-900/30 p-3 rounded-lg">
                   <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center text-green-700">
+                    <div className="flex items-center text-green-700 dark:text-green-400">
                       <CheckCircleIcon className="h-4 w-4 mr-2" />
                       <span className="font-medium">{operationResult.device_name}</span>
-                      <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded">
+                      <span className="ml-2 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs font-medium rounded">
                         {operationResult.operation}
                       </span>
                     </div>
-                    <span className="text-green-600 text-xs">
+                    <span className="text-green-600 dark:text-green-400 text-xs">
                       {operationResult.execution_time}ms
                     </span>
                   </div>
@@ -2221,19 +2174,19 @@ function Configurations() {
                 <UploadIcon className="h-5 w-5 text-purple-600" />
                 Upload YANG Model
               </h2>
-              <p className="text-sm text-gray-500 mt-1">Upload a .yang file to auto-extract metadata</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Upload a .yang file to auto-extract metadata</p>
             </div>
             
             <form onSubmit={handleYangModelSubmit} className="p-4 space-y-4">
               {/* Primary Upload Section */}
-              <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-dashed border-purple-200 rounded-lg p-6 text-center">
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border-2 border-dashed border-purple-200 dark:border-purple-700 rounded-lg p-6 text-center">
                 <label className="cursor-pointer block">
                   <input type="file" accept=".yang" onChange={handleYangFileUpload} className="hidden" />
-                  <UploadIcon className="h-12 w-12 text-purple-500 mx-auto mb-3" />
-                  <span className="text-lg font-medium text-gray-700 block">
+                  <UploadIcon className="h-12 w-12 text-purple-500 dark:text-purple-400 mx-auto mb-3" />
+                  <span className="text-lg font-medium text-gray-700 dark:text-gray-200 block">
                     {yangFormData.yang_content ? `✓ ${yangFormData.name}.yang loaded` : 'Click to upload .yang file'}
                   </span>
-                  <span className="text-sm text-gray-500 mt-1 block">
+                  <span className="text-sm text-gray-500 dark:text-gray-400 mt-1 block">
                     Metadata will be auto-extracted from the file
                   </span>
                 </label>
@@ -2242,54 +2195,54 @@ function Configurations() {
               {/* Auto-extracted Info (shown after upload) */}
               {yangFormData.yang_content && (
                 <>
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-green-700 font-medium text-sm mb-2">
+                  <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-green-700 dark:text-green-400 font-medium text-sm mb-2">
                       <CheckCircleIcon className="h-4 w-4" />
                       Metadata Extracted
                     </div>
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <div>
-                        <span className="text-gray-500">Name:</span>
-                        <span className="ml-2 font-mono text-gray-900">{yangFormData.name}</span>
+                        <span className="text-gray-500 dark:text-gray-400">Name:</span>
+                        <span className="ml-2 font-mono text-gray-900 dark:text-gray-100">{yangFormData.name}</span>
                       </div>
                       <div>
-                        <span className="text-gray-500">Prefix:</span>
-                        <span className="ml-2 font-mono text-gray-900">{yangFormData.prefix || '-'}</span>
+                        <span className="text-gray-500 dark:text-gray-400">Prefix:</span>
+                        <span className="ml-2 font-mono text-gray-900 dark:text-gray-100">{yangFormData.prefix || '-'}</span>
                       </div>
                       <div className="col-span-2">
-                        <span className="text-gray-500">Namespace:</span>
-                        <span className="ml-2 font-mono text-xs text-gray-900 break-all">{yangFormData.namespace || '-'}</span>
+                        <span className="text-gray-500 dark:text-gray-400">Namespace:</span>
+                        <span className="ml-2 font-mono text-xs text-gray-900 dark:text-gray-100 break-all">{yangFormData.namespace || '-'}</span>
                       </div>
                       <div>
-                        <span className="text-gray-500">Device Type:</span>
-                        <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">{yangFormData.device_type}</span>
+                        <span className="text-gray-500 dark:text-gray-400">Device Type:</span>
+                        <span className="ml-2 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded text-xs font-medium">{yangFormData.device_type}</span>
                       </div>
                       <div>
-                        <span className="text-gray-500">Category:</span>
-                        <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">{yangFormData.category}</span>
+                        <span className="text-gray-500 dark:text-gray-400">Category:</span>
+                        <span className="ml-2 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded text-xs font-medium">{yangFormData.category}</span>
                       </div>
                       <div>
-                        <span className="text-gray-500">Version:</span>
-                        <span className="ml-2 font-mono text-gray-900">{yangFormData.version}</span>
+                        <span className="text-gray-500 dark:text-gray-400">Version:</span>
+                        <span className="ml-2 font-mono text-gray-900 dark:text-gray-100">{yangFormData.version}</span>
                       </div>
                       {yangFormData.description && (
                         <div className="col-span-2">
-                          <span className="text-gray-500">Description:</span>
-                          <span className="ml-2 text-gray-900">{yangFormData.description}</span>
+                          <span className="text-gray-500 dark:text-gray-400">Description:</span>
+                          <span className="ml-2 text-gray-900 dark:text-gray-100">{yangFormData.description}</span>
                         </div>
                       )}
                     </div>
                   </div>
 
                   {/* Editable Fields (collapsed by default) */}
-                  <details className="border rounded-lg">
-                    <summary className="p-3 cursor-pointer text-sm font-medium text-gray-700 hover:bg-gray-50">
+                  <details className="border dark:border-gray-700 rounded-lg">
+                    <summary className="p-3 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                       ✏️ Edit Metadata (optional)
                     </summary>
-                    <div className="p-3 pt-0 space-y-3 border-t">
+                    <div className="p-3 pt-0 space-y-3 border-t dark:border-gray-700">
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Model Name</label>
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Model Name</label>
                           <input
                             type="text"
                             value={yangFormData.name}
@@ -2298,7 +2251,7 @@ function Configurations() {
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Prefix</label>
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Prefix</label>
                           <input
                             type="text"
                             value={yangFormData.prefix}
@@ -2308,7 +2261,7 @@ function Configurations() {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Namespace URI</label>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Namespace URI</label>
                         <input
                           type="url"
                           value={yangFormData.namespace}
@@ -2318,7 +2271,7 @@ function Configurations() {
                       </div>
                       <div className="grid grid-cols-3 gap-3">
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Device Type</label>
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Device Type</label>
                           <select
                             value={yangFormData.device_type}
                             onChange={(e) => setYangFormData({ ...yangFormData, device_type: e.target.value })}
@@ -2332,7 +2285,7 @@ function Configurations() {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Category</label>
                           <select
                             value={yangFormData.category}
                             onChange={(e) => setYangFormData({ ...yangFormData, category: e.target.value })}
@@ -2348,7 +2301,7 @@ function Configurations() {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Version</label>
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Version</label>
                           <input
                             type="text"
                             value={yangFormData.version}
@@ -2358,7 +2311,7 @@ function Configurations() {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Description</label>
                         <input
                           type="text"
                           value={yangFormData.description}
@@ -2370,11 +2323,11 @@ function Configurations() {
                   </details>
 
                   {/* View YANG Content (collapsed) */}
-                  <details className="border rounded-lg">
-                    <summary className="p-3 cursor-pointer text-sm font-medium text-gray-700 hover:bg-gray-50">
+                  <details className="border dark:border-gray-700 rounded-lg">
+                    <summary className="p-3 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                       📄 View YANG Content
                     </summary>
-                    <div className="p-3 pt-0 border-t">
+                    <div className="p-3 pt-0 border-t dark:border-gray-700">
                       <pre className="bg-gray-900 text-green-400 text-xs p-3 rounded-lg overflow-auto max-h-48 font-mono">
                         {yangFormData.yang_content}
                       </pre>
@@ -2382,17 +2335,17 @@ function Configurations() {
                   </details>
                   
                   {/* XML Templates (collapsed) */}
-                  <details className="border rounded-lg">
-                    <summary className="p-3 cursor-pointer text-sm font-medium text-gray-700 hover:bg-gray-50">
+                  <details className="border dark:border-gray-700 rounded-lg">
+                    <summary className="p-3 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                       📋 XML Templates (Optional - {yangFormData.xml_templates.length} added)
                     </summary>
-                    <div className="p-3 pt-0 border-t space-y-2">
+                    <div className="p-3 pt-0 border-t dark:border-gray-700 space-y-2">
                       {yangFormData.xml_templates.length > 0 && (
                         <div className="space-y-1 mb-2">
                           {yangFormData.xml_templates.map((tmpl, idx) => (
-                            <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded p-2 text-xs">
-                              <span className="font-medium flex-1">{tmpl.name}</span>
-                              <button type="button" onClick={() => removeYangTemplate(idx)} className="text-red-500">
+                            <div key={idx} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700 rounded p-2 text-xs">
+                              <span className="font-medium flex-1 text-gray-900 dark:text-gray-100">{tmpl.name}</span>
+                              <button type="button" onClick={() => removeYangTemplate(idx)} className="text-red-500 dark:text-red-400">
                                 <TrashIcon className="h-3 w-3" />
                               </button>
                             </div>
@@ -2620,18 +2573,8 @@ function Configurations() {
               </div>
 
               {/* Metadata Footer */}
-              <div className="text-xs text-gray-400 dark:text-gray-500 pt-4 border-t dark:border-gray-700 flex items-center justify-between">
-                <div>
-                  <span>Status: </span>
-                  {selectedYangModel.is_active ? (
-                    <span className="text-green-600 dark:text-green-400 font-medium">Active</span>
-                  ) : (
-                    <span className="text-gray-500 font-medium">Disabled</span>
-                  )}
-                </div>
-                <div>
-                  <span>ID: {selectedYangModel.id || selectedYangModel._id}</span>
-                </div>
+              <div className="text-xs text-gray-400 dark:text-gray-500 pt-4 border-t dark:border-gray-700">
+                <span>ID: {selectedYangModel.id || selectedYangModel._id}</span>
               </div>
             </div>
 

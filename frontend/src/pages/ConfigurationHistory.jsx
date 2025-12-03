@@ -13,11 +13,13 @@ import {
   HistoryIcon,
   RefreshCwIcon
 } from 'lucide-react';
+import PageLoader from '../components/PageLoader';
 
 function ConfigurationHistory() {
   const [configurations, setConfigurations] = useState([]);
   const [groupedConfigurations, setGroupedConfigurations] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
   const [clearingAll, setClearingAll] = useState(false);
   const [filter, setFilter] = useState('all');
   const [selectedConfig, setSelectedConfig] = useState(null);
@@ -35,6 +37,7 @@ function ConfigurationHistory() {
       console.error('Error fetching configurations:', error);
     } finally {
       setLoading(false);
+      setInitialLoad(false);
     }
   }, [filter]);
 
@@ -159,17 +162,8 @@ function ConfigurationHistory() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="animate-pulse">
-        <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
-        <div className="space-y-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-24 bg-gray-200 rounded"></div>
-          ))}
-        </div>
-      </div>
-    );
+  if (loading && initialLoad) {
+    return <PageLoader message="Loading history..." />;
   }
 
   return (
@@ -178,7 +172,9 @@ function ConfigurationHistory() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <HistoryIcon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-xl">
+              <HistoryIcon className="h-7 w-7 text-blue-600 dark:text-blue-400" />
+            </div>
             Configuration History
           </h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">

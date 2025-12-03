@@ -7,13 +7,14 @@ import {
   XCircleIcon,
   ClockIcon,
   ActivityIcon,
-  ChartBarIcon,
+  LayoutDashboardIcon,
   RefreshCwIcon,
   ArchiveIcon,
   TrendingUpIcon,
   TerminalIcon
 } from 'lucide-react';
 import DeviceIcon from '../components/DeviceIcon';
+import PageLoader from '../components/PageLoader';
 
 function Dashboard() {
   const [stats, setStats] = useState({
@@ -40,7 +41,8 @@ function Dashboard() {
   });
   const [devices, setDevices] = useState([]);
   const [schedules, setSchedules] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
   
   // AbortController ref for request cancellation
   const abortControllerRef = useRef(null);
@@ -149,6 +151,7 @@ function Dashboard() {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
+      setInitialLoad(false);
     }
   }, []);
 
@@ -175,26 +178,15 @@ function Dashboard() {
 
   const getDeviceStatusBadge = (status) => {
     const styles = {
-      active: 'bg-green-100 text-green-800',
-      inactive: 'bg-red-100 text-red-800',
-      maintenance: 'bg-yellow-100 text-yellow-800'
+      active: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300',
+      inactive: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-300',
+      maintenance: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-300'
     };
-    return styles[status] || 'bg-gray-100 text-gray-800';
+    return styles[status] || 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300';
   };
 
-  if (loading) {
-    return (
-      <div className="animate-pulse">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="card p-6">
-              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-              <div className="h-8 bg-gray-200 rounded w-1/2"></div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+  if (loading && initialLoad) {
+    return <PageLoader message="Loading dashboard..." />;
   }
 
   return (
@@ -203,7 +195,7 @@ function Dashboard() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <ChartBarIcon className="h-8 w-8 text-blue-600" />
+            <LayoutDashboardIcon className="h-8 w-8 text-blue-600" />
             Dashboard
           </h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">

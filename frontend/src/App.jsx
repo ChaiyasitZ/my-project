@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import axios from 'axios';
@@ -11,7 +11,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 // Context
 import { AuthProvider, useAuth } from './context/AuthContext';
 
-// Pages
+// Pages - eagerly loaded for instant navigation
 import Dashboard from './pages/Dashboard';
 import Devices from './pages/Devices';
 import Configurations from './pages/Configurations';
@@ -47,7 +47,7 @@ function AuthenticatedLayout({ children, connectionStatus, sidebarCollapsed, onT
       />
       
       {/* Main content area */}
-      <div className="flex-1 lg:ml-0 w-full transition-all duration-300">
+      <div className="flex-1 lg:ml-0 w-full">
         <main className="pt-20 lg:pt-6 px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto w-full">
             {children}
@@ -61,7 +61,6 @@ function AuthenticatedLayout({ children, connectionStatus, sidebarCollapsed, onT
 // Main App content with routing
 function AppContent() {
   const { isAuthenticated, loading } = useAuth();
-  const location = useLocation();
   
   const [connectionStatus, setConnectionStatus] = useState({
     backend: 'checking',
@@ -125,9 +124,6 @@ function AppContent() {
     const interval = setInterval(checkConnectionStatus, 30000);
     return () => clearInterval(interval);
   }, []);
-
-  // Check if current route is public
-  const isPublicRoute = ['/login', '/auth/callback'].includes(location.pathname);
 
   return (
     <>
