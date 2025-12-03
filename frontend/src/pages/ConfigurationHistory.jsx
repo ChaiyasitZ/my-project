@@ -172,8 +172,8 @@ function ConfigurationHistory() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-xl">
-              <HistoryIcon className="h-7 w-7 text-blue-600 dark:text-blue-400" />
+            <div className="p-2 bg-cyan-100 dark:bg-cyan-900/50 rounded-xl">
+              <HistoryIcon className="h-7 w-7 text-cyan-600 dark:text-cyan-400" />
             </div>
             Configuration History
           </h1>

@@ -467,13 +467,13 @@ function Configurations() {
 
   const getCategoryColor = (category) => {
     const colors = {
-      interface: 'bg-blue-100 text-blue-700',
-      routing: 'bg-green-100 text-green-700',
-      switching: 'bg-yellow-100 text-yellow-700',
-      security: 'bg-red-100 text-red-700',
-      qos: 'bg-purple-100 text-purple-700',
-      system: 'bg-gray-100 text-gray-700',
-      other: 'bg-gray-100 text-gray-600'
+      interface: 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300',
+      routing: 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300',
+      switching: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300',
+      security: 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300',
+      qos: 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300',
+      system: 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
+      other: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
     };
     return colors[category] || colors.other;
   };
@@ -1062,10 +1062,10 @@ function Configurations() {
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{model.name}</span>
                             <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                              model.device_type === 'nexus' ? 'bg-purple-100 text-purple-700' :
-                              model.device_type === 'ios-xe' ? 'bg-blue-100 text-blue-700' :
-                              model.device_type === 'ios-xr' ? 'bg-orange-100 text-orange-700' :
-                              'bg-gray-100 text-gray-700'
+                              model.device_type === 'nexus' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300' :
+                              model.device_type === 'ios-xe' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' :
+                              model.device_type === 'ios-xr' ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300' :
+                              'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                             }`}>
                               {model.device_type?.toUpperCase() || 'ALL'}
                             </span>
@@ -1719,12 +1719,12 @@ function Configurations() {
                 // Device type badge color
                 const getDeviceTypeBadge = (type) => {
                   switch(type) {
-                    case 'nexus': return 'bg-purple-100 text-purple-700';
-                    case 'ios-xe': return 'bg-blue-100 text-blue-700';
-                    case 'ios-xr': return 'bg-orange-100 text-orange-700';
-                    case 'ios': return 'bg-green-100 text-green-700';
-                    case 'all': return 'bg-gray-100 text-gray-700';
-                    default: return 'bg-gray-100 text-gray-700';
+                    case 'nexus': return 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300';
+                    case 'ios-xe': return 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300';
+                    case 'ios-xr': return 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300';
+                    case 'ios': return 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300';
+                    case 'all': return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
+                    default: return 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300';
                   }
                 };
                 

@@ -195,7 +195,9 @@ function Dashboard() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <LayoutDashboardIcon className="h-8 w-8 text-blue-600" />
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-xl">
+              <LayoutDashboardIcon className="h-7 w-7 text-blue-600 dark:text-blue-400" />
+            </div>
             Dashboard
           </h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
