@@ -1,8 +1,24 @@
 import express from 'express';
 import Joi from 'joi';
+import mongoose from 'mongoose';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
+import Device from '../models/Device.js';
 import consoleService from '../services/consoleService.js';
 import { authenticateToken } from '../middleware/auth.js';
+
+// Helper to verify device ownership when a MongoDB ObjectId is provided
+async function verifyDeviceOwnership(deviceId, userId) {
+  // Only check ownership if it looks like a MongoDB ObjectId
+  if (mongoose.Types.ObjectId.isValid(deviceId)) {
+    const device = await Device.findOne({ _id: deviceId, userId });
+    if (!device) {
+      return { valid: false, error: 'Device not found or access denied' };
+    }
+    return { valid: true, device };
+  }
+  // For port-based IDs (e.g., port_COM3), allow access
+  return { valid: true };
+}
 
 const router = express.Router();
 
@@ -79,6 +95,12 @@ router.post('/connect', async (req, res) => {
       value.deviceId = `port_${value.portPath.replace(/[^a-zA-Z0-9]/g, '_')}`;
     }
 
+    // Verify device ownership if a database device ID is provided
+    const ownership = await verifyDeviceOwnership(value.deviceId, req.userId);
+    if (!ownership.valid) {
+      return res.status(404).json({ success: false, message: ownership.error });
+    }
+
     console.log(`🔌 Console connection request for port ${value.portPath} (Device ID: ${value.deviceId})`);
     const result = await consoleService.connectConsole(value);
     
@@ -114,6 +136,12 @@ router.post('/disconnect', async (req, res) => {
         success: false,
         message: 'Device ID or Port Path is required'
       });
+    }
+
+    // Verify device ownership if a database device ID is provided
+    const ownership = await verifyDeviceOwnership(finalDeviceId, req.userId);
+    if (!ownership.valid) {
+      return res.status(404).json({ success: false, message: ownership.error });
     }
 
     await consoleService.disconnectConsole(finalDeviceId);
@@ -182,6 +210,13 @@ router.post('/command', async (req, res) => {
     }
 
     const { deviceId, command, waitForPrompt } = value;
+
+    // Verify device ownership if a database device ID is provided
+    const ownership = await verifyDeviceOwnership(deviceId, req.userId);
+    if (!ownership.valid) {
+      return res.status(404).json({ success: false, message: ownership.error });
+    }
+
     console.log(`📝 Sending console command to device ${deviceId}: ${command}`);
     
     const result = await consoleService.sendConsoleCommand(deviceId, command, waitForPrompt);
@@ -215,6 +250,13 @@ router.post('/initial-config', async (req, res) => {
     }
 
     const { deviceId, configCommands, deviceInfo } = value;
+
+    // Verify device ownership if a database device ID is provided
+    const ownership = await verifyDeviceOwnership(deviceId, req.userId);
+    if (!ownership.valid) {
+      return res.status(404).json({ success: false, message: ownership.error });
+    }
+
     console.log(`🔧 Starting initial configuration for device ${deviceId}`);
     
     const result = await consoleService.sendInitialConfig(deviceId, configCommands, deviceInfo);
@@ -259,6 +301,13 @@ router.post('/initial-config', async (req, res) => {
 router.get('/status/:deviceId', async (req, res) => {
   try {
     const { deviceId } = req.params;
+
+    // Verify device ownership if a database device ID is provided
+    const ownership = await verifyDeviceOwnership(deviceId, req.userId);
+    if (!ownership.valid) {
+      return res.status(404).json({ success: false, message: ownership.error });
+    }
+
     const status = consoleService.getConsoleStatus(deviceId);
     
     res.json({
@@ -306,6 +355,12 @@ router.post('/templates/apply', async (req, res) => {
         success: false,
         message: 'Template key and device ID are required'
       });
+    }
+
+    // Verify device ownership if a database device ID is provided
+    const ownership = await verifyDeviceOwnership(deviceId, req.userId);
+    if (!ownership.valid) {
+      return res.status(404).json({ success: false, message: ownership.error });
     }
 
     const templates = consoleService.getInitialConfigTemplates();

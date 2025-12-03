@@ -80,7 +80,7 @@ router.get('/analytics', async (req, res) => {
     const [performanceStats, deviceTypeStats] = await Promise.all([
       // Performance statistics
       ConfigurationHistory.aggregate([
-        { $match: { created_at: { $gte: dateThreshold } } },
+        { $match: { userId: req.userId, created_at: { $gte: dateThreshold } } },
         {
           $group: {
             _id: null,
@@ -97,7 +97,7 @@ router.get('/analytics', async (req, res) => {
       
       // Device type performance
       ConfigurationHistory.aggregate([
-        { $match: { created_at: { $gte: dateThreshold } } },
+        { $match: { userId: req.userId, created_at: { $gte: dateThreshold } } },
         {
           $lookup: {
             from: 'devices',
