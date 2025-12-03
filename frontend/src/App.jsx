@@ -218,7 +218,7 @@ function AppContent() {
             style: { background: '#2563eb' },
           },
         }}
-}}      />
+      />
     </>
   );
 }
