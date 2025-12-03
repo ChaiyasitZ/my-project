@@ -846,7 +846,7 @@ function Configurations() {
             LLM Configuration Generator
           </h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Generate Cisco device configurations using AI-powered LLM via OpenRouter
+            Generate Cisco device configurations using LLM via OpenRouter
           </p>
         </div>
         <div className="flex items-center gap-3">

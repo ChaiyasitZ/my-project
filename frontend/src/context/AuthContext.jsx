@@ -3,6 +3,9 @@ import axios from 'axios';
 
 const AuthContext = createContext(null);
 
+// Session key for detecting fresh browser/tab opens
+const SESSION_KEY = 'app_session_active';
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -28,6 +31,47 @@ export const AuthProvider = ({ children }) => {
       delete axios.defaults.headers.common['Authorization'];
     }
   };
+
+  // Disconnect all NETCONF sessions
+  const disconnectAllSessions = async () => {
+    try {
+      await axios.post('/devices/netconf/disconnect-all');
+      console.log('🔌 All NETCONF sessions disconnected');
+    } catch (err) {
+      // Ignore errors - sessions may not exist
+      console.log('No active NETCONF sessions to disconnect');
+    }
+  };
+
+  // Check if this is a fresh session (new tab/window)
+  const checkFreshSession = useCallback(async () => {
+    const isSessionActive = sessionStorage.getItem(SESSION_KEY);
+    
+    if (!isSessionActive) {
+      // Fresh session detected - clear auth and disconnect devices
+      console.log('🔄 Fresh session detected - cleaning up...');
+      
+      // Clear auth tokens
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('refreshToken');
+      setAuthHeader(null);
+      setUser(null);
+      
+      // Disconnect all NETCONF sessions (try even without auth)
+      try {
+        await axios.post('/devices/netconf/disconnect-all');
+      } catch (err) {
+        // Ignore - may not have permission or sessions
+      }
+      
+      // Mark session as active
+      sessionStorage.setItem(SESSION_KEY, 'true');
+      
+      return true; // Was fresh session
+    }
+    
+    return false; // Existing session
+  }, []);
 
   // Fetch current user
   const fetchUser = useCallback(async () => {
@@ -107,6 +151,8 @@ export const AuthProvider = ({ children }) => {
     try {
       const token = getToken();
       if (token) {
+        // Disconnect all NETCONF sessions first
+        await disconnectAllSessions();
         await axios.post('/auth/logout');
       }
     } catch (err) {
@@ -141,8 +187,20 @@ export const AuthProvider = ({ children }) => {
 
   // Initialize auth state on mount
   useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+    const initAuth = async () => {
+      // Check for fresh session first
+      const wasFresh = await checkFreshSession();
+      
+      if (!wasFresh) {
+        // Only fetch user if not a fresh session
+        await fetchUser();
+      } else {
+        setLoading(false);
+      }
+    };
+    
+    initAuth();
+  }, [fetchUser, checkFreshSession]);
 
   // Setup axios interceptor for token refresh
   useEffect(() => {

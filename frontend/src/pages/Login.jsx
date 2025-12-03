@@ -25,40 +25,51 @@ function Login() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 px-4">
-      <div className="max-w-md w-full">
+    <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Animated Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+        {/* Animated gradient orbs */}
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/30 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-3xl"></div>
+      </div>
+
+      {/* Grid pattern overlay */}
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px]"></div>
+
+      <div className="max-w-md w-full relative z-10">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4">
-            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-2xl mb-4 shadow-lg shadow-blue-500/25">
+            <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-4xl font-bold text-white mb-2">
             Network Automation
           </h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
-            AI-powered network device management
+          <p className="text-blue-200/80">
+            LLM-powered network device management
           </p>
         </div>
 
-        {/* Login Card */}
-        <div className="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white text-center mb-6">
+        {/* Glass Login Card */}
+        <div className="backdrop-blur-xl bg-white/10 border border-white/20 shadow-2xl rounded-3xl p-8">
+          <h2 className="text-xl font-semibold text-white text-center mb-6">
             Sign in to your account
           </h2>
 
           {/* Google Sign-In Button */}
           <button
             onClick={loginWithGoogle}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors duration-200 group"
+            className="w-full flex items-center justify-center gap-3 px-4 py-3.5 rounded-xl bg-white/90 hover:bg-white transition-all duration-300 group shadow-lg hover:shadow-xl hover:scale-[1.02]"
           >
             {/* Google Icon */}
             <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -79,7 +90,7 @@ function Login() {
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
               />
             </svg>
-            <span className="text-gray-700 dark:text-gray-200 font-medium">
+            <span className="text-gray-700 font-semibold">
               Continue with Google
             </span>
           </button>
@@ -87,39 +98,41 @@ function Login() {
           {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200 dark:border-gray-700"></div>
+              <div className="w-full border-t border-white/20"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+              <span className="px-4 backdrop-blur-sm bg-white/5 rounded-full text-blue-200/70">
                 Secure authentication
               </span>
             </div>
-          </div>
-
-          {/* Info */}
-          <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-            <p>By signing in, you agree to our</p>
-            <p className="mt-1">
-              <a href="#" className="text-blue-600 hover:underline">Terms of Service</a>
-              {' & '}
-              <a href="#" className="text-blue-600 hover:underline">Privacy Policy</a>
-            </p>
           </div>
         </div>
 
         {/* Features */}
         <div className="mt-8 grid grid-cols-3 gap-4 text-center">
-          <div className="p-3">
-            <div className="text-2xl mb-1">🔒</div>
-            <p className="text-xs text-gray-600 dark:text-gray-400">Secure OAuth</p>
+          <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl p-4 hover:bg-white/10 transition-colors">
+            <div className="w-10 h-10 mx-auto mb-2 rounded-xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/25">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <p className="text-xs text-blue-200/80 font-medium">Secure OAuth</p>
           </div>
-          <div className="p-3">
-            <div className="text-2xl mb-1">🤖</div>
-            <p className="text-xs text-gray-600 dark:text-gray-400">AI-Powered</p>
+          <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl p-4 hover:bg-white/10 transition-colors">
+            <div className="w-10 h-10 mx-auto mb-2 rounded-xl bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/25">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <p className="text-xs text-blue-200/80 font-medium">LLM-Powered</p>
           </div>
-          <div className="p-3">
-            <div className="text-2xl mb-1">☁️</div>
-            <p className="text-xs text-gray-600 dark:text-gray-400">Cloud Sync</p>
+          <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl p-4 hover:bg-white/10 transition-colors">
+            <div className="w-10 h-10 mx-auto mb-2 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center shadow-lg shadow-cyan-500/25">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+              </svg>
+            </div>
+            <p className="text-xs text-blue-200/80 font-medium">Cloud Sync</p>
           </div>
         </div>
       </div>

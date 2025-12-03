@@ -137,7 +137,7 @@ app.get('/api', (req, res) => {
       },
       configurations: {
         url: '/api/configurations',
-        description: 'AI-powered configuration generation and deployment'
+        description: 'LLM-powered configuration generation and deployment'
       },
       backups: {
         url: '/api/backups',

@@ -886,6 +886,28 @@ router.post('/:id/netconf/connect', async (req, res) => {
   }
 });
 
+// POST /api/devices/netconf/disconnect-all - Disconnect all NETCONF sessions
+router.post('/netconf/disconnect-all', async (req, res) => {
+  try {
+    console.log('🌐 Disconnecting all NETCONF sessions');
+    
+    const result = netconfService.disconnectAll();
+    
+    res.json({
+      success: true,
+      message: `Disconnected ${result.disconnected} NETCONF session(s)`,
+      disconnected: result.disconnected
+    });
+    
+  } catch (error) {
+    console.error('Error disconnecting all NETCONF sessions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to disconnect NETCONF sessions'
+    });
+  }
+});
+
 // POST /api/devices/:id/netconf/disconnect - Disconnect NETCONF session
 router.post('/:id/netconf/disconnect', async (req, res) => {
   try {

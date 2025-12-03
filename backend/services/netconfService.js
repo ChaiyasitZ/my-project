@@ -511,6 +511,20 @@ ${configXml}
   }
 
   /**
+   * Disconnect all NETCONF sessions
+   */
+  disconnectAll() {
+    const sessionCount = this.connections.size;
+    
+    for (const [deviceId] of this.connections) {
+      this.disconnect(deviceId);
+    }
+    
+    console.log(`🔌 NETCONF: Disconnected all ${sessionCount} sessions`);
+    return { disconnected: sessionCount };
+  }
+
+  /**
    * Cleanup expired connections
    */
   cleanupExpiredConnections() {

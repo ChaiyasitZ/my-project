@@ -1,7 +1,7 @@
 {
   "name": "network-automation-backend",
   "version": "1.0.0",
-  "description": "Simple Backend for Raw AI-powered network automation",
+  "description": "Simple Backend for Raw LLM-powered network automation",
   "main": "server.js",
   "type": "module",
   "scripts": {
