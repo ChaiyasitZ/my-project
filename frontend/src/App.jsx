@@ -33,9 +33,6 @@ const API_BASE_URL = import.meta.env.VITE_API_URL ||
 
 axios.defaults.baseURL = API_BASE_URL;
 
-// Stagewise toolbar - only in development
-const isDev = import.meta.env.DEV;
-
 // Layout component for authenticated pages
 function AuthenticatedLayout({ children, connectionStatus, sidebarCollapsed, onToggleSidebar }) {
   return (
@@ -71,7 +68,6 @@ function AppContent() {
     const saved = localStorage.getItem('sidebarCollapsed');
     return saved ? JSON.parse(saved) : false;
   });
-  const [StagewiseToolbar, setStagewiseToolbar] = useState(null);
 
   const handleToggleSidebar = () => {
     setSidebarCollapsed(prev => {
@@ -80,18 +76,6 @@ function AppContent() {
       return newValue;
     });
   };
-
-  useEffect(() => {
-    if (isDev) {
-      Promise.all([
-        import('@stagewise/toolbar-react'),
-        import('@stagewise-plugins/react')
-      ]).then(([toolbar, plugin]) => {
-        setStagewiseToolbar(() => toolbar.StagewiseToolbar);
-        window.__stagewisePlugin = plugin.default;
-      }).catch(() => {});
-    }
-  }, []);
 
   useEffect(() => {
     const checkConnectionStatus = async () => {
@@ -234,12 +218,7 @@ function AppContent() {
             style: { background: '#2563eb' },
           },
         }}
-      />
-      
-      {/* Stagewise Toolbar - Only in development */}
-      {isDev && StagewiseToolbar && (
-        <StagewiseToolbar config={{ plugins: [window.__stagewisePlugin] }} />
-      )}
+}}      />
     </>
   );
 }
