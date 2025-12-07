@@ -11,9 +11,11 @@
   transition: all 0.3s ease;
 }
 
-/* Page Transition Animations */
+/* Page Transition Animations - GPU Optimized */
 .page-transition {
   will-change: opacity, transform;
+  transform: translateZ(0); /* Force GPU layer */
+  backface-visibility: hidden;
 }
 
 .page-transition.enter {
@@ -27,22 +29,22 @@
 @keyframes pageEnter {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translate3d(0, 10px, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes pageExit {
   from {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
   to {
     opacity: 0;
-    transform: translateY(-5px);
+    transform: translate3d(0, -5px, 0);
   }
 }
 
@@ -56,35 +58,51 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Skeleton loading animation */
+/* Skeleton loading animation - GPU Optimized */
 @keyframes shimmer {
   0% {
-    background-position: -200% 0;
+    transform: translateX(-100%);
   }
   100% {
-    background-position: 200% 0;
+    transform: translateX(100%);
   }
 }
 
 .skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: rgba(229, 231, 235, 0.4);
+}
+
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: linear-gradient(
     90deg,
-    rgba(229, 231, 235, 0.4) 25%,
-    rgba(229, 231, 235, 0.8) 50%,
-    rgba(229, 231, 235, 0.4) 75%
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
   );
-  background-size: 200% 100%;
+  transform: translateX(-100%);
   animation: shimmer 1.5s infinite;
+  will-change: transform;
 }
 
 .dark .skeleton-shimmer {
+  background: rgba(55, 65, 81, 0.4);
+}
+
+.dark .skeleton-shimmer::after {
   background: linear-gradient(
     90deg,
-    rgba(55, 65, 81, 0.4) 25%,
-    rgba(55, 65, 81, 0.8) 50%,
-    rgba(55, 65, 81, 0.4) 75%
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
   );
-  background-size: 200% 100%;
 }
 
 /* Navigation item hover effects */
@@ -108,7 +126,7 @@ html {
   left: 100%;
 }
 
-/* Status indicator animations */
+/* Status indicator animations - GPU Optimized */
 @keyframes pulse-status {
   0%, 100% {
     opacity: 1;
@@ -120,6 +138,7 @@ html {
 
 .status-pulse {
   animation: pulse-status 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  will-change: opacity;
 }
 
 /* Input styling enhancements */

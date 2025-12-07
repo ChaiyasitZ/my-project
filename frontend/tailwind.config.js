@@ -44,6 +44,7 @@ export default {
         'slide-down': 'slideDown 0.3s ease-out',
         'page-enter': 'pageEnter 0.2s ease-out forwards',
         'page-exit': 'pageExit 0.15s ease-in forwards',
+        'spin': 'spin 1s linear infinite',
       },
       keyframes: {
         fadeIn: {
@@ -51,20 +52,24 @@ export default {
           '100%': { opacity: '1' },
         },
         slideUp: {
-          '0%': { opacity: '0', transform: 'translateY(10px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
+          '0%': { opacity: '0', transform: 'translate3d(0, 10px, 0)' },
+          '100%': { opacity: '1', transform: 'translate3d(0, 0, 0)' },
         },
         slideDown: {
-          '0%': { opacity: '0', transform: 'translateY(-10px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
+          '0%': { opacity: '0', transform: 'translate3d(0, -10px, 0)' },
+          '100%': { opacity: '1', transform: 'translate3d(0, 0, 0)' },
         },
         pageEnter: {
-          '0%': { opacity: '0', transform: 'translateY(8px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
+          '0%': { opacity: '0', transform: 'translate3d(0, 8px, 0)' },
+          '100%': { opacity: '1', transform: 'translate3d(0, 0, 0)' },
         },
         pageExit: {
-          '0%': { opacity: '1', transform: 'translateY(0)' },
-          '100%': { opacity: '0', transform: 'translateY(-4px)' },
+          '0%': { opacity: '1', transform: 'translate3d(0, 0, 0)' },
+          '100%': { opacity: '0', transform: 'translate3d(0, -4px, 0)' },
+        },
+        spin: {
+          '0%': { transform: 'rotate(0deg)' },
+          '100%': { transform: 'rotate(360deg)' },
         },
       },
       boxShadow: {
