@@ -1019,12 +1019,17 @@ function BackupManagement() {
       )}
 
       {/* Preview Modal */}
-      {showPreviewModal && (
+      {showPreviewModal && createPortal(
         <div className="fixed inset-0 z-50 overflow-y-auto overlay-scrollbar">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowPreviewModal(false)}></div>
-
-            <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-6xl sm:w-full">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+            onClick={() => setShowPreviewModal(false)}
+          ></div>
+          
+          {/* Modal Container */}
+          <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all max-w-6xl w-full max-h-[90vh] overflow-y-auto modal-scrollbar pointer-events-auto animate-fade-in">
               <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white flex items-center">
@@ -1164,16 +1169,22 @@ function BackupManagement() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Restore Modal */}
-      {showRestoreModal && selectedBackup && (
+      {showRestoreModal && selectedBackup && createPortal(
         <div className="fixed inset-0 z-50 overflow-y-auto overlay-scrollbar">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowRestoreModal(false)}></div>
-
-            <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+            onClick={() => setShowRestoreModal(false)}
+          ></div>
+          
+          {/* Modal Container */}
+          <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all max-w-lg w-full pointer-events-auto animate-fade-in">
               <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Restore Configuration</h3>
@@ -1272,7 +1283,8 @@ function BackupManagement() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Confirmation Modal */}

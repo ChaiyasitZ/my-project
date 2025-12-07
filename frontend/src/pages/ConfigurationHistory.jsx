@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { 
@@ -360,9 +361,17 @@ function ConfigurationHistory() {
       )}
 
       {/* Configuration Details Modal */}
-      {showModal && selectedConfig && (
-        <div className="modal-overlay fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-screen overflow-y-auto modal-scrollbar">
+      {showModal && selectedConfig && createPortal(
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+            onClick={() => setShowModal(false)}
+          ></div>
+          
+          {/* Modal Container */}
+          <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto modal-scrollbar pointer-events-auto animate-fade-in">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white">
@@ -475,8 +484,10 @@ function ConfigurationHistory() {
                 Close
               </button>
             </div>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

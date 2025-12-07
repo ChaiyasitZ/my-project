@@ -1,5 +1,6 @@
 import { AlertTriangleIcon, CheckCircleIcon, XCircleIcon, InfoIcon, X } from 'lucide-react';
 import { useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
 function ConfirmationModal({ 
   isOpen, 
@@ -99,7 +100,7 @@ function ConfirmationModal({
     }
   };
 
-  return (
+  return createPortal(
     <div 
       className="fixed inset-0 z-50 overflow-y-auto overlay-scrollbar"
       role="dialog"
@@ -107,18 +108,17 @@ function ConfirmationModal({
       aria-labelledby="modal-title"
       aria-describedby="modal-description"
     >
+      {/* Backdrop - separate from content container */}
       <div 
-        className="flex items-center justify-center min-h-screen p-4"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ease-out"
+        aria-hidden="true"
         onClick={handleBackdropClick}
-      >
-        {/* Backdrop */}
-        <div 
-          className="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity duration-300 ease-out backdrop-blur-sm"
-          aria-hidden="true"
-        ></div>
+      ></div>
 
+      {/* Modal container */}
+      <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
         {/* Modal */}
-        <div className="relative bg-white rounded-xl px-6 pt-6 pb-4 text-left overflow-hidden shadow-2xl transform transition-all duration-300 ease-out max-w-lg w-full animate-in zoom-in-95 fade-in">
+        <div className="relative bg-white rounded-xl px-6 pt-6 pb-4 text-left overflow-hidden shadow-2xl transform transition-all duration-300 ease-out max-w-lg w-full animate-in zoom-in-95 fade-in pointer-events-auto">
           {/* Close button */}
           <div className="absolute top-4 right-4">
             <button
@@ -185,7 +185,8 @@ function ConfirmationModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

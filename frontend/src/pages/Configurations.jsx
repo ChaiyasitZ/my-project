@@ -2178,9 +2178,17 @@ function Configurations() {
       )}
 
       {/* YANG Model Upload Modal */}
-      {showYangUploadModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
+      {showYangUploadModal && createPortal(
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+            onClick={() => { setShowYangUploadModal(false); resetYangForm(); }}
+          ></div>
+          
+          {/* Modal Container */}
+          <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto pointer-events-auto animate-fade-in">
             <div className="p-4 border-b sticky top-0 bg-white z-10">
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <UploadIcon className="h-5 w-5 text-purple-600" />
@@ -2448,8 +2456,10 @@ function Configurations() {
                 </button>
               </div>
             </form>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Custom YANG Model Modal */}
@@ -2664,9 +2674,17 @@ function Configurations() {
       )}
 
       {/* YANG Model Detail Modal */}
-      {showYangDetailModal && selectedYangModel && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      {showYangDetailModal && selectedYangModel && createPortal(
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+            onClick={() => { setShowYangDetailModal(false); setSelectedYangModel(null); }}
+          ></div>
+          
+          {/* Modal Container */}
+          <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col pointer-events-auto animate-fade-in">
             {/* Header */}
             <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/30 dark:to-blue-900/30">
               <div className="flex items-center gap-3">
@@ -2821,8 +2839,10 @@ function Configurations() {
                 Close
               </button>
             </div>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Confirmation Modal */}
