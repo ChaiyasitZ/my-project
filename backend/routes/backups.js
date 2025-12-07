@@ -133,10 +133,18 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Known static paths that should not match /:id routes
+const RESERVED_PATHS = ['schedules', 'stats', 'custom', 'compare', 'search', 'analytics'];
+
 // GET /api/backups/:id/preview - Preview backup configuration content
 router.get('/:id/preview', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Skip if this is a reserved path
+    if (RESERVED_PATHS.includes(id)) {
+      return res.status(404).json({ success: false, message: 'Not found' });
+    }
     
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -210,6 +218,11 @@ router.get('/:id/preview', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Skip if this is a reserved path
+    if (RESERVED_PATHS.includes(id)) {
+      return res.status(404).json({ success: false, message: 'Not found' });
+    }
     
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -643,6 +656,12 @@ router.post('/', async (req, res) => {
 router.post('/:id/restore', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Skip if this is a reserved path
+    if (RESERVED_PATHS.includes(id)) {
+      return res.status(404).json({ success: false, message: 'Not found' });
+    }
+    
     const { restore_type = 'running', create_checkpoint = true } = req.body;
     
     // Validate restore_type
@@ -847,6 +866,11 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
+    // Skip if this is a reserved path
+    if (RESERVED_PATHS.includes(id)) {
+      return res.status(404).json({ success: false, message: 'Not found' });
+    }
+    
     // Check if backup exists and is not a restore point
     const backup = await ConfigurationBackup.findById(id).select('backup_name is_restore_point device_id');
     
@@ -939,6 +963,11 @@ router.get('/device/:device_id', async (req, res) => {
 router.post('/:id/set-restore-point', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Skip if this is a reserved path
+    if (RESERVED_PATHS.includes(id)) {
+      return res.status(404).json({ success: false, message: 'Not found' });
+    }
     
     // First get the backup to verify ownership
     const existingBackup = await ConfigurationBackup.findById(id).select('device_id');

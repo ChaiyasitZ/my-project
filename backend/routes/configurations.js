@@ -37,7 +37,8 @@ const generateConfigSchema = Joi.object({
 });
 
 const applyConfigSchema = Joi.object({
-  configuration_id: Joi.string().required()
+  configuration_id: Joi.string().required(),
+  validate_before_apply: Joi.boolean().optional()
 });
 
 // Configuration rating schema (simplified for raw AI)
