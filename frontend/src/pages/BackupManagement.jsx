@@ -20,9 +20,12 @@ import {
   FileTextIcon,
   PlusIcon,
   SearchIcon,
-  EyeIcon
+  EyeIcon,
+  BellIcon
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
+import BackupCreationModal from '../components/BackupCreationModal';
+import SubscriptionModal from '../components/SubscriptionModal';
 import PageLoader from '../components/PageLoader';
 import { useConfirmation } from '../hooks/useConfirmation';
 
@@ -81,6 +84,7 @@ function BackupManagement() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   const [selectedBackup, setSelectedBackup] = useState(null);
   const [previewData, setPreviewData] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -90,6 +94,15 @@ function BackupManagement() {
   const [filter, setFilter] = useState('all');
   const [configFilter, setConfigFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Backup creation progress state
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [backupProgress, setBackupProgress] = useState({
+    step: 'connect',  // 'connect' | 'authenticate' | 'running' | 'startup' | 'save' | 'complete' | 'error'
+    error: null,
+    deviceName: '',
+    backupName: ''
+  });
   
   // Form state
   const [backupForm, setBackupForm] = useState({
@@ -159,8 +172,35 @@ function BackupManagement() {
       return;
     }
 
+    // Find device name for progress modal
+    const selectedDeviceObj = (devices || []).find(d => 
+      d.id === backupForm.device_id || d._id === backupForm.device_id
+    );
+    const deviceName = selectedDeviceObj?.name || 'Device';
+
     setCreating(true);
-    const toastId = toast.loading('Creating backup...');
+    setShowCreateModal(false); // Close create modal
+    
+    // Initialize progress modal
+    setBackupProgress({
+      step: 'connect',
+      error: null,
+      deviceName: deviceName,
+      backupName: backupForm.backup_name
+    });
+    setShowProgressModal(true);
+    
+    // Simulate progress steps (since backend doesn't send real-time updates)
+    const simulateProgress = async () => {
+      const steps = ['connect', 'authenticate', 'running', 'startup', 'save'];
+      for (let i = 0; i < steps.length - 1; i++) {
+        await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 400));
+        setBackupProgress(prev => ({ ...prev, step: steps[i + 1] }));
+      }
+    };
+
+    // Start progress simulation
+    const progressPromise = simulateProgress();
     
     try {
       await axios.post('/backups', {
@@ -169,8 +209,13 @@ function BackupManagement() {
         config_type: backupForm.config_type
       });
 
-      // Close modal and reset form first
-      setShowCreateModal(false);
+      // Wait for progress animation to catch up
+      await progressPromise;
+      
+      // Show complete
+      setBackupProgress(prev => ({ ...prev, step: 'complete' }));
+
+      // Reset form
       setBackupForm({
         device_id: '',
         backup_name: '',
@@ -180,15 +225,7 @@ function BackupManagement() {
         tags: []
       });
 
-      // Show success message
       console.log('✅ Backup created successfully!');
-      console.log('Details:',
-        `Name: ${backupForm.backup_name}\n` +
-        `Device: ${(devices || []).find(d => d.id === parseInt(backupForm.device_id))?.name || 'Unknown'}\n` +
-        `Type: ${backupForm.backup_type}`
-      );
-      
-      toast.success(`Backup "${backupForm.backup_name}" created successfully!`, { id: toastId });
       
       // Refresh data after successful creation
       await fetchData();
@@ -204,21 +241,59 @@ function BackupManagement() {
         errorMessage = error.message;
       }
       
-      // Show troubleshooting tips if available
-      if (errorData?.troubleshooting && errorData.troubleshooting.length > 0) {
-        const troubleshootingTips = errorData.troubleshooting.slice(0, 2).join('\n• ');
-        errorMessage += `\n\nTroubleshooting:\n• ${troubleshootingTips}`;
-      }
-      
-      toast.error(errorMessage, { 
-        id: toastId,
-        duration: 8000  // Longer duration for detailed error messages
-      });
+      // Show error in progress modal
+      setBackupProgress(prev => ({ 
+        ...prev, 
+        step: 'error',
+        error: errorMessage 
+      }));
     } finally {
       setCreating(false);
     }
   };
+  
+  // Handle retry from progress modal
+  const handleRetryBackup = () => {
+    setShowProgressModal(false);
+    setShowCreateModal(true);
+  };
+  
+  // Handle close progress modal
+  const handleCloseProgressModal = () => {
+    setShowProgressModal(false);
+    setBackupProgress({
+      step: 'connect',
+      error: null,
+      deviceName: '',
+      backupName: ''
+    });
+  };
 
+  // Handle subscription creation
+  const handleCreateSubscription = async (subscriptionData) => {
+    try {
+      const response = await axios.post('/backups/post-deploy-schedule', subscriptionData);
+      
+      if (response.data.success) {
+        toast.success(`Subscription "${subscriptionData.name}" created successfully!`);
+        await fetchData(); // Refresh backup list
+        return response.data;
+      } else {
+        throw new Error(response.data.message || 'Failed to create subscription');
+      }
+    } catch (error) {
+      console.error('❌ Error creating subscription:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to create subscription';
+      toast.error(errorMessage);
+      throw error;
+    }
+  };
+
+  // Handle close subscription modal
+  const handleCloseSubscriptionModal = () => {
+    setShowSubscriptionModal(false);
+    fetchData(); // Refresh data when modal closes
+  };
 
 
   const handleRestoreBackup = async (e) => {
@@ -523,6 +598,14 @@ function BackupManagement() {
           </p>
         </div>
         <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowSubscriptionModal(true)}
+            className="btn btn-warning btn-md"
+            title="Subscribe devices to auto-backup after config deployment"
+          >
+            <BellIcon className="h-4 w-4 mr-2" />
+            Auto-Backup
+          </button>
           <button
             onClick={() => setShowCreateModal(true)}
             className="btn btn-primary btn-md"
@@ -1299,6 +1382,25 @@ function BackupManagement() {
         type={confirmationState.type}
         loading={confirmationState.loading}
         loadingText={confirmationState.loadingText}
+      />
+
+      {/* Backup Creation Progress Modal */}
+      <BackupCreationModal
+        isOpen={showProgressModal}
+        onClose={handleCloseProgressModal}
+        deviceName={backupProgress.deviceName}
+        backupName={backupProgress.backupName}
+        currentStep={backupProgress.step}
+        error={backupProgress.error}
+        onRetry={handleRetryBackup}
+      />
+
+      {/* Auto-Backup Subscription Modal */}
+      <SubscriptionModal
+        isOpen={showSubscriptionModal}
+        onClose={handleCloseSubscriptionModal}
+        devices={devices}
+        onSubscribe={handleCreateSubscription}
       />
     </div>
   );

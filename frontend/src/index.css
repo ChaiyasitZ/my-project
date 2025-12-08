@@ -2,17 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Respect user's reduced motion preference */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
 @layer base {
   html {
     font-size: 15px; /* Base font size */
@@ -553,26 +542,5 @@
 
   .tooltip:hover .tooltip-content {
     @apply opacity-100 visible;
-  }
-
-  /* ===== GPU ACCELERATION UTILITIES ===== */
-  .gpu-accelerated {
-    transform: translateZ(0);
-    backface-visibility: hidden;
-    perspective: 1000px;
-  }
-
-  .will-change-transform {
-    will-change: transform;
-  }
-
-  .will-change-opacity {
-    will-change: opacity;
-  }
-
-  /* Optimized spinner animation */
-  .spinner-optimized {
-    transform: translateZ(0);
-    will-change: transform;
   }
 }

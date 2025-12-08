@@ -37,8 +37,7 @@ const generateConfigSchema = Joi.object({
 });
 
 const applyConfigSchema = Joi.object({
-  configuration_id: Joi.string().required(),
-  validate_before_apply: Joi.boolean().optional()
+  configuration_id: Joi.string().required()
 });
 
 // Configuration rating schema (simplified for raw AI)
@@ -877,64 +876,9 @@ router.post('/apply', async (req, res) => {
         }
       );
       
-      // STEP 3: Create post-deployment backup
-      console.log(`💾 Creating post-deployment backup...`);
-      notificationService.emitBackupProgress(
-        'post-deployment',
-        'in-progress',
-        `Creating post-deployment backup for ${device.name}...`,
-        { deviceName: device.name, deviceId: device._id }
-      );
-      
-      let postDeploymentBackupId = null;
-      try {
-        const postBackupResult = await sshService.createFullBackup(device);
-        if (postBackupResult.success) {
-          const postBackupHash = crypto
-            .createHash('sha256')
-            .update(postBackupResult.runningConfig || '')
-            .digest('hex');
-          
-          const postDeploymentBackup = new ConfigurationBackup({
-            device_id: device._id,
-            backup_name: `Post-Deploy Backup - ${new Date().toISOString()}`,
-            description: `Automatic backup after deploying: ${configuration.prompt}`,
-            running_config: postBackupResult.runningConfig,
-            startup_config: postBackupResult.startupConfig,
-            backup_type: 'scheduled',
-            config_type: 'running-config',
-            file_size: (postBackupResult.runningConfigSize || 0) + (postBackupResult.startupConfigSize || 0),
-            config_hash: postBackupHash,
-            created_by: 'auto-deploy',
-            tags: ['post-deployment', 'auto-backup']
-          });
-          
-          await postDeploymentBackup.save();
-          postDeploymentBackupId = postDeploymentBackup._id;
-          console.log(`✅ Post-deployment backup created: ${postDeploymentBackupId}`);
-          
-          notificationService.emitBackupProgress(
-            'post-deployment',
-            'complete',
-            `Post-deployment backup created successfully`,
-            { 
-              deviceName: device.name,
-              backupId: postDeploymentBackupId,
-              fileSize: postDeploymentBackup.file_size
-            }
-          );
-        }
-      } catch (postBackupError) {
-        console.warn(`⚠️ Post-deployment backup failed: ${postBackupError.message}`);
-        notificationService.emitBackupProgress(
-          'post-deployment',
-          'failed',
-          `Post-deployment backup failed: ${postBackupError.message}`,
-          { deviceName: device.name, error: postBackupError.message }
-        );
-      }
-      
-      // STEP 4: Delete pre-deployment backup (we only keep post-deployment for scheduled backups)
+      // STEP 3: Delete pre-deployment backup (no longer needed after successful deployment)
+      // Note: Post-deployment backups are ONLY created if the device has an active subscription
+      // Devices without subscription will NOT have automatic backups - user must subscribe first
       if (preDeploymentBackupId) {
         try {
           await ConfigurationBackup.findByIdAndDelete(preDeploymentBackupId);
@@ -984,18 +928,12 @@ router.post('/apply', async (req, res) => {
       
       res.json({
         success: true,
-        message: 'Configuration applied successfully with automatic backups',
+        message: 'Configuration applied successfully',
         deployment_time: deploymentTime,
         deployment_time_ms: deploymentTime,
         deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
         output: sshResult.output,
-        session_reused: sshResult.sessionReused || false,
-        auto_backups: {
-          pre_deployment_backup_id: null, // Deleted after successful deployment
-          post_deployment_backup_id: postDeploymentBackupId,
-          pre_deployment_deleted: !!preDeploymentBackupId,
-          post_deployment_created: !!postDeploymentBackupId
-        }
+        session_reused: sshResult.sessionReused || false
       });
       
     } catch (sshError) {

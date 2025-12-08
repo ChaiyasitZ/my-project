@@ -133,18 +133,10 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Known static paths that should not match /:id routes
-const RESERVED_PATHS = ['schedules', 'stats', 'custom', 'compare', 'search', 'analytics'];
-
 // GET /api/backups/:id/preview - Preview backup configuration content
 router.get('/:id/preview', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Skip if this is a reserved path
-    if (RESERVED_PATHS.includes(id)) {
-      return res.status(404).json({ success: false, message: 'Not found' });
-    }
     
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -218,11 +210,6 @@ router.get('/:id/preview', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Skip if this is a reserved path
-    if (RESERVED_PATHS.includes(id)) {
-      return res.status(404).json({ success: false, message: 'Not found' });
-    }
     
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -656,12 +643,6 @@ router.post('/', async (req, res) => {
 router.post('/:id/restore', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Skip if this is a reserved path
-    if (RESERVED_PATHS.includes(id)) {
-      return res.status(404).json({ success: false, message: 'Not found' });
-    }
-    
     const { restore_type = 'running', create_checkpoint = true } = req.body;
     
     // Validate restore_type
@@ -866,11 +847,6 @@ router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Skip if this is a reserved path
-    if (RESERVED_PATHS.includes(id)) {
-      return res.status(404).json({ success: false, message: 'Not found' });
-    }
-    
     // Check if backup exists and is not a restore point
     const backup = await ConfigurationBackup.findById(id).select('backup_name is_restore_point device_id');
     
@@ -963,11 +939,6 @@ router.get('/device/:device_id', async (req, res) => {
 router.post('/:id/set-restore-point', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Skip if this is a reserved path
-    if (RESERVED_PATHS.includes(id)) {
-      return res.status(404).json({ success: false, message: 'Not found' });
-    }
     
     // First get the backup to verify ownership
     const existingBackup = await ConfigurationBackup.findById(id).select('device_id');
@@ -1595,16 +1566,16 @@ router.post('/custom', async (req, res) => {
 });
 
 // POST /api/backups/post-deploy-schedule - Create post-deployment backup schedule with device selection
+// This creates a subscription for auto-backup after config deployment
 router.post('/post-deploy-schedule', async (req, res) => {
   try {
     const {
       name,
       description,
       device_ids,
-      schedule_type = 'post-deploy',
       backup_type = 'running-config',
       enabled = true,
-      trigger_on_deploy = true
+      create_initial_backup = true  // New: option to create first backup immediately
     } = req.body;
 
     if (!name || !device_ids || device_ids.length === 0) {
@@ -1616,7 +1587,7 @@ router.post('/post-deploy-schedule', async (req, res) => {
 
     // Validate all device IDs belong to the user
     const devices = await Device.find({ _id: { $in: device_ids }, userId: req.userId })
-      .select('_id name type ip_address')
+      .select('_id name type ip_address username password enable_password ssh_port')
       .lean();
     
     if (devices.length !== device_ids.length) {
@@ -1626,25 +1597,102 @@ router.post('/post-deploy-schedule', async (req, res) => {
       });
     }
 
-    // Create post-deployment backup schedule
+    // Create post-deployment backup schedule (subscription)
     const schedule = new BackupSchedule({
       name,
-      description: description || `Post-deployment backup schedule for selected devices: ${name}`,
+      description: description || `Auto-backup subscription: ${name}`,
       device_ids,
-      schedule_type,
+      schedule_type: 'post-deploy',
       backup_type,
       enabled,
       created_by: 'user',
-      trigger_on_deploy,
+      trigger_on_deploy: true,  // Always true for post-deploy schedules
       userId: req.userId
     });
 
     await schedule.save();
-    console.log(`📅 Post-deployment schedule created: ${name}`);
+    console.log(`📅 Post-deployment subscription created: ${name}`);
+
+    // Create initial backup for all devices if requested
+    const backupResults = [];
+    
+    if (create_initial_backup) {
+      console.log(`⚡ Creating initial backup for ${devices.length} subscribed device(s)...`);
+      
+      for (const device of devices) {
+        try {
+          console.log(`💾 Initial backup for ${device.name}...`);
+          const backupResult = await sshService.createFullBackup(device);
+
+          if (backupResult.success) {
+            const configHash = crypto
+              .createHash('sha256')
+              .update(backupResult.runningConfig || '')
+              .digest('hex');
+
+            const backup = new ConfigurationBackup({
+              device_id: device._id,
+              backup_name: `${name} - Initial Backup - ${device.name}`,
+              description: `Initial backup when subscribing to: ${name}`,
+              running_config: backupResult.runningConfig,
+              startup_config: backupResult.startupConfig,
+              backup_type: 'scheduled',
+              config_type: backup_type,
+              file_size: (backupResult.runningConfigSize || 0) + (backupResult.startupConfigSize || 0),
+              config_hash: configHash,
+              created_by: 'subscription',
+              tags: ['subscription', 'initial', 'auto-backup', schedule._id.toString()],
+              userId: req.userId
+            });
+
+            await backup.save();
+            backupResults.push({
+              device_id: device._id,
+              device_name: device.name,
+              backup_id: backup._id,
+              success: true
+            });
+
+            console.log(`✅ Initial backup created for ${device.name}`);
+          } else {
+            backupResults.push({
+              device_id: device._id,
+              device_name: device.name,
+              success: false,
+              error: backupResult.error || 'Backup failed'
+            });
+            console.log(`❌ Initial backup failed for ${device.name}: ${backupResult.error}`);
+          }
+        } catch (deviceError) {
+          console.error(`❌ Initial backup failed for ${device.name}:`, deviceError.message);
+          backupResults.push({
+            device_id: device._id,
+            device_name: device.name,
+            success: false,
+            error: deviceError.message
+          });
+        }
+      }
+
+      // Update schedule status based on initial backup results
+      const successCount = backupResults.filter(r => r.success).length;
+      if (successCount > 0) {
+        const lastSuccessful = backupResults.find(r => r.success);
+        schedule.last_run = new Date();
+        schedule.last_status = successCount === devices.length ? 'success' : 'pending';
+        schedule.last_backup_id = lastSuccessful?.backup_id;
+        await schedule.save();
+      }
+    }
+
+    const successCount = backupResults.filter(r => r.success).length;
+    const failCount = backupResults.length - successCount;
 
     res.status(201).json({
       success: true,
-      message: `Post-deployment backup schedule created successfully for ${device_ids.length} devices`,
+      message: create_initial_backup 
+        ? `Subscription created with initial backup (${successCount} success, ${failCount} failed)`
+        : `Subscription created for ${device_ids.length} devices`,
       schedule: {
         id: schedule._id,
         name: schedule.name,
@@ -1660,15 +1708,23 @@ router.post('/post-deploy-schedule', async (req, res) => {
         backup_type: schedule.backup_type,
         enabled: schedule.enabled,
         trigger_on_deploy: schedule.trigger_on_deploy,
+        last_run: schedule.last_run,
+        last_status: schedule.last_status,
         created_at: schedule.createdAt
-      }
+      },
+      initial_backup_results: create_initial_backup ? backupResults : null,
+      summary: create_initial_backup ? {
+        total: devices.length,
+        successful: successCount,
+        failed: failCount
+      } : null
     });
 
   } catch (error) {
-    console.error('Error creating post-deployment backup schedule:', error);
+    console.error('Error creating post-deployment subscription:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to create post-deployment backup schedule',
+      message: 'Failed to create backup subscription',
       error: error.message
     });
   }
