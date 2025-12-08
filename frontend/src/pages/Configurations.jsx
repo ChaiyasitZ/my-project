@@ -716,19 +716,22 @@ function Configurations() {
       console.log('📤 Applying configuration:', {
         id: generatedConfig.id,
         _id: generatedConfig._id,
-        config_type: generatedConfig.config_type,
-        fullConfig: generatedConfig
+        config_type: generatedConfig.config_type
       });
 
       const configId = generatedConfig.id || generatedConfig._id;
       if (!configId) {
-        throw new Error('Configuration ID is missing');
+        throw new Error('Configuration ID is missing - please regenerate the configuration');
       }
 
-      const response = await axios.post(endpoint, {
-        configuration_id: configId,
+      const requestPayload = {
+        configuration_id: String(configId), // Ensure it's a string
         validate_before_apply: isNetconf ? validateBeforeApply : false
-      });
+      };
+      
+      console.log('📦 Request payload:', requestPayload);
+
+      const response = await axios.post(endpoint, requestPayload);
 
       console.log('✅ Configuration applied successfully!');
       
@@ -755,15 +758,23 @@ function Configurations() {
     } catch (error) {
       console.error('Error applying configuration:', error);
       console.error('🔴 Server response:', error.response?.data);
-      const serverMessage = error.response?.data?.message || error.response?.data?.error || error.message;
-      const currentStatus = error.response?.data?.current_status;
       
-      let errorMsg = `Error deploying: ${serverMessage}`;
-      if (currentStatus) {
-        errorMsg += ` (Status: ${currentStatus})`;
+      // Get the actual error details
+      const responseData = error.response?.data;
+      const userFriendlyMsg = responseData?.message || 'Deployment failed';
+      const actualError = responseData?.error || error.message;
+      const errorType = responseData?.errorType;
+      
+      // Show both the user-friendly message and actual error
+      let errorMsg = userFriendlyMsg;
+      if (actualError && actualError !== userFriendlyMsg) {
+        errorMsg += `\n\nDetails: ${actualError}`;
       }
       
-      toast.error(errorMsg, { id: toastId });
+      console.error('🔴 Error type:', errorType);
+      console.error('🔴 Actual error:', actualError);
+      
+      toast.error(errorMsg, { id: toastId, duration: 10000 });
     } finally {
       setIsApplying(false);
     }

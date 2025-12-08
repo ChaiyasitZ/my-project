@@ -37,7 +37,8 @@ const generateConfigSchema = Joi.object({
 });
 
 const applyConfigSchema = Joi.object({
-  configuration_id: Joi.string().required()
+  configuration_id: Joi.string().required(),
+  validate_before_apply: Joi.boolean().optional()
 });
 
 // Configuration rating schema (simplified for raw AI)
@@ -796,65 +797,14 @@ router.post('/apply', async (req, res) => {
       const configToApply = configuration.deployment_config || configuration.generated_config;
       console.log(`📡 Deploying configuration to ${device.ip_address} (${configToApply.split('\n').length} lines)`);
       
-      // STEP 1: Create pre-deployment backup checkpoint
-      console.log(`💾 Creating pre-deployment backup checkpoint...`);
-      notificationService.emitBackupProgress(
-        'pre-deployment',
-        'in-progress',
-        `Creating pre-deployment checkpoint for ${device.name}...`,
-        { deviceName: device.name, deviceId: device._id }
-      );
+      // Clean up any existing SSH sessions for this device to prevent "Channel open failure"
+      console.log(`🧹 Cleaning up existing SSH sessions for ${device.name}...`);
+      sshService.disconnect(device._id);
       
-      let preDeploymentBackupId = null;
-      try {
-        const preBackupResult = await sshService.createFullBackup(device);
-        if (preBackupResult.success) {
-          const preBackupHash = crypto
-            .createHash('sha256')
-            .update(preBackupResult.runningConfig || '')
-            .digest('hex');
-          
-          const preDeploymentBackup = new ConfigurationBackup({
-            device_id: device._id,
-            backup_name: `Pre-Deploy Checkpoint - ${new Date().toISOString()}`,
-            description: `Automatic backup before deploying: ${configuration.prompt}`,
-            running_config: preBackupResult.runningConfig,
-            startup_config: preBackupResult.startupConfig,
-            backup_type: 'scheduled', // Using 'scheduled' to indicate auto-backup
-            config_type: 'running-config',
-            file_size: (preBackupResult.runningConfigSize || 0) + (preBackupResult.startupConfigSize || 0),
-            config_hash: preBackupHash,
-            created_by: 'auto-deploy',
-            is_restore_point: true,
-            tags: ['pre-deployment', 'auto-backup', 'checkpoint']
-          });
-          
-          await preDeploymentBackup.save();
-          preDeploymentBackupId = preDeploymentBackup._id;
-          console.log(`✅ Pre-deployment backup created: ${preDeploymentBackupId}`);
-          
-          notificationService.emitBackupProgress(
-            'pre-deployment',
-            'complete',
-            `Pre-deployment checkpoint created successfully`,
-            { 
-              deviceName: device.name,
-              backupId: preDeploymentBackupId,
-              fileSize: preDeploymentBackup.file_size
-            }
-          );
-        }
-      } catch (preBackupError) {
-        console.warn(`⚠️ Pre-deployment backup failed (continuing with deployment): ${preBackupError.message}`);
-        notificationService.emitBackupProgress(
-          'pre-deployment',
-          'failed',
-          `Pre-deployment backup failed: ${preBackupError.message}`,
-          { deviceName: device.name, error: preBackupError.message }
-        );
-      }
+      // Small delay to allow device to release the VTY line
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      // STEP 2: Deploy configuration
+      // STEP 1: Deploy configuration (no automatic backups - user must subscribe for auto-backup)
       notificationService.emitDeploymentProgress(
         'in-progress',
         `Deploying configuration to ${device.name}...`,
@@ -876,19 +826,11 @@ router.post('/apply', async (req, res) => {
         }
       );
       
-      // STEP 3: Delete pre-deployment backup (no longer needed after successful deployment)
-      // Note: Post-deployment backups are ONLY created if the device has an active subscription
-      // Devices without subscription will NOT have automatic backups - user must subscribe first
-      if (preDeploymentBackupId) {
-        try {
-          await ConfigurationBackup.findByIdAndDelete(preDeploymentBackupId);
-          console.log(`🗑️ Pre-deployment backup deleted (keeping only post-deployment backup)`);
-        } catch (deleteError) {
-          console.warn(`⚠️ Failed to delete pre-deployment backup: ${deleteError.message}`);
-        }
-      }
+      // Clean up SSH session after deployment
+      console.log(`🧹 Cleaning up SSH session after deployment...`);
+      sshService.disconnect(device._id);
       
-      // STEP 5: Update configuration status with timestamp
+      // STEP 2: Update configuration status with timestamp
       configuration.status = 'applied';
       configuration.applied_config = configToApply;
       configuration.applied_at = Date.now();
@@ -964,10 +906,13 @@ router.post('/apply', async (req, res) => {
     }
     
   } catch (error) {
-    console.error('Error applying configuration:', error);
+    console.error('❌ Error applying configuration:', error);
+    console.error('❌ Error stack:', error.stack);
     res.status(500).json({
       success: false,
-      message: 'Failed to apply configuration'
+      message: 'Failed to apply configuration',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });

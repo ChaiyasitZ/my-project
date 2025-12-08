@@ -133,7 +133,52 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ============================================
+// SCHEDULE ROUTES - Must be defined BEFORE /:id routes
+// ============================================
+
+// GET /api/backups/schedules - Get all backup schedules
+router.get('/schedules', async (req, res) => {
+  try {
+    const ObjectId = mongoose.Types.ObjectId;
+    
+    // Use aggregation for efficient device lookup, filtered by userId
+    const schedules = await BackupSchedule.aggregate([
+      { $match: { userId: new ObjectId(req.userId) } },
+      { $sort: { createdAt: -1 } },
+      {
+        $lookup: {
+          from: 'devices',
+          localField: 'device_ids',
+          foreignField: '_id',
+          as: 'devices',
+          pipeline: [{ $project: { name: 1, type: 1, ip_address: 1 } }]
+        }
+      },
+      {
+        $addFields: {
+          id: '$_id',
+          device_count: { $size: '$device_ids' }
+        }
+      }
+    ]);
+
+    res.json({
+      success: true,
+      schedules
+    });
+
+  } catch (error) {
+    console.error('Error fetching backup schedules:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch backup schedules'
+    });
+  }
+});
+
 // GET /api/backups/:id/preview - Preview backup configuration content
+// NOTE: Must check for special routes that start with non-ObjectId strings
 router.get('/:id/preview', async (req, res) => {
   try {
     const { id } = req.params;
@@ -1374,48 +1419,6 @@ router.post('/schedules', async (req, res) => {
       success: false,
       message: 'Failed to create backup schedule',
       error: error.message
-    });
-  }
-});
-
-// GET /api/backups/schedules - Get all backup schedules
-router.get('/schedules', async (req, res) => {
-  try {
-    // Import ObjectId for aggregation match
-    const mongoose = await import('mongoose');
-    const ObjectId = mongoose.default.Types.ObjectId;
-    
-    // Use aggregation for efficient device lookup, filtered by userId
-    const schedules = await BackupSchedule.aggregate([
-      { $match: { userId: new ObjectId(req.userId) } },
-      { $sort: { createdAt: -1 } },
-      {
-        $lookup: {
-          from: 'devices',
-          localField: 'device_ids',
-          foreignField: '_id',
-          as: 'devices',
-          pipeline: [{ $project: { name: 1, type: 1, ip_address: 1 } }]
-        }
-      },
-      {
-        $addFields: {
-          id: '$_id',
-          device_count: { $size: '$device_ids' }
-        }
-      }
-    ]);
-
-    res.json({
-      success: true,
-      schedules
-    });
-
-  } catch (error) {
-    console.error('Error fetching backup schedules:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch backup schedules'
     });
   }
 });

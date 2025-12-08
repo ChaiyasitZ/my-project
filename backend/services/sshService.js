@@ -224,7 +224,7 @@ export class SSHService {
 
   async sendConfigCommands(deviceConfig, commands, options = {}) {
     try {
-      const { tolerateErrors = false, useSession = true } = options; // useSession: reuse existing session if available
+      const { tolerateErrors = false, useSession = true } = options;
       console.log(`🔧 Starting configuration deployment to ${deviceConfig.ip_address}`);
       console.log(`📝 Commands to deploy:\n${commands}`);
       console.log(`⚙️ Error tolerance: ${tolerateErrors ? 'ENABLED (backup restore mode)' : 'DISABLED (normal mode)'}`);
@@ -234,6 +234,24 @@ export class SSHService {
       let sessionReused = false;
       const deviceId = deviceConfig.id || deviceConfig._id;
       const sessionKey = `${deviceId}_persistent`;
+      
+      // Helper function to create shell with retry
+      const createShellWithRetry = async (connection, isRetry = false) => {
+        return new Promise((resolve, reject) => {
+          connection.shell({ pty: true }, (err, stream) => {
+            if (err) {
+              if (!isRetry && err.message.includes('Channel open failure')) {
+                console.log(`⚠️ Shell creation failed, will retry with fresh connection...`);
+                reject({ retry: true, error: err });
+              } else {
+                reject(new Error(`Failed to create shell: ${err.message}`));
+              }
+              return;
+            }
+            resolve(stream);
+          });
+        });
+      };
       
       // Try to reuse existing persistent session if enabled
       if (useSession) {
@@ -245,6 +263,15 @@ export class SSHService {
           existingSession.useCount++;
           sessionReused = true;
         } else {
+          // Clean up invalid session
+          if (existingSession) {
+            console.log(`🧹 Cleaning up invalid/stale session for ${deviceConfig.ip_address}`);
+            this.persistentSessions.delete(sessionKey);
+            try {
+              existingSession.connection?.end();
+            } catch (e) { /* ignore */ }
+          }
+          
           console.log(`🔄 No valid session found, creating new SSH connection...`);
           conn = await this.connect(deviceConfig);
           
@@ -268,18 +295,49 @@ export class SSHService {
         conn = await this.connect(deviceConfig);
       }
 
-      return new Promise((resolve, reject) => {
-        conn.shell({ pty: true }, (err, stream) => {
-          if (err) {
-            reject(new Error(`Failed to create shell: ${err.message}`));
-            return;
-          }
+      // Try to create shell, retry with fresh connection if needed
+      let stream;
+      try {
+        stream = await createShellWithRetry(conn, false);
+      } catch (shellError) {
+        if (shellError.retry) {
+          console.log(`🔄 Retrying with fresh SSH connection...`);
+          // Clean up the stale session
+          this.persistentSessions.delete(sessionKey);
+          try {
+            conn.end();
+          } catch (e) { /* ignore */ }
+          
+          // Create fresh connection
+          conn = await this.connect(deviceConfig);
+          sessionReused = false;
+          
+          // Store new session
+          const session = {
+            connection: conn,
+            deviceId: deviceId,
+            deviceConfig: deviceConfig,
+            createdAt: Date.now(),
+            lastUsed: Date.now(),
+            useCount: 1,
+            isPrivileged: false,
+            sessionKey: sessionKey
+          };
+          this.persistentSessions.set(sessionKey, session);
+          
+          // Try shell creation again
+          stream = await createShellWithRetry(conn, true);
+        } else {
+          throw shellError;
+        }
+      }
 
+      return new Promise((resolve, reject) => {
           let output = '';
           let currentStep = 0;
           let commandComplete = false;
-          let errorCount = 0;  // Track errors
-          let hasErrors = false;  // Track if any errors occurred
+          let errorCount = 0;
+          let hasErrors = false;
           
           // Prepare commands
           const configCommands = commands.split('\n')
@@ -425,7 +483,6 @@ export class SSHService {
           // Start the process - wait for initial prompt
           console.log(`🚀 Waiting for initial prompt from ${deviceConfig.ip_address}`);
         });
-      });
     } catch (error) {
       console.error(`❌ Configuration deployment failed:`, error.message);
       throw new Error(`Configuration deployment failed: ${error.message}`);
