@@ -19,10 +19,10 @@ const configurationHistorySchema = new mongoose.Schema({
   },
   generated_config: String, // Display version with comments for UI
   deployment_config: String, // Clean version for device deployment
-  applied_config: String,
+  deployed_config: String,
   status: {
     type: String,
-    enum: ['generated', 'applied', 'failed', 'rolled_back'],
+    enum: ['generated', 'deployed', 'failed', 'rolled_back'],
     default: 'generated'
   },
   ai_model: {
@@ -53,7 +53,7 @@ const configurationHistorySchema = new mongoose.Schema({
     type: Number,
     default: () => Date.now()
   },
-  applied_at: {
+  deployed_at: {
     type: Number
   }
 }, {

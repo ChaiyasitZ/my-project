@@ -89,8 +89,8 @@ router.get('/analytics', async (req, res) => {
             min_execution_time: { $min: '$execution_time' },
             max_execution_time: { $max: '$execution_time' },
             total_generations: { $sum: 1 },
-            successful_applications: {
-              $sum: { $cond: [{ $eq: ['$status', 'applied'] }, 1, 0] }
+            successful_deployments: {
+              $sum: { $cond: [{ $eq: ['$status', 'deployed'] }, 1, 0] }
             }
           }
         }
@@ -113,8 +113,8 @@ router.get('/analytics', async (req, res) => {
             _id: '$device.type',
             generation_count: { $sum: 1 },
             avg_execution_time: { $avg: '$execution_time' },
-            applied_count: {
-              $sum: { $cond: [{ $eq: ['$status', 'applied'] }, 1, 0] }
+            deployed_count: {
+              $sum: { $cond: [{ $eq: ['$status', 'deployed'] }, 1, 0] }
             }
           }
         },
@@ -124,7 +124,7 @@ router.get('/analytics', async (req, res) => {
             device_type: '$_id',
             generation_count: 1,
             avg_execution_time: 1,
-            applied_count: 1,
+            deployed_count: 1,
             _id: 0
           }
         }
@@ -463,56 +463,31 @@ router.post('/session-apply', async (req, res) => {
       const deploymentTime = Date.now() - deploymentStart;
       
       if (deployResult.success) {
-        // Create post-deployment backup with LLM-generated metadata
-        let postBackupId = null;
-        try {
-          const postBackup = await sshService.optimizedBackup(configuration.device, 'running-config');
-          if (postBackup.success) {
-            // Generate meaningful backup name and description using LLM
-            console.log(`🤖 Generating backup metadata using LLM...`);
-            const backupMetadata = await llmService.generateBackupMetadata(
-              configuration.deployment_config,
-              configuration.device.name,
-              configuration.device.type,
-              configuration.prompt
-            );
-            
-            const backup = new ConfigurationBackup({
-              device_id: configuration.device._id,
-              backup_name: backupMetadata.backup_name,
-              description: backupMetadata.description,
-              running_config: postBackup.runningConfig,
-              backup_type: 'scheduled',
-              config_type: 'running-config',
-              file_size: postBackup.runningConfigSize,
-              config_hash: crypto.createHash('sha256').update(postBackup.runningConfig).digest('hex'),
-              created_by: 'post-deploy',
-              tags: ['post-deployment', 'auto-backup', 'session', 'llm-generated']
-            });
-            await backup.save();
-            postBackupId = backup._id;
-            console.log(`✅ Post-deployment backup created: ${backupMetadata.backup_name}`);
-          }
-        } catch (err) {
-          console.warn(`⚠️ Post-deployment backup failed: ${err.message}`);
-        }
-        
-        configuration.status = 'applied';
-        configuration.applied_at = Date.now();
+        configuration.status = 'deployed';
+        configuration.deployed_at = Date.now();
         configuration.deployment_time = deploymentTime;
         await configuration.save();
         
-        // Trigger post-deployment backup schedules
+        // Trigger post-deployment backup schedules (only if user has created a schedule for this device)
+        let autoBackupResult = null;
         try {
-          console.log(`🚀 Triggering post-deployment backup schedules for device ${configuration.device._id}...`);
-          await backupScheduler.triggerPostDeploySchedules([configuration.device._id.toString()]);
+          console.log(`🔍 Checking for post-deployment backup schedules for device ${configuration.device._id}...`);
+          autoBackupResult = await backupScheduler.triggerPostDeploySchedules([configuration.device._id.toString()]);
+          
+          if (autoBackupResult.devices_backed_up > 0) {
+            console.log(`✅ Auto backup triggered for ${autoBackupResult.devices_backed_up} device(s)`);
+          } else {
+            console.log(`ℹ️ No backup schedule found for this device - skipping auto backup`);
+          }
         } catch (scheduleError) {
           console.warn(`⚠️ Failed to trigger post-deployment schedules: ${scheduleError.message}`);
         }
         
         res.json({
           success: true,
-          message: 'Configuration applied successfully with auto post-deploy backup',
+          message: autoBackupResult?.devices_backed_up > 0 
+            ? 'Configuration deployed successfully with auto backup' 
+            : 'Configuration deployed successfully (no backup schedule configured)',
           deployment_time: deploymentTime,
           deployment_time_ms: deploymentTime,
           deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
@@ -520,9 +495,11 @@ router.post('/session-apply', async (req, res) => {
           session_reused: true,
           use_count: deployResult.useCount,
           command_count: deployResult.commandCount,
-          auto_backups: {
-            post_deployment_backup_id: postBackupId,
-            post_deployment_created: !!postBackupId
+          auto_backup: {
+            enabled: autoBackupResult?.devices_backed_up > 0,
+            message: autoBackupResult?.devices_backed_up > 0 
+              ? 'Backup created via schedule' 
+              : 'No backup schedule configured for this device. Create a backup schedule to enable auto-backup.'
           }
         });
       } else {
@@ -607,65 +584,42 @@ router.post('/fast-apply', async (req, res) => {
       const deploymentTime = Date.now() - deploymentStart;
       
       if (deployResult.success) {
-        // Create post-deployment backup with LLM-generated metadata
-        let postBackupId = null;
-        try {
-          const postBackup = await sshService.fastBackup(configuration.device);
-          if (postBackup.success) {
-            // Generate meaningful backup name and description using LLM
-            console.log(`🤖 Generating backup metadata using LLM...`);
-            const backupMetadata = await llmService.generateBackupMetadata(
-              configuration.deployment_config,
-              configuration.device.name,
-              configuration.device.type,
-              configuration.prompt
-            );
-            
-            const backup = new ConfigurationBackup({
-              device_id: configuration.device._id,
-              backup_name: backupMetadata.backup_name,
-              description: backupMetadata.description,
-              running_config: postBackup.runningConfig,
-              backup_type: 'scheduled',
-              config_type: 'running-config',
-              file_size: postBackup.runningConfigSize,
-              config_hash: crypto.createHash('sha256').update(postBackup.runningConfig).digest('hex'),
-              created_by: 'post-deploy',
-              tags: ['post-deployment', 'auto-backup', 'fast', 'llm-generated']
-            });
-            await backup.save();
-            postBackupId = backup._id;
-            console.log(`✅ Post-deployment backup created: ${backupMetadata.backup_name}`);
-          }
-        } catch (err) {
-          console.warn(`⚠️ Post-deployment backup failed: ${err.message}`);
-        }
-        
-        configuration.status = 'applied';
-        configuration.applied_at = Date.now();
+        configuration.status = 'deployed';
+        configuration.deployed_at = Date.now();
         configuration.deployment_time = deploymentTime;
         await configuration.save();
         
-        // Trigger post-deployment backup schedules
+        // Trigger post-deployment backup schedules (only if user has created a schedule for this device)
+        let autoBackupResult = null;
         try {
-          console.log(`🚀 Triggering post-deployment backup schedules for device ${configuration.device._id}...`);
-          await backupScheduler.triggerPostDeploySchedules([configuration.device._id.toString()]);
+          console.log(`🔍 Checking for post-deployment backup schedules for device ${configuration.device._id}...`);
+          autoBackupResult = await backupScheduler.triggerPostDeploySchedules([configuration.device._id.toString()]);
+          
+          if (autoBackupResult.devices_backed_up > 0) {
+            console.log(`✅ Auto backup triggered for ${autoBackupResult.devices_backed_up} device(s)`);
+          } else {
+            console.log(`ℹ️ No backup schedule found for this device - skipping auto backup`);
+          }
         } catch (scheduleError) {
           console.warn(`⚠️ Failed to trigger post-deployment schedules: ${scheduleError.message}`);
         }
         
         res.json({
           success: true,
-          message: 'Configuration applied successfully with auto post-deploy backup',
+          message: autoBackupResult?.devices_backed_up > 0 
+            ? 'Configuration deployed successfully with auto backup' 
+            : 'Configuration deployed successfully (no backup schedule configured)',
           deployment_time: deploymentTime,
           deployment_time_ms: deploymentTime,
           deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
           output: deployResult.output,
           session_reused: deployResult.sessionReused,
           command_count: deployResult.commandCount,
-          auto_backups: {
-            post_deployment_backup_id: postBackupId,
-            post_deployment_created: !!postBackupId
+          auto_backup: {
+            enabled: autoBackupResult?.devices_backed_up > 0,
+            message: autoBackupResult?.devices_backed_up > 0 
+              ? 'Backup created via schedule' 
+              : 'No backup schedule configured for this device. Create a backup schedule to enable auto-backup.'
           }
         });
       } else {
@@ -719,7 +673,7 @@ router.post('/apply', async (req, res) => {
     if (!configuration) {
       return res.status(404).json({
         success: false,
-        message: 'Configuration not found or already applied'
+        message: 'Configuration not found or already deployed'
       });
     }
     
@@ -771,9 +725,9 @@ router.post('/apply', async (req, res) => {
       sshService.disconnect(device._id);
       
       // STEP 2: Update configuration status with timestamp
-      configuration.status = 'applied';
-      configuration.applied_config = configToApply;
-      configuration.applied_at = Date.now();
+      configuration.status = 'deployed';
+      configuration.deployed_config = configToApply;
+      configuration.deployed_at = Date.now();
       configuration.deployment_time = deploymentTime;
       await configuration.save();
       
@@ -810,7 +764,7 @@ router.post('/apply', async (req, res) => {
       
       res.json({
         success: true,
-        message: 'Configuration applied successfully',
+        message: 'Configuration deployed successfully',
         deployment_time: deploymentTime,
         deployment_time_ms: deploymentTime,
         deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
@@ -1055,7 +1009,7 @@ router.post('/apply-multi', async (req, res) => {
           results.push({
             configuration_id: configId,
             success: false,
-            error: 'Configuration not found or already applied'
+            error: 'Configuration not found or already deployed'
           });
           continue;
         }
@@ -1079,9 +1033,9 @@ router.post('/apply-multi', async (req, res) => {
         const sshResult = await sshService.sendConfigCommands(device, configToApply);
         
         // Update configuration status
-        configuration.status = 'applied';
-        configuration.applied_config = configToApply;
-        configuration.applied_at = Date.now();
+        configuration.status = 'deployed';
+        configuration.deployed_config = configToApply;
+        configuration.deployed_at = Date.now();
         await configuration.save();
         
         deployedDeviceIds.push(device._id.toString());
@@ -1130,7 +1084,7 @@ router.post('/apply-multi', async (req, res) => {
     
     res.json({
       success: successCount > 0,
-      message: `Applied configurations to ${successCount}/${configuration_ids.length} devices`,
+      message: `Deployed configurations to ${successCount}/${configuration_ids.length} devices`,
       results: results,
       summary: {
         total: configuration_ids.length,
@@ -1335,7 +1289,7 @@ router.post('/netconf/apply', async (req, res) => {
       
       return res.status(404).json({
         success: false,
-        message: 'Configuration not found or already applied'
+        message: 'Configuration not found or already deployed'
       });
     }
     
@@ -1399,14 +1353,14 @@ router.post('/netconf/apply', async (req, res) => {
       await netconfService.closeSession(deviceId);
       
       // Update configuration status
-      configuration.status = 'applied';
-      configuration.applied_at = Date.now();
+      configuration.status = 'deployed';
+      configuration.deployed_at = Date.now();
       configuration.deployment_time = deploymentTime;
       await configuration.save();
       
       res.json({
         success: true,
-        message: 'NETCONF configuration applied successfully',
+        message: 'NETCONF configuration deployed successfully',
         deployment_time: deploymentTime,
         deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
         netconf: true,

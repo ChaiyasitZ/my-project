@@ -802,11 +802,11 @@ router.post('/:id/restore', async (req, res) => {
         device_id: device._id,
         prompt: `Configuration restored from backup: ${backup.backup_name}`,
         generated_config: configToRestore,
-        applied_config: restoreResult.output,
-        status: 'applied',
+        deployed_config: restoreResult.output,
+        status: 'deployed',
         ai_model: 'backup_restore',
         execution_time: 0,
-        applied_at: Date.now(),
+        deployed_at: Date.now(),
         tags: ['rollback', 'restore', backup._id.toString()], // Add rollback tag for easy identification
         metadata: {
           restore_source: 'backup',

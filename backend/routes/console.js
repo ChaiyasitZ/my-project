@@ -269,11 +269,11 @@ router.post('/initial-config', async (req, res) => {
           userId: req.userId,
           prompt: 'Initial console configuration',
           generated_config: configCommands,
-          applied_config: result.fullOutput,
-          status: result.summary.failed > 0 ? 'partial' : 'applied',
+          deployed_config: result.fullOutput,
+          status: result.summary.failed > 0 ? 'partial' : 'deployed',
           ai_model: 'console',
           execution_time: 0,
-                      applied_at: Date.now()
+                      deployed_at: Date.now()
         });
         
         await configHistory.save();

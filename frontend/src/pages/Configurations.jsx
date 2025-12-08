@@ -746,7 +746,7 @@ function Configurations() {
       
       setGeneratedConfig({
         ...generatedConfig,
-        status: 'applied',
+        status: 'deployed',
         deployment_time: deploymentTime
       });
       
@@ -1257,7 +1257,7 @@ function Configurations() {
                     </span>
                   </div>
                   <span className={`badge ${
-                    generatedConfig.status === 'applied' ? 'badge-success' : 
+                    generatedConfig.status === 'deployed' ? 'badge-success' : 
                     generatedConfig.status === 'failed' ? 'badge-danger' : 'badge-info'
                   }`}>
                     {generatedConfig.status}

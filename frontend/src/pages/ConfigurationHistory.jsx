@@ -128,7 +128,7 @@ function ConfigurationHistory() {
   const getStatusBadge = (status) => {
     const styles = {
       generated: 'badge-info',
-      applied: 'badge-success',
+      deployed: 'badge-success',
       failed: 'badge-danger',
       rolled_back: 'badge-warning'
     };
@@ -137,7 +137,7 @@ function ConfigurationHistory() {
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'applied':
+      case 'deployed':
         return <CheckCircleIcon className="h-5 w-5 text-green-600" />;
       case 'failed':
         return <XCircleIcon className="h-5 w-5 text-red-600" />;
@@ -231,7 +231,7 @@ function ConfigurationHistory() {
               {[
                 { key: 'all', label: 'All', count: groupedConfigurations.length },
                 { key: 'generated', label: 'Generated', count: groupedConfigurations.filter(c => c.status === 'generated').length },
-                { key: 'applied', label: 'Deployed', count: groupedConfigurations.filter(c => c.status === 'applied').length },
+                { key: 'deployed', label: 'Deployed', count: groupedConfigurations.filter(c => c.status === 'deployed').length },
                 { key: 'failed', label: 'Failed', count: groupedConfigurations.filter(c => c.status === 'failed').length },
                 { key: 'rolled_back', label: 'Rolled Back', count: groupedConfigurations.filter(c => c.status === 'rolled_back').length }
               ].map((filterOption) => (
@@ -308,8 +308,8 @@ function ConfigurationHistory() {
                       
                       <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
                         <span>Created: {formatDate(item.created_at)}</span>
-                        {item.applied_at && (
-                          <span>Applied: {formatDate(item.applied_at)}</span>
+                        {item.deployed_at && (
+                          <span>Deployed: {formatDate(item.deployed_at)}</span>
                         )}
                         {item.deployment_time && (
                           <span className="text-green-600 dark:text-green-400 font-medium">
@@ -410,8 +410,8 @@ function ConfigurationHistory() {
                       </span>
                     </div>
                     <p className="text-sm dark:text-gray-300"><strong>Created:</strong> {formatDate(selectedConfig.created_at)}</p>
-                    {selectedConfig.applied_at && (
-                      <p className="text-sm dark:text-gray-300"><strong>Applied:</strong> {formatDate(selectedConfig.applied_at)}</p>
+                    {selectedConfig.deployed_at && (
+                      <p className="text-sm dark:text-gray-300"><strong>Deployed:</strong> {formatDate(selectedConfig.deployed_at)}</p>
                     )}
                     {selectedConfig.deployment_time && (
                       <p className="text-sm text-green-600 dark:text-green-400 font-medium">
@@ -453,13 +453,13 @@ function ConfigurationHistory() {
                 </div>
               )}
               
-              {/* Applied Configuration (if different) */}
-              {selectedConfig.applied_config && selectedConfig.applied_config !== selectedConfig.generated_config && (
+              {/* Deployed Configuration (if different) */}
+              {selectedConfig.deployed_config && selectedConfig.deployed_config !== selectedConfig.generated_config && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Applied Configuration</h4>
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Deployed Configuration</h4>
                   <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
                     <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">
-                      {selectedConfig.applied_config}
+                      {selectedConfig.deployed_config}
                     </pre>
                   </div>
                 </div>

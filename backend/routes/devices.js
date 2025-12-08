@@ -77,12 +77,12 @@ router.get('/', async (req, res) => {
         $addFields: {
           id: '$_id',
           total_configs: { $size: '$config_history' },
-          applied_configs: {
+          deployed_configs: {
             $size: {
               $filter: {
                 input: '$config_history',
                 as: 'config',
-                cond: { $eq: ['$$config.status', 'applied'] }
+                cond: { $eq: ['$$config.status', 'deployed'] }
               }
             }
           },

@@ -364,9 +364,9 @@ function ConsoleConfiguration() {
             `📊 Success rate: ${summary.successRate}%`);
       
       if (summary.successRate === 100) {
-        toast.success(`Configuration applied successfully! ${summary.successful}/${summary.totalCommands} commands executed.`, { id: toastId });
+        toast.success(`Configuration deployed successfully! ${summary.successful}/${summary.totalCommands} commands executed.`, { id: toastId });
       } else {
-        toast.error(`Configuration partially applied: ${summary.successful}/${summary.totalCommands} commands successful (${summary.successRate}%)`, { id: toastId });
+        toast.error(`Configuration partially deployed: ${summary.successful}/${summary.totalCommands} commands successful (${summary.successRate}%)`, { id: toastId });
       }
       
     } catch (error) {

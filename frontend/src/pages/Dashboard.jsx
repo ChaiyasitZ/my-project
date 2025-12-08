@@ -23,7 +23,7 @@ function Dashboard() {
     inactiveDevices: 0,
     maintenanceDevices: 0,
     totalConfigurations: 0,
-    appliedConfigurations: 0,
+    deployedConfigurations: 0,
     recentConfigurations: [],
     routers: 0,
     switches: 0
@@ -104,8 +104,8 @@ function Dashboard() {
       setDevices(devicesData);
       setSchedules(schedulesData);
       
-      // Calculate applied configurations
-      const appliedCount = configurations.filter(c => c.status === 'applied').length;
+      // Calculate deployed configurations
+      const deployedCount = configurations.filter(c => c.status === 'deployed').length;
       
       setStats({
         totalDevices: deviceStats.total_devices || devicesData.length,
@@ -113,7 +113,7 @@ function Dashboard() {
         inactiveDevices: deviceStats.inactive_devices || devicesData.filter(d => d.status === 'inactive').length,
         maintenanceDevices: deviceStats.maintenance_devices || devicesData.filter(d => d.status === 'maintenance').length,
         totalConfigurations: totalConfigs,
-        appliedConfigurations: appliedCount,
+        deployedConfigurations: deployedCount,
         recentConfigurations: configurations,
         routers: deviceStats.routers || devicesData.filter(d => d.type === 'router').length,
         switches: deviceStats.switches || devicesData.filter(d => d.type === 'switch').length
@@ -158,7 +158,7 @@ function Dashboard() {
   const getStatusBadge = (status) => {
     const styles = {
       generated: 'badge-info',
-      applied: 'badge-success',
+      deployed: 'badge-success',
       failed: 'badge-danger',
       rolled_back: 'badge-warning'
     };
@@ -167,7 +167,7 @@ function Dashboard() {
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'applied':
+      case 'deployed':
         return <CheckCircleIcon className="h-4 w-4 text-green-600" />;
       case 'failed':
         return <XCircleIcon className="h-4 w-4 text-red-600" />;
