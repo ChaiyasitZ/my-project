@@ -455,33 +455,6 @@ router.post('/session-apply', async (req, res) => {
     console.log(`🔗 Session-based deployment to ${configuration.device.name} (${configuration.device.ip_address})...`);
     
     try {
-      // Create pre-deployment backup using session
-      console.log(`💾 Creating pre-deployment backup...`);
-      let preBackupId = null;
-      try {
-        const preBackup = await sshService.optimizedBackup(configuration.device, 'running-config');
-        if (preBackup.success) {
-          const backup = new ConfigurationBackup({
-            device_id: configuration.device._id,
-            backup_name: `Pre-Deploy (Session) - ${new Date().toISOString()}`,
-            description: `Auto backup before session deployment: ${configuration.prompt}`,
-            running_config: preBackup.runningConfig,
-            backup_type: 'scheduled',
-            config_type: 'running-config',
-            file_size: preBackup.runningConfigSize,
-            config_hash: crypto.createHash('sha256').update(preBackup.runningConfig).digest('hex'),
-            created_by: 'auto-deploy',
-            is_restore_point: true,
-            tags: ['pre-deployment', 'auto-backup', 'session']
-          });
-          await backup.save();
-          preBackupId = backup._id;
-          console.log(`✅ Pre-deployment backup created`);
-        }
-      } catch (err) {
-        console.warn(`⚠️ Pre-deployment backup failed: ${err.message}`);
-      }
-      
       const deploymentStart = Date.now();
       const deployResult = await sshService.fastDeployWithSession(
         configuration.device,
@@ -490,39 +463,38 @@ router.post('/session-apply', async (req, res) => {
       const deploymentTime = Date.now() - deploymentStart;
       
       if (deployResult.success) {
-        // Create post-deployment backup
+        // Create post-deployment backup with LLM-generated metadata
         let postBackupId = null;
         try {
           const postBackup = await sshService.optimizedBackup(configuration.device, 'running-config');
           if (postBackup.success) {
+            // Generate meaningful backup name and description using LLM
+            console.log(`🤖 Generating backup metadata using LLM...`);
+            const backupMetadata = await llmService.generateBackupMetadata(
+              configuration.deployment_config,
+              configuration.device.name,
+              configuration.device.type,
+              configuration.prompt
+            );
+            
             const backup = new ConfigurationBackup({
               device_id: configuration.device._id,
-              backup_name: `Post-Deploy (Session) - ${new Date().toISOString()}`,
-              description: `Auto backup after session deployment: ${configuration.prompt}`,
+              backup_name: backupMetadata.backup_name,
+              description: backupMetadata.description,
               running_config: postBackup.runningConfig,
               backup_type: 'scheduled',
               config_type: 'running-config',
               file_size: postBackup.runningConfigSize,
               config_hash: crypto.createHash('sha256').update(postBackup.runningConfig).digest('hex'),
-              created_by: 'auto-deploy',
-              tags: ['post-deployment', 'auto-backup', 'session']
+              created_by: 'post-deploy',
+              tags: ['post-deployment', 'auto-backup', 'session', 'llm-generated']
             });
             await backup.save();
             postBackupId = backup._id;
-            console.log(`✅ Post-deployment backup created`);
+            console.log(`✅ Post-deployment backup created: ${backupMetadata.backup_name}`);
           }
         } catch (err) {
           console.warn(`⚠️ Post-deployment backup failed: ${err.message}`);
-        }
-        
-        // Delete pre-deployment backup (keeping only post-deployment)
-        if (preBackupId) {
-          try {
-            await ConfigurationBackup.findByIdAndDelete(preBackupId);
-            console.log(`🗑️ Pre-deployment backup deleted`);
-          } catch (deleteError) {
-            console.warn(`⚠️ Failed to delete pre-deployment backup: ${deleteError.message}`);
-          }
         }
         
         configuration.status = 'applied';
@@ -540,7 +512,7 @@ router.post('/session-apply', async (req, res) => {
         
         res.json({
           success: true,
-          message: 'Configuration applied successfully using existing SSH session with auto-backups (no enable needed)',
+          message: 'Configuration applied successfully with auto post-deploy backup',
           deployment_time: deploymentTime,
           deployment_time_ms: deploymentTime,
           deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
@@ -549,9 +521,7 @@ router.post('/session-apply', async (req, res) => {
           use_count: deployResult.useCount,
           command_count: deployResult.commandCount,
           auto_backups: {
-            pre_deployment_backup_id: null, // Deleted after successful deployment
             post_deployment_backup_id: postBackupId,
-            pre_deployment_deleted: !!preBackupId,
             post_deployment_created: !!postBackupId
           }
         });
@@ -629,33 +599,6 @@ router.post('/fast-apply', async (req, res) => {
     console.log(`⚡ Fast applying configuration to ${configuration.device.name} (${configuration.device.ip_address})...`);
     
     try {
-      // Create pre-deployment backup
-      console.log(`💾 Creating pre-deployment backup...`);
-      let preBackupId = null;
-      try {
-        const preBackup = await sshService.fastBackup(configuration.device);
-        if (preBackup.success) {
-          const backup = new ConfigurationBackup({
-            device_id: configuration.device._id,
-            backup_name: `Pre-Deploy (Fast) - ${new Date().toISOString()}`,
-            description: `Auto backup before fast deployment: ${configuration.prompt}`,
-            running_config: preBackup.runningConfig,
-            backup_type: 'scheduled',
-            config_type: 'running-config',
-            file_size: preBackup.runningConfigSize,
-            config_hash: crypto.createHash('sha256').update(preBackup.runningConfig).digest('hex'),
-            created_by: 'auto-deploy',
-            is_restore_point: true,
-            tags: ['pre-deployment', 'auto-backup', 'fast']
-          });
-          await backup.save();
-          preBackupId = backup._id;
-          console.log(`✅ Pre-deployment backup created`);
-        }
-      } catch (err) {
-        console.warn(`⚠️ Pre-deployment backup failed: ${err.message}`);
-      }
-      
       const deploymentStart = Date.now();
       const deployResult = await sshService.fastDeploy(
         configuration.device,
@@ -664,39 +607,38 @@ router.post('/fast-apply', async (req, res) => {
       const deploymentTime = Date.now() - deploymentStart;
       
       if (deployResult.success) {
-        // Create post-deployment backup
+        // Create post-deployment backup with LLM-generated metadata
         let postBackupId = null;
         try {
           const postBackup = await sshService.fastBackup(configuration.device);
           if (postBackup.success) {
+            // Generate meaningful backup name and description using LLM
+            console.log(`🤖 Generating backup metadata using LLM...`);
+            const backupMetadata = await llmService.generateBackupMetadata(
+              configuration.deployment_config,
+              configuration.device.name,
+              configuration.device.type,
+              configuration.prompt
+            );
+            
             const backup = new ConfigurationBackup({
               device_id: configuration.device._id,
-              backup_name: `Post-Deploy (Fast) - ${new Date().toISOString()}`,
-              description: `Auto backup after fast deployment: ${configuration.prompt}`,
+              backup_name: backupMetadata.backup_name,
+              description: backupMetadata.description,
               running_config: postBackup.runningConfig,
               backup_type: 'scheduled',
               config_type: 'running-config',
               file_size: postBackup.runningConfigSize,
               config_hash: crypto.createHash('sha256').update(postBackup.runningConfig).digest('hex'),
-              created_by: 'auto-deploy',
-              tags: ['post-deployment', 'auto-backup', 'fast']
+              created_by: 'post-deploy',
+              tags: ['post-deployment', 'auto-backup', 'fast', 'llm-generated']
             });
             await backup.save();
             postBackupId = backup._id;
-            console.log(`✅ Post-deployment backup created`);
+            console.log(`✅ Post-deployment backup created: ${backupMetadata.backup_name}`);
           }
         } catch (err) {
           console.warn(`⚠️ Post-deployment backup failed: ${err.message}`);
-        }
-        
-        // Delete pre-deployment backup (keeping only post-deployment)
-        if (preBackupId) {
-          try {
-            await ConfigurationBackup.findByIdAndDelete(preBackupId);
-            console.log(`🗑️ Pre-deployment backup deleted`);
-          } catch (deleteError) {
-            console.warn(`⚠️ Failed to delete pre-deployment backup: ${deleteError.message}`);
-          }
         }
         
         configuration.status = 'applied';
@@ -714,7 +656,7 @@ router.post('/fast-apply', async (req, res) => {
         
         res.json({
           success: true,
-          message: 'Configuration applied successfully using persistent session with auto-backups',
+          message: 'Configuration applied successfully with auto post-deploy backup',
           deployment_time: deploymentTime,
           deployment_time_ms: deploymentTime,
           deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
@@ -722,9 +664,7 @@ router.post('/fast-apply', async (req, res) => {
           session_reused: deployResult.sessionReused,
           command_count: deployResult.commandCount,
           auto_backups: {
-            pre_deployment_backup_id: null, // Deleted after successful deployment
             post_deployment_backup_id: postBackupId,
-            pre_deployment_deleted: !!preBackupId,
             post_deployment_created: !!postBackupId
           }
         });

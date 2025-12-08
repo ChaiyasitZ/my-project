@@ -211,6 +211,110 @@ export class LLMService {
   }
 
   /**
+   * Generate backup name and description using LLM based on deployed configuration
+   * Used for auto-backup after deployment to create meaningful metadata
+   * 
+   * @param {string} deployedConfig - The configuration that was deployed
+   * @param {string} deviceName - Name of the device
+   * @param {string} deviceType - Type of device (e.g., 'cisco_ios', 'cisco_nxos')
+   * @param {string} originalPrompt - The original user prompt for the deployment
+   * @returns {Object} { backup_name: string, description: string }
+   */
+  async generateBackupMetadata(deployedConfig, deviceName, deviceType, originalPrompt = '') {
+    try {
+      // Check API key
+      if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
+        console.warn('⚠️ LLM API key not configured, using fallback backup metadata');
+        return this._generateFallbackBackupMetadata(deviceName, originalPrompt);
+      }
+      
+      // Check rate limit
+      this._checkRateLimit();
+      
+      const systemPrompt = `You are a network automation assistant. Analyze the deployed configuration and generate a concise backup name and description.
+
+Rules:
+1. backup_name: Maximum 50 characters, format: "Post-Deploy: [brief change summary]"
+2. description: Maximum 200 characters, summarize what was configured
+3. Be specific about the configuration changes (interfaces, VLANs, routing, ACLs, etc.)
+4. Use technical but readable language
+5. Return ONLY valid JSON, no markdown or extra text
+
+Example output:
+{"backup_name": "Post-Deploy: VLAN 100 & Trunk Config", "description": "Configured VLAN 100 for Sales department and trunk port on Gi0/1 with allowed VLANs 100,200"}`;
+
+      const userPrompt = `Device: ${deviceName} (${deviceType})
+${originalPrompt ? `Original Request: ${originalPrompt}\n` : ''}
+Deployed Configuration:
+${deployedConfig.substring(0, 1500)}${deployedConfig.length > 1500 ? '\n... (truncated)' : ''}
+
+Generate backup_name and description as JSON:`;
+
+      const response = await this.client.post('/chat/completions', {
+        model: this.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 300
+      });
+      
+      const result = response.data?.choices?.[0]?.message?.content?.trim();
+      
+      if (!result) {
+        console.warn('⚠️ Empty LLM response, using fallback backup metadata');
+        return this._generateFallbackBackupMetadata(deviceName, originalPrompt);
+      }
+      
+      // Parse JSON response
+      try {
+        // Clean up response - remove markdown code blocks if present
+        let cleanResult = result;
+        if (result.includes('```')) {
+          cleanResult = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        }
+        
+        const parsed = JSON.parse(cleanResult);
+        
+        // Validate and sanitize
+        const backup_name = (parsed.backup_name || '').substring(0, 100) || 
+          `Post-Deploy: ${deviceName} - ${new Date().toISOString().split('T')[0]}`;
+        const description = (parsed.description || '').substring(0, 500) || 
+          `Auto-generated backup after configuration deployment`;
+        
+        console.log(`✅ LLM generated backup metadata: ${backup_name}`);
+        
+        return { backup_name, description };
+        
+      } catch (parseError) {
+        console.warn(`⚠️ Failed to parse LLM response: ${parseError.message}`);
+        console.warn(`Raw response: ${result.substring(0, 200)}`);
+        return this._generateFallbackBackupMetadata(deviceName, originalPrompt);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error generating backup metadata:', error.message);
+      return this._generateFallbackBackupMetadata(deviceName, originalPrompt);
+    }
+  }
+
+  /**
+   * Fallback backup metadata when LLM is not available
+   */
+  _generateFallbackBackupMetadata(deviceName, originalPrompt = '') {
+    const timestamp = new Date().toISOString().split('T')[0];
+    const shortPrompt = originalPrompt ? originalPrompt.substring(0, 30) : 'Config Change';
+    
+    return {
+      backup_name: `Post-Deploy: ${deviceName} - ${timestamp}`,
+      description: originalPrompt 
+        ? `Auto backup after deployment: ${originalPrompt.substring(0, 150)}${originalPrompt.length > 150 ? '...' : ''}`
+        : `Auto backup after configuration deployment on ${deviceName}`
+    };
+  }
+
+  /**
    * Generate Cisco configuration from text prompt using OpenRouter
    */
   async generateConfiguration(prompt, deviceType, deviceContext = {}, templateName = 'cisco_cli', useCache = true) {

@@ -4,6 +4,7 @@ import ConfigurationBackup from '../models/ConfigurationBackup.js';
 import Device from '../models/Device.js';
 import sshService from './sshService.js';
 import notificationService from './notificationService.js';
+import llmService from './llmService.js';
 import crypto from 'crypto';
 
 class BackupScheduler {
@@ -281,10 +282,28 @@ class BackupScheduler {
               .update(backupResult.runningConfig || '')
               .digest('hex');
 
+            // Generate meaningful backup name and description using LLM
+            console.log(`🤖 Generating backup metadata using LLM for ${device.name}...`);
+            let backupMetadata;
+            try {
+              backupMetadata = await llmService.generateBackupMetadata(
+                backupResult.runningConfig,
+                device.name,
+                device.type,
+                scheduleName
+              );
+            } catch (llmError) {
+              console.warn(`⚠️ LLM metadata generation failed, using fallback: ${llmError.message}`);
+              backupMetadata = {
+                backup_name: `Post-Deploy: ${device.name} - ${new Date().toISOString().split('T')[0]}`,
+                description: `Post-deployment backup: ${scheduleName}`
+              };
+            }
+
             const backup = new ConfigurationBackup({
               device_id: device._id,
-              backup_name: `${scheduleName} - ${device.name} - ${new Date().toISOString().split('T')[0]}`,
-              description: `Post-deployment backup: ${scheduleName}`,
+              backup_name: backupMetadata.backup_name,
+              description: backupMetadata.description,
               running_config: backupResult.runningConfig,
               startup_config: backupResult.startupConfig,
               backup_type: 'scheduled',
@@ -292,7 +311,7 @@ class BackupScheduler {
               file_size: (backupResult.runningConfigSize || 0) + (backupResult.startupConfigSize || 0),
               config_hash: configHash,
               created_by: 'post-deploy',
-              tags: ['post-deploy', 'auto', 'deployment-triggered']
+              tags: ['post-deploy', 'auto', 'deployment-triggered', 'llm-generated']
             });
 
             await backup.save();
@@ -300,10 +319,11 @@ class BackupScheduler {
               device_id: device._id,
               device_name: device.name,
               backup_id: backup._id,
+              backup_name: backupMetadata.backup_name,
               success: true
             });
 
-            console.log(`✅ Post-deployment backup successful for ${device.name}`);
+            console.log(`✅ Post-deployment backup successful for ${device.name}: ${backupMetadata.backup_name}`);
           } else {
             backupResults.push({
               device_id: device._id,
