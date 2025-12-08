@@ -86,7 +86,7 @@ export class NetconfService {
               
               // Check if server supports base:1.1 (chunked framing) - we'll avoid it
               const supports11 = capabilities.some(c => c.includes('base:1.1'));
-              console.log(`📋 NETCONF: Server supports base:1.1: ${supports11 ? 'yes (we use 1.0)' : 'no'}`);
+              console.log(`� NETCONF: Server supports base:1.1: ${supports11 ? 'yes (we use 1.0)' : 'no'}`);
               
               // Send client hello
               stream.write(this.NETCONF_HELLO, 'utf8', (err) => {
@@ -507,35 +507,132 @@ ${configXml}
   }
 
   /**
-   * Apply YANG configuration to device (simplified like ncclient)
-   * Just uses edit-config to running directly without lock/unlock
+   * Apply YANG configuration to NX-OS device
+   * Uses candidate datastore if available for safer configuration changes
    */
   async applyNxosConfig(deviceId, yangConfig, operation = 'merge') {
-    console.log(`🚀 NETCONF: Applying configuration (simple mode like ncclient)...`);
+    console.log(`🚀 NETCONF: Applying NX-OS YANG configuration...`);
     
+    // Check if device supports candidate datastore and writable-running
     const session = this.connections.get(deviceId);
     if (!session) {
       throw new Error('No active NETCONF session');
     }
     
-    // Check stream is writable
-    if (!session.stream?.writable) {
-      throw new Error('NETCONF stream is not writable - session may be closed');
+    const supportCandidate = session.capabilities?.some(c => 
+      c.includes('capability:candidate') || c.includes(':candidate:')
+    );
+    const supportWritableRunning = session.capabilities?.some(c => 
+      c.includes('writable-running')
+    );
+    const supportRollbackOnError = session.capabilities?.some(c => 
+      c.includes('rollback-on-error')
+    );
+    
+    console.log(`📋 NETCONF: Device capabilities check:`);
+    console.log(`   - Candidate datastore: ${supportCandidate ? 'yes' : 'no'}`);
+    console.log(`   - Writable-running: ${supportWritableRunning ? 'yes' : 'no'}`);
+    console.log(`   - Rollback-on-error: ${supportRollbackOnError ? 'yes' : 'no'}`);
+    
+    if (!supportCandidate && !supportWritableRunning) {
+      throw new Error('Device does not support writable-running or candidate datastore. Cannot apply configuration.');
     }
     
-    console.log(`📋 NETCONF: Session found for device, stream writable: ${session.stream.writable}`);
+    // First, verify the session is alive with a simple get operation
+    try {
+      console.log(`� NETCONF: Verifying session is alive...`);
+      await this.sendRpc(deviceId, `  <get><filter type="subtree"><System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><name/></System></filter></get>`, null, 15000);
+      console.log(`✅ NETCONF: Session is alive`);
+    } catch (pingError) {
+      console.error(`❌ NETCONF: Session appears dead, reconnecting...`);
+      throw new Error(`NETCONF session is not responding. Please disconnect and reconnect to the device. Error: ${pingError.message}`);
+    }
     
     try {
-      // Simple approach like ncclient: just edit-config directly to running
-      // No lock/unlock needed for most operations
-      console.log(`📝 NETCONF: Sending edit-config to running datastore...`);
-      const result = await this.editConfig(deviceId, yangConfig, 'running', operation);
-      
-      return {
-        success: true,
-        message: 'Configuration applied successfully via NETCONF',
-        response: result.response
-      };
+      if (supportCandidate) {
+        // Use candidate datastore workflow (safer)
+        console.log(`� NETCONF: Using candidate datastore workflow...`);
+        
+        // Try to clean up any existing locks first (best effort)
+        try {
+          console.log(`🧹 NETCONF: Cleaning up any existing candidate state...`);
+          await this.discardChanges(deviceId);
+        } catch (discardErr) {
+          // Ignore - might not have any changes to discard
+          console.log(`   (No pending changes to discard)`);
+        }
+        
+        try {
+          await this.unlock(deviceId, 'candidate');
+        } catch (unlockErr) {
+          // Ignore - might not be locked
+          console.log(`   (Candidate was not locked)`);
+        }
+        
+        // Now lock candidate
+        await this.lock(deviceId, 'candidate');
+        
+        try {
+          // Edit candidate config
+          console.log(`📝 NETCONF: Writing to candidate datastore...`);
+          await this.editConfig(deviceId, yangConfig, 'candidate', operation);
+          
+          // Commit to running
+          console.log(`💾 NETCONF: Committing candidate to running...`);
+          const commitResult = await this.commit(deviceId);
+          
+          // Unlock candidate
+          await this.unlock(deviceId, 'candidate');
+          
+          return {
+            success: true,
+            message: 'Configuration applied successfully via NETCONF (candidate commit)',
+            response: commitResult.response
+          };
+          
+        } catch (editError) {
+          // Discard changes and unlock on failure
+          try {
+            console.log(`⚠️ NETCONF: Error occurred, discarding changes...`);
+            await this.discardChanges(deviceId);
+            await this.unlock(deviceId, 'candidate');
+          } catch (cleanupError) {
+            console.warn(`⚠️ NETCONF: Failed to cleanup after error: ${cleanupError.message}`);
+          }
+          throw editError;
+        }
+        
+      } else if (supportWritableRunning) {
+        // Fall back to direct running config edit
+        console.log(`🔒 NETCONF: Using direct running config workflow...`);
+        
+        // Lock the running config
+        await this.lock(deviceId, 'running');
+        
+        try {
+          // Apply configuration directly to running
+          console.log(`📝 NETCONF: Editing running config directly...`);
+          const result = await this.editConfig(deviceId, yangConfig, 'running', operation);
+          
+          // Unlock on success
+          await this.unlock(deviceId, 'running');
+          
+          return {
+            success: true,
+            message: 'Configuration applied successfully via NETCONF (direct edit)',
+            response: result.response
+          };
+          
+        } catch (editError) {
+          // Unlock on failure
+          try {
+            await this.unlock(deviceId, 'running');
+          } catch (unlockError) {
+            console.warn(`⚠️ NETCONF: Failed to unlock after error: ${unlockError.message}`);
+          }
+          throw editError;
+        }
+      }
       
     } catch (error) {
       console.error(`❌ NETCONF: Configuration failed: ${error.message}`);

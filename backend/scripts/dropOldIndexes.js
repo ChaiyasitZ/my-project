@@ -37,7 +37,8 @@ async function dropOldIndexes() {
       const yangIndexes = await yangCollection.indexes();
       console.log('📋 YangModels indexes:', yangIndexes.map(i => i.name));
 
-      const yangIndexesToDrop = ['namespace_1'];
+      // Drop old indexes that don't include userId (causing duplicate errors across users)
+      const yangIndexesToDrop = ['namespace_1', 'name_1', 'device_type_1_category_1', 'name_1_device_type_1'];
       
       for (const indexName of yangIndexesToDrop) {
         try {
