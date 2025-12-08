@@ -1309,16 +1309,24 @@ router.post('/netconf/apply', async (req, res) => {
     }
     
     const deploymentStart = Date.now();
+    const deviceId = device._id.toString();
     
     try {
-      // Connect via NETCONF
-      const connectResult = await netconfService.connect(device);
+      // Check if we already have an active session from the UI
+      let sessionStatus = netconfService.getSessionStatus(deviceId);
       
-      if (!connectResult.success) {
-        throw new Error('Failed to establish NETCONF connection');
+      if (!sessionStatus.connected) {
+        // No existing session, create a new one
+        console.log(`🔌 NETCONF: No existing session, connecting...`);
+        const connectResult = await netconfService.connect(device);
+        
+        if (!connectResult.success) {
+          throw new Error('Failed to establish NETCONF connection');
+        }
+      } else {
+        console.log(`✅ NETCONF: Using existing session for ${device.name}`);
       }
       
-      const deviceId = device._id.toString();
       const configToApply = configuration.deployment_config || configuration.generated_config;
       
       // Validate before apply if enabled

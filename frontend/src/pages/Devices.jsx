@@ -21,7 +21,6 @@ function Devices() {
   const [showModal, setShowModal] = useState(false);
   const [editingDevice, setEditingDevice] = useState(null);
   const [testingDevice, setTestingDevice] = useState(null);
-  const [testingNetconf, setTestingNetconf] = useState(null);
   const [sshSessions, setSshSessions] = useState(new Map()); // Track SSH session status
   const [connectingDevices, setConnectingDevices] = useState(new Set());
   
@@ -367,39 +366,6 @@ function Devices() {
     }
   };
 
-  const handleTestNetconf = async (device) => {
-    const deviceId = device.id || device._id;
-    setTestingNetconf(deviceId);
-    const toastId = toast.loading(`Testing NETCONF connection to ${device.name}...`);
-    
-    try {
-      const response = await axios.post(`/devices/${deviceId}/netconf/test`);
-      
-      if (response.data && response.data.success) {
-        const capData = response.data.connectionTest?.capabilities;
-        const capCount = typeof capData === 'number' ? capData : (Array.isArray(capData) ? capData.length : 0);
-        const supportsNxos = response.data.connectionTest?.supportsNxos;
-        
-        console.log('✅ NETCONF Connection successful for', device.name, '- Capabilities:', capCount);
-        toast.success(
-          `NETCONF connection to ${device.name} successful! ${capCount} capabilities found.${supportsNxos ? ' (NX-OS)' : ''}`, 
-          { id: toastId }
-        );
-      } else {
-        console.warn('⚠️ NETCONF Connection failed for', device.name);
-        toast.error(
-          `NETCONF connection to ${device.name} failed: ${response.data.message}`, 
-          { id: toastId }
-        );
-      }
-    } catch (error) {
-      console.error('❌ NETCONF Connection test failed for', device.name + ':', error.response?.data?.message || error.message);
-      toast.error(`NETCONF test failed: ${error.response?.data?.message || error.message}`, { id: toastId });
-    } finally {
-      setTestingNetconf(null);
-    }
-  };
-
   const resetForm = () => {
     setFormData({
       name: '',
@@ -707,25 +673,6 @@ function Devices() {
                         'Test SSH'
                       )}
                     </button>
-
-                    {/* NETCONF Test Button - show for nexus or netconf-enabled devices */}
-                    {(device.type === 'nexus' || device.netconf_enabled) && (
-                      <button
-                        onClick={() => handleTestNetconf(device)}
-                        disabled={testingNetconf === deviceId}
-                        className="btn btn-purple btn-sm"
-                        title="Test NETCONF Connection"
-                      >
-                        {testingNetconf === deviceId ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            Testing...
-                          </>
-                        ) : (
-                          'Test NETCONF'
-                        )}
-                      </button>
-                    )}
                   </div>
                   
                   {/* Session Management Group */}

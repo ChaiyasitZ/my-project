@@ -3,6 +3,7 @@ import { Client } from 'ssh2';
 /**
  * NETCONF Service for Cisco NX-OS devices
  * Uses NETCONF over SSH (RFC 6241) for programmatic device configuration
+ * Using NETCONF 1.0 (end-of-message delimiter) for compatibility
  */
 export class NetconfService {
   constructor() {
@@ -10,18 +11,16 @@ export class NetconfService {
     this.defaultPort = 830; // Standard NETCONF port
     this.sessionTimeout = 300000; // 5 minutes
     
-    // NETCONF message constants
+    // NETCONF message constants - Only advertise base:1.0 to use simple delimiter framing
+    // If we advertise 1.1, server might switch to chunked framing which is more complex
     this.NETCONF_HELLO = `<?xml version="1.0" encoding="UTF-8"?>
 <hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
   <capabilities>
     <capability>urn:ietf:params:netconf:base:1.0</capability>
-    <capability>urn:ietf:params:netconf:base:1.1</capability>
     <capability>urn:ietf:params:netconf:capability:writable-running:1.0</capability>
     <capability>urn:ietf:params:netconf:capability:candidate:1.0</capability>
     <capability>urn:ietf:params:netconf:capability:confirmed-commit:1.0</capability>
     <capability>urn:ietf:params:netconf:capability:validate:1.0</capability>
-    <capability>urn:ietf:params:netconf:capability:startup:1.0</capability>
-    <capability>urn:ietf:params:netconf:capability:url:1.0</capability>
   </capabilities>
 </hello>]]>]]>`;
 
@@ -71,36 +70,65 @@ export class NetconfService {
           let serverHello = '';
           let helloReceived = false;
           
-          stream.on('data', (data) => {
+          const helloHandler = (data) => {
             serverHello += data.toString();
+            console.log(`📥 NETCONF Hello: Received ${data.length} bytes`);
             
             if (serverHello.includes(this.MESSAGE_DELIMITER) && !helloReceived) {
               helloReceived = true;
+              
+              // IMPORTANT: Remove hello handler so it doesn't interfere with RPC handlers
+              stream.removeListener('data', helloHandler);
               
               // Parse server capabilities
               const capabilities = this.parseCapabilities(serverHello);
               console.log(`📋 NETCONF: Server capabilities received (${capabilities.length} capabilities)`);
               
+              // Check if server supports base:1.1 (chunked framing) - we'll avoid it
+              const supports11 = capabilities.some(c => c.includes('base:1.1'));
+              console.log(`📋 NETCONF: Server supports base:1.1: ${supports11 ? 'yes (we use 1.0)' : 'no'}`);
+              
               // Send client hello
-              stream.write(this.NETCONF_HELLO);
-              
-              // Store connection
-              this.connections.set(deviceId, {
-                connection: conn,
-                stream: stream,
-                capabilities: capabilities,
-                createdAt: Date.now(),
-                lastUsed: Date.now(),
-                deviceIp: ip_address
-              });
-              
-              resolve({
-                success: true,
-                deviceId: deviceId,
-                capabilities: capabilities,
-                message: 'NETCONF session established'
+              stream.write(this.NETCONF_HELLO, 'utf8', (err) => {
+                if (err) {
+                  console.error(`❌ NETCONF: Failed to send hello: ${err.message}`);
+                  reject(new Error(`Failed to send NETCONF hello: ${err.message}`));
+                  return;
+                }
+                
+                console.log(`📤 NETCONF: Client hello sent successfully`);
+                
+                // Small delay to let the session stabilize
+                setTimeout(() => {
+                  // Store connection
+                  this.connections.set(deviceId, {
+                    connection: conn,
+                    stream: stream,
+                    capabilities: capabilities,
+                    createdAt: Date.now(),
+                    lastUsed: Date.now(),
+                    deviceIp: ip_address,
+                    netconfVersion: '1.0' // We always use 1.0 for simplicity
+                  });
+                  
+                  console.log(`✅ NETCONF: Session ready for ${ip_address}`);
+                  
+                  resolve({
+                    success: true,
+                    deviceId: deviceId,
+                    capabilities: capabilities,
+                    message: 'NETCONF session established'
+                  });
+                }, 500); // 500ms delay to let session stabilize
               });
             }
+          };
+          
+          stream.on('data', helloHandler);
+          
+          // Handle stderr from NETCONF subsystem
+          stream.stderr.on('data', (data) => {
+            console.error(`⚠️ NETCONF stderr: ${data.toString()}`);
           });
           
           stream.on('error', (err) => {
@@ -216,11 +244,19 @@ ${rpcContent}
 </rpc>${this.MESSAGE_DELIMITER}`;
     
     console.log(`📤 NETCONF: Sending ${operationType} RPC (message-id: ${msgId}, timeout: ${timeoutMs/1000}s)`);
+    // Debug: Log RPC being sent (first 200 chars)
+    console.log(`📤 NETCONF: RPC content preview: ${rpcMessage.substring(0, 200).replace(/\n/g, ' ')}...`);
     
     return new Promise((resolve, reject) => {
       let response = '';
       let dataSize = 0;
       const startTime = Date.now();
+      
+      // Check if stream is writable
+      if (!session.stream.writable) {
+        reject(new Error('NETCONF stream is not writable - session may be closed'));
+        return;
+      }
       
       const timeout = setTimeout(() => {
         session.stream.removeListener('data', dataHandler);
@@ -233,6 +269,8 @@ ${rpcContent}
         const chunk = data.toString();
         response += chunk;
         dataSize += chunk.length;
+        
+        console.log(`📥 NETCONF: Received ${chunk.length} bytes (total: ${dataSize})`);
         
         // Log progress for large responses
         if (dataSize > 100000 && dataSize % 100000 < chunk.length) {
@@ -265,8 +303,24 @@ ${rpcContent}
         }
       };
       
+      // IMPORTANT: Attach data handler BEFORE writing
       session.stream.on('data', dataHandler);
-      session.stream.write(rpcMessage);
+      
+      // Write the RPC message and check for errors
+      const writeSuccess = session.stream.write(rpcMessage, 'utf8', (err) => {
+        if (err) {
+          clearTimeout(timeout);
+          session.stream.removeListener('data', dataHandler);
+          console.error(`❌ NETCONF: Write error: ${err.message}`);
+          reject(new Error(`NETCONF write failed: ${err.message}`));
+        } else {
+          console.log(`✅ NETCONF: RPC written to stream (${rpcMessage.length} bytes)`);
+        }
+      });
+      
+      if (!writeSuccess) {
+        console.warn(`⚠️ NETCONF: Write returned false - stream buffer full, waiting for drain`);
+      }
     });
   }
 
@@ -400,7 +454,9 @@ ${configXml}
    */
   async discardChanges(deviceId) {
     const rpcContent = `  <discard-changes/>`;
-    return await this.sendRpc(deviceId, rpcContent);
+    console.log(`🗑️ NETCONF: Discarding candidate changes...`);
+    // Quick operation - 15 second timeout
+    return await this.sendRpc(deviceId, rpcContent, null, 15000);
   }
 
   /**
@@ -451,106 +507,35 @@ ${configXml}
   }
 
   /**
-   * Apply YANG configuration to NX-OS device
-   * Uses candidate datastore if available for safer configuration changes
+   * Apply YANG configuration to device (simplified like ncclient)
+   * Just uses edit-config to running directly without lock/unlock
    */
   async applyNxosConfig(deviceId, yangConfig, operation = 'merge') {
-    console.log(`🚀 NETCONF: Applying NX-OS YANG configuration...`);
+    console.log(`🚀 NETCONF: Applying configuration (simple mode like ncclient)...`);
     
-    // Check if device supports candidate datastore and writable-running
     const session = this.connections.get(deviceId);
     if (!session) {
       throw new Error('No active NETCONF session');
     }
     
-    const supportCandidate = session.capabilities?.some(c => 
-      c.includes('capability:candidate') || c.includes(':candidate:')
-    );
-    const supportWritableRunning = session.capabilities?.some(c => 
-      c.includes('writable-running')
-    );
-    const supportRollbackOnError = session.capabilities?.some(c => 
-      c.includes('rollback-on-error')
-    );
-    
-    console.log(`📋 NETCONF: Device capabilities check:`);
-    console.log(`   - Candidate datastore: ${supportCandidate ? 'yes' : 'no'}`);
-    console.log(`   - Writable-running: ${supportWritableRunning ? 'yes' : 'no'}`);
-    console.log(`   - Rollback-on-error: ${supportRollbackOnError ? 'yes' : 'no'}`);
-    
-    if (!supportCandidate && !supportWritableRunning) {
-      throw new Error('Device does not support writable-running or candidate datastore. Cannot apply configuration.');
+    // Check stream is writable
+    if (!session.stream?.writable) {
+      throw new Error('NETCONF stream is not writable - session may be closed');
     }
     
+    console.log(`📋 NETCONF: Session found for device, stream writable: ${session.stream.writable}`);
+    
     try {
-      if (supportCandidate) {
-        // Use candidate datastore workflow (safer)
-        console.log(`🔒 NETCONF: Using candidate datastore workflow...`);
-        
-        // Lock candidate
-        await this.lock(deviceId, 'candidate');
-        
-        try {
-          // Edit candidate config
-          console.log(`📝 NETCONF: Writing to candidate datastore...`);
-          await this.editConfig(deviceId, yangConfig, 'candidate', operation);
-          
-          // Commit to running
-          console.log(`💾 NETCONF: Committing candidate to running...`);
-          const commitResult = await this.commit(deviceId);
-          
-          // Unlock candidate
-          await this.unlock(deviceId, 'candidate');
-          
-          return {
-            success: true,
-            message: 'Configuration applied successfully via NETCONF (candidate commit)',
-            response: commitResult.response
-          };
-          
-        } catch (editError) {
-          // Discard changes and unlock on failure
-          try {
-            console.log(`⚠️ NETCONF: Error occurred, discarding changes...`);
-            await this.discardChanges(deviceId);
-            await this.unlock(deviceId, 'candidate');
-          } catch (cleanupError) {
-            console.warn(`⚠️ NETCONF: Failed to cleanup after error: ${cleanupError.message}`);
-          }
-          throw editError;
-        }
-        
-      } else if (supportWritableRunning) {
-        // Fall back to direct running config edit
-        console.log(`🔒 NETCONF: Using direct running config workflow...`);
-        
-        // Lock the running config
-        await this.lock(deviceId, 'running');
-        
-        try {
-          // Apply configuration directly to running
-          console.log(`📝 NETCONF: Editing running config directly...`);
-          const result = await this.editConfig(deviceId, yangConfig, 'running', operation);
-          
-          // Unlock on success
-          await this.unlock(deviceId, 'running');
-          
-          return {
-            success: true,
-            message: 'Configuration applied successfully via NETCONF (direct edit)',
-            response: result.response
-          };
-          
-        } catch (editError) {
-          // Unlock on failure
-          try {
-            await this.unlock(deviceId, 'running');
-          } catch (unlockError) {
-            console.warn(`⚠️ NETCONF: Failed to unlock after error: ${unlockError.message}`);
-          }
-          throw editError;
-        }
-      }
+      // Simple approach like ncclient: just edit-config directly to running
+      // No lock/unlock needed for most operations
+      console.log(`📝 NETCONF: Sending edit-config to running datastore...`);
+      const result = await this.editConfig(deviceId, yangConfig, 'running', operation);
+      
+      return {
+        success: true,
+        message: 'Configuration applied successfully via NETCONF',
+        response: result.response
+      };
       
     } catch (error) {
       console.error(`❌ NETCONF: Configuration failed: ${error.message}`);
@@ -703,6 +688,20 @@ ${configXml}
       };
     }
     
+    // Check if stream is still writable
+    const streamWritable = session.stream?.writable === true;
+    
+    if (!streamWritable) {
+      // Clean up dead session
+      console.log(`⚠️ NETCONF: Session for ${session.deviceIp} has dead stream, removing...`);
+      this.connections.delete(deviceId);
+      return {
+        isConnected: false,
+        connected: false,
+        message: 'NETCONF session stream is closed'
+      };
+    }
+    
     return {
       isConnected: true,
       connected: true,
@@ -710,7 +709,8 @@ ${configXml}
       createdAt: session.createdAt,
       lastUsed: session.lastUsed,
       capabilities: session.capabilities?.length || 0,
-      sessionAge: Date.now() - session.createdAt
+      sessionAge: Date.now() - session.createdAt,
+      streamWritable: streamWritable
     };
   }
 
