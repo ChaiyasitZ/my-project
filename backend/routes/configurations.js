@@ -1527,4 +1527,191 @@ router.get('/netconf/sessions', async (req, res) => {
   }
 });
 
+// ========================
+// ROLLBACK ROUTES
+// ========================
+
+// POST /api/configurations/:id/rollback - Rollback to a previous configuration
+router.post('/:id/rollback', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    
+    console.log(`🔄 Rolling back to configuration ${id}`);
+    
+    // Get the target configuration to rollback to (must be user owned and deployed)
+    const targetConfig = await ConfigurationHistory.findOne({
+      _id: id,
+      userId: req.userId,
+      status: 'deployed'
+    });
+    
+    if (!targetConfig) {
+      return res.status(404).json({
+        success: false,
+        message: 'Configuration not found or not in deployed status'
+      });
+    }
+    
+    // Get the device
+    const device = await Device.findOne({
+      _id: targetConfig.device_id,
+      userId: req.userId
+    });
+    
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    // Find the current deployed configuration for this device (most recent deployed)
+    const currentConfig = await ConfigurationHistory.findOne({
+      device_id: device._id,
+      userId: req.userId,
+      status: 'deployed',
+      _id: { $ne: targetConfig._id }
+    }).sort({ deployed_at: -1 });
+    
+    if (!currentConfig) {
+      return res.status(400).json({
+        success: false,
+        message: 'No current deployed configuration found to rollback from'
+      });
+    }
+    
+    // Cannot rollback to itself
+    if (currentConfig._id.toString() === targetConfig._id.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot rollback to the same configuration'
+      });
+    }
+    
+    // Get the configuration content to deploy
+    const configToApply = targetConfig.deployed_config || targetConfig.deployment_config || targetConfig.generated_config;
+    
+    if (!configToApply) {
+      return res.status(400).json({
+        success: false,
+        message: 'No configuration content found to rollback'
+      });
+    }
+    
+    console.log(`📡 Rolling back ${device.name} from config ${currentConfig._id} to ${targetConfig._id}`);
+    
+    // Deploy the target configuration via SSH
+    const sshResult = await sshService.sendConfigCommands(device, configToApply);
+    
+    // Mark the current configuration as rolled_back
+    currentConfig.status = 'rolled_back';
+    currentConfig.rolled_back_at = Date.now();
+    currentConfig.rolled_back_by = targetConfig._id;
+    currentConfig.rollback_reason = reason || 'User initiated rollback';
+    await currentConfig.save();
+    
+    // Update target config to track it was restored
+    targetConfig.restored_from = currentConfig._id;
+    targetConfig.restored_from_config = currentConfig.deployed_config || currentConfig.deployment_config || currentConfig.generated_config;
+    targetConfig.deployed_at = Date.now(); // Update deployed time
+    await targetConfig.save();
+    
+    console.log(`✅ Rollback successful: ${device.name}`);
+    
+    // Trigger post-deployment backup schedules
+    try {
+      console.log(`🚀 Triggering post-deployment backup schedules for rollback...`);
+      await backupScheduler.triggerPostDeploySchedules([device._id.toString()]);
+    } catch (scheduleError) {
+      console.warn(`⚠️ Failed to trigger post-deployment schedules: ${scheduleError.message}`);
+    }
+    
+    res.json({
+      success: true,
+      message: `Successfully rolled back ${device.name} to previous configuration`,
+      data: {
+        rolled_back_config_id: currentConfig._id,
+        restored_config_id: targetConfig._id,
+        device_name: device.name,
+        rollback_reason: reason || 'User initiated rollback',
+        ssh_output: sshResult.output
+      }
+    });
+    
+  } catch (error) {
+    console.error('Rollback error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to rollback configuration',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/configurations/:id/rollback-info - Get rollback information for a configuration
+router.get('/:id/rollback-info', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const config = await ConfigurationHistory.findOne({
+      _id: id,
+      userId: req.userId
+    });
+    
+    if (!config) {
+      return res.status(404).json({
+        success: false,
+        message: 'Configuration not found'
+      });
+    }
+    
+    let rollbackInfo = {
+      config_id: config._id,
+      status: config.status,
+      can_rollback_to: config.status === 'deployed',
+      was_rolled_back: config.status === 'rolled_back'
+    };
+    
+    // If this config was rolled back, include info about what replaced it
+    if (config.status === 'rolled_back') {
+      const replacedBy = config.rolled_back_by 
+        ? await ConfigurationHistory.findById(config.rolled_back_by).select('_id prompt deployed_at')
+        : null;
+      
+      rollbackInfo.rolled_back_at = config.rolled_back_at;
+      rollbackInfo.rollback_reason = config.rollback_reason;
+      rollbackInfo.replaced_by = replacedBy ? {
+        id: replacedBy._id,
+        prompt: replacedBy.prompt,
+        deployed_at: replacedBy.deployed_at
+      } : null;
+    }
+    
+    // If this config was restored from another, include that info
+    if (config.restored_from) {
+      const restoredFrom = await ConfigurationHistory.findById(config.restored_from).select('_id prompt deployed_at');
+      
+      rollbackInfo.restored_from = restoredFrom ? {
+        id: restoredFrom._id,
+        prompt: restoredFrom.prompt,
+        deployed_at: restoredFrom.deployed_at
+      } : null;
+    }
+    
+    res.json({
+      success: true,
+      data: rollbackInfo
+    });
+    
+  } catch (error) {
+    console.error('Error getting rollback info:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get rollback information',
+      error: error.message
+    });
+  }
+});
+
 export default router;

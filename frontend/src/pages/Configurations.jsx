@@ -1431,13 +1431,7 @@ function Configurations() {
                           device.type === 'router' ? 'bg-blue-100 dark:bg-blue-900/50' :
                           'bg-green-100 dark:bg-green-900/50'
                         }`}>
-                          {device.type === 'nexus' ? (
-                            <NetworkIcon className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                          ) : device.type === 'router' ? (
-                            <RouterIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                          ) : (
-                            <ServerIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
-                          )}
+                          <DeviceIcon deviceType={device.type} layer={device.layer} className="h-5 w-5" />
                         </div>
                         <div>
                           <div className="font-medium text-gray-900 dark:text-white text-sm">
@@ -1516,18 +1510,6 @@ function Configurations() {
             ) : (
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {netconfSessions.map((session) => {
-                  // Get device icon based on type
-                  const getDeviceIcon = () => {
-                    switch(session.device_type) {
-                      case 'nexus':
-                        return <NetworkIcon className="h-5 w-5 text-purple-600 dark:text-purple-400" />;
-                      case 'router':
-                        return <RouterIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
-                      default:
-                        return <ServerIcon className="h-5 w-5 text-green-600 dark:text-green-400" />;
-                    }
-                  };
-                  
                   const getDeviceBgColor = () => {
                     switch(session.device_type) {
                       case 'nexus':
@@ -1550,7 +1532,7 @@ function Configurations() {
                     >
                       <div className="flex items-center gap-3">
                         <div className={`relative p-2 rounded-lg ${getDeviceBgColor()}`}>
-                          {getDeviceIcon()}
+                          <DeviceIcon deviceType={session.device_type} layer={session.device_layer} className="h-5 w-5" />
                           <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
                         </div>
                         <div>

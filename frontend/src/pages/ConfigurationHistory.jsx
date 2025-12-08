@@ -12,7 +12,8 @@ import {
   FilterIcon,
   Trash2Icon,
   HistoryIcon,
-  RefreshCwIcon
+  RefreshCwIcon,
+  RotateCcwIcon
 } from 'lucide-react';
 import PageLoader from '../components/PageLoader';
 
@@ -25,6 +26,10 @@ function ConfigurationHistory() {
   const [filter, setFilter] = useState('all');
   const [selectedConfig, setSelectedConfig] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [showRollbackModal, setShowRollbackModal] = useState(false);
+  const [rollbackTarget, setRollbackTarget] = useState(null);
+  const [rollbackReason, setRollbackReason] = useState('');
+  const [isRollingBack, setIsRollingBack] = useState(false);
   const fetchConfigurations = useCallback(async () => {
     try {
       const url = filter === 'all' ? '/configurations/history' : `/configurations/history?status=${filter}`;
@@ -48,7 +53,7 @@ function ConfigurationHistory() {
 
   // Manage modal body class
   useEffect(() => {
-    if (showModal) {
+    if (showModal || showRollbackModal) {
       document.body.classList.add('modal-open');
     } else {
       document.body.classList.remove('modal-open');
@@ -58,7 +63,7 @@ function ConfigurationHistory() {
     return () => {
       document.body.classList.remove('modal-open');
     };
-  }, [showModal]);
+  }, [showModal, showRollbackModal]);
 
   const applyFilters = () => {
     return groupedConfigurations;
@@ -122,6 +127,42 @@ function ConfigurationHistory() {
       } finally {
         setClearingAll(false);
       }
+    }
+  };
+
+  // Open rollback confirmation modal
+  const openRollbackModal = (config) => {
+    setRollbackTarget(config);
+    setRollbackReason('');
+    setShowRollbackModal(true);
+  };
+
+  // Execute rollback
+  const handleRollback = async () => {
+    if (!rollbackTarget) return;
+    
+    setIsRollingBack(true);
+    const toastId = toast.loading(`Rolling back to configuration for ${rollbackTarget.device_name}...`);
+    
+    try {
+      const response = await axios.post(`/configurations/${rollbackTarget.id}/rollback`, {
+        reason: rollbackReason || 'User initiated rollback'
+      });
+      
+      if (response.data.success) {
+        toast.success(response.data.message, { id: toastId });
+        setShowRollbackModal(false);
+        setRollbackTarget(null);
+        setRollbackReason('');
+        fetchConfigurations();
+      } else {
+        toast.error(response.data.message || 'Rollback failed', { id: toastId });
+      }
+    } catch (error) {
+      console.error('❌ Rollback error:', error);
+      toast.error(error.response?.data?.message || 'Failed to rollback configuration', { id: toastId });
+    } finally {
+      setIsRollingBack(false);
     }
   };
 
@@ -311,6 +352,11 @@ function ConfigurationHistory() {
                         {item.deployed_at && (
                           <span>Deployed: {formatDate(item.deployed_at)}</span>
                         )}
+                        {item.rolled_back_at && (
+                          <span className="text-yellow-600 dark:text-yellow-400">
+                            Rolled back: {formatDate(item.rolled_back_at)}
+                          </span>
+                        )}
                         {item.deployment_time && (
                           <span className="text-green-600 dark:text-green-400 font-medium">
                             ⚡ Deploy Time: {(item.deployment_time / 1000).toFixed(2)}s
@@ -320,6 +366,15 @@ function ConfigurationHistory() {
                           <span>Duration: {item.execution_time}ms</span>
                         )}
                       </div>
+                      
+                      {/* Rollback reason for rolled_back configs */}
+                      {item.status === 'rolled_back' && item.rollback_reason && (
+                        <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded">
+                          <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                            <strong>Rollback Reason:</strong> {item.rollback_reason}
+                          </p>
+                        </div>
+                      )}
                       
                       {item.error_message && (
                         <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded">
@@ -337,6 +392,17 @@ function ConfigurationHistory() {
                     </span>
                     
                     <div className="flex space-x-2">
+                      {/* Rollback button - only for deployed configurations */}
+                      {item.status === 'deployed' && (
+                        <button
+                          onClick={() => openRollbackModal(item)}
+                          className="btn btn-warning btn-sm"
+                          title="Rollback to this configuration"
+                        >
+                          <RotateCcwIcon className="h-4 w-4" />
+                        </button>
+                      )}
+                      
                       <button
                         onClick={() => viewDetails(item)}
                         className="btn btn-secondary btn-sm"
@@ -484,6 +550,105 @@ function ConfigurationHistory() {
                 Close
               </button>
             </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Rollback Confirmation Modal */}
+      {showRollbackModal && rollbackTarget && createPortal(
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+            onClick={() => !isRollingBack && setShowRollbackModal(false)}
+          ></div>
+          
+          {/* Modal Container */}
+          <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full pointer-events-auto animate-fade-in">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <RotateCcwIcon className="h-5 w-5 text-yellow-500" />
+                    Rollback Configuration
+                  </h3>
+                  <button
+                    onClick={() => !isRollingBack && setShowRollbackModal(false)}
+                    disabled={isRollingBack}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
+                  >
+                    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              
+              <div className="px-6 py-4 space-y-4">
+                <div className="bg-yellow-50 dark:bg-yellow-900/30 p-4 rounded-lg border border-yellow-200 dark:border-yellow-700">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                    <strong>Warning:</strong> This will deploy the selected configuration to the device, 
+                    replacing the current active configuration.
+                  </p>
+                </div>
+                
+                <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg space-y-2">
+                  <p className="text-sm dark:text-gray-300">
+                    <strong>Device:</strong> {rollbackTarget.device_name}
+                  </p>
+                  <p className="text-sm dark:text-gray-300">
+                    <strong>Configuration:</strong> {rollbackTarget.prompt?.substring(0, 100)}
+                    {rollbackTarget.prompt?.length > 100 ? '...' : ''}
+                  </p>
+                  <p className="text-sm dark:text-gray-300">
+                    <strong>Originally Deployed:</strong> {formatDate(rollbackTarget.deployed_at)}
+                  </p>
+                </div>
+                
+                <div>
+                  <label htmlFor="rollbackReason" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Reason for Rollback (Optional)
+                  </label>
+                  <textarea
+                    id="rollbackReason"
+                    value={rollbackReason}
+                    onChange={(e) => setRollbackReason(e.target.value)}
+                    placeholder="e.g., Configuration caused network issues"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                    rows={3}
+                    disabled={isRollingBack}
+                  />
+                </div>
+              </div>
+              
+              <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900 flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowRollbackModal(false)}
+                  disabled={isRollingBack}
+                  className="btn btn-secondary btn-md"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRollback}
+                  disabled={isRollingBack}
+                  className="btn btn-warning btn-md"
+                >
+                  {isRollingBack ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Rolling back...
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcwIcon className="h-4 w-4 mr-2" />
+                      Confirm Rollback
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>,

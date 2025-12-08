@@ -55,6 +55,26 @@ const configurationHistorySchema = new mongoose.Schema({
   },
   deployed_at: {
     type: Number
+  },
+  // Rollback tracking fields
+  rolled_back_at: {
+    type: Number
+  },
+  rolled_back_by: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ConfigurationHistory' // Reference to the config that replaced this one
+  },
+  rollback_reason: {
+    type: String
+  },
+  // For restore operations - track what this config restored from
+  restored_from: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ConfigurationBackup'
+  },
+  restored_from_config: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ConfigurationHistory' // If rolled back to a previous config
   }
 }, {
   timestamps: false // Disable automatic timestamps since we're using custom ones

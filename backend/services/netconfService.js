@@ -183,8 +183,12 @@ export class NetconfService {
 
   /**
    * Send NETCONF RPC and receive response
+   * @param {string} deviceId - Device ID
+   * @param {string} rpcContent - RPC content (without envelope)
+   * @param {string} messageId - Optional message ID
+   * @param {number} timeoutMs - Timeout in milliseconds (default 60s for operations, use higher for get operations)
    */
-  async sendRpc(deviceId, rpcContent, messageId = null) {
+  async sendRpc(deviceId, rpcContent, messageId = null, timeoutMs = 60000) {
     const session = this.connections.get(deviceId);
     
     if (!session) {
@@ -194,29 +198,41 @@ export class NetconfService {
     session.lastUsed = Date.now();
     const msgId = messageId || `msg-${Date.now()}`;
     
+    // Detect operation type for logging
+    const operationType = rpcContent.includes('<get-config') ? 'get-config' :
+                          rpcContent.includes('<get>') ? 'get' :
+                          rpcContent.includes('<edit-config') ? 'edit-config' :
+                          rpcContent.includes('<lock') ? 'lock' :
+                          rpcContent.includes('<unlock') ? 'unlock' :
+                          rpcContent.includes('<commit') ? 'commit' :
+                          rpcContent.includes('<validate') ? 'validate' :
+                          rpcContent.includes('<close-session') ? 'close-session' :
+                          'unknown';
+    
     // Wrap content in RPC envelope
     const rpcMessage = `<?xml version="1.0" encoding="UTF-8"?>
 <rpc message-id="${msgId}" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
 ${rpcContent}
 </rpc>${this.MESSAGE_DELIMITER}`;
     
-    console.log(`📤 NETCONF: Sending RPC (message-id: ${msgId})`);
+    console.log(`📤 NETCONF: Sending ${operationType} RPC (message-id: ${msgId}, timeout: ${timeoutMs/1000}s)`);
     
     return new Promise((resolve, reject) => {
       let response = '';
-      let lastDataTime = Date.now();
       let dataSize = 0;
+      const startTime = Date.now();
       
       const timeout = setTimeout(() => {
-        console.error(`❌ NETCONF: RPC timeout after 180 seconds (received ${dataSize} bytes)`);
-        reject(new Error('NETCONF RPC timeout - device not responding or response too large. Try using a more specific filter.'));
-      }, 180000); // Increased to 180 seconds for large responses
+        session.stream.removeListener('data', dataHandler);
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.error(`❌ NETCONF: ${operationType} timeout after ${elapsed}s (received ${dataSize} bytes)`);
+        reject(new Error(`NETCONF ${operationType} timeout after ${elapsed}s - device not responding. Received ${dataSize} bytes before timeout.`));
+      }, timeoutMs);
       
       const dataHandler = (data) => {
         const chunk = data.toString();
         response += chunk;
         dataSize += chunk.length;
-        lastDataTime = Date.now();
         
         // Log progress for large responses
         if (dataSize > 100000 && dataSize % 100000 < chunk.length) {
@@ -227,7 +243,8 @@ ${rpcContent}
           clearTimeout(timeout);
           session.stream.removeListener('data', dataHandler);
           
-          console.log(`📦 NETCONF: Total response size: ${Math.round(dataSize / 1024)}KB`);
+          const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+          console.log(`📦 NETCONF: ${operationType} response received (${Math.round(dataSize / 1024)}KB in ${elapsed}s)`);
           
           // Parse response
           const cleanResponse = response.replace(this.MESSAGE_DELIMITER, '').trim();
@@ -235,10 +252,10 @@ ${rpcContent}
           
           if (isError) {
             const errorMsg = this.parseRpcError(cleanResponse);
-            console.error(`❌ NETCONF RPC error: ${errorMsg}`);
-            reject(new Error(`NETCONF RPC error: ${errorMsg}`));
+            console.error(`❌ NETCONF ${operationType} error: ${errorMsg}`);
+            reject(new Error(`NETCONF ${operationType} error: ${errorMsg}`));
           } else {
-            console.log(`✅ NETCONF: RPC response received`);
+            console.log(`✅ NETCONF: ${operationType} completed successfully`);
             resolve({
               success: true,
               messageId: msgId,
@@ -294,7 +311,8 @@ ${rpcContent}
     </source>${filterXml}
   </get-config>`;
     
-    return await this.sendRpc(deviceId, rpcContent);
+    // Use longer timeout for get-config (180s) as it can return large responses
+    return await this.sendRpc(deviceId, rpcContent, null, 180000);
   }
 
   /**
@@ -312,7 +330,17 @@ ${configXml}
   </edit-config>`;
     
     console.log(`📝 NETCONF: Edit-config to ${target} (operation: ${defaultOperation})`);
-    return await this.sendRpc(deviceId, rpcContent);
+    console.log(`📋 NETCONF: Config size: ${configXml.length} bytes`);
+    
+    // Log first 500 chars of config for debugging (if small enough)
+    if (configXml.length <= 500) {
+      console.log(`📋 NETCONF: Full config:\n${configXml}`);
+    } else {
+      console.log(`📋 NETCONF: Config preview (first 500 chars):\n${configXml.substring(0, 500)}...`);
+    }
+    
+    // Use 90 second timeout for edit-config operations
+    return await this.sendRpc(deviceId, rpcContent, null, 90000);
   }
 
   /**
@@ -321,7 +349,8 @@ ${configXml}
   async commit(deviceId) {
     const rpcContent = `  <commit/>`;
     console.log(`💾 NETCONF: Committing configuration...`);
-    return await this.sendRpc(deviceId, rpcContent);
+    // Commit can take time for large configs - 120 second timeout
+    return await this.sendRpc(deviceId, rpcContent, null, 120000);
   }
 
   /**
@@ -385,7 +414,8 @@ ${configXml}
   </lock>`;
     
     console.log(`🔒 NETCONF: Locking ${target} datastore...`);
-    return await this.sendRpc(deviceId, rpcContent);
+    // Lock should be quick - 30 second timeout
+    return await this.sendRpc(deviceId, rpcContent, null, 30000);
   }
 
   /**
@@ -399,7 +429,8 @@ ${configXml}
   </unlock>`;
     
     console.log(`🔓 NETCONF: Unlocking ${target} datastore...`);
-    return await this.sendRpc(deviceId, rpcContent);
+    // Unlock should be quick - 30 second timeout
+    return await this.sendRpc(deviceId, rpcContent, null, 30000);
   }
 
   /**
@@ -421,36 +452,104 @@ ${configXml}
 
   /**
    * Apply YANG configuration to NX-OS device
-   * This wraps the configuration in proper NX-OS YANG namespaces
+   * Uses candidate datastore if available for safer configuration changes
    */
   async applyNxosConfig(deviceId, yangConfig, operation = 'merge') {
     console.log(`🚀 NETCONF: Applying NX-OS YANG configuration...`);
     
+    // Check if device supports candidate datastore and writable-running
+    const session = this.connections.get(deviceId);
+    if (!session) {
+      throw new Error('No active NETCONF session');
+    }
+    
+    const supportCandidate = session.capabilities?.some(c => 
+      c.includes('capability:candidate') || c.includes(':candidate:')
+    );
+    const supportWritableRunning = session.capabilities?.some(c => 
+      c.includes('writable-running')
+    );
+    const supportRollbackOnError = session.capabilities?.some(c => 
+      c.includes('rollback-on-error')
+    );
+    
+    console.log(`📋 NETCONF: Device capabilities check:`);
+    console.log(`   - Candidate datastore: ${supportCandidate ? 'yes' : 'no'}`);
+    console.log(`   - Writable-running: ${supportWritableRunning ? 'yes' : 'no'}`);
+    console.log(`   - Rollback-on-error: ${supportRollbackOnError ? 'yes' : 'no'}`);
+    
+    if (!supportCandidate && !supportWritableRunning) {
+      throw new Error('Device does not support writable-running or candidate datastore. Cannot apply configuration.');
+    }
+    
     try {
-      // Lock the running config
-      await this.lock(deviceId, 'running');
-      
-      try {
-        // Apply configuration
-        const result = await this.editConfig(deviceId, yangConfig, 'running', operation);
+      if (supportCandidate) {
+        // Use candidate datastore workflow (safer)
+        console.log(`🔒 NETCONF: Using candidate datastore workflow...`);
         
-        // Unlock on success
-        await this.unlock(deviceId, 'running');
+        // Lock candidate
+        await this.lock(deviceId, 'candidate');
         
-        return {
-          success: true,
-          message: 'Configuration applied successfully via NETCONF',
-          response: result.response
-        };
-        
-      } catch (editError) {
-        // Unlock on failure
         try {
-          await this.unlock(deviceId, 'running');
-        } catch (unlockError) {
-          console.warn(`⚠️ NETCONF: Failed to unlock after error: ${unlockError.message}`);
+          // Edit candidate config
+          console.log(`📝 NETCONF: Writing to candidate datastore...`);
+          await this.editConfig(deviceId, yangConfig, 'candidate', operation);
+          
+          // Commit to running
+          console.log(`💾 NETCONF: Committing candidate to running...`);
+          const commitResult = await this.commit(deviceId);
+          
+          // Unlock candidate
+          await this.unlock(deviceId, 'candidate');
+          
+          return {
+            success: true,
+            message: 'Configuration applied successfully via NETCONF (candidate commit)',
+            response: commitResult.response
+          };
+          
+        } catch (editError) {
+          // Discard changes and unlock on failure
+          try {
+            console.log(`⚠️ NETCONF: Error occurred, discarding changes...`);
+            await this.discardChanges(deviceId);
+            await this.unlock(deviceId, 'candidate');
+          } catch (cleanupError) {
+            console.warn(`⚠️ NETCONF: Failed to cleanup after error: ${cleanupError.message}`);
+          }
+          throw editError;
         }
-        throw editError;
+        
+      } else if (supportWritableRunning) {
+        // Fall back to direct running config edit
+        console.log(`🔒 NETCONF: Using direct running config workflow...`);
+        
+        // Lock the running config
+        await this.lock(deviceId, 'running');
+        
+        try {
+          // Apply configuration directly to running
+          console.log(`📝 NETCONF: Editing running config directly...`);
+          const result = await this.editConfig(deviceId, yangConfig, 'running', operation);
+          
+          // Unlock on success
+          await this.unlock(deviceId, 'running');
+          
+          return {
+            success: true,
+            message: 'Configuration applied successfully via NETCONF (direct edit)',
+            response: result.response
+          };
+          
+        } catch (editError) {
+          // Unlock on failure
+          try {
+            await this.unlock(deviceId, 'running');
+          } catch (unlockError) {
+            console.warn(`⚠️ NETCONF: Failed to unlock after error: ${unlockError.message}`);
+          }
+          throw editError;
+        }
       }
       
     } catch (error) {
@@ -470,9 +569,9 @@ ${configXml}
     }
     
     try {
-      // Send close-session RPC
+      // Send close-session RPC with short timeout
       const rpcContent = `  <close-session/>`;
-      await this.sendRpc(deviceId, rpcContent);
+      await this.sendRpc(deviceId, rpcContent, null, 10000); // 10 second timeout
       
       session.connection.end();
       this.connections.delete(deviceId);

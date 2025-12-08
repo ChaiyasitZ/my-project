@@ -797,9 +797,16 @@ router.post('/:id/restore', async (req, res) => {
         throw new Error('Failed to restore configuration');
       }
       
-      // Record the restore operation in configuration history with rollback tag
+      // Find and mark the last deployed configuration as rolled_back
+      const lastDeployedConfig = await ConfigurationHistory.findOne({
+        device_id: device._id,
+        status: 'deployed'
+      }).sort({ deployed_at: -1 });
+      
+      // Record the restore operation in configuration history
       const configHistory = new ConfigurationHistory({
         device_id: device._id,
+        userId: req.userId,
         prompt: `Configuration restored from backup: ${backup.backup_name}`,
         generated_config: configToRestore,
         deployed_config: restoreResult.output,
@@ -807,18 +814,23 @@ router.post('/:id/restore', async (req, res) => {
         ai_model: 'backup_restore',
         execution_time: 0,
         deployed_at: Date.now(),
-        tags: ['rollback', 'restore', backup._id.toString()], // Add rollback tag for easy identification
-        metadata: {
-          restore_source: 'backup',
-          backup_id: backup._id,
-          backup_name: backup.backup_name,
-          restore_type: restore_type,
-          config_source: configSource,
-          checkpoint_id: checkpointId
-        }
+        restored_from: backup._id, // Track which backup this was restored from
+        restored_from_config: lastDeployedConfig?._id // Track which config was rolled back
       });
       
       await configHistory.save();
+      
+      // Mark the previous configuration as rolled_back (if exists)
+      if (lastDeployedConfig) {
+        lastDeployedConfig.status = 'rolled_back';
+        lastDeployedConfig.rolled_back_at = Date.now();
+        lastDeployedConfig.rolled_back_by = configHistory._id;
+        lastDeployedConfig.rollback_reason = `Rolled back by restoring backup: ${backup.backup_name}`;
+        await lastDeployedConfig.save();
+        console.log(`📜 Marked previous config ${lastDeployedConfig._id} as rolled_back`);
+      }
+      
+      console.log(`✅ Configuration restored from backup: ${backup.backup_name}`);
       
       res.json({
         success: true,
@@ -834,7 +846,9 @@ router.post('/:id/restore', async (req, res) => {
           device_ip: device.ip_address,
           restored_at: new Date().toISOString(),
           session_reused: restoreResult.sessionReused || false,
-          command_count: restoreResult.commandCount || 0
+          command_count: restoreResult.commandCount || 0,
+          rolled_back_config_id: lastDeployedConfig?._id || null,
+          new_config_id: configHistory._id
         },
         output: restoreResult.output
       });
