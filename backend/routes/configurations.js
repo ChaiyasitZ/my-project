@@ -1315,16 +1315,28 @@ router.post('/netconf/apply', async (req, res) => {
       // Check if we already have an active session from the UI
       let sessionStatus = netconfService.getSessionStatus(deviceId);
       
-      if (!sessionStatus.connected) {
-        // No existing session, create a new one
-        console.log(`🔌 NETCONF: No existing session, connecting...`);
+      if (!sessionStatus.isConnected) {
+        // No existing session or session is dead, create a new one
+        console.log(`🔌 NETCONF: No active session, connecting...`);
         const connectResult = await netconfService.connect(device);
         
         if (!connectResult.success) {
           throw new Error('Failed to establish NETCONF connection');
         }
+        console.log(`✅ NETCONF: Connected successfully`);
       } else {
         console.log(`✅ NETCONF: Using existing session for ${device.name}`);
+        
+        // Verify the session is actually alive by checking stream
+        if (!sessionStatus.streamWritable) {
+          console.log(`⚠️ NETCONF: Session stream not writable, reconnecting...`);
+          netconfService.disconnect(deviceId);
+          const connectResult = await netconfService.connect(device);
+          if (!connectResult.success) {
+            throw new Error('Failed to re-establish NETCONF connection');
+          }
+          console.log(`✅ NETCONF: Reconnected successfully`);
+        }
       }
       
       const configToApply = configuration.deployment_config || configuration.generated_config;
@@ -1348,11 +1360,12 @@ router.post('/netconf/apply', async (req, res) => {
         console.log(`✅ NETCONF: Validation passed`);
       }
       
-      // Apply configuration
+      // Apply configuration (pass device for auto-reconnection)
       const applyResult = await netconfService.applyNxosConfig(
         deviceId,
         configToApply,
-        'merge'
+        'merge',
+        device  // Pass device config for auto-reconnection if session dies
       );
       
       const deploymentTime = Date.now() - deploymentStart;

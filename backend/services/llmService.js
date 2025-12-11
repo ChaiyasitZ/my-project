@@ -2655,16 +2655,11 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
       customModelsSection += `=== END CUSTOM YANG MODELS ===\n\nCRITICAL: Generate XML that strictly follows the structure defined in the YANG models above. Use the exact namespaces, containers, lists, and leaf names from the YANG definitions. Do NOT use generic patterns if a specific YANG model applies.\n`;
     }
 
-    return `You are a Cisco NX-OS NETCONF/YANG configuration expert. Generate ONLY valid NETCONF XML configuration payloads.
+    return `You are a Cisco NETCONF/YANG configuration expert supporting BOTH IOS-XE (CSR 1000V) and NX-OS (Nexus 9000V). Generate ONLY valid NETCONF XML configuration payloads.
 
-NETCONF/YANG RULES FOR NX-OS:
-1. Use proper Cisco NX-OS YANG model namespaces
-2. Common namespaces:
-   - Device root: xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"
-   - Interface: use System/intf-items namespace
-   - BGP: use System/bgp-items namespace  
-   - OSPF: use System/ospf-items namespace
-   - VLAN: use System/bd-items (bridge domain) namespace
+IMPORTANT: Choose the correct YANG model based on device type:
+- IOS-XE devices (CSR 1000V, ISR, ASR, Catalyst): Use IETF YANG models (urn:ietf:params:xml:ns:yang:ietf-interfaces)
+- NX-OS devices (Nexus 9000V, Nexus switches): Use Cisco NX-OS YANG models (http://cisco.com/ns/yang/cisco-nx-os-device)
 
 STRICT OUTPUT RULES:
 1. Generate ONLY the XML content that goes inside <config> tags
@@ -2676,43 +2671,97 @@ STRICT OUTPUT RULES:
 7. Include required YANG namespace declarations
 8. Start directly with the root element${customModelsSection}
 
-COMMON NX-OS YANG PATTERNS:
+=== IOS-XE PATTERNS (CSR 1000V, ISR, ASR, Catalyst) ===
 
-For Interface Configuration:
+Namespaces for IOS-XE:
+- Interfaces: xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces"
+- IPv4: xmlns="urn:ietf:params:xml:ns:yang:ietf-ip"
+- Interface types: xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type"
+
+For Loopback Interface (IOS-XE):
+<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+  <interface>
+    <name>Loopback1</name>
+    <description>Management Loopback</description>
+    <type xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">ianaift:softwareLoopback</type>
+    <enabled>true</enabled>
+    <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+      <address>
+        <ip>1.1.1.1</ip>
+        <netmask>255.255.255.255</netmask>
+      </address>
+    </ipv4>
+  </interface>
+</interfaces>
+
+For Physical Interface (IOS-XE):
+<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces">
+  <interface>
+    <name>GigabitEthernet1</name>
+    <description>Uplink to Core</description>
+    <type xmlns:ianaift="urn:ietf:params:xml:ns:yang:iana-if-type">ianaift:ethernetCsmacd</type>
+    <enabled>true</enabled>
+    <ipv4 xmlns="urn:ietf:params:xml:ns:yang:ietf-ip">
+      <address>
+        <ip>10.0.0.1</ip>
+        <netmask>255.255.255.0</netmask>
+      </address>
+    </ipv4>
+  </interface>
+</interfaces>
+
+CRITICAL REMINDERS FOR IOS-XE:
+- Use <enabled>true</enabled> or <enabled>false</enabled> for interface state
+- Interface names: GigabitEthernet1, Loopback1, Tunnel1, etc. (as shown in CLI)
+- Use ianaift:ethernetCsmacd for physical interfaces, ianaift:softwareLoopback for loopbacks
+- Use <netmask> with dotted decimal format (255.255.255.0), not prefix length
+
+=== NX-OS PATTERNS (Nexus 9000V, Nexus switches) ===
+
+Namespaces for NX-OS:
+- Device root: xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"
+- All NX-OS configs use System as root element
+
+For Physical Interface - Layer 2 (NX-OS):
 <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
   <intf-items>
     <phys-items>
       <PhysIf-list>
         <id>eth1/1</id>
         <adminSt>up</adminSt>
-        <descr>Description here</descr>
+        <layer>Layer2</layer>
+        <descr>To Access Switch</descr>
+        <mode>trunk</mode>
       </PhysIf-list>
     </phys-items>
   </intf-items>
 </System>
 
-For VLAN Configuration:
-<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
-  <bd-items>
-    <bd-items>
-      <BD-list>
-        <fabEncap>vlan-100</fabEncap>
-        <name>VLAN_NAME</name>
-        <adminSt>active</adminSt>
-      </BD-list>
-    </bd-items>
-  </bd-items>
-</System>
-
-For SVI Configuration:
+For Physical Interface - Layer 3 with MTU (NX-OS):
 <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
   <intf-items>
-    <svi-items>
-      <If-list>
-        <id>vlan100</id>
+    <phys-items>
+      <PhysIf-list>
+        <id>eth1/1</id>
         <adminSt>up</adminSt>
-      </If-list>
-    </svi-items>
+        <layer>Layer3</layer>
+        <descr>Uplink to Core</descr>
+        <mtu>9216</mtu>
+      </PhysIf-list>
+    </phys-items>
+  </intf-items>
+</System>
+
+For Loopback Interface (NX-OS):
+<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+  <intf-items>
+    <lb-items>
+      <LbIf-list>
+        <id>lo0</id>
+        <adminSt>up</adminSt>
+        <descr>Router ID Loopback</descr>
+      </LbIf-list>
+    </lb-items>
   </intf-items>
   <ipv4-items>
     <inst-items>
@@ -2723,10 +2772,10 @@ For SVI Configuration:
             <name>default</name>
             <if-items>
               <If-list>
-                <id>vlan100</id>
+                <id>lo0</id>
                 <addr-items>
                   <Addr-list>
-                    <addr>192.168.100.1/24</addr>
+                    <addr>1.1.1.1/32</addr>
                   </Addr-list>
                 </addr-items>
               </If-list>
@@ -2738,41 +2787,60 @@ For SVI Configuration:
   </ipv4-items>
 </System>
 
-For OSPF Configuration:
+For VLAN (NX-OS):
 <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
-  <ospf-items>
-    <inst-items>
-      <Inst-list>
-        <name>1</name>
-        <adminSt>enabled</adminSt>
-        <dom-items>
-          <Dom-list>
-            <name>default</name>
-            <rtrId>1.1.1.1</rtrId>
-            <area-items>
-              <Area-list>
-                <id>0.0.0.0</id>
-              </Area-list>
-            </area-items>
-          </Dom-list>
-        </dom-items>
-      </Inst-list>
-    </inst-items>
-  </ospf-items>
+  <bd-items>
+    <vlans-items>
+      <Vlan-list>
+        <id>100</id>
+        <name>VLAN_NAME</name>
+        <adminSt>active</adminSt>
+      </Vlan-list>
+    </vlans-items>
+  </bd-items>
 </System>
 
+CRITICAL REMINDERS FOR NX-OS:
+- Always start with <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+- ALWAYS include <adminSt>up</adminSt> for interfaces - THIS IS REQUIRED
+- ALWAYS include <layer>Layer2</layer> or <layer>Layer3</layer> for physical interfaces
+- Use eth1/X format (lowercase 'eth', not 'Ethernet')
+- Use exact element names: PhysIf-list, Vlan-list, LbIf-list (case-sensitive!)
+- adminSt values: up/down for interfaces, enabled/disabled for protocols, active/suspend for VLANs
+
 Output ONLY the XML configuration, nothing else.`;
+
   }
 
   /**
    * Build user message for NETCONF/YANG generation
    */
   _buildNetconfUserMessage(prompt, deviceType, deviceContext) {
-    const deviceName = deviceContext.name || 'NX-OS Device';
-    const deviceModel = deviceContext.model || 'Cisco Nexus';
+    const deviceName = deviceContext.name || 'Network Device';
+    const deviceModel = deviceContext.model || 'Cisco';
+    
+    // Detect platform based on device type
+    const isIOSXE = deviceType?.toLowerCase().includes('ios') || 
+                    deviceType?.toLowerCase().includes('csr') ||
+                    deviceType?.toLowerCase().includes('isr') ||
+                    deviceType?.toLowerCase().includes('asr') ||
+                    deviceType?.toLowerCase().includes('catalyst');
+    
+    const isNXOS = deviceType?.toLowerCase().includes('nexus') ||
+                   deviceType?.toLowerCase().includes('nxos') ||
+                   deviceType?.toLowerCase().includes('nx-os');
+    
+    let platformInfo;
+    if (isIOSXE) {
+      platformInfo = 'Platform: Cisco IOS-XE (CSR 1000V/ISR/ASR/Catalyst) - Use IETF YANG models (urn:ietf:params:xml:ns:yang:ietf-interfaces)';
+    } else if (isNXOS) {
+      platformInfo = 'Platform: Cisco NX-OS (Nexus 9000V/Nexus) - Use NX-OS YANG models (http://cisco.com/ns/yang/cisco-nx-os-device)';
+    } else {
+      platformInfo = 'Platform: Cisco device with NETCONF/YANG support - Detect platform from device type and use appropriate YANG model';
+    }
     
     return `Device: ${deviceName} (${deviceType} - ${deviceModel})
-Platform: Cisco NX-OS with NETCONF/YANG support
+${platformInfo}
 
 Configuration Request: ${prompt}
 
@@ -2850,23 +2918,47 @@ Generate the NETCONF/YANG XML configuration now (only XML, no explanations):`;
 
     // Check for NX-OS namespace
     if (!configuration.includes('cisco.com/ns/yang/cisco-nx-os-device')) {
-      validation.warnings.push('Missing NX-OS YANG namespace');
+      validation.warnings.push('Missing NX-OS YANG namespace - this may cause the device to reject the configuration');
       validation.score -= 20;
     }
 
     // Check for System root element
     if (!configuration.includes('<System')) {
-      validation.warnings.push('Missing System root element');
+      validation.warnings.push('Missing <System> root element - NX-OS YANG requires this as the root');
       validation.score -= 15;
     }
 
-    // Check for proper closing tags
-    const openTags = (configuration.match(/<[^/][^>]*>/g) || []).length;
+    // Check for closing </System> tag
+    if (configuration.includes('<System') && !configuration.includes('</System>')) {
+      validation.errors.push('Missing closing </System> tag - XML is malformed');
+      validation.isValid = false;
+      validation.score -= 30;
+    }
+
+    // Improved tag balance check - count self-closing tags properly
+    const selfClosingTagCount = (configuration.match(/<[^>]+\/>/g) || []).length;
+    const openTags = (configuration.match(/<[^/!][^>]*[^/]>/g) || []).length;
     const closeTags = (configuration.match(/<\/[^>]+>/g) || []).length;
     
-    if (openTags !== closeTags) {
-      validation.warnings.push('Possible unbalanced XML tags');
+    // Open tags (minus self-closing) should equal close tags
+    const expectedCloseCount = openTags - selfClosingTagCount;
+    if (Math.abs(expectedCloseCount - closeTags) > 2) {
+      validation.warnings.push(`Possible unbalanced XML tags (open: ${openTags}, close: ${closeTags}, self-closing: ${selfClosingTagCount})`);
       validation.score -= 10;
+    }
+
+    // Check for common NX-OS YANG elements
+    const hasIntfItems = configuration.includes('<intf-items>') || configuration.includes('<intf-items/>');
+    const hasBdItems = configuration.includes('<bd-items>') || configuration.includes('<bd-items/>');
+    const hasOspfItems = configuration.includes('<ospf-items>');
+    const hasBgpItems = configuration.includes('<bgp-items>');
+    const hasIpv4Items = configuration.includes('<ipv4-items>');
+    
+    if (hasIntfItems || hasBdItems || hasOspfItems || hasBgpItems || hasIpv4Items) {
+      validation.explanation.push('✓ Contains valid NX-OS YANG configuration elements');
+    } else {
+      validation.warnings.push('No recognized NX-OS YANG configuration elements found');
+      validation.score -= 5;
     }
 
     validation.explanation.push('✓ NETCONF/YANG XML configuration generated');
@@ -2875,8 +2967,18 @@ Generate the NETCONF/YANG XML configuration now (only XML, no explanations):`;
       validation.explanation.push('✓ Configuration structure looks valid');
     }
     
+    // Log validation result for debugging
+    console.log(`🔍 NETCONF Validation: score=${validation.score}, errors=${validation.errors.length}, warnings=${validation.warnings.length}`);
+    if (validation.errors.length > 0) {
+      console.log(`❌ Validation errors: ${validation.errors.join(', ')}`);
+    }
+    if (validation.warnings.length > 0) {
+      console.log(`⚠️ Validation warnings: ${validation.warnings.join(', ')}`);
+    }
+    
     return validation;
   }
+
 
   // Graceful shutdown - clear intervals and cache
   shutdown() {
