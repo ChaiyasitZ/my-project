@@ -13,8 +13,15 @@ import {
 } from 'lucide-react';
 import DeviceIcon from '../components/DeviceIcon';
 import PageLoader from '../components/PageLoader';
+import Pagination from '../components/Pagination';
+import ZoomControls from '../components/ZoomControls';
+import { useResponsive } from '../hooks/useResponsive';
 
 function Devices() {
+  const { getItemsPerPage, getSpacing, deviceType } = useResponsive();
+  const ITEMS_PER_PAGE = getItemsPerPage('list');
+  const spacing = getSpacing();
+  
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
@@ -27,6 +34,7 @@ function Devices() {
   // Filter states
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -92,6 +100,18 @@ function Devices() {
 
     return filtered;
   }, [devices, selectedFilter, searchTerm]);
+
+  // Paginated devices
+  const totalPages = Math.ceil(filteredDevices.length / ITEMS_PER_PAGE);
+  const paginatedDevices = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredDevices.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredDevices, currentPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedFilter, searchTerm]);
 
   // Memoize filter counts
   const filterCounts = useMemo(() => ({
@@ -422,6 +442,7 @@ function Devices() {
           </p>
         </div>
         <div className="flex items-center space-x-3">
+          <ZoomControls />
           <button
             onClick={() => {
               resetForm();
@@ -580,182 +601,74 @@ function Devices() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-4">
-          {filteredDevices.map((device) => {
+        <div className="space-y-1">
+          {paginatedDevices.map((device) => {
             const deviceId = device.id || device._id;
             return (
             <div key={deviceId} className="card card-hover">
-              <div className="card-body">
+              <div className="card-body py-2 px-3">
+                {/* Single Row Layout */}
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className={`flex-shrink-0 p-3 rounded-xl ${
-                      device.status === 'active' ? 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400' :
-                      device.status === 'inactive' ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400' :
-                      'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
-                    }`}>
+                  {/* Left: Device Info */}
+                  <div className="flex items-center space-x-2">
+                    <div className={`flex-shrink-0 p-1.5 rounded ${device.status === 'active' ? 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400' : device.status === 'inactive' ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400' : 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'}`}>
                       {getDeviceIcon(device)}
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{device.name}</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        <span className="font-medium">{device.type}</span>
-                        {device.type === 'switch' && device.layer && (
-                          <span className="ml-1 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">
-                            {device.layer === 'layer-2' ? 'L2' : 'L3'}
-                          </span>
-                        )} 
-                        <span className="mx-2 text-gray-300 dark:text-gray-600">•</span>
-                        <span className="font-mono text-gray-600 dark:text-gray-400">{device.ip_address}</span>
-                        {device.location && (
-                          <>
-                            <span className="mx-2 text-gray-300 dark:text-gray-600">•</span>
-                            <span>{device.location}</span>
-                          </>
-                        )}
-                      </p>
-                      {device.description && (
-                        <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">{device.description}</p>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">{device.name}</span>
+                        <span className="text-xs px-1 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-gray-500 dark:text-gray-400">
+                          {device.type}{device.type === 'switch' && device.layer && ` (${device.layer === 'layer-2' ? 'L2' : 'L3'})`}
+                        </span>
+                        <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{device.ip_address}</span>
+                        {device.location && <span className="text-xs text-gray-400">• {device.location}</span>}
+                      </div>
                     </div>
                   </div>
                   
-                  <div className="flex items-center space-x-2">
-                    <span className={`badge ${getStatusBadge(device.status)}`}>
-                      {device.status}
-                    </span>
-                    
-                    {/* Enhanced SSH Session Status Indicator */}
+                  {/* Right: Status + Actions */}
+                  <div className="flex items-center gap-2">
+                    {/* Status badges */}
+                    <span className={`badge text-xs ${getStatusBadge(device.status)}`}>{device.status}</span>
                     {device.ssh_status === 'connected' && (
-                      <span className="badge badge-success text-xs flex items-center gap-1.5">
-                        <span className="inline-block w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                        SSH Connected
-                        {sshSessions.get(deviceId)?.is_privileged && ' (Privileged)'}
-                      </span>
+                      <span className="badge badge-success text-xs">• SSH Connected</span>
                     )}
-                    {device.ssh_status === 'connecting' && (
-                      <span className="badge badge-info text-xs flex items-center gap-1.5">
-                        <div className="animate-spin rounded-full h-2 w-2 border border-blue-400 border-t-transparent"></div>
-                        Connecting...
-                      </span>
-                    )}
-                    {device.ssh_status === 'error' && (
-                      <span className="badge badge-danger text-xs flex items-center gap-1.5">
-                        <span className="inline-block w-2 h-2 bg-red-400 rounded-full"></span>
-                        SSH Error
-                      </span>
-                    )}
-
-                    {/* NETCONF Enabled Indicator */}
                     {(device.type === 'nexus' || device.netconf_enabled) && (
-                      <span className="badge badge-cyan text-xs flex items-center gap-1">
-                        🌐 NETCONF
-                      </span>
+                      <span className="badge badge-cyan text-xs">🌐 NETCONF</span>
                     )}
-                  </div>
-                </div>
-                
-                {/* Action Buttons */}
-                <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-                  {/* Test Connections Group */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleTestConnection(device)}
-                      disabled={testingDevice === deviceId}
-                      className="btn btn-primary btn-sm"
-                      title="Test SSH Connection"
-                    >
-                      {testingDevice === deviceId ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Testing...
-                        </>
-                      ) : (
-                        'Test SSH'
-                      )}
+                    
+                    {/* Divider */}
+                    <div className="w-px h-5 bg-gray-200 dark:bg-gray-700"></div>
+                    
+                    {/* Action buttons */}
+                    <button onClick={() => handleTestConnection(device)} disabled={testingDevice === deviceId} className="btn btn-primary btn-sm">
+                      {testingDevice === deviceId ? 'Testing...' : 'Test SSH'}
                     </button>
-                  </div>
-                  
-                  {/* Session Management Group */}
-                  <div className="flex gap-2">
-                    {/* SSH Session Management Buttons */}
                     {device.ssh_status === 'connected' ? (
-                      <button
-                        onClick={() => handleSshDisconnect(device)}
-                        disabled={connectingDevices.has(deviceId)}
-                        className="btn btn-warning btn-sm"
-                        title="Disconnect SSH Session"
-                      >
-                        {connectingDevices.has(deviceId) ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            Disconnecting...
-                          </>
-                        ) : (
-                          'Disconnect'
-                        )}
-                      </button>
-                    ) : device.ssh_status === 'connecting' ? (
-                      <button
-                        onClick={() => handleSshStop(device)}
-                        className="btn btn-secondary btn-sm"
-                        title="Stop Connection Attempt"
-                      >
-                        Stop
-                      </button>
+                      <button onClick={() => handleSshDisconnect(device)} disabled={connectingDevices.has(deviceId)} className="btn btn-warning btn-sm">Disconnect</button>
                     ) : (
-                      <button
-                        onClick={() => handleSshConnect(device)}
-                        disabled={connectingDevices.has(deviceId)}
-                        className="btn btn-success btn-sm"
-                        title="Connect SSH Session"
-                      >
-                        {connectingDevices.has(deviceId) ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            Connecting...
-                          </>
-                        ) : (
-                          'Connect'
-                        )}
-                      </button>
+                      <button onClick={() => handleSshConnect(device)} disabled={connectingDevices.has(deviceId)} className="btn btn-success btn-sm">Connect</button>
                     )}
-                  </div>
-                    
-                  {/* Edit/Delete Group */}
-                  <div className="flex gap-2 ml-auto">
-                    <button
-                      onClick={() => handleEdit(device)}
-                      className="btn btn-secondary btn-sm"
-                      title="Edit Device"
-                    >
-                      <PencilIcon className="h-4 w-4 mr-1" />
-                      Edit
-                    </button>
-                    
-                    <button
-                      onClick={() => handleDelete(device)}
-                      className="btn btn-danger btn-sm"
-                      title="Delete Device"
-                    >
-                      <TrashIcon className="h-4 w-4 mr-1" />
-                      Delete
-                    </button>
+                    <button onClick={() => handleEdit(device)} className="btn btn-secondary btn-sm"><PencilIcon className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => handleDelete(device)} className="btn btn-danger btn-sm"><TrashIcon className="h-3.5 w-3.5" /></button>
                   </div>
                 </div>
-                
-                {device.model && (
-                  <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
-                    <div className="flex items-center text-sm">
-                      <span className="text-gray-500 dark:text-gray-400 font-medium">Model:</span>
-                      <span className="ml-2 text-gray-700 dark:text-gray-300 font-mono">{device.model}</span>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
             );
           })}
         </div>
+      )}
+
+      {/* Pagination */}
+      {filteredDevices.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredDevices.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
       )}
 
       {/* Modal */}

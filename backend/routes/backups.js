@@ -541,6 +541,7 @@ router.post('/', async (req, res) => {
     
     // Create backup using SSH service
     console.log(`💾 Creating backup for ${device.name} (${device.ip_address})`);
+    const backupStartTime = Date.now();
     
     try {
       // Check if device has an active SSH session first
@@ -549,13 +550,20 @@ router.post('/', async (req, res) => {
       const existingSession = sshService.persistentSessions.get(sessionKey);
       const hasActiveSession = existingSession && sshService.isSessionValid(existingSession);
       
+      console.log(`⏱️ [TIMING] Session check: ${Date.now() - backupStartTime}ms, hasActiveSession: ${hasActiveSession}`);
+      
       let backupResult;
+      const sshStartTime = Date.now();
       
       if (hasActiveSession) {
+        console.log(`⚡ Using optimized backup (active session)`);
         backupResult = await sshService.optimizedBackup(device, config_type);
       } else {
+        console.log(`🐢 Using full backup (no active session)`);
         backupResult = await sshService.createFullBackup(device, { config_type });
       }
+      
+      console.log(`⏱️ [TIMING] SSH backup completed in ${Date.now() - sshStartTime}ms`)
       
       if (!backupResult.success) {
         throw new Error(`Backup creation failed: ${backupResult.runningError || backupResult.startupError || 'Unknown error'}`);
@@ -569,10 +577,12 @@ router.post('/', async (req, res) => {
         .digest('hex');
       
       // Check for duplicate backups
+      const dupCheckStart = Date.now();
       const duplicateBackup = await ConfigurationBackup.findOne({
         device_id,
         config_hash: configHash
       });
+      console.log(`⏱️ [TIMING] Duplicate check: ${Date.now() - dupCheckStart}ms`);
       
       if (duplicateBackup) {
         return res.status(409).json({
@@ -583,6 +593,7 @@ router.post('/', async (req, res) => {
       }
       
       // Save backup to database
+      const saveStartTime = Date.now();
       const backup = new ConfigurationBackup({
         device_id,
         backup_name,
@@ -599,6 +610,8 @@ router.post('/', async (req, res) => {
       });
       
       await backup.save();
+      console.log(`⏱️ [TIMING] Database save: ${Date.now() - saveStartTime}ms`);
+      console.log(`⏱️ [TIMING] Total backup time: ${Date.now() - backupStartTime}ms`);
       
       // Don't include the actual config in the response for performance
       const { running_config, startup_config, ...backupResponse } = backup.toObject();

@@ -544,3 +544,106 @@
     @apply opacity-100 visible;
   }
 }
+/* ===== RESPONSIVE HEIGHT BREAKPOINTS ===== */
+/* Notebook/Laptop (height <= 768px) */
+@media (max-height: 800px) {
+  :root {
+    --items-per-page: 4;
+  }
+  
+  .responsive-card {
+    @apply py-2 px-3;
+  }
+  
+  .responsive-header {
+    @apply text-xl;
+  }
+  
+  .responsive-stat {
+    @apply py-2;
+  }
+  
+  .responsive-grid-device {
+    @apply gap-1;
+  }
+}
+
+/* Desktop (height 800px - 1080px) */
+@media (min-height: 801px) and (max-height: 1100px) {
+  :root {
+    --items-per-page: 5;
+  }
+  
+  .responsive-card {
+    @apply py-2.5 px-4;
+  }
+  
+  .responsive-header {
+    @apply text-2xl;
+  }
+  
+  .responsive-stat {
+    @apply py-3;
+  }
+  
+  .responsive-grid-device {
+    @apply gap-1.5;
+  }
+}
+
+/* Large Desktop/Mac Retina (height > 1080px) */
+@media (min-height: 1101px) {
+  :root {
+    --items-per-page: 6;
+  }
+  
+  .responsive-card {
+    @apply py-3 px-4;
+  }
+  
+  .responsive-header {
+    @apply text-2xl;
+  }
+  
+  .responsive-stat {
+    @apply py-3;
+  }
+  
+  .responsive-grid-device {
+    @apply gap-2;
+  }
+}
+
+/* ===== RESPONSIVE WIDTH BREAKPOINTS ===== */
+/* Small screens */
+@media (max-width: 1366px) {
+  .responsive-actions {
+    @apply gap-1;
+  }
+  
+  .responsive-badge {
+    @apply text-[10px] px-1 py-0.5;
+  }
+}
+
+/* Medium screens (1367px - 1920px) */
+@media (min-width: 1367px) and (max-width: 1920px) {
+  .responsive-actions {
+    @apply gap-1.5;
+  }
+  
+  .responsive-badge {
+    @apply text-xs px-1.5 py-0.5;
+  }
+}
+
+/* Large screens (> 1920px) */
+@media (min-width: 1921px) {
+  .responsive-actions {
+    @apply gap-2;
+  }
+  
+  .responsive-badge {
+    @apply text-xs px-2 py-1;
+  }
+}

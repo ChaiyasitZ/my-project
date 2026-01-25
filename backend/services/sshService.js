@@ -1566,7 +1566,7 @@ export class SSHService {
     }
   }
 
-  // Execute configuration command with proper paging handling
+  // Execute configuration command with proper paging handling - OPTIMIZED
   async executeConfigCommand(session, command) {
     const startTime = Date.now();
     session.busy = true;
@@ -1581,126 +1581,143 @@ export class SSHService {
       
       return new Promise((resolve, reject) => {
         let output = '';
-        let commandSent = false;
-        let pagingDisabled = false;
-        let configCommandSent = false;
-        let commandComplete = false;
+        let phase = 'init'; // init -> paging -> command -> collecting -> done
+        let lastDataTime = Date.now();
+        let promptCount = 0;
         
+        // Shorter timeout - 60 seconds max
         const timeout = setTimeout(() => {
-          if (!commandComplete) {
-            console.log(`⏰ Config command timeout: ${command}`);
-            commandComplete = true;
-            session.busy = false;
-            resolve({ success: true, output: output.trim(), timeout: true });
+          console.log(`⏰ Config command timeout after 60s: ${command}`);
+          cleanup();
+          // Return what we have
+          const cleanOutput = this.cleanConfigOutput(output, command);
+          resolve({ success: true, output: cleanOutput, timeout: true, executionTime: Date.now() - startTime });
+        }, 60000);
+        
+        // Idle timeout - if no data for 5 seconds after getting config, we're done
+        const idleCheck = setInterval(() => {
+          if (phase === 'collecting' && Date.now() - lastDataTime > 5000) {
+            console.log(`✅ Config collection complete (idle timeout)`);
+            cleanup();
+            const cleanOutput = this.cleanConfigOutput(output, command);
+            resolve({ success: true, output: cleanOutput, executionTime: Date.now() - startTime });
           }
-        }, 120000); // 2 minutes for config commands
+        }, 1000);
+        
+        const cleanup = () => {
+          clearTimeout(timeout);
+          clearInterval(idleCheck);
+          stream.removeListener('data', dataHandler);
+          session.busy = false;
+        };
         
         const dataHandler = (data) => {
-          try {
-            const chunk = data.toString('utf8');
-            output += chunk;
-            
-            if (!commandSent && (chunk.includes('#') || chunk.includes('>'))) {
-              // First, disable paging
-              console.log(`📺 Disabling paging for config command`);
-              stream.write('terminal length 0\r\n');
-              commandSent = true;
-              
-            } else if (commandSent && !pagingDisabled && (chunk.includes('#') || chunk.includes('>'))) {
-              // Paging disabled, now send the actual command
-              console.log(`📝 Executing config command: ${command}`);
-              stream.write(command + '\r\n');
-              pagingDisabled = true;
-              configCommandSent = true;
-              
-            } else if (chunk.includes('--More--') || chunk.includes('-- More --')) {
-              // Handle any remaining paging
-              console.log(`📄 Handling paged output`);
-              stream.write(' ');
-              
-            } else if (configCommandSent && !commandComplete && (chunk.includes('#') || chunk.includes('>'))) {
-              // Check if configuration is complete
-              const lines = output.split('\n');
-              const lastFewLines = lines.slice(-5).join('\n');
-              
-              // Look for end markers
-              if (output.includes('\nend\n') || output.includes('\nend\r') || lastFewLines.includes('end')) {
-                console.log(`🎯 Configuration end marker detected`);
-                clearTimeout(timeout);
-                commandComplete = true;
-                session.busy = false;
-                
-                // Clean up the output
-                const cleanOutput = this.cleanConfigOutput(output, command);
-                
-                // Update performance metrics
-                this.updateSessionPerformance(session, startTime);
-                
-                stream.removeListener('data', dataHandler);
-                resolve({ 
-                  success: true, 
-                  output: cleanOutput,
-                  executionTime: Date.now() - startTime
-                });
+          const chunk = data.toString('utf8');
+          output += chunk;
+          lastDataTime = Date.now();
+          
+          // Handle --More-- paging
+          if (chunk.includes('--More--') || chunk.includes('-- More --')) {
+            stream.write(' ');
+            return;
+          }
+          
+          // Track prompts
+          if (chunk.includes('#') || chunk.includes('>')) {
+            promptCount++;
+          }
+          
+          switch (phase) {
+            case 'init':
+              // Wait for initial prompt, then disable paging
+              if (chunk.includes('#') || chunk.includes('>')) {
+                console.log(`📺 Disabling paging...`);
+                stream.write('terminal length 0\r\n');
+                phase = 'paging';
               }
-            }
-            
-          } catch (dataError) {
-            console.error(`❌ Config command data error: ${dataError.message}`);
+              break;
+              
+            case 'paging':
+              // Wait for prompt after paging command, then send actual command
+              if (chunk.includes('#') || chunk.includes('>')) {
+                console.log(`📝 Executing: ${command}`);
+                stream.write(command + '\r\n');
+                phase = 'command';
+              }
+              break;
+              
+            case 'command':
+              // Command sent, start collecting output
+              phase = 'collecting';
+              break;
+              
+            case 'collecting':
+              // Check for end of config
+              if (output.includes('\nend\n') || output.includes('\nend\r\n') || output.includes('\nend\r')) {
+                // Found "end" marker - wait a bit for final prompt then finish
+                setTimeout(() => {
+                  console.log(`🎯 Config end marker detected`);
+                  cleanup();
+                  const cleanOutput = this.cleanConfigOutput(output, command);
+                  this.updateSessionPerformance(session, startTime);
+                  resolve({ success: true, output: cleanOutput, executionTime: Date.now() - startTime });
+                }, 500);
+              }
+              break;
           }
         };
         
         stream.on('data', dataHandler);
         
-        stream.on('error', (streamError) => {
-          console.error(`❌ Config command stream error: ${streamError.message}`);
-          clearTimeout(timeout);
-          commandComplete = true;
-          session.busy = false;
-          stream.removeListener('data', dataHandler);
-          reject(new Error(`Config command stream error: ${streamError.message}`));
+        stream.once('error', (err) => {
+          cleanup();
+          reject(new Error(`Stream error: ${err.message}`));
         });
         
-        // Trigger initial prompt
+        // Start by sending newline to get prompt
         stream.write('\r\n');
       });
       
     } catch (error) {
       session.busy = false;
-      console.error(`❌ Config command failed:`, error.message);
       throw error;
     }
   }
 
-  // Clean configuration output
+  // Optimized config output cleaner
   cleanConfigOutput(rawOutput, command) {
-    let cleaned = rawOutput;
+    if (!rawOutput) return '';
     
-    // Remove command echo and prompts
-    const lines = cleaned.split('\n');
+    const lines = rawOutput.split('\n');
     const configLines = [];
     let inConfig = false;
+    let foundEnd = false;
     
     for (const line of lines) {
       const trimmed = line.trim();
       
-      // Skip command echo and prompts
-      if (trimmed.includes(command) || trimmed.includes('>') || trimmed.includes('#')) {
-        continue;
-      }
+      // Skip empty lines at start
+      if (!inConfig && trimmed.length === 0) continue;
       
-      // Skip paging markers
-      if (trimmed.includes('--More--') || trimmed.includes('terminal length')) {
-        continue;
-      }
+      // Skip command echoes and prompts
+      if (trimmed.includes('show running') || trimmed.includes('show startup')) continue;
+      if (trimmed.includes('terminal length')) continue;
+      if (trimmed.match(/^[\w\-]+[#>]\s*$/)) continue; // Just a prompt
+      if (trimmed.includes('--More--')) continue;
       
-      // Start collecting from version or hostname
-      if (trimmed.startsWith('version') || trimmed.startsWith('hostname') || trimmed.startsWith('!')) {
+      // Start collecting from version, hostname, or ! (config start markers)
+      if (!inConfig && (trimmed.startsWith('!') || trimmed.startsWith('version ') || trimmed.startsWith('hostname '))) {
         inConfig = true;
       }
       
-      if (inConfig && trimmed.length > 0) {
+      if (inConfig) {
         configLines.push(line);
+        
+        // Stop at "end"
+        if (trimmed === 'end') {
+          foundEnd = true;
+          break;
+        }
       }
     }
     

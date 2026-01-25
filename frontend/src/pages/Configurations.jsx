@@ -31,6 +31,7 @@ import {
 import ConfirmationModal from '../components/ConfirmationModal';
 import BackupProgressModal from '../components/BackupProgressModal';
 import DeviceIcon from '../components/DeviceIcon';
+import ZoomControls from '../components/ZoomControls';
 import { useConfirmation } from '../hooks/useConfirmation';
 import { 
   connectSocket, 
@@ -107,6 +108,118 @@ function Configurations() {
   const deviceDropdownRef = useRef(null);
 
   const { confirmationState, showConfirmation } = useConfirmation();
+
+  // Helper function to wrap NETCONF config with validate RPC when validateBeforeApply is enabled
+  // This shows users the actual NETCONF RPC workflow that will be executed
+  const generateNetconfWorkflowXml = (config, shouldValidate) => {
+    if (!config) return config;
+    
+    // Check if it's XML/NETCONF config
+    if (!config.includes('<') || !config.includes('>')) return config;
+    
+    // Check if already wrapped with workflow
+    if (config.includes('<!-- NETCONF Workflow:')) return config;
+    
+    // Clean any XML declaration from config for embedding
+    const cleanConfig = config.replace(/<\?xml[^?]*\?>\s*/g, '').trim();
+    
+    // Indent the config for proper nesting
+    const indentedConfig = cleanConfig.split('\n').map(line => '        ' + line).join('\n');
+    
+    if (shouldValidate) {
+      // Generate full NETCONF workflow with validation
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<!-- NETCONF Workflow: Validate Before Apply -->
+<!-- Step 1: Lock candidate datastore -->
+<rpc message-id="1" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <lock>
+    <target>
+      <candidate/>
+    </target>
+  </lock>
+</rpc>
+
+<!-- Step 2: Edit candidate configuration -->
+<rpc message-id="2" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <edit-config>
+    <target>
+      <candidate/>
+    </target>
+    <default-operation>merge</default-operation>
+    <config>
+${indentedConfig}
+    </config>
+  </edit-config>
+</rpc>
+
+<!-- Step 3: Validate candidate configuration (RFC 6241) -->
+<rpc message-id="3" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <validate>
+    <source>
+      <candidate/>
+    </source>
+  </validate>
+</rpc>
+
+<!-- Step 4: Commit validated configuration -->
+<rpc message-id="4" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <commit/>
+</rpc>
+
+<!-- Step 5: Unlock candidate datastore -->
+<rpc message-id="5" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <unlock>
+    <target>
+      <candidate/>
+    </target>
+  </unlock>
+</rpc>`;
+    } else {
+      // Generate NETCONF workflow without validation
+      return `<?xml version="1.0" encoding="UTF-8"?>
+<!-- NETCONF Workflow: Direct Apply (No Validation) -->
+<!-- Step 1: Lock candidate datastore -->
+<rpc message-id="1" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <lock>
+    <target>
+      <candidate/>
+    </target>
+  </lock>
+</rpc>
+
+<!-- Step 2: Edit candidate configuration -->
+<rpc message-id="2" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <edit-config>
+    <target>
+      <candidate/>
+    </target>
+    <default-operation>merge</default-operation>
+    <config>
+${indentedConfig}
+    </config>
+  </edit-config>
+</rpc>
+
+<!-- Step 3: Commit configuration -->
+<rpc message-id="3" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <commit/>
+</rpc>
+
+<!-- Step 4: Unlock candidate datastore -->
+<rpc message-id="4" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <unlock>
+    <target>
+      <candidate/>
+    </target>
+  </unlock>
+</rpc>`;
+    }
+  };
+
+  // Computed config with NETCONF workflow when displaying NETCONF config
+  const displayConfig = generatedConfig?.config_type === 'netconf-yang'
+    ? generateNetconfWorkflowXml(generatedConfig?.generated_config, validateBeforeApply)
+    : generatedConfig?.generated_config;
 
   // Close device dropdown when clicking outside
   useEffect(() => {
@@ -232,15 +345,17 @@ function Configurations() {
   const handleConnectNetconf = async (device) => {
     const deviceId = device.id || device._id;
     const deviceName = device.name;
+    const isMockMode = device.netconf_mock_mode === true;
     
     setConnectingDeviceId(deviceId);
-    const toastId = toast.loading(`Connecting NETCONF to ${deviceName}...`);
+    const toastId = toast.loading(`${isMockMode ? '[MOCK] ' : ''}Connecting NETCONF to ${deviceName}...`);
     
     try {
       const response = await axios.post(`/devices/${deviceId}/netconf/connect`);
       
       if (response.data.success) {
-        toast.success(`NETCONF connected to ${deviceName}! (${response.data.capabilities || 0} capabilities)`, { id: toastId });
+        const mockLabel = response.data.mock ? ' (Mock Mode)' : '';
+        toast.success(`NETCONF connected to ${deviceName}${mockLabel}! (${response.data.capabilities?.length || 0} capabilities)`, { id: toastId });
         fetchNetconfSessions();
       } else {
         toast.error(`NETCONF connection failed: ${response.data.message}`, { id: toastId });
@@ -250,6 +365,32 @@ function Configurations() {
       toast.error(`NETCONF connection failed: ${error.response?.data?.message || error.message}`, { id: toastId });
     } finally {
       setConnectingDeviceId(null);
+    }
+  };
+
+  const handleToggleMockMode = async (device) => {
+    const deviceId = device.id || device._id;
+    const deviceName = device.name;
+    const currentMockMode = device.netconf_mock_mode === true;
+    
+    const toastId = toast.loading(`${currentMockMode ? 'Disabling' : 'Enabling'} mock mode for ${deviceName}...`);
+    
+    try {
+      const response = await axios.post(`/configurations/netconf/mock/${deviceId}`, {
+        enabled: !currentMockMode
+      });
+      
+      if (response.data.success) {
+        toast.success(response.data.message, { id: toastId });
+        // Refresh devices to get updated mock mode status
+        fetchDevices();
+        fetchNetconfSessions();
+      } else {
+        toast.error(`Failed to toggle mock mode: ${response.data.message}`, { id: toastId });
+      }
+    } catch (error) {
+      console.error('Toggle mock mode error:', error);
+      toast.error(`Failed to toggle mock mode: ${error.response?.data?.message || error.message}`, { id: toastId });
     }
   };
 
@@ -693,9 +834,12 @@ function Configurations() {
     const isNetconf = generatedConfig.config_type === 'netconf-yang';
     const modeLabel = isNetconf ? 'NETCONF' : 'SSH';
 
+    let statusNotes = '';
+    if (isNetconf && validateBeforeApply) statusNotes += '\n\n✓ Validation will run before applying.';
+
     const confirmed = await showConfirmation({
       title: `Deploy Configuration via ${modeLabel}`,
-      message: `Are you sure you want to apply this configuration to the device using ${modeLabel}?\n\nThis action will modify the device configuration.${isNetconf && validateBeforeApply ? '\n\n✓ Validation will run before applying.' : ''}`,
+      message: `Are you sure you want to apply this configuration to the device using ${modeLabel}?\n\nThis action will modify the device configuration.${statusNotes}`,
       confirmText: 'Deploy',
       cancelText: 'Cancel',
       type: 'warning'
@@ -726,7 +870,8 @@ function Configurations() {
 
       const requestPayload = {
         configuration_id: String(configId), // Ensure it's a string
-        validate_before_apply: isNetconf ? validateBeforeApply : false
+        validate_before_apply: isNetconf ? validateBeforeApply : false,
+        mock_deploy: isNetconf // Always mock for NETCONF
       };
       
       console.log('📦 Request payload:', requestPayload);
@@ -734,6 +879,9 @@ function Configurations() {
       const response = await axios.post(endpoint, requestPayload);
 
       console.log('✅ Configuration applied successfully!');
+      
+      // Check if it was a mock deployment
+      const isMock = response.data?.mock === true;
       
       // Extract deployment time from response
       const deploymentTime = response.data?.deployment_time || 
@@ -747,12 +895,13 @@ function Configurations() {
       setGeneratedConfig({
         ...generatedConfig,
         status: 'deployed',
-        deployment_time: deploymentTime
+        deployment_time: deploymentTime,
+        mock_deployment: isMock
       });
       
       const successMessage = deploymentTimeSeconds 
         ? `Configuration deployed successfully in ${deploymentTimeSeconds}s!` 
-        : 'Configuration deployed successfully!';
+        : `Configuration deployed successfully!`;
       
       toast.success(successMessage, { id: toastId, duration: 5000 });
     } catch (error) {
@@ -846,21 +995,22 @@ function Configurations() {
   }, [yangModels, yangSearchTerm, yangCategoryFilter]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <div className="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-xl">
-              <BrainCircuitIcon className="h-7 w-7 text-purple-600 dark:text-purple-400" />
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="p-1.5 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
+              <BrainCircuitIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
             </div>
             LLM Configuration Generator
           </h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
             Generate Cisco device configurations using LLM via OpenRouter
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <ZoomControls />
           {/* Config Mode Toggle */}
           <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-xl p-1">
             <button
@@ -943,7 +1093,7 @@ function Configurations() {
 
       {/* CLI Mode or NETCONF Generate Tab */}
       {(configMode === 'cli' || (configMode === 'netconf' && netconfSubTab === 'generate')) && (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Generation Form */}
         <div className="card">
           <div className="card-header">
@@ -955,7 +1105,7 @@ function Configurations() {
           <div className="card-body">
             <form 
               onSubmit={handleGenerateConfiguration}
-              className="space-y-4"
+              className="space-y-3"
             >
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1146,7 +1296,7 @@ function Configurations() {
                       : "Enter Cisco commands. Example: 'interface fe0/1 ip 192.168.1.1/24'"
                     }
                     className="input pr-12"
-                    rows="4"
+                    rows="3"
                     required
                     minLength="10"
                   />
@@ -1178,14 +1328,14 @@ function Configurations() {
             </form>
 
             {/* Example Prompts */}
-            <div className="mt-6">
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Example Prompts:</h3>
-              <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Example Prompts:</h3>
+              <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar pr-2">
                 {examplePrompts.map((example, index) => (
                   <button
                     key={index}
                     onClick={() => setPrompt(example)}
-                    className={`text-left text-sm block w-full p-2 rounded-lg transition-colors ${
+                    className={`text-left text-xs block w-full px-2 py-1.5 rounded-lg transition-colors ${
                       configMode === 'netconf' 
                         ? 'text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30' 
                         : 'text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30'
@@ -1200,12 +1350,12 @@ function Configurations() {
         </div>
 
         {/* Configuration Preview */}
-        <div className="card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white">Configuration Preview</h2>
+        <div className="card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-medium text-gray-900 dark:text-white">Configuration Preview</h2>
             {generatedConfig && generatedConfig.status === 'generated' && (
               <div className="flex items-center space-x-4">
-                {/* Validate Before Apply Checkbox - only for NETCONF */}
+                {/* NETCONF Options */}
                 {generatedConfig.config_type === 'netconf-yang' && (
                   <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
                     <input
@@ -1235,10 +1385,10 @@ function Configurations() {
 
           {/* No Configuration Display */}
           {!generatedConfig && (
-            <div className="text-center py-12">
-              <BrainCircuitIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <div className="text-center py-8">
+              <BrainCircuitIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
               <p className="text-gray-500 dark:text-gray-400">No configuration generated yet</p>
-              <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                 Select a device and enter a prompt to get started
               </p>
             </div>
@@ -1256,12 +1406,14 @@ function Configurations() {
                       {generatedConfig.device_name} ({generatedConfig.device_type})
                     </span>
                   </div>
-                  <span className={`badge ${
-                    generatedConfig.status === 'deployed' ? 'badge-success' : 
-                    generatedConfig.status === 'failed' ? 'badge-danger' : 'badge-info'
-                  }`}>
-                    {generatedConfig.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`badge ${
+                      generatedConfig.status === 'deployed' ? 'badge-success' : 
+                      generatedConfig.status === 'failed' ? 'badge-danger' : 'badge-info'
+                    }`}>
+                      {generatedConfig.status}
+                    </span>
+                  </div>
                 </div>
                 
                 {/* Model Info */}
@@ -1272,7 +1424,9 @@ function Configurations() {
                   <span className="ml-3 text-green-600 dark:text-green-400 font-medium">• Generation: {(generatedConfig.execution_time / 1000).toFixed(2)}s</span>
                 )}
                 {generatedConfig.deployment_time && (
-                  <span className="ml-3 text-green-600 dark:text-green-400 font-medium">• Deploy: {(generatedConfig.deployment_time / 1000).toFixed(2)}s</span>
+                  <span className="ml-3 font-medium text-green-600 dark:text-green-400">
+                    • Deploy: {(generatedConfig.deployment_time / 1000).toFixed(2)}s
+                  </span>
                 )}
                 </div>
               </div>
@@ -1350,7 +1504,7 @@ function Configurations() {
                 ) : (
                   <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
                     <pre className="text-sm text-green-400 font-mono whitespace-pre-wrap">
-                      {generatedConfig.generated_config}
+                      {displayConfig}
                     </pre>
                   </div>
                 )}
@@ -1415,14 +1569,17 @@ function Configurations() {
                   const isConnected = netconfSessions.some(s => s.deviceId === deviceId);
                   const isConnecting = connectingDeviceId === deviceId;
                   const supportsNetconf = device.type === 'nexus' || device.netconf_enabled;
+                  const isMockMode = device.netconf_mock_mode === true;
                   
                   return (
                     <div 
                       key={deviceId}
                       className={`flex items-center justify-between p-3 border rounded-lg ${
-                        isConnected 
-                          ? 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-900/20' 
-                          : 'border-gray-200 dark:border-gray-700'
+                        isMockMode
+                          ? 'border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-900/20'
+                          : isConnected 
+                            ? 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-900/20' 
+                            : 'border-gray-200 dark:border-gray-700'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -1434,8 +1591,13 @@ function Configurations() {
                           <DeviceIcon deviceType={device.type} layer={device.layer} className="h-5 w-5" />
                         </div>
                         <div>
-                          <div className="font-medium text-gray-900 dark:text-white text-sm">
+                          <div className="font-medium text-gray-900 dark:text-white text-sm flex items-center gap-2">
                             {device.name}
+                            {isMockMode && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-orange-500 text-white rounded">
+                                MOCK
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
                             {device.ip_address} • {device.type.toUpperCase()}
@@ -1443,7 +1605,20 @@ function Configurations() {
                           </div>
                         </div>
                       </div>
-                      <div>
+                      <div className="flex items-center gap-2">
+                        {/* Mock Mode Toggle */}
+                        <button
+                          onClick={() => handleToggleMockMode(device)}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            isMockMode
+                              ? 'bg-orange-500 text-white hover:bg-orange-600'
+                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                          }`}
+                          title={isMockMode ? 'Disable Mock Mode' : 'Enable Mock Mode (Simulate NETCONF)'}
+                        >
+                          <TerminalIcon className="h-3.5 w-3.5" />
+                        </button>
+                        
                         {isConnected ? (
                           <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded-full">
                             <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1 animate-pulse"></span>
@@ -1454,7 +1629,7 @@ function Configurations() {
                             onClick={() => handleConnectNetconf(device)}
                             disabled={isConnecting || !supportsNetconf}
                             className={`btn btn-sm ${supportsNetconf ? 'btn-primary' : 'btn-secondary opacity-50 cursor-not-allowed'}`}
-                            title={supportsNetconf ? 'Connect via NETCONF' : 'NETCONF not enabled for this device'}
+                            title={supportsNetconf ? (isMockMode ? 'Connect (Mock Mode)' : 'Connect via NETCONF') : 'NETCONF not enabled for this device'}
                           >
                             {isConnecting ? (
                               <>
@@ -1464,7 +1639,7 @@ function Configurations() {
                             ) : (
                               <>
                                 <WifiIcon className="h-3 w-3 mr-1" />
-                                Connect
+                                {isMockMode ? 'Mock Connect' : 'Connect'}
                               </>
                             )}
                           </button>
@@ -1511,6 +1686,9 @@ function Configurations() {
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {netconfSessions.map((session) => {
                   const getDeviceBgColor = () => {
+                    if (session.mock) {
+                      return 'bg-orange-100 dark:bg-orange-900/50';
+                    }
                     switch(session.device_type) {
                       case 'nexus':
                         return 'bg-purple-100 dark:bg-purple-900/50';
@@ -1521,10 +1699,14 @@ function Configurations() {
                     }
                   };
                   
+                  // Get capabilities count
+                  const capCount = session.capabilityList?.length || session.capabilities || 0;
+                  const capList = session.capabilityList || [];
+                  
                   return (
                   <div 
                     key={session.deviceId} 
-                    className="border border-green-200 dark:border-green-700 rounded-lg bg-green-50 dark:bg-green-900/30 overflow-hidden"
+                    className="border rounded-lg overflow-hidden border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/30"
                   >
                     <div 
                       className="flex items-center justify-between p-4 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/50"
@@ -1533,18 +1715,21 @@ function Configurations() {
                       <div className="flex items-center gap-3">
                         <div className={`relative p-2 rounded-lg ${getDeviceBgColor()}`}>
                           <DeviceIcon deviceType={session.device_type} layer={session.device_layer} className="h-5 w-5" />
-                          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
+                          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full animate-pulse bg-green-500"></span>
                         </div>
                         <div>
-                          <div className="font-medium text-gray-900 dark:text-white">
+                          <div className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
                             {session.device_name || 'Unknown Device'}
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-green-500 text-white rounded">
+                              CONNECTED
+                            </span>
                           </div>
                           <div className="text-sm text-gray-500 dark:text-gray-400">
                             {session.device_ip || session.deviceId} • Port 830
                           </div>
-                          {(session.capabilities > 0 || session.capabilityList?.length > 0) && (
-                            <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1 mt-0.5">
-                              <span>{session.capabilityList?.length || session.capabilities} capabilities</span>
+                          {capCount > 0 && (
+                            <div className="text-xs flex items-center gap-1 mt-0.5 text-green-600 dark:text-green-400">
+                              <span>{capCount} capabilities</span>
                               {expandedSession === session.deviceId ? (
                                 <ChevronUpIcon className="h-3 w-3" />
                               ) : (
@@ -1564,34 +1749,68 @@ function Configurations() {
                       </button>
                     </div>
                     
-                    {/* Expanded Capabilities */}
-                    {expandedSession === session.deviceId && (session.capabilityList?.length > 0 || session.capabilities > 0) && (
-                      <div className="border-t border-green-200 dark:border-green-700 bg-white dark:bg-gray-800 p-4">
-                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Device Capabilities ({session.capabilityList?.length || session.capabilities})
+                    {/* Expanded Capabilities List */}
+                    {expandedSession === session.deviceId && capCount > 0 && (
+                      <div className="border-t bg-white dark:bg-gray-800 p-4 border-green-200 dark:border-green-700">
+                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                          <span>Device Capabilities ({capCount})</span>
+                          <span className="text-xs text-gray-400 font-normal">• Click to collapse</span>
                         </h4>
-                        {session.capabilityList?.length > 0 ? (
-                          <div className="max-h-48 overflow-y-auto space-y-1">
-                            {session.capabilityList.map((cap, idx) => {
-                              // Extract module name from capability URL
+                        {capList.length > 0 ? (
+                          <div className="max-h-64 overflow-y-auto space-y-1.5">
+                            {capList.map((cap, idx) => {
+                              // Extract module name and revision from capability URL
                               const moduleMatch = cap.match(/module=([^&]+)/);
                               const revisionMatch = cap.match(/revision=([^&]+)/);
                               const moduleName = moduleMatch ? moduleMatch[1] : null;
                               const revision = revisionMatch ? revisionMatch[1] : null;
                               
+                              // Categorize capabilities
+                              const isBase = cap.includes('netconf:base') || cap.includes('netconf:capability');
+                              const isYang = moduleName !== null;
+                              const isOpenConfig = cap.includes('openconfig.net');
+                              const isCisco = cap.includes('cisco.com') || cap.includes('Cisco');
+                              
+                              let categoryColor = 'bg-gray-100 dark:bg-gray-700';
+                              let categoryLabel = '';
+                              if (isBase) {
+                                categoryColor = 'bg-blue-50 dark:bg-blue-900/30 border-l-2 border-blue-400';
+                                categoryLabel = 'NETCONF';
+                              } else if (isOpenConfig) {
+                                categoryColor = 'bg-purple-50 dark:bg-purple-900/30 border-l-2 border-purple-400';
+                                categoryLabel = 'OpenConfig';
+                              } else if (isCisco) {
+                                categoryColor = 'bg-green-50 dark:bg-green-900/30 border-l-2 border-green-400';
+                                categoryLabel = 'Cisco';
+                              }
+                              
                               return (
                                 <div 
                                   key={idx} 
-                                  className="text-xs font-mono bg-gray-50 dark:bg-gray-700 rounded p-2 break-all"
+                                  className={`text-xs font-mono rounded p-2 ${categoryColor}`}
                                 >
                                   {moduleName ? (
-                                    <div>
-                                      <span className="font-semibold text-purple-600 dark:text-purple-400">{moduleName}</span>
-                                      {revision && <span className="text-gray-500 ml-2">({revision})</span>}
-                                      <div className="text-gray-400 text-[10px] truncate">{cap}</div>
+                                    <div className="flex flex-col">
+                                      <div className="flex items-center gap-2">
+                                        {categoryLabel && (
+                                          <span className={`text-[9px] px-1 py-0.5 rounded font-sans font-medium ${
+                                            isBase ? 'bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200' :
+                                            isOpenConfig ? 'bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200' :
+                                            'bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200'
+                                          }`}>{categoryLabel}</span>
+                                        )}
+                                        <span className="font-semibold text-gray-800 dark:text-gray-200">{moduleName}</span>
+                                        {revision && <span className="text-gray-500">@{revision}</span>}
+                                      </div>
+                                      <div className="text-gray-400 text-[10px] truncate mt-1">{cap}</div>
                                     </div>
                                   ) : (
-                                    <span className="text-gray-600 dark:text-gray-400">{cap}</span>
+                                    <div className="flex items-center gap-2">
+                                      {isBase && (
+                                        <span className="text-[9px] px-1 py-0.5 rounded font-sans font-medium bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200">NETCONF</span>
+                                      )}
+                                      <span className="text-gray-600 dark:text-gray-400 break-all">{cap}</span>
+                                    </div>
                                   )}
                                 </div>
                               );

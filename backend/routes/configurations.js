@@ -38,7 +38,8 @@ const generateConfigSchema = Joi.object({
 
 const applyConfigSchema = Joi.object({
   configuration_id: Joi.string().required(),
-  validate_before_apply: Joi.boolean().optional()
+  validate_before_apply: Joi.boolean().optional(),
+  mock_deploy: Joi.boolean().optional()
 });
 
 // Configuration rating schema (simplified for raw AI)
@@ -731,19 +732,13 @@ router.post('/apply', async (req, res) => {
       configuration.deployment_time = deploymentTime;
       await configuration.save();
       
-      // Trigger post-deployment backup schedules
+      // Trigger post-deployment backup schedules (only if there are any)
       try {
-        console.log(`🚀 Triggering post-deployment backup schedules for device ${device._id}...`);
-        notificationService.emitBackupProgress(
-          'schedule',
-          'in-progress',
-          `Checking for post-deployment schedules...`,
-          { deviceName: device.name }
-        );
-        
         const scheduleResult = await backupScheduler.triggerPostDeploySchedules([device._id.toString()]);
         
+        // Only show notification if backups were actually triggered
         if (scheduleResult.success && scheduleResult.devices_backed_up > 0) {
+          console.log(`🚀 Post-deployment backup triggered for device ${device._id}`);
           notificationService.emitPostDeployScheduleResults(
             scheduleResult.results || [],
             {
@@ -754,12 +749,8 @@ router.post('/apply', async (req, res) => {
           );
         }
       } catch (scheduleError) {
-        console.warn(`⚠️ Failed to trigger post-deployment schedules: ${scheduleError.message}`);
-        notificationService.emitError(
-          'schedule_trigger_failed',
-          `Failed to trigger post-deployment schedules: ${scheduleError.message}`,
-          { deviceName: device.name }
-        );
+        // Only log, don't show error notification for schedule failures
+        console.warn(`⚠️ Failed to check post-deployment schedules: ${scheduleError.message}`);
       }
       
       res.json({
@@ -1249,12 +1240,73 @@ router.post('/netconf/generate', async (req, res) => {
   }
 });
 
+// POST /api/configurations/netconf/workflow - Generate NETCONF RPC workflow XML
+// This endpoint generates the full NETCONF workflow showing all RPC operations
+router.post('/netconf/workflow', async (req, res) => {
+  try {
+    const { configuration_id, include_validate = false } = req.body;
+    
+    if (!configuration_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Configuration ID is required'
+      });
+    }
+    
+    // Get configuration (filter by userId)
+    const configuration = await ConfigurationHistory.findOne({
+      _id: configuration_id,
+      userId: req.userId
+    });
+    
+    if (!configuration) {
+      return res.status(404).json({
+        success: false,
+        message: 'Configuration not found'
+      });
+    }
+    
+    // Get the config content
+    const configXml = configuration.deployment_config || configuration.generated_config;
+    
+    if (!configXml) {
+      return res.status(400).json({
+        success: false,
+        message: 'No configuration content found'
+      });
+    }
+    
+    // Generate workflow XML
+    const workflowXml = netconfService.generateWorkflowXml(configXml, include_validate);
+    
+    res.json({
+      success: true,
+      workflow_xml: workflowXml,
+      include_validate,
+      steps: include_validate 
+        ? ['lock', 'edit-config', 'validate', 'commit', 'unlock']
+        : ['lock', 'edit-config', 'commit', 'unlock'],
+      description: include_validate 
+        ? 'NETCONF workflow with validation: Configuration will be validated before commit'
+        : 'NETCONF workflow: Configuration will be applied directly without validation'
+    });
+    
+  } catch (error) {
+    console.error('NETCONF workflow generation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate NETCONF workflow',
+      error: error.message
+    });
+  }
+});
+
 // POST /api/configurations/netconf/apply - Apply NETCONF configuration to device
 router.post('/netconf/apply', async (req, res) => {
   try {
-    const { configuration_id, validate_before_apply = true } = req.body;
+    const { configuration_id, validate_before_apply = true, mock_deploy = false } = req.body;
     
-    console.log('📥 NETCONF Apply request:', { configuration_id, validate_before_apply });
+    console.log('📥 NETCONF Apply request:', { configuration_id, validate_before_apply, mock_deploy });
     
     if (!configuration_id) {
       return res.status(400).json({
@@ -1312,60 +1364,103 @@ router.post('/netconf/apply', async (req, res) => {
     const deviceId = device._id.toString();
     
     try {
+      // Get the raw config (without workflow display additions)
+      let configToApply = configuration.deployment_config || configuration.generated_config;
+      
+      // Clean the config - remove any XML declarations, comments, and wrappers
+      configToApply = configToApply
+        .replace(/<\?xml[^?]*\?>\s*/g, '')  // Remove XML declaration
+        .replace(/<!--[\s\S]*?-->/g, '')     // Remove XML comments
+        .replace(/^\s+|\s+$/g, '');           // Trim whitespace
+      
+      // If the config contains <rpc> wrapper (from workflow display), extract just the <config> content
+      if (configToApply.includes('<rpc') && configToApply.includes('<config>')) {
+        console.log(`🔍 NETCONF: Detected RPC wrapper, extracting config content...`);
+        // Find the edit-config's <config> content - look for the second occurrence (the actual edit-config)
+        const configMatch = configToApply.match(/<edit-config>[\s\S]*?<config>([\s\S]*?)<\/config>[\s\S]*?<\/edit-config>/);
+        if (configMatch && configMatch[1]) {
+          configToApply = configMatch[1].trim();
+          console.log(`✅ NETCONF: Extracted config from RPC wrapper`);
+        }
+      }
+      
+      // Extract just the <System> element if present (NX-OS YANG)
+      // This handles cases where there might be extra wrapper elements
+      const systemMatch = configToApply.match(/(<System\s+xmlns="http:\/\/cisco\.com\/ns\/yang\/cisco-nx-os-device">[\s\S]*?<\/System>)/);
+      if (systemMatch && systemMatch[1]) {
+        configToApply = systemMatch[1].trim();
+        console.log(`✅ NETCONF: Using <System> element with NX-OS namespace`);
+      } else if (!configToApply.includes('xmlns=')) {
+        // No namespace found - try to add it
+        console.warn(`⚠️ NETCONF: No xmlns found in config, attempting to add NX-OS namespace`);
+        if (configToApply.includes('<System>')) {
+          configToApply = configToApply.replace('<System>', '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">');
+        }
+      }
+      
+      console.log(`📋 NETCONF: Config to apply (${configToApply.length} bytes):`);
+      console.log(configToApply.substring(0, 500) + (configToApply.length > 500 ? '...' : ''));
+      
+      // Mock deployment mode - simulate success without actual device connection
+      if (mock_deploy) {
+        console.log(`🎭 NETCONF: Mock deployment mode enabled`);
+        
+        // Simulate deployment time (1-3 seconds)
+        const mockDeployTime = 1000 + Math.random() * 2000;
+        await new Promise(resolve => setTimeout(resolve, mockDeployTime));
+        
+        const deploymentTime = Date.now() - deploymentStart;
+        
+        // Update configuration status
+        configuration.status = 'deployed';
+        configuration.deployed_at = Date.now();
+        configuration.deployment_time = deploymentTime;
+        configuration.validated_before_deploy = validate_before_apply;
+        configuration.mock_deployed = true;
+        await configuration.save();
+        
+        console.log(`✅ NETCONF: Mock deployment completed in ${deploymentTime}ms`);
+        
+        return res.json({
+          success: true,
+          message: 'NETCONF configuration deployed successfully (mock mode)',
+          deployment_time: deploymentTime,
+          deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
+          netconf: true,
+          validated: validate_before_apply,
+          mock: true,
+          response: {
+            workflow: validate_before_apply 
+              ? ['lock', 'edit-config', 'validate', 'commit', 'unlock']
+              : ['lock', 'edit-config', 'commit', 'unlock'],
+            status: 'simulated-success'
+          }
+        });
+      }
+      
       // Check if we already have an active session from the UI
       let sessionStatus = netconfService.getSessionStatus(deviceId);
       
-      if (!sessionStatus.isConnected) {
-        // No existing session or session is dead, create a new one
-        console.log(`🔌 NETCONF: No active session, connecting...`);
+      if (!sessionStatus.connected) {
+        // No existing session, create a new one
+        console.log(`🔌 NETCONF: No existing session, connecting...`);
         const connectResult = await netconfService.connect(device);
         
         if (!connectResult.success) {
           throw new Error('Failed to establish NETCONF connection');
         }
-        console.log(`✅ NETCONF: Connected successfully`);
       } else {
         console.log(`✅ NETCONF: Using existing session for ${device.name}`);
-        
-        // Verify the session is actually alive by checking stream
-        if (!sessionStatus.streamWritable) {
-          console.log(`⚠️ NETCONF: Session stream not writable, reconnecting...`);
-          netconfService.disconnect(deviceId);
-          const connectResult = await netconfService.connect(device);
-          if (!connectResult.success) {
-            throw new Error('Failed to re-establish NETCONF connection');
-          }
-          console.log(`✅ NETCONF: Reconnected successfully`);
-        }
       }
       
-      const configToApply = configuration.deployment_config || configuration.generated_config;
-      
-      // Validate before apply if enabled
-      if (validate_before_apply) {
-        console.log(`🔍 NETCONF: Validating configuration...`);
-        const validateResult = await netconfService.validate(deviceId, configToApply);
-        
-        if (!validateResult.success) {
-          // Close session on validation failure
-          await netconfService.closeSession(deviceId);
-          
-          return res.status(400).json({
-            success: false,
-            message: 'Configuration validation failed',
-            validation_error: validateResult.error || 'Unknown validation error',
-            validated: true
-          });
-        }
-        console.log(`✅ NETCONF: Validation passed`);
-      }
-      
-      // Apply configuration (pass device for auto-reconnection)
-      const applyResult = await netconfService.applyNxosConfig(
+      // Apply configuration with optional validation
+      // The applyNxosConfigWithValidation handles the full workflow:
+      // lock -> edit-config -> [validate] -> commit -> unlock
+      const applyResult = await netconfService.applyNxosConfigWithValidation(
         deviceId,
         configToApply,
         'merge',
-        device  // Pass device config for auto-reconnection if session dies
+        validate_before_apply
       );
       
       const deploymentTime = Date.now() - deploymentStart;
@@ -1377,14 +1472,16 @@ router.post('/netconf/apply', async (req, res) => {
       configuration.status = 'deployed';
       configuration.deployed_at = Date.now();
       configuration.deployment_time = deploymentTime;
+      configuration.validated_before_deploy = validate_before_apply;
       await configuration.save();
       
-      res.json({
+      return res.json({
         success: true,
         message: 'NETCONF configuration deployed successfully',
         deployment_time: deploymentTime,
         deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
         netconf: true,
+        validated: validate_before_apply,
         response: applyResult.response
       });
       
@@ -1477,6 +1574,7 @@ router.get('/netconf/session/:device_id', async (req, res) => {
       });
     }
     
+    // Get session status
     const status = netconfService.getSessionStatus(device_id);
     
     res.json({
@@ -1507,6 +1605,7 @@ router.delete('/netconf/session/:device_id', async (req, res) => {
       });
     }
     
+    // Close session
     const result = await netconfService.closeSession(device_id);
     
     res.json(result);
@@ -1516,6 +1615,118 @@ router.delete('/netconf/session/:device_id', async (req, res) => {
       success: false,
       message: 'Failed to close NETCONF session',
       error: error.message
+    });
+  }
+});
+
+// GET /api/configurations/netconf/device/:device_id - Get device details via NETCONF
+router.get('/netconf/device/:device_id', async (req, res) => {
+  try {
+    const { device_id } = req.params;
+    const { type = 'all' } = req.query; // system, interfaces, vlans, routing, all
+    
+    // Verify user owns the device
+    const device = await Device.findOne({ _id: device_id, userId: req.userId });
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    console.log(`📊 NETCONF: Getting device details for ${device.name} (type: ${type})`);
+    
+    // Check if session exists, if not connect first
+    const sessionStatus = netconfService.getSessionStatus(device_id);
+    
+    if (!sessionStatus.connected) {
+      console.log(`🔌 NETCONF: No active session, connecting...`);
+      const connectResult = await netconfService.connect(device);
+      if (!connectResult.success) {
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to establish NETCONF connection',
+          error: connectResult.message
+        });
+      }
+    }
+    
+    // Get device details
+    const result = await netconfService.getDeviceDetails(device_id, type);
+    
+    return res.json({
+      success: true,
+      device: {
+        id: device_id,
+        name: device.name,
+        ip_address: device.ip_address,
+        type: device.type
+      },
+      dataType: type,
+      data: result.data,
+      rawXml: result.rawXml,
+      timestamp: result.timestamp
+    });
+    
+  } catch (error) {
+    console.error('NETCONF device details error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get device details via NETCONF',
+      error: error.message,
+      troubleshooting: [
+        'Ensure NETCONF session is active',
+        'Verify device supports the requested data type',
+        'Check NETCONF feature is enabled on device'
+      ]
+    });
+  }
+});
+
+// GET /api/configurations/netconf/config/:device_id/:section - Get specific config section
+router.get('/netconf/config/:device_id/:section', async (req, res) => {
+  try {
+    const { device_id, section } = req.params;
+    
+    // Verify user owns the device
+    const device = await Device.findOne({ _id: device_id, userId: req.userId });
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    console.log(`📋 NETCONF: Getting config section '${section}' for ${device.name}`);
+    
+    // Check if session exists, if not connect first
+    const sessionStatus = netconfService.getSessionStatus(device_id);
+    
+    if (!sessionStatus.connected) {
+      const connectResult = await netconfService.connect(device);
+      if (!connectResult.success) {
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to establish NETCONF connection'
+        });
+      }
+    }
+    
+    const result = await netconfService.getConfigSection(device_id, section);
+    
+    return res.json({
+      success: true,
+      device: { id: device_id, name: device.name },
+      section: section,
+      configuration: result.response
+    });
+    
+  } catch (error) {
+    console.error('NETCONF config section error:', error);
+    res.status(500).json({
+      success: false,
+      message: `Failed to get config section: ${error.message}`,
+      validSections: ['interfaces', 'vlans', 'ospf', 'bgp', 'ipv4', 'features']
     });
   }
 });
@@ -1543,6 +1754,73 @@ router.get('/netconf/sessions', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to get active NETCONF sessions',
+      error: error.message
+    });
+  }
+});
+
+// POST /api/configurations/netconf/connect/:device_id - Connect NETCONF session
+router.post('/netconf/connect/:device_id', async (req, res) => {
+  try {
+    const { device_id } = req.params;
+    
+    // Verify user owns the device
+    const device = await Device.findOne({ _id: device_id, userId: req.userId });
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    console.log(`🔌 NETCONF: Connecting to ${device.name} (${device.ip_address})...`);
+    const result = await netconfService.connect(device);
+    
+    res.json(result);
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to connect NETCONF session',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/configurations/netconf/running-config/:device_id - Get running config
+router.get('/netconf/running-config/:device_id', async (req, res) => {
+  try {
+    const { device_id } = req.params;
+    const { filter } = req.query; // Optional YANG filter
+    
+    // Verify user owns the device
+    const device = await Device.findOne({ _id: device_id, userId: req.userId });
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+    
+    // Check if session exists, if not connect first
+    const status = netconfService.getSessionStatus(device_id);
+    if (!status.connected) {
+      console.log(`🔌 NETCONF: No active session, connecting...`);
+      await netconfService.connect(device);
+    }
+    
+    // Get running config
+    const result = await netconfService.getRunningConfig(device_id, filter || null);
+    
+    res.json({
+      success: true,
+      config: result.response
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get running configuration',
       error: error.message
     });
   }

@@ -797,11 +797,12 @@ router.get('/netconf/sessions', async (req, res) => {
   try {
     const activeSessions = netconfService.getActiveSessions();
     
-    // Enhance with device names and type - only show sessions for user's devices
+    // Get user's devices
     const userDevices = await Device.find({ userId: req.userId }).select('_id name ip_address type');
     const userDeviceIds = userDevices.map(d => d._id.toString());
     
-    const enhancedSessions = activeSessions
+    // Enhance sessions with device names and type
+    const sessions = activeSessions
       .filter(session => userDeviceIds.includes(session.deviceId))
       .map(session => {
         const device = userDevices.find(d => d._id.toString() === session.deviceId);
@@ -815,8 +816,8 @@ router.get('/netconf/sessions', async (req, res) => {
     
     res.json({
       success: true,
-      sessions: enhancedSessions,
-      total: enhancedSessions.length
+      sessions: sessions,
+      total: sessions.length
     });
     
   } catch (error) {
@@ -854,7 +855,6 @@ router.post('/:id/netconf/connect', async (req, res) => {
       });
     }
     
-    // Connect via NETCONF
     const result = await netconfService.connect(device);
     
     if (result.success) {
@@ -953,15 +953,6 @@ router.post('/:id/netconf/get', async (req, res) => {
       });
     }
     
-    // Ensure NETCONF session is active
-    const sessionStatus = netconfService.getSessionStatus(id);
-    if (!sessionStatus?.isConnected) {
-      // Try to connect
-      await netconfService.connect(device);
-    }
-    
-    console.log(`📡 NETCONF GET on ${device.name}`);
-    
     // Build filter XML
     let filterXml = '';
     if (filter) {
@@ -974,8 +965,19 @@ router.post('/:id/netconf/get', async (req, res) => {
     const rpcContent = `  <get>${filterXml}
   </get>`;
     
+    let result;
     const startTime = Date.now();
-    const result = await netconfService.sendRpc(id, rpcContent);
+    
+    // Ensure NETCONF session is active
+    const sessionStatus = netconfService.getSessionStatus(id);
+    if (!sessionStatus?.isConnected) {
+      // Try to connect
+      await netconfService.connect(device);
+    }
+    
+    console.log(`📡 NETCONF GET on ${device.name}`);
+    result = await netconfService.sendRpc(id, rpcContent);
+    
     const executionTime = Date.now() - startTime;
     
     res.json({
@@ -1009,6 +1011,9 @@ router.post('/:id/netconf/get-config', async (req, res) => {
       });
     }
     
+    let result;
+    const startTime = Date.now();
+    
     // Ensure NETCONF session is active
     const sessionStatus = netconfService.getSessionStatus(id);
     if (!sessionStatus?.isConnected) {
@@ -1016,9 +1021,8 @@ router.post('/:id/netconf/get-config', async (req, res) => {
     }
     
     console.log(`📡 NETCONF GET-CONFIG (${source}) on ${device.name}`);
+    result = await netconfService.getRunningConfig(id, filter);
     
-    const startTime = Date.now();
-    const result = await netconfService.getRunningConfig(id, filter);
     const executionTime = Date.now() - startTime;
     
     res.json({
@@ -1060,6 +1064,9 @@ router.post('/:id/netconf/rpc', async (req, res) => {
       });
     }
     
+    let result;
+    const startTime = Date.now();
+    
     // Ensure NETCONF session is active
     const sessionStatus = netconfService.getSessionStatus(id);
     if (!sessionStatus?.isConnected) {
@@ -1067,9 +1074,8 @@ router.post('/:id/netconf/rpc', async (req, res) => {
     }
     
     console.log(`📡 NETCONF Custom RPC on ${device.name}`);
+    result = await netconfService.sendRpc(id, rpc_content);
     
-    const startTime = Date.now();
-    const result = await netconfService.sendRpc(id, rpc_content);
     const executionTime = Date.now() - startTime;
     
     res.json({

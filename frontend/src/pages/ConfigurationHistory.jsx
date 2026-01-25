@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -16,14 +16,21 @@ import {
   RotateCcwIcon
 } from 'lucide-react';
 import PageLoader from '../components/PageLoader';
+import Pagination from '../components/Pagination';
+import ZoomControls from '../components/ZoomControls';
+import { useResponsive } from '../hooks/useResponsive';
 
 function ConfigurationHistory() {
+  const { getItemsPerPage } = useResponsive();
+  const ITEMS_PER_PAGE = getItemsPerPage('list');
+  
   const [configurations, setConfigurations] = useState([]);
   const [groupedConfigurations, setGroupedConfigurations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
   const [clearingAll, setClearingAll] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedConfig, setSelectedConfig] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showRollbackModal, setShowRollbackModal] = useState(false);
@@ -64,6 +71,18 @@ function ConfigurationHistory() {
       document.body.classList.remove('modal-open');
     };
   }, [showModal, showRollbackModal]);
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter]);
+
+  // Paginated configurations
+  const totalPages = Math.ceil(groupedConfigurations.length / ITEMS_PER_PAGE);
+  const paginatedConfigurations = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return groupedConfigurations.slice(start, start + ITEMS_PER_PAGE);
+  }, [groupedConfigurations, currentPage]);
 
   const applyFilters = () => {
     return groupedConfigurations;
@@ -209,17 +228,17 @@ function ConfigurationHistory() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <div className="p-2 bg-cyan-100 dark:bg-cyan-900/50 rounded-xl">
-              <HistoryIcon className="h-7 w-7 text-cyan-600 dark:text-cyan-400" />
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="p-1.5 bg-cyan-100 dark:bg-cyan-900/50 rounded-lg">
+              <HistoryIcon className="h-6 w-6 text-cyan-600 dark:text-cyan-400" />
             </div>
             Configuration History
           </h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
             View and manage configuration generation history
           </p>
         </div>
@@ -246,6 +265,8 @@ function ConfigurationHistory() {
               </>
             )}
           </button>
+          
+          <ZoomControls />
           
           <button
             onClick={fetchConfigurations}
@@ -321,109 +342,85 @@ function ConfigurationHistory() {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {groupedConfigurations.map((item) => (
-            // Single Device Configuration
-            <div key={item.id} className="card p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-4 flex-1">
-                    <div className="flex-shrink-0 mt-1">
+        <div className="space-y-2">
+          {paginatedConfigurations.map((item) => (
+            <div key={item.id} className="card">
+              <div className="p-3">
+                {/* Row 1: Device Info & Status */}
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex-shrink-0">
                       {getStatusIcon(item.status)}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                          {item.device_name}
-                        </h3>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                          ({item.device_type})
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{item.device_name}</h3>
+                        <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-gray-600 dark:text-gray-400">
+                          {item.device_type}
                         </span>
-                        <span className="text-sm text-gray-400">
-                          {item.ip_address}
-                        </span>
+                        <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{item.ip_address}</span>
                       </div>
-                      
-                      <p className="text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
-                        {item.prompt}
-                      </p>
-                      
-                      <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-                        <span>Created: {formatDate(item.created_at)}</span>
-                        {item.deployed_at && (
-                          <span>Deployed: {formatDate(item.deployed_at)}</span>
-                        )}
-                        {item.rolled_back_at && (
-                          <span className="text-yellow-600 dark:text-yellow-400">
-                            Rolled back: {formatDate(item.rolled_back_at)}
-                          </span>
-                        )}
-                        {item.deployment_time && (
-                          <span className="text-green-600 dark:text-green-400 font-medium">
-                            ⚡ Deploy Time: {(item.deployment_time / 1000).toFixed(2)}s
-                          </span>
-                        )}
-                        {!item.deployment_time && item.execution_time && (
-                          <span>Duration: {item.execution_time}ms</span>
-                        )}
-                      </div>
-                      
-                      {/* Rollback reason for rolled_back configs */}
-                      {item.status === 'rolled_back' && item.rollback_reason && (
-                        <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded">
-                          <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                            <strong>Rollback Reason:</strong> {item.rollback_reason}
-                          </p>
-                        </div>
-                      )}
-                      
-                      {item.error_message && (
-                        <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded">
-                          <p className="text-sm text-red-600 dark:text-red-400">
-                            <strong>Error:</strong> {item.error_message}
-                          </p>
-                        </div>
-                      )}
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 line-clamp-1 max-w-xl">{item.prompt}</p>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center space-x-3">
-                    <span className={`badge ${getStatusBadge(item.status)}`}>
-                      {item.status}
-                    </span>
-                    
-                    <div className="flex space-x-2">
-                      {/* Rollback button - only for deployed configurations */}
-                      {item.status === 'deployed' && (
-                        <button
-                          onClick={() => openRollbackModal(item)}
-                          className="btn btn-warning btn-sm"
-                          title="Rollback to this configuration"
-                        >
-                          <RotateCcwIcon className="h-4 w-4" />
-                        </button>
-                      )}
-                      
-                      <button
-                        onClick={() => viewDetails(item)}
-                        className="btn btn-secondary btn-sm"
-                        title="View Details"
-                      >
-                        <EyeIcon className="h-4 w-4" />
-                      </button>
-                      
-                      <button
-                        onClick={() => deleteConfiguration(item.id)}
-                        className="btn btn-danger btn-sm"
-                        title="Delete"
-                      >
-                        <TrashIcon className="h-4 w-4" />
-                      </button>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`badge ${getStatusBadge(item.status)}`}>{item.status}</span>
+                    {item.deployment_time && (
+                      <span className="text-xs text-green-600 dark:text-green-400 font-medium">⚡ {(item.deployment_time / 1000).toFixed(2)}s</span>
+                    )}
                   </div>
                 </div>
+                
+                {/* Row 2: Metadata & Actions */}
+                <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                    <span>Created: {formatDate(item.created_at)}</span>
+                    {item.deployed_at && <span>Deployed: {formatDate(item.deployed_at)}</span>}
+                    {item.rolled_back_at && (
+                      <span className="text-yellow-600 dark:text-yellow-400">Rolled back: {formatDate(item.rolled_back_at)}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {item.status === 'deployed' && (
+                      <button onClick={() => openRollbackModal(item)} className="btn btn-warning btn-sm" title="Rollback">
+                        <RotateCcwIcon className="h-4 w-4" />
+                      </button>
+                    )}
+                    <button onClick={() => viewDetails(item)} className="btn btn-secondary btn-sm" title="View Details">
+                      <EyeIcon className="h-4 w-4" />
+                    </button>
+                    <button onClick={() => deleteConfiguration(item.id)} className="btn btn-danger btn-sm" title="Delete">
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Conditional: Error/Rollback messages */}
+                {item.status === 'rolled_back' && item.rollback_reason && (
+                  <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded text-xs text-yellow-600 dark:text-yellow-400">
+                    <strong>Rollback:</strong> {item.rollback_reason}
+                  </div>
+                )}
+                {item.error_message && (
+                  <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded text-xs text-red-600 dark:text-red-400">
+                    <strong>Error:</strong> {item.error_message}
+                  </div>
+                )}
               </div>
+            </div>
           ))}
         </div>
+      )}
+
+      {/* Pagination */}
+      {groupedConfigurations.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={groupedConfigurations.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
       )}
 
       {/* Configuration Details Modal */}

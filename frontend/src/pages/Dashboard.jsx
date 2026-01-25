@@ -15,8 +15,14 @@ import {
 } from 'lucide-react';
 import DeviceIcon from '../components/DeviceIcon';
 import PageLoader from '../components/PageLoader';
+import ZoomControls from '../components/ZoomControls';
+import { useResponsive } from '../hooks/useResponsive';
 
 function Dashboard() {
+  const { getItemsPerPage, deviceType, getSpacing } = useResponsive();
+  const maxDevices = getItemsPerPage('dashboard');
+  const spacing = getSpacing();
+  
   const [stats, setStats] = useState({
     totalDevices: 0,
     activeDevices: 0,
@@ -190,129 +196,103 @@ function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-xl">
-              <LayoutDashboardIcon className="h-7 w-7 text-blue-600 dark:text-blue-400" />
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="p-1.5 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
+              <LayoutDashboardIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
             Dashboard
           </h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
             Overview of your Network Management Platform
           </p>
         </div>
-        <button
-          onClick={fetchDashboardData}
-          className="btn btn-secondary btn-md"
-          disabled={loading}
-        >
-          <RefreshCwIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <div className="flex items-center space-x-3">
+          <ZoomControls />
+          <button
+            onClick={fetchDashboardData}
+            className="btn btn-secondary btn-sm"
+            disabled={loading}
+          >
+            <RefreshCwIcon className={`h-4 w-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards - Row 1: Core Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="stat-card">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="stat-card py-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Devices</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.totalDevices}</p>
-              <div className="flex items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
-                <span>{stats.routers} routers</span>
-                <span className="text-gray-300 dark:text-gray-600">•</span>
-                <span>{stats.switches} switches</span>
-              </div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Total Devices</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.totalDevices}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{stats.routers} routers • {stats.switches} switches</p>
             </div>
             <div className="stat-icon-blue">
-              <ServerIcon className="h-6 w-6" />
+              <ServerIcon className="h-5 w-5" />
             </div>
           </div>
         </div>
 
-        <div className="stat-card">
+        <div className="stat-card py-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Device Status</p>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{stats.activeDevices} Active</p>
-              <div className="flex items-center gap-2 mt-2 text-xs">
-                {stats.totalDevices === 0 ? (
-                  <span className="text-gray-400">No devices added yet</span>
-                ) : (
-                  <>
-                    {stats.inactiveDevices > 0 && (
-                      <span className="text-red-500">{stats.inactiveDevices} inactive</span>
-                    )}
-                    {stats.maintenanceDevices > 0 && (
-                      <span className="text-amber-500">{stats.maintenanceDevices} maintenance</span>
-                    )}
-                    {stats.inactiveDevices === 0 && stats.maintenanceDevices === 0 && (
-                      <span className="text-green-500">All devices online</span>
-                    )}
-                  </>
-                )}
-              </div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Device Status</p>
+              <p className="text-xl font-bold text-green-600 dark:text-green-400">{stats.activeDevices} Active</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {stats.inactiveDevices > 0 ? `${stats.inactiveDevices} inactive` : 'All online'}
+              </p>
             </div>
             <div className="stat-icon-green">
-              <ActivityIcon className="h-6 w-6" />
+              <ActivityIcon className="h-5 w-5" />
             </div>
           </div>
         </div>
 
-        <div className="stat-card">
+        <div className="stat-card py-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Configurations</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.totalConfigurations}</p>
-              <div className="flex items-center gap-1 mt-2 text-xs text-gray-500 dark:text-gray-400">
-                <TrendingUpIcon className="h-3 w-3 text-green-500" />
-                <span>{analytics.successRate}% success rate</span>
-              </div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Configurations</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.totalConfigurations}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400"><TrendingUpIcon className="h-3 w-3 inline text-green-500" /> {analytics.successRate}% success rate</p>
             </div>
             <div className="stat-icon-purple">
-              <CogIcon className="h-6 w-6" />
+              <CogIcon className="h-5 w-5" />
             </div>
           </div>
         </div>
 
-        <div className="stat-card">
+        <div className="stat-card py-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Backups</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{backupStats.totalBackups}</p>
-              <div className="flex items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
-                <span>{backupStats.restorePoints} restore points</span>
-              </div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Backups</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{backupStats.totalBackups}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{backupStats.restorePoints} restore points</p>
             </div>
             <div className="stat-icon-orange">
-              <ArchiveIcon className="h-6 w-6" />
+              <ArchiveIcon className="h-5 w-5" />
             </div>
           </div>
         </div>
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Device Health - Left Side (2 columns) */}
         <div className="lg:col-span-2 card">
-          <div className="card-header flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Device Health</h3>
-            <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 bg-green-500 rounded-full ring-2 ring-green-500/20"></span> Active
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-red-500/20"></span> Inactive
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-amber-500/20"></span> Maintenance
-              </span>
+          <div className="card-header py-2 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Device Health</h3>
+            <div className="flex items-center gap-3 text-xs text-gray-600 dark:text-gray-400">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 bg-green-500 rounded-full"></span> Active</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 bg-red-500 rounded-full"></span> Inactive</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 bg-amber-500 rounded-full"></span> Maintenance</span>
             </div>
           </div>
-          <div className="card-body">
+          <div className="card-body py-3">
             {devices.length === 0 ? (
               <div className="empty-state">
                 <ServerIcon className="empty-state-icon" />
@@ -322,89 +302,70 @@ function Dashboard() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {devices.slice(0, 12).map((device) => (
+              <div className={`grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 ${spacing.gap}`}>
+                {devices.slice(0, maxDevices).map((device) => (
                   <div 
                     key={device.id} 
-                    className={`relative p-3 rounded-xl border-2 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-pointer ${
-                      device.status === 'active' ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/20 hover:border-green-300' :
-                      device.status === 'inactive' ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/20 hover:border-red-300' :
-                      device.status === 'maintenance' ? 'border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/20 hover:border-amber-300' :
-                      'border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 hover:border-gray-300'
+                    className={`relative p-2 rounded-lg border transition-all hover:shadow-sm cursor-pointer ${
+                      device.status === 'active' ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/20' :
+                      device.status === 'inactive' ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/20' :
+                      device.status === 'maintenance' ? 'border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/20' :
+                      'border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50'
                     }`}
                   >
                     <div className="flex flex-col items-center text-center">
                       <DeviceIcon 
                         deviceType={device.type} 
                         layer={device.layer}
-                        className={`h-7 w-7 mb-1.5 ${
+                        className={`h-5 w-5 mb-1 ${
                           device.status === 'active' ? 'text-green-600' :
                           device.status === 'inactive' ? 'text-red-600' :
                           device.status === 'maintenance' ? 'text-amber-600' :
                           'text-gray-600'
                         }`}
                       />
-                      <p className="text-[11px] font-semibold text-gray-900 dark:text-white truncate w-full" title={device.name}>
-                        {device.name}
-                      </p>
-                      {device.model && (
-                        <p className="text-[10px] text-gray-600 dark:text-gray-300 truncate w-full" title={device.model}>
-                          {device.model}
-                        </p>
-                      )}
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate w-full mt-0.5">
-                        {device.ip_address}
-                      </p>
+                      <p className="text-[10px] font-semibold text-gray-900 dark:text-white truncate w-full">{device.name}</p>
+                      <p className="text-[9px] text-gray-400 dark:text-gray-500 truncate w-full">{device.ip_address}</p>
                     </div>
-                    <div className={`absolute top-2 right-2 w-2 h-2 rounded-full ring-2 ${
-                      device.status === 'active' ? 'bg-green-500 ring-green-500/30' :
-                      device.status === 'inactive' ? 'bg-red-500 ring-red-500/30' :
-                      device.status === 'maintenance' ? 'bg-amber-500 ring-amber-500/30' :
-                      'bg-gray-400 ring-gray-400/30'
+                    <div className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${
+                      device.status === 'active' ? 'bg-green-500' :
+                      device.status === 'inactive' ? 'bg-red-500' :
+                      device.status === 'maintenance' ? 'bg-amber-500' :
+                      'bg-gray-400'
                     }`}></div>
                   </div>
                 ))}
               </div>
             )}
-            {devices.length > 12 && (
-              <div className="mt-4 text-center">
-                <a href="/devices" className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors">
-                  View all {devices.length} devices →
-                </a>
-              </div>
+            {devices.length > maxDevices && (
+              <p className="mt-2 text-center text-xs text-blue-600 hover:text-blue-800">
+                <a href="/devices">View all {devices.length} devices →</a>
+              </p>
             )}
           </div>
         </div>
 
         {/* Quick Actions - Right Side (1 column) */}
         <div className="card">
-          <div className="card-header">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Quick Actions</h3>
+          <div className="card-header py-2">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Quick Actions</h3>
           </div>
-          <div className="p-4 space-y-2">
-            <a href="/devices" className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-100 dark:border-blue-800 hover:border-blue-200 transition-all duration-200 group">
-              <div className="p-2 bg-blue-100 dark:bg-blue-800 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-700 transition-colors">
-                <ServerIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <span className="text-sm font-medium text-blue-900 dark:text-blue-200">Manage Devices</span>
+          <div className="p-3 space-y-1.5">
+            <a href="/devices" className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-100 dark:border-blue-800 transition-colors">
+              <ServerIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <span className="text-xs font-medium text-blue-900 dark:text-blue-200">Manage Devices</span>
             </a>
-            <a href="/configurations" className="flex items-center gap-3 p-3 rounded-xl bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 border border-purple-100 dark:border-purple-800 hover:border-purple-200 transition-all duration-200 group">
-              <div className="p-2 bg-purple-100 dark:bg-purple-800 rounded-lg group-hover:bg-purple-200 dark:group-hover:bg-purple-700 transition-colors">
-                <CogIcon className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-              </div>
-              <span className="text-sm font-medium text-purple-900 dark:text-purple-200">Generate Config</span>
+            <a href="/configurations" className="flex items-center gap-2 p-2 rounded-lg bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 border border-purple-100 dark:border-purple-800 transition-colors">
+              <CogIcon className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+              <span className="text-xs font-medium text-purple-900 dark:text-purple-200">Generate Config</span>
             </a>
-            <a href="/backups" className="flex items-center gap-3 p-3 rounded-xl bg-orange-50 dark:bg-orange-900/30 hover:bg-orange-100 dark:hover:bg-orange-900/50 border border-orange-100 dark:border-orange-800 hover:border-orange-200 transition-all duration-200 group">
-              <div className="p-2 bg-orange-100 dark:bg-orange-800 rounded-lg group-hover:bg-orange-200 dark:group-hover:bg-orange-700 transition-colors">
-                <ArchiveIcon className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-              </div>
-              <span className="text-sm font-medium text-orange-900 dark:text-orange-200">Backup Management</span>
+            <a href="/backups" className="flex items-center gap-2 p-2 rounded-lg bg-orange-50 dark:bg-orange-900/30 hover:bg-orange-100 dark:hover:bg-orange-900/50 border border-orange-100 dark:border-orange-800 transition-colors">
+              <ArchiveIcon className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+              <span className="text-xs font-medium text-orange-900 dark:text-orange-200">Backup Management</span>
             </a>
-            <a href="/console" className="flex items-center gap-3 p-3 rounded-xl bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 border border-green-100 dark:border-green-800 hover:border-green-200 transition-all duration-200 group">
-              <div className="p-2 bg-green-100 dark:bg-green-800 rounded-lg group-hover:bg-green-200 dark:group-hover:bg-green-700 transition-colors">
-                <TerminalIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
-              </div>
-              <span className="text-sm font-medium text-green-900 dark:text-green-200">Console Access</span>
+            <a href="/console" className="flex items-center gap-2 p-2 rounded-lg bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 border border-green-100 dark:border-green-800 transition-colors">
+              <TerminalIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <span className="text-xs font-medium text-green-900 dark:text-green-200">Console Access</span>
             </a>
           </div>
         </div>
@@ -412,60 +373,29 @@ function Dashboard() {
 
       {/* Recent Configurations */}
       <div className="card">
-        <div className="card-header flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Configurations</h3>
-          <a href="/configuration-history" className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
-            View All →
-          </a>
+        <div className="card-header py-2 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Recent Configurations</h3>
+          <a href="/configuration-history" className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800">View All →</a>
         </div>
-        <div className="card-body">
+        <div className="card-body py-2">
           {stats.recentConfigurations.length === 0 ? (
-            <div className="empty-state">
-              <CogIcon className="empty-state-icon" />
-              <p className="empty-state-title">No configurations found</p>
-              <p className="empty-state-description">
-                Start by adding devices and generating configurations
-              </p>
-            </div>
+            <div className="text-center py-4 text-gray-500 text-sm">No configurations yet</div>
           ) : (
-            <div className="space-y-3">
-              {stats.recentConfigurations.map((config) => (
-                <div key={config.id} className="flex items-center justify-between p-4 bg-gray-50/80 dark:bg-gray-800/50 hover:bg-gray-100/80 dark:hover:bg-gray-700/50 rounded-xl border border-gray-100 dark:border-gray-700 transition-all duration-200">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex-shrink-0 p-2 bg-white dark:bg-gray-700 rounded-lg shadow-sm">
-                      {getStatusIcon(config.status)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {config.device_name} 
-                        <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
-                          ({config.device_type ? config.device_type.charAt(0).toUpperCase() + config.device_type.slice(1) : 'Unknown'})
-                        </span>
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 truncate max-w-md">
-                        {config.prompt.substring(0, 80)}
-                        {config.prompt.length > 80 ? '...' : ''}
-                      </p>
+            <div className="space-y-1">
+              {stats.recentConfigurations.slice(0, 3).map((config) => (
+                <div key={config.id} className="flex items-center justify-between p-2 bg-gray-50/80 dark:bg-gray-800/50 hover:bg-gray-100/80 dark:hover:bg-gray-700/50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    {getStatusIcon(config.status)}
+                    <div>
+                      <span className="text-xs font-semibold text-gray-900 dark:text-white">{config.device_name}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">({config.device_type})</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-sm">{config.prompt.substring(0, 50)}...</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <span className={`badge ${getStatusBadge(config.status)} min-w-[80px] text-center`}>
-                      {config.status}
-                    </span>
-                    <span className="text-xs text-gray-400 w-24 text-right">
-                      {(() => {
-                        if (!config.created_at) return 'Unknown date';
-                        
-                        try {
-                          const date = typeof config.created_at === 'number' 
-                            ? new Date(config.created_at)
-                            : new Date(config.created_at);
-                          
-                          return isNaN(date.getTime()) ? 'Unknown date' : date.toLocaleDateString();
-                        } catch {
-                          return 'Unknown date';
-                        }
-                      })()}
+                  <div className="flex items-center gap-2">
+                    <span className={`badge text-xs ${getStatusBadge(config.status)}`}>{config.status}</span>
+                    <span className="text-xs text-gray-400">
+                      {config.created_at ? new Date(config.created_at).toLocaleDateString() : ''}
                     </span>
                   </div>
                 </div>

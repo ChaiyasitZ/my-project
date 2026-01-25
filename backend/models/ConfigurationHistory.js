@@ -75,6 +75,15 @@ const configurationHistorySchema = new mongoose.Schema({
   restored_from_config: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ConfigurationHistory' // If rolled back to a previous config
+  },
+  // Whether validation was performed before deployment
+  validated_before_deploy: {
+    type: Boolean,
+    default: false
+  },
+  deployment_time: {
+    type: Number,
+    min: 0 // Deployment duration in milliseconds
   }
 }, {
   timestamps: false // Disable automatic timestamps since we're using custom ones

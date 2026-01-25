@@ -139,12 +139,7 @@ export class NetconfService {
           
           stream.on('close', () => {
             console.log(`🔌 NETCONF: Session closed for ${ip_address}`);
-            // Only delete if this stream is still the current one for this device
-            // This prevents race conditions when reconnecting
-            const currentSession = this.connections.get(deviceId);
-            if (currentSession && currentSession.stream === stream) {
-              this.connections.delete(deviceId);
-            }
+            this.connections.delete(deviceId);
           });
         });
       });
@@ -156,11 +151,7 @@ export class NetconfService {
       });
       
       conn.on('close', () => {
-        // Only delete if this connection is still the current one
-        const currentSession = this.connections.get(deviceId);
-        if (currentSession && currentSession.connection === conn) {
-          this.connections.delete(deviceId);
-        }
+        this.connections.delete(deviceId);
       });
       
       // Connect with NX-OS compatible algorithms
@@ -356,6 +347,273 @@ ${rpcContent}
   }
 
   /**
+   * Get device details via NETCONF <get> operation
+   * Retrieves system info, interfaces, VLANs, and other operational data
+   * @param {string} deviceId - Device ID
+   * @param {string} dataType - Type of data to retrieve: 'system', 'interfaces', 'vlans', 'routing', 'all'
+   */
+  async getDeviceDetails(deviceId, dataType = 'all') {
+    console.log(`📊 NETCONF: Getting device details (type: ${dataType})...`);
+    
+    const session = this.connections.get(deviceId);
+    if (!session) {
+      throw new Error('No active NETCONF session');
+    }
+    
+    // Build filter based on data type requested
+    let filterXml = '';
+    
+    switch (dataType) {
+      case 'system':
+        filterXml = `<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+      <name/>
+      <serial/>
+      <version/>
+      <model/>
+      <uptime/>
+      <fm-items/>
+    </System>`;
+        break;
+        
+      case 'interfaces':
+        filterXml = `<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+      <intf-items>
+        <phys-items/>
+        <svi-items/>
+        <aggr-items/>
+        <lb-items/>
+      </intf-items>
+    </System>`;
+        break;
+        
+      case 'vlans':
+        filterXml = `<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+      <bd-items/>
+    </System>`;
+        break;
+        
+      case 'routing':
+        filterXml = `<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+      <ospf-items/>
+      <bgp-items/>
+      <ipv4-items/>
+    </System>`;
+        break;
+        
+      case 'all':
+      default:
+        // Get comprehensive system info
+        filterXml = `<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+      <name/>
+      <serial/>
+      <version/>
+      <model/>
+      <fm-items/>
+      <intf-items/>
+      <bd-items/>
+    </System>`;
+        break;
+    }
+    
+    const rpcContent = `  <get>
+    <filter type="subtree">
+      ${filterXml}
+    </filter>
+  </get>`;
+    
+    try {
+      // Use 120 second timeout for get operations
+      const result = await this.sendRpc(deviceId, rpcContent, null, 120000);
+      
+      // Parse the response to extract useful data
+      const parsedData = this.parseDeviceDetails(result.response, dataType);
+      
+      return {
+        success: true,
+        dataType: dataType,
+        rawXml: result.response,
+        data: parsedData,
+        timestamp: Date.now()
+      };
+    } catch (error) {
+      console.error(`❌ NETCONF: Failed to get device details: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Parse device details from NETCONF get response
+   */
+  parseDeviceDetails(xmlResponse, dataType) {
+    const data = {
+      system: {},
+      interfaces: [],
+      vlans: [],
+      features: []
+    };
+    
+    try {
+      // Extract system name
+      const nameMatch = xmlResponse.match(/<name>([^<]+)<\/name>/);
+      if (nameMatch) data.system.hostname = nameMatch[1];
+      
+      // Extract serial number
+      const serialMatch = xmlResponse.match(/<serial>([^<]+)<\/serial>/);
+      if (serialMatch) data.system.serial = serialMatch[1];
+      
+      // Extract version
+      const versionMatch = xmlResponse.match(/<version>([^<]+)<\/version>/);
+      if (versionMatch) data.system.version = versionMatch[1];
+      
+      // Extract model
+      const modelMatch = xmlResponse.match(/<model>([^<]+)<\/model>/);
+      if (modelMatch) data.system.model = modelMatch[1];
+      
+      // Extract features (FmEntity-list)
+      const featureRegex = /<FmEntity-list>\s*<fmName>([^<]+)<\/fmName>\s*<adminSt>([^<]+)<\/adminSt>/g;
+      let featureMatch;
+      while ((featureMatch = featureRegex.exec(xmlResponse)) !== null) {
+        data.features.push({
+          name: featureMatch[1],
+          adminState: featureMatch[2]
+        });
+      }
+      
+      // Extract physical interfaces (PhysIf-list)
+      const physIfRegex = /<PhysIf-list>([\s\S]*?)<\/PhysIf-list>/g;
+      let physIfMatch;
+      while ((physIfMatch = physIfRegex.exec(xmlResponse)) !== null) {
+        const ifData = physIfMatch[1];
+        const intf = this.parseInterfaceBlock(ifData, 'physical');
+        if (intf) data.interfaces.push(intf);
+      }
+      
+      // Extract SVIs (SviIf-list)
+      const sviRegex = /<SviIf-list>([\s\S]*?)<\/SviIf-list>/g;
+      let sviMatch;
+      while ((sviMatch = sviRegex.exec(xmlResponse)) !== null) {
+        const ifData = sviMatch[1];
+        const intf = this.parseInterfaceBlock(ifData, 'svi');
+        if (intf) data.interfaces.push(intf);
+      }
+      
+      // Extract Port-channels (AggrIf-list)
+      const aggrRegex = /<AggrIf-list>([\s\S]*?)<\/AggrIf-list>/g;
+      let aggrMatch;
+      while ((aggrMatch = aggrRegex.exec(xmlResponse)) !== null) {
+        const ifData = aggrMatch[1];
+        const intf = this.parseInterfaceBlock(ifData, 'port-channel');
+        if (intf) data.interfaces.push(intf);
+      }
+      
+      // Extract Loopbacks (LbIf-list)
+      const lbRegex = /<LbIf-list>([\s\S]*?)<\/LbIf-list>/g;
+      let lbMatch;
+      while ((lbMatch = lbRegex.exec(xmlResponse)) !== null) {
+        const ifData = lbMatch[1];
+        const intf = this.parseInterfaceBlock(ifData, 'loopback');
+        if (intf) data.interfaces.push(intf);
+      }
+      
+      // Extract VLANs (BD-list)
+      const bdRegex = /<BD-list>([\s\S]*?)<\/BD-list>/g;
+      let bdMatch;
+      while ((bdMatch = bdRegex.exec(xmlResponse)) !== null) {
+        const bdData = bdMatch[1];
+        const vlan = this.parseVlanBlock(bdData);
+        if (vlan) data.vlans.push(vlan);
+      }
+      
+    } catch (parseError) {
+      console.error(`⚠️ NETCONF: Error parsing device details: ${parseError.message}`);
+    }
+    
+    return data;
+  }
+  
+  /**
+   * Parse interface block from XML
+   */
+  parseInterfaceBlock(xmlBlock, type) {
+    const intf = { type: type };
+    
+    const idMatch = xmlBlock.match(/<id>([^<]+)<\/id>/);
+    if (idMatch) intf.id = idMatch[1];
+    
+    const adminStMatch = xmlBlock.match(/<adminSt>([^<]+)<\/adminSt>/);
+    if (adminStMatch) intf.adminState = adminStMatch[1];
+    
+    const operStMatch = xmlBlock.match(/<operSt>([^<]+)<\/operSt>/);
+    if (operStMatch) intf.operState = operStMatch[1];
+    
+    const descrMatch = xmlBlock.match(/<descr>([^<]+)<\/descr>/);
+    if (descrMatch) intf.description = descrMatch[1];
+    
+    const speedMatch = xmlBlock.match(/<speed>([^<]+)<\/speed>/);
+    if (speedMatch) intf.speed = speedMatch[1];
+    
+    const mtuMatch = xmlBlock.match(/<mtu>([^<]+)<\/mtu>/);
+    if (mtuMatch) intf.mtu = mtuMatch[1];
+    
+    const modeMatch = xmlBlock.match(/<mode>([^<]+)<\/mode>/);
+    if (modeMatch) intf.mode = modeMatch[1];
+    
+    const layerMatch = xmlBlock.match(/<layer>([^<]+)<\/layer>/);
+    if (layerMatch) intf.layer = layerMatch[1];
+    
+    return intf.id ? intf : null;
+  }
+  
+  /**
+   * Parse VLAN block from XML
+   */
+  parseVlanBlock(xmlBlock) {
+    const vlan = {};
+    
+    const fabEncapMatch = xmlBlock.match(/<fabEncap>vlan-(\d+)<\/fabEncap>/);
+    if (fabEncapMatch) vlan.id = parseInt(fabEncapMatch[1]);
+    
+    const nameMatch = xmlBlock.match(/<name>([^<]+)<\/name>/);
+    if (nameMatch) vlan.name = nameMatch[1];
+    
+    const adminStMatch = xmlBlock.match(/<adminSt>([^<]+)<\/adminSt>/);
+    if (adminStMatch) vlan.adminState = adminStMatch[1];
+    
+    const operStMatch = xmlBlock.match(/<operSt>([^<]+)<\/operSt>/);
+    if (operStMatch) vlan.operState = operStMatch[1];
+    
+    const modeMatch = xmlBlock.match(/<mode>([^<]+)<\/mode>/);
+    if (modeMatch) vlan.mode = modeMatch[1];
+    
+    return vlan.id ? vlan : null;
+  }
+
+  /**
+   * Get specific configuration section via NETCONF
+   * @param {string} deviceId - Device ID
+   * @param {string} section - Section to retrieve: 'interfaces', 'vlans', 'ospf', 'bgp', 'acl'
+   */
+  async getConfigSection(deviceId, section) {
+    console.log(`📋 NETCONF: Getting config section: ${section}`);
+    
+    const sectionFilters = {
+      interfaces: `<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><intf-items/></System>`,
+      vlans: `<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><bd-items/></System>`,
+      ospf: `<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><ospf-items/></System>`,
+      bgp: `<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><bgp-items/></System>`,
+      ipv4: `<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><ipv4-items/></System>`,
+      features: `<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><fm-items/></System>`
+    };
+    
+    const filter = sectionFilters[section];
+    if (!filter) {
+      throw new Error(`Unknown config section: ${section}. Valid options: ${Object.keys(sectionFilters).join(', ')}`);
+    }
+    
+    return await this.getRunningConfig(deviceId, filter);
+  }
+
+  /**
    * Get running configuration (NX-OS)
    */
   async getRunningConfig(deviceId, filter = null) {
@@ -404,6 +662,107 @@ ${configXml}
     
     // Use 90 second timeout for edit-config operations
     return await this.sendRpc(deviceId, rpcContent, null, 90000);
+  }
+
+  /**
+   * Add NETCONF validate workflow comment to XML configuration
+   * This marks the config as requiring validation before applying
+   * The actual <validate> RPC is sent separately during the apply workflow
+   * @param {string} xmlConfig - The YANG/XML configuration
+   * @param {boolean} validateEnabled - Whether validation is enabled
+   * @returns {string} - Configuration with validate workflow comment if enabled
+   */
+  addValidateTag(xmlConfig, validateEnabled = false) {
+    if (!validateEnabled) {
+      return xmlConfig;
+    }
+    
+    // Add workflow comment indicating validation will be performed
+    const validateWorkflowComment = `<!-- NETCONF Workflow: lock → edit-config → validate → commit → unlock -->`;
+    
+    // Check if config already starts with XML declaration
+    if (xmlConfig.trim().startsWith('<?xml')) {
+      // Insert after XML declaration
+      const xmlDeclEnd = xmlConfig.indexOf('?>') + 2;
+      return xmlConfig.slice(0, xmlDeclEnd) + '\n' + validateWorkflowComment + xmlConfig.slice(xmlDeclEnd);
+    } else {
+      // Add at the beginning
+      return validateWorkflowComment + '\n' + xmlConfig;
+    }
+  }
+
+  /**
+   * Generate full NETCONF RPC workflow XML for display purposes
+   * Shows the complete sequence of RPC operations that will be executed
+   * @param {string} configXml - The configuration XML content
+   * @param {boolean} includeValidate - Whether to include validate step
+   * @returns {string} - Full NETCONF workflow XML
+   */
+  generateWorkflowXml(configXml, includeValidate = false) {
+    // Clean any XML declaration from config for embedding
+    const cleanConfig = configXml.replace(/<\?xml[^?]*\?>\s*/g, '').trim();
+    
+    // Indent the config for proper nesting
+    const indentedConfig = cleanConfig.split('\n').map(line => '      ' + line).join('\n');
+    
+    let workflow = `<?xml version="1.0" encoding="UTF-8"?>
+<!-- NETCONF Workflow${includeValidate ? ' with Validation' : ''} (RFC 6241) -->
+
+<!-- Step 1: Lock candidate datastore -->
+<rpc message-id="1" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <lock>
+    <target><candidate/></target>
+  </lock>
+</rpc>
+
+<!-- Step 2: Edit candidate configuration -->
+<rpc message-id="2" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <edit-config>
+    <target><candidate/></target>
+    <default-operation>merge</default-operation>
+    <config>
+${indentedConfig}
+    </config>
+  </edit-config>
+</rpc>
+`;
+
+    if (includeValidate) {
+      workflow += `
+<!-- Step 3: Validate candidate configuration -->
+<rpc message-id="3" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <validate>
+    <source><candidate/></source>
+  </validate>
+</rpc>
+
+<!-- Step 4: Commit validated configuration -->
+<rpc message-id="4" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <commit/>
+</rpc>
+
+<!-- Step 5: Unlock candidate datastore -->
+<rpc message-id="5" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <unlock>
+    <target><candidate/></target>
+  </unlock>
+</rpc>`;
+    } else {
+      workflow += `
+<!-- Step 3: Commit configuration -->
+<rpc message-id="3" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <commit/>
+</rpc>
+
+<!-- Step 4: Unlock candidate datastore -->
+<rpc message-id="4" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <unlock>
+    <target><candidate/></target>
+  </unlock>
+</rpc>`;
+    }
+    
+    return workflow;
   }
 
   /**
@@ -514,30 +873,18 @@ ${configXml}
       deviceIp: session.deviceIp
     };
   }
+
   /**
    * Apply YANG configuration to NX-OS device
    * Uses candidate datastore if available for safer configuration changes
-   * @param {string} deviceId - Device ID
-   * @param {string} yangConfig - YANG XML configuration to apply
-   * @param {string} operation - NETCONF operation (merge, replace, etc.)
-   * @param {object} deviceConfig - Optional device config for auto-reconnection
    */
-  async applyNxosConfig(deviceId, yangConfig, operation = 'merge', deviceConfig = null) {
+  async applyNxosConfig(deviceId, yangConfig, operation = 'merge') {
     console.log(`🚀 NETCONF: Applying NX-OS YANG configuration...`);
     
     // Check if device supports candidate datastore and writable-running
-    let session = this.connections.get(deviceId);
+    const session = this.connections.get(deviceId);
     if (!session) {
-      if (deviceConfig) {
-        console.log(`🔌 NETCONF: No session found, connecting...`);
-        await this.connect(deviceConfig);
-        session = this.connections.get(deviceId);
-        if (!session) {
-          throw new Error('Failed to establish NETCONF connection');
-        }
-      } else {
-        throw new Error('No active NETCONF session');
-      }
+      throw new Error('No active NETCONF session');
     }
     
     const supportCandidate = session.capabilities?.some(c => 
@@ -561,74 +908,36 @@ ${configXml}
     
     // First, verify the session is alive with a simple get operation
     try {
-      console.log(`🔍 NETCONF: Verifying session is alive...`);
+      console.log(`� NETCONF: Verifying session is alive...`);
       await this.sendRpc(deviceId, `  <get><filter type="subtree"><System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><name/></System></filter></get>`, null, 15000);
       console.log(`✅ NETCONF: Session is alive`);
     } catch (pingError) {
-      console.error(`❌ NETCONF: Session appears dead: ${pingError.message}`);
-      
-      // Try to auto-reconnect if we have device config
-      if (deviceConfig) {
-        console.log(`🔄 NETCONF: Attempting to reconnect...`);
-        this.disconnect(deviceId);
-        
-        try {
-          await this.connect(deviceConfig);
-          session = this.connections.get(deviceId);
-          if (!session) {
-            throw new Error('Reconnection failed - no session established');
-          }
-          console.log(`✅ NETCONF: Reconnected successfully`);
-        } catch (reconnectError) {
-          throw new Error(`NETCONF reconnection failed: ${reconnectError.message}`);
-        }
-      } else {
-        throw new Error(`NETCONF session is not responding. Please disconnect and reconnect to the device. Error: ${pingError.message}`);
-      }
+      console.error(`❌ NETCONF: Session appears dead, reconnecting...`);
+      throw new Error(`NETCONF session is not responding. Please disconnect and reconnect to the device. Error: ${pingError.message}`);
     }
     
     try {
-      // Prefer writable-running for simpler workflow (less operations = less chance of timeout)
-      // Nexus 9000V sessions can die during multi-step candidate datastore workflow
-      if (supportWritableRunning) {
-        // Direct running config edit (simpler: lock → edit → unlock)
-        console.log(`📝 NETCONF: Using direct running config workflow (writable-running)...`);
+      if (supportCandidate) {
+        // Use candidate datastore workflow (safer)
+        console.log(`� NETCONF: Using candidate datastore workflow...`);
         
-        // Lock the running config
-        console.log(`🔒 NETCONF: Locking running datastore...`);
-        await this.lock(deviceId, 'running');
-        
+        // Try to clean up any existing locks first (best effort)
         try {
-          // Apply configuration directly to running
-          console.log(`📝 NETCONF: Editing running config directly...`);
-          const result = await this.editConfig(deviceId, yangConfig, 'running', operation);
-          
-          // Unlock on success
-          console.log(`🔓 NETCONF: Unlocking running datastore...`);
-          await this.unlock(deviceId, 'running');
-          
-          return {
-            success: true,
-            message: 'Configuration applied successfully via NETCONF (direct edit)',
-            response: result.response
-          };
-          
-        } catch (editError) {
-          // Unlock on failure
-          try {
-            await this.unlock(deviceId, 'running');
-          } catch (unlockError) {
-            console.warn(`⚠️ NETCONF: Failed to unlock after error: ${unlockError.message}`);
-          }
-          throw editError;
+          console.log(`🧹 NETCONF: Cleaning up any existing candidate state...`);
+          await this.discardChanges(deviceId);
+        } catch (discardErr) {
+          // Ignore - might not have any changes to discard
+          console.log(`   (No pending changes to discard)`);
         }
         
-      } else if (supportCandidate) {
-        // Use candidate datastore workflow (safer but more complex)
-        console.log(`📋 NETCONF: Using candidate datastore workflow...`);
+        try {
+          await this.unlock(deviceId, 'candidate');
+        } catch (unlockErr) {
+          // Ignore - might not be locked
+          console.log(`   (Candidate was not locked)`);
+        }
         
-        // Skip pre-cleanup to avoid timeout issues, just lock and proceed
-        console.log(`🔒 NETCONF: Locking candidate datastore...`);
+        // Now lock candidate
         await this.lock(deviceId, 'candidate');
         
         try {
@@ -641,7 +950,6 @@ ${configXml}
           const commitResult = await this.commit(deviceId);
           
           // Unlock candidate
-          console.log(`🔓 NETCONF: Unlocking candidate datastore...`);
           await this.unlock(deviceId, 'candidate');
           
           return {
@@ -661,10 +969,149 @@ ${configXml}
           }
           throw editError;
         }
+        
+      } else if (supportWritableRunning) {
+        // Fall back to direct running config edit
+        console.log(`🔒 NETCONF: Using direct running config workflow...`);
+        
+        // Lock the running config
+        await this.lock(deviceId, 'running');
+        
+        try {
+          // Apply configuration directly to running
+          console.log(`📝 NETCONF: Editing running config directly...`);
+          const result = await this.editConfig(deviceId, yangConfig, 'running', operation);
+          
+          // Unlock on success
+          await this.unlock(deviceId, 'running');
+          
+          return {
+            success: true,
+            message: 'Configuration applied successfully via NETCONF (direct edit)',
+            response: result.response
+          };
+          
+        } catch (editError) {
+          // Unlock on failure
+          try {
+            await this.unlock(deviceId, 'running');
+          } catch (unlockError) {
+            console.warn(`⚠️ NETCONF: Failed to unlock after error: ${unlockError.message}`);
+          }
+          throw editError;
+        }
       }
       
     } catch (error) {
       console.error(`❌ NETCONF: Configuration failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Apply YANG configuration to NX-OS device with optional validation
+   * Implements RFC 6241 workflow: lock -> edit-config -> [validate] -> commit -> unlock
+   * @param {string} deviceId - Device ID
+   * @param {string} yangConfig - YANG XML configuration
+   * @param {string} operation - edit-config operation (merge, replace, etc.)
+   * @param {boolean} validateBeforeCommit - Whether to validate before committing
+   */
+  async applyNxosConfigWithValidation(deviceId, yangConfig, operation = 'merge', validateBeforeCommit = false) {
+    console.log(`🚀 NETCONF: Applying NX-OS YANG configuration (validate: ${validateBeforeCommit})...`);
+    
+    const session = this.connections.get(deviceId);
+    if (!session) {
+      throw new Error('No active NETCONF session');
+    }
+    
+    const supportCandidate = session.capabilities?.some(c => 
+      c.includes('capability:candidate') || c.includes(':candidate:')
+    );
+    const supportValidate = session.capabilities?.some(c => 
+      c.includes('capability:validate') || c.includes(':validate:')
+    );
+    
+    console.log(`📋 NETCONF: Device capabilities - candidate: ${supportCandidate}, validate: ${supportValidate}`);
+    
+    if (!supportCandidate) {
+      // Fall back to non-validation workflow
+      console.log(`⚠️ NETCONF: Device does not support candidate datastore, using direct apply`);
+      return await this.applyNxosConfig(deviceId, yangConfig, operation);
+    }
+    
+    // First, verify the session is alive
+    try {
+      console.log(`🔍 NETCONF: Verifying session is alive...`);
+      await this.sendRpc(deviceId, `  <get><filter type="subtree"><System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><name/></System></filter></get>`, null, 15000);
+      console.log(`✅ NETCONF: Session is alive`);
+    } catch (pingError) {
+      throw new Error(`NETCONF session not responding. Please reconnect. Error: ${pingError.message}`);
+    }
+    
+    // Full candidate datastore workflow with optional validation
+    console.log(`📝 NETCONF: Starting candidate datastore workflow...`);
+    
+    // Step 0: Clean up any existing state
+    try {
+      await this.discardChanges(deviceId);
+    } catch (e) { /* ignore */ }
+    
+    try {
+      await this.unlock(deviceId, 'candidate');
+    } catch (e) { /* ignore */ }
+    
+    // Step 1: Lock candidate
+    console.log(`🔒 NETCONF: Step 1 - Locking candidate datastore...`);
+    await this.lock(deviceId, 'candidate');
+    
+    try {
+      // Step 2: Edit candidate config
+      console.log(`📝 NETCONF: Step 2 - Editing candidate configuration...`);
+      await this.editConfig(deviceId, yangConfig, 'candidate', operation);
+      
+      // Step 3: Validate (optional)
+      if (validateBeforeCommit && supportValidate) {
+        console.log(`🔍 NETCONF: Step 3 - Validating candidate configuration...`);
+        const validateResult = await this.validate(deviceId); // Validate candidate datastore
+        
+        if (!validateResult.success) {
+          // Validation failed - discard and unlock
+          console.log(`❌ NETCONF: Validation failed, discarding changes...`);
+          await this.discardChanges(deviceId);
+          await this.unlock(deviceId, 'candidate');
+          throw new Error(`Validation failed: ${validateResult.error}`);
+        }
+        console.log(`✅ NETCONF: Validation passed`);
+      } else if (validateBeforeCommit && !supportValidate) {
+        console.log(`⚠️ NETCONF: Device does not support validate capability, skipping validation`);
+      }
+      
+      // Step 4: Commit
+      console.log(`💾 NETCONF: Step ${validateBeforeCommit ? '4' : '3'} - Committing configuration...`);
+      const commitResult = await this.commit(deviceId);
+      
+      // Step 5: Unlock
+      console.log(`🔓 NETCONF: Step ${validateBeforeCommit ? '5' : '4'} - Unlocking candidate datastore...`);
+      await this.unlock(deviceId, 'candidate');
+      
+      console.log(`✅ NETCONF: Configuration applied successfully!`);
+      
+      return {
+        success: true,
+        message: `Configuration applied successfully via NETCONF${validateBeforeCommit ? ' (validated)' : ''}`,
+        response: commitResult.response,
+        validated: validateBeforeCommit && supportValidate
+      };
+      
+    } catch (error) {
+      // Cleanup on failure
+      console.log(`⚠️ NETCONF: Error occurred, cleaning up...`);
+      try {
+        await this.discardChanges(deviceId);
+        await this.unlock(deviceId, 'candidate');
+      } catch (cleanupError) {
+        console.warn(`⚠️ NETCONF: Cleanup failed: ${cleanupError.message}`);
+      }
       throw error;
     }
   }

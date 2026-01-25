@@ -26,7 +26,10 @@ import {
 import ConfirmationModal from '../components/ConfirmationModal';
 import BackupCreationModal from '../components/BackupCreationModal';
 import PageLoader from '../components/PageLoader';
+import Pagination from '../components/Pagination';
 import { useConfirmation } from '../hooks/useConfirmation';
+import { useResponsive } from '../hooks/useResponsive';
+import ZoomControls from '../components/ZoomControls';
 
 // Helper function to safely parse JSON tags (moved outside component to prevent recreation)
 const parseTagsSafely = (tags) => {
@@ -75,6 +78,9 @@ const formatDate = (dateValue) => {
 };
 
 function BackupManagement() {
+  const { getItemsPerPage } = useResponsive();
+  const ITEMS_PER_PAGE = getItemsPerPage('grid');
+  
   const [backups, setBackups] = useState([]);
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -93,6 +99,7 @@ function BackupManagement() {
   const [configFilter, setConfigFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [subscriptions, setSubscriptions] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
   
   // Backup creation progress state
   const [showProgressModal, setShowProgressModal] = useState(false);
@@ -218,9 +225,10 @@ function BackupManagement() {
     const progressPromise = simulateProgress();
     
     try {
-      // Create the backup first
+      // Create the backup first - exclude subscription_name as it's not part of the backup API
+      const { subscription_name, ...backupData } = backupForm;
       await axios.post('/backups', {
-        ...backupForm,
+        ...backupData,
         tags: backupForm.tags.filter(tag => tag.trim() !== ''),
         config_type: backupForm.config_type
       });
@@ -534,6 +542,18 @@ function BackupManagement() {
     });
   }, [backups, searchTerm, configFilter]);
 
+  // Pagination
+  const totalPages = Math.ceil(filteredBackups.length / ITEMS_PER_PAGE);
+  const paginatedBackups = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredBackups.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredBackups, currentPage]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, configFilter]);
+
   // Memoized: Calculate statistics - only recalculates when backups change
   const stats = useMemo(() => ({
     total: (backups || []).length,
@@ -656,6 +676,7 @@ function BackupManagement() {
           </p>
         </div>
         <div className="flex items-center space-x-3">
+          <ZoomControls />
           <button
             onClick={() => setShowCreateModal(true)}
             className="btn btn-primary btn-md"
@@ -889,125 +910,68 @@ function BackupManagement() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredBackups.map((backup) => (
-            <div key={backup.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow flex flex-col h-full">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {paginatedBackups.map((backup) => (
+            <div key={backup.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow flex flex-col">
               {/* Card Header */}
-              <div className="p-6 pb-4">
-                <div className="flex items-start justify-between mb-3 gap-2">
-                  <div className="flex items-center space-x-2 min-w-0 flex-1">
+              <div className="p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
                     {getBackupTypeIcon(backup.backup_type)}
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-                      {backup.backup_name}
-                    </h3>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">{backup.backup_name}</h3>
                   </div>
-                  {backup.is_restore_point && (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-300 whitespace-nowrap flex-shrink-0">
-                      <ShieldIcon className="h-3 w-3 mr-1" />
-                      Restore Point
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${getBackupTypeBadge(backup.backup_type)}`}>
+                      {backup.backup_type === 'manual' ? 'Manual' : 'Scheduled'}
                     </span>
-                  )}
+                    {backup.config_type && (
+                      <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300">
+                        {backup.config_type === 'running-config' ? 'Running' : backup.config_type === 'startup-config' ? 'Startup' : 'Both'}
+                      </span>
+                    )}
+                    {backup.is_restore_point && (
+                      <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300">
+                        <ShieldIcon className="h-3 w-3 inline mr-0.5" />RP
+                      </span>
+                    )}
+                  </div>
                 </div>
-
-                <div className="flex items-center space-x-2 mb-3 flex-wrap">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getBackupTypeBadge(backup.backup_type)}`}>
-                    {backup.backup_type === 'manual' ? 'Manual' : 
-                     backup.backup_type === 'scheduled' ? 'Scheduled' : 
-                     backup.backup_type.charAt(0).toUpperCase() + backup.backup_type.slice(1).replace('_', ' ')}
+                
+                {/* Device & metadata */}
+                <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                  <span className="flex items-center gap-1">
+                    <ServerIcon className="h-3 w-3" />
+                    {backup.device_name}
                   </span>
-                  {backup.config_type && (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-300">
-                      {backup.config_type === 'running-config' ? 'Running' : 
-                       backup.config_type === 'startup-config' ? 'Startup' : 
-                       backup.config_type === 'both' ? 'Both' : backup.config_type}
-                    </span>
-                  )}
+                  <span>{formatFileSize(backup.file_size)}</span>
+                  <span>{formatDate(backup.createdAt || backup.created_at)}</span>
                 </div>
-
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-2 break-words min-h-[2.5rem]">
-                  {backup.description || <span className="text-gray-400 dark:text-gray-500 italic">No description</span>}
-                </p>
               </div>
-
-              {/* Card Body - Flex grow to push footer down */}
-              <div className="px-6 pb-4 flex-grow">
-                <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                  <div className="flex items-center">
-                    <ServerIcon className="h-4 w-4 mr-2 text-gray-400" />
-                    <span className="truncate">{backup.device_name} ({backup.device_type})</span>
-                  </div>
-                  <div className="flex items-center">
-                    <FileTextIcon className="h-4 w-4 mr-2 text-gray-400" />
-                    <span>{formatFileSize(backup.file_size)}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <ClockIcon className="h-4 w-4 mr-2 text-gray-400" />
-                    <span>{formatDate(backup.createdAt || backup.created_at)}</span>
-                  </div>
-                </div>
-
-                {/* Tags */}
-                {(() => {
-                  const tags = parseTagsSafely(backup.tags);
-                  return tags.length > 0 && (
-                    <div className="mt-3">
-                      <div className="flex flex-wrap gap-1">
-                        {tags.slice(0, 3).map((tag, index) => (
-                          <span key={index} className="inline-flex items-center px-2 py-1 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
-                            {tag}
-                          </span>
-                        ))}
-                        {tags.length > 3 && (
-                          <span className="inline-flex items-center px-2 py-1 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
-                            +{tags.length - 3} more
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Card Footer - Always at bottom */}
-              <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 mt-auto">
+              
+              {/* Card Footer */}
+              <div className="px-3 py-2 border-t border-gray-100 dark:border-gray-700 mt-auto">
                 <div className="flex items-center justify-between">
                   <button
                     onClick={() => {
                       setSelectedBackup(backup);
-                      // Reset restore form to ensure correct values
-                      setRestoreForm({
-                        restore_type: 'running',
-                        create_checkpoint: true
-                      });
+                      setRestoreForm({ restore_type: 'running', create_checkpoint: true });
                       setShowRestoreModal(true);
                     }}
                     className="btn btn-primary btn-sm"
                   >
-                    <UploadIcon className="h-3 w-3 mr-1" />
-                    Restore
+                    <UploadIcon className="h-3 w-3 mr-1" />Restore
                   </button>
-                  
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handlePreviewBackup(backup)}
-                      title="Preview Configuration"
-                      className="btn btn-outline-primary btn-sm"
-                    >
-                      <EyeIcon className="h-3 w-3" />
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={() => handlePreviewBackup(backup)} className="btn btn-secondary btn-sm" title="Preview">
+                      <EyeIcon className="h-3.5 w-3.5" />
                     </button>
                     {!backup.is_restore_point && (
                       <>
-                        <button
-                          onClick={() => handleSetRestorePoint(backup)}
-                          className="btn btn-secondary btn-sm"
-                        >
-                          <ShieldIcon className="h-3 w-3" />
+                        <button onClick={() => handleSetRestorePoint(backup)} className="btn btn-secondary btn-sm" title="Set Restore Point">
+                          <ShieldIcon className="h-3.5 w-3.5" />
                         </button>
-                        <button
-                          onClick={() => handleDeleteBackup(backup)}
-                          className="btn btn-outline-danger btn-sm"
-                        >
-                          <TrashIcon className="h-3 w-3" />
+                        <button onClick={() => handleDeleteBackup(backup)} className="btn btn-danger btn-sm" title="Delete">
+                          <TrashIcon className="h-3.5 w-3.5" />
                         </button>
                       </>
                     )}
@@ -1017,6 +981,17 @@ function BackupManagement() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Pagination */}
+      {filteredBackups.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredBackups.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          onPageChange={setCurrentPage}
+        />
       )}
 
       {/* Create Backup Modal */}
