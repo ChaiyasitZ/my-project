@@ -19,6 +19,7 @@ import Configurations from './pages/Configurations';
 import ConfigurationHistory from './pages/ConfigurationHistory';
 import ConsoleConfiguration from './pages/ConsoleConfiguration';
 import BackupManagement from './pages/BackupManagement';
+import Diagrams from './pages/Diagrams';
 import NotFound from './pages/NotFound';
 import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
@@ -191,6 +192,8 @@ function AppContent() {
             </AuthenticatedLayout>
           </ProtectedRoute>
         } />
+        {/* Public Diagrams Route - Standalone documentation page */}
+        <Route path="/diagrams" element={<Diagrams />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       

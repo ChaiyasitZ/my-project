@@ -302,32 +302,32 @@ function Dashboard() {
                 </p>
               </div>
             ) : (
-              <div className={`grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 ${spacing.gap}`}>
+              <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 ${spacing.gap}`}>
                 {devices.slice(0, maxDevices).map((device) => (
                   <div 
                     key={device.id} 
-                    className={`relative p-2 rounded-lg border transition-all hover:shadow-sm cursor-pointer ${
-                      device.status === 'active' ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/20' :
-                      device.status === 'inactive' ? 'border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-900/20' :
-                      device.status === 'maintenance' ? 'border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/20' :
-                      'border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50'
+                    className={`relative p-3 rounded-xl border-2 transition-all hover:shadow-md cursor-pointer ${
+                      device.status === 'active' ? 'border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-900/20' :
+                      device.status === 'inactive' ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/20' :
+                      device.status === 'maintenance' ? 'border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-900/20' :
+                      'border-gray-300 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-800/50'
                     }`}
                   >
                     <div className="flex flex-col items-center text-center">
                       <DeviceIcon 
                         deviceType={device.type} 
                         layer={device.layer}
-                        className={`h-5 w-5 mb-1 ${
+                        className={`h-8 w-8 mb-2 ${
                           device.status === 'active' ? 'text-green-600' :
                           device.status === 'inactive' ? 'text-red-600' :
                           device.status === 'maintenance' ? 'text-amber-600' :
                           'text-gray-600'
                         }`}
                       />
-                      <p className="text-[10px] font-semibold text-gray-900 dark:text-white truncate w-full">{device.name}</p>
-                      <p className="text-[9px] text-gray-400 dark:text-gray-500 truncate w-full">{device.ip_address}</p>
+                      <p className="text-xs font-semibold text-gray-900 dark:text-white truncate w-full">{device.name}</p>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate w-full">{device.ip_address}</p>
                     </div>
-                    <div className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${
+                    <div className={`absolute top-2 right-2 w-2 h-2 rounded-full ${
                       device.status === 'active' ? 'bg-green-500' :
                       device.status === 'inactive' ? 'bg-red-500' :
                       device.status === 'maintenance' ? 'bg-amber-500' :

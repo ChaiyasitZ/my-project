@@ -9,8 +9,14 @@ import {
   CableIcon,
   ChevronDownIcon
 } from 'lucide-react';
+import ZoomControls from '../components/ZoomControls';
+import { useResponsive } from '../hooks/useResponsive';
 
 function ConsoleConfiguration() {
+  const { getSpacing, getFormStyles } = useResponsive();
+  const spacing = getSpacing();
+  const formStyles = getFormStyles();
+  
   const [availablePorts, setAvailablePorts] = useState([]);
   const [selectedPort, setSelectedPort] = useState('');
   const [isPortDropdownOpen, setIsPortDropdownOpen] = useState(false);
@@ -394,14 +400,17 @@ function ConsoleConfiguration() {
             Manage device console connections and terminal access
           </p>
         </div>
-        <button
-          onClick={fetchAvailablePorts}
-          disabled={isLoading}
-          className="btn btn-secondary btn-md"
-        >
-          <RefreshCwIcon className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-4">
+          <ZoomControls />
+          <button
+            onClick={fetchAvailablePorts}
+            disabled={isLoading}
+            className="btn btn-secondary btn-md"
+          >
+            <RefreshCwIcon className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Connection Settings */}

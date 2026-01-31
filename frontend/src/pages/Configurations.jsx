@@ -30,9 +30,11 @@ import {
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import BackupProgressModal from '../components/BackupProgressModal';
+import ConfigProgressModal from '../components/ConfigProgressModal';
 import DeviceIcon from '../components/DeviceIcon';
 import ZoomControls from '../components/ZoomControls';
 import { useConfirmation } from '../hooks/useConfirmation';
+import { useResponsive } from '../hooks/useResponsive';
 import { 
   connectSocket, 
   disconnectSocket,
@@ -42,6 +44,9 @@ import {
 } from '../services/socket';
 
 function Configurations() {
+  const { getFormStyles } = useResponsive();
+  const formStyles = getFormStyles();
+  
   const [devices, setDevices] = useState([]);
   const [showDeviceDropdown, setShowDeviceDropdown] = useState(false);
   const [devicesLoading, setDevicesLoading] = useState(false);
@@ -57,6 +62,8 @@ function Configurations() {
   const [isEditing, setIsEditing] = useState(false);
   const [editedConfig, setEditedConfig] = useState('');
   const [showBackupModal, setShowBackupModal] = useState(false);
+  const [showConfigProgressModal, setShowConfigProgressModal] = useState(false);
+  const [generationError, setGenerationError] = useState(null);
   const [scheduleResults, setScheduleResults] = useState(null);
   
   // YANG Models state
@@ -414,7 +421,15 @@ ${indentedConfig}
   };
 
   const handleYangModelDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this YANG model?')) return;
+    const confirmed = await showConfirmation({
+      title: 'Delete YANG Model',
+      message: 'Are you sure you want to delete this YANG model?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      type: 'danger'
+    });
+    
+    if (!confirmed) return;
     try {
       await axios.delete(`/yang-models/${id}`);
       toast.success('YANG model deleted');
@@ -738,8 +753,9 @@ ${indentedConfig}
     if (!selectedDevice || !prompt) return;
 
     setIsGenerating(true);
+    setGenerationError(null);
+    setShowConfigProgressModal(true);
     const modeLabel = configMode === 'netconf' ? 'NETCONF/YANG' : 'CLI';
-    const toastId = toast.loading(`Generating ${modeLabel} configuration...`);
     
     try {
       const requestData = {
@@ -772,7 +788,7 @@ ${indentedConfig}
         if (response.data.configuration.warning) {
           console.warn('⚠️ Configuration warning:', response.data.configuration.warning);
         }
-        toast.success('Configuration generated successfully!', { id: toastId });
+        toast.success('Configuration generated successfully!');
       } else {
         // Handle case where AI couldn't generate valid configuration
         throw new Error(response.data.error || 'No configuration generated');
@@ -786,7 +802,7 @@ ${indentedConfig}
       
       if (error.response?.status === 503) {
         // AI service unavailable
-        errorMessage = '🤖 AI Service Unavailable';
+        errorMessage = 'AI Service Unavailable - Please check if the AI server is running';
         showSuggestions = true;
       } else if (error.response?.status === 400) {
         const errorData = error.response.data;
@@ -800,7 +816,7 @@ ${indentedConfig}
           errorMessage = 'Invalid device selection. Please refresh the page and try again.';
         } else if (errorData.message?.includes('AI generation failed')) {
           // AI generation error
-          errorMessage = 'qwen2.5-coder:7b could not generate a valid configuration. Try being more specific.';
+          errorMessage = 'AI could not generate a valid configuration. Try being more specific.';
           showSuggestions = true;
         } else {
           errorMessage = errorData.message || 'Configuration generation failed';
@@ -812,16 +828,16 @@ ${indentedConfig}
       }
       
       console.warn('⚠️', errorMessage);
+      setGenerationError(errorMessage);
       
       // Show error with suggestions if applicable
       if (showSuggestions && error.response?.data?.suggestions) {
         const suggestions = error.response.data.suggestions.join('\n• ');
         toast.error(`${errorMessage}\n\nSuggestions:\n• ${suggestions}`, { 
-          id: toastId,
           duration: 8000 
         });
       } else {
-        toast.error(errorMessage, { id: toastId });
+        toast.error(errorMessage);
       }
     } finally {
       setIsGenerating(false);
@@ -1097,7 +1113,7 @@ ${indentedConfig}
         {/* Generation Form */}
         <div className="card">
           <div className="card-header">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
               Generate {configMode === 'netconf' ? 'NETCONF/YANG' : 'CLI'} Configuration
             </h2>
           </div>
@@ -1105,10 +1121,10 @@ ${indentedConfig}
           <div className="card-body">
             <form 
               onSubmit={handleGenerateConfiguration}
-              className="space-y-3"
+              className={formStyles.formGap}
             >
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className={`block ${formStyles.labelSize} font-medium text-gray-700 mb-1`}>
                   Select Device
                 </label>
                 <div className="relative" ref={deviceDropdownRef}>
@@ -3076,6 +3092,16 @@ ${indentedConfig}
         isOpen={showBackupModal}
         onClose={() => setShowBackupModal(false)}
         scheduleResults={scheduleResults}
+      />
+
+      {/* Config Generation Progress Modal */}
+      <ConfigProgressModal
+        isOpen={showConfigProgressModal}
+        onClose={() => setShowConfigProgressModal(false)}
+        isGenerating={isGenerating}
+        configMode={configMode}
+        error={generationError}
+        generatedConfig={generatedConfig}
       />
     </div>
   );

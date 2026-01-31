@@ -15,12 +15,16 @@ import DeviceIcon from '../components/DeviceIcon';
 import PageLoader from '../components/PageLoader';
 import Pagination from '../components/Pagination';
 import ZoomControls from '../components/ZoomControls';
+import ConfirmationModal from '../components/ConfirmationModal';
 import { useResponsive } from '../hooks/useResponsive';
+import { useConfirmation } from '../hooks/useConfirmation';
 
 function Devices() {
-  const { getItemsPerPage, getSpacing, deviceType } = useResponsive();
+  const { getItemsPerPage, getSpacing, deviceType, getFormStyles } = useResponsive();
+  const { confirmationState, showConfirmation } = useConfirmation();
   const ITEMS_PER_PAGE = getItemsPerPage('list');
   const spacing = getSpacing();
+  const formStyles = getFormStyles();
   
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -334,7 +338,15 @@ function Devices() {
   };
 
   const handleDelete = async (device) => {
-    if (window.confirm(`Are you sure you want to delete ${device.name}?`)) {
+    const confirmed = await showConfirmation({
+      title: 'Delete Device',
+      message: `Are you sure you want to delete "${device.name}"?`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      type: 'danger'
+    });
+    
+    if (confirmed) {
       try {
         const deviceId = device.id || device._id;
         await axios.delete(`/devices/${deviceId}`);
@@ -641,16 +653,16 @@ function Devices() {
                     <div className="w-px h-5 bg-gray-200 dark:bg-gray-700"></div>
                     
                     {/* Action buttons */}
-                    <button onClick={() => handleTestConnection(device)} disabled={testingDevice === deviceId} className="btn btn-primary btn-sm">
+                    <button onClick={() => handleTestConnection(device)} disabled={testingDevice === deviceId} className="btn btn-primary btn-sm" aria-label="Test SSH connection">
                       {testingDevice === deviceId ? 'Testing...' : 'Test SSH'}
                     </button>
                     {device.ssh_status === 'connected' ? (
-                      <button onClick={() => handleSshDisconnect(device)} disabled={connectingDevices.has(deviceId)} className="btn btn-warning btn-sm">Disconnect</button>
+                      <button onClick={() => handleSshDisconnect(device)} disabled={connectingDevices.has(deviceId)} className="btn btn-warning btn-sm" aria-label="Disconnect SSH">Disconnect</button>
                     ) : (
-                      <button onClick={() => handleSshConnect(device)} disabled={connectingDevices.has(deviceId)} className="btn btn-success btn-sm">Connect</button>
+                      <button onClick={() => handleSshConnect(device)} disabled={connectingDevices.has(deviceId)} className="btn btn-success btn-sm" aria-label="Connect SSH">Connect</button>
                     )}
-                    <button onClick={() => handleEdit(device)} className="btn btn-secondary btn-sm"><PencilIcon className="h-3.5 w-3.5" /></button>
-                    <button onClick={() => handleDelete(device)} className="btn btn-danger btn-sm"><TrashIcon className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => handleEdit(device)} className="btn btn-secondary btn-sm" aria-label="Edit device"><PencilIcon className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => handleDelete(device)} className="btn btn-danger btn-sm" aria-label="Delete device"><TrashIcon className="h-3.5 w-3.5" /></button>
                   </div>
                 </div>
               </div>
@@ -674,21 +686,21 @@ function Devices() {
       {/* Modal */}
       {showModal && createPortal(
         <div className="modal-overlay fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-screen overflow-y-auto modal-scrollbar animate-fade-in">
+          <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full mx-4 max-h-screen overflow-y-auto modal-scrollbar animate-fade-in ${formStyles.modalWidth}`}>
             <form onSubmit={handleSubmit}>
-              <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+              <div className={`border-b border-gray-100 dark:border-gray-700 ${formStyles.modalPadding}`}>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   {editingDevice ? 'Edit Device' : 'Add New Device'}
                 </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                <p className={`${formStyles.labelSize} text-gray-500 dark:text-gray-400 mt-1`}>
                   {editingDevice ? 'Update device configuration' : 'Configure a new network device'}
                 </p>
               </div>
               
-              <div className="px-6 py-4 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`${formStyles.modalPadding} ${formStyles.formGap}`}>
+                <div className={`grid grid-cols-1 md:grid-cols-2 ${formStyles.gridGap}`}>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Name *</label>
+                    <label className={`block ${formStyles.labelSize} font-medium text-gray-700 dark:text-gray-300`}>Name *</label>
                     <input
                       type="text"
                       required
@@ -699,7 +711,7 @@ function Devices() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Type *</label>
+                    <label className={`block ${formStyles.labelSize} font-medium text-gray-700 dark:text-gray-300`}>Type *</label>
                     <select
                       required
                       className="input mt-1"
@@ -723,7 +735,7 @@ function Devices() {
                 {/* Layer Selection - only show for switches */}
                 {formData.type === 'switch' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Switch Layer *</label>
+                    <label className={`block ${formStyles.labelSize} font-medium text-gray-700 dark:text-gray-300`}>Switch Layer *</label>
                     <select
                       required
                       className="input mt-1"
@@ -739,9 +751,9 @@ function Devices() {
                   </div>
                 )}
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={`grid grid-cols-1 md:grid-cols-2 ${formStyles.gridGap}`}>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">IP Address *</label>
+                    <label className={`block ${formStyles.labelSize} font-medium text-gray-700 dark:text-gray-300`}>IP Address *</label>
                     <input
                       type="text"
                       required
@@ -753,7 +765,7 @@ function Devices() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">SSH Port</label>
+                    <label className={`block ${formStyles.labelSize} font-medium text-gray-700 dark:text-gray-300`}>SSH Port</label>
                     <input
                       type="number"
                       className="input mt-1"
@@ -794,15 +806,15 @@ function Devices() {
                       checked={formData.netconf_enabled}
                       onChange={(e) => setFormData({...formData, netconf_enabled: e.target.checked})}
                     />
-                    <label htmlFor="netconf_enabled" className="text-sm text-gray-700 dark:text-gray-300">
+                    <label htmlFor="netconf_enabled" className={`${formStyles.labelSize} text-gray-700 dark:text-gray-300`}>
                       Enable NETCONF for this device
                     </label>
                   </div>
                 )}
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={`grid grid-cols-1 md:grid-cols-2 ${formStyles.gridGap}`}>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Username *</label>
+                    <label className={`block ${formStyles.labelSize} font-medium text-gray-700 dark:text-gray-300`}>Username *</label>
                     <input
                       type="text"
                       required
@@ -813,7 +825,7 @@ function Devices() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <label className={`block ${formStyles.labelSize} font-medium text-gray-700 dark:text-gray-300`}>
                       Password {!editingDevice && '*'}
                     </label>
                     <input
@@ -831,18 +843,18 @@ function Devices() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+                  <label className={`block ${formStyles.labelSize} font-medium text-gray-700 dark:text-gray-300`}>Description</label>
                   <textarea
                     className="input mt-1"
-                    rows="2"
+                    rows={formStyles.textareaRows}
                     value={formData.description}
                     onChange={(e) => setFormData({...formData, description: e.target.value})}
                   />
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={`grid grid-cols-1 md:grid-cols-2 ${formStyles.gridGap}`}>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Location</label>
+                    <label className={`block ${formStyles.labelSize} font-medium text-gray-700 dark:text-gray-300`}>Location</label>
                     <input
                       type="text"
                       placeholder="Data Center A"
@@ -853,7 +865,7 @@ function Devices() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Model</label>
+                    <label className={`block ${formStyles.labelSize} font-medium text-gray-700 dark:text-gray-300`}>Model</label>
                     <input
                       type="text"
                       placeholder="Cisco 2960"
@@ -865,7 +877,7 @@ function Devices() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
+                  <label className={`block ${formStyles.labelSize} font-medium text-gray-700 dark:text-gray-300`}>Status</label>
                   <select
                     className="input mt-1"
                     value={formData.status}
@@ -879,17 +891,17 @@ function Devices() {
 
               </div>
               
-              <div className="px-6 py-5 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700 flex justify-end space-x-3 rounded-b-2xl">
+              <div className={`${formStyles.modalPadding} bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700 flex justify-end space-x-3 rounded-b-2xl`}>
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="btn btn-secondary btn-md"
+                  className={`btn btn-secondary ${formStyles.buttonSize}`}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="btn btn-primary btn-md"
+                  className={`btn btn-primary ${formStyles.buttonSize}`}
                 >
                   {editingDevice ? 'Update Device' : 'Add Device'}
                 </button>
@@ -899,6 +911,18 @@ function Devices() {
         </div>,
         document.body
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmationState.isOpen}
+        onConfirm={confirmationState.onConfirm}
+        onCancel={confirmationState.onCancel}
+        title={confirmationState.title}
+        message={confirmationState.message}
+        confirmText={confirmationState.confirmText}
+        cancelText={confirmationState.cancelText}
+        type={confirmationState.type}
+      />
     </div>
   );
 }

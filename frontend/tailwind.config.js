@@ -44,6 +44,7 @@ export default {
         'slide-down': 'slideDown 0.3s ease-out',
         'page-enter': 'pageEnter 0.2s ease-out forwards',
         'page-exit': 'pageExit 0.15s ease-in forwards',
+        'progress': 'progress 1.5s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -65,6 +66,11 @@ export default {
         pageExit: {
           '0%': { opacity: '1', transform: 'translateY(0)' },
           '100%': { opacity: '0', transform: 'translateY(-4px)' },
+        },
+        progress: {
+          '0%': { width: '0%', marginLeft: '0%' },
+          '50%': { width: '60%', marginLeft: '20%' },
+          '100%': { width: '0%', marginLeft: '100%' },
         },
       },
       boxShadow: {

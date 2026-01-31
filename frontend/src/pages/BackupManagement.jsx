@@ -962,15 +962,15 @@ function BackupManagement() {
                     <UploadIcon className="h-3 w-3 mr-1" />Restore
                   </button>
                   <div className="flex items-center gap-1.5">
-                    <button onClick={() => handlePreviewBackup(backup)} className="btn btn-secondary btn-sm" title="Preview">
+                    <button onClick={() => handlePreviewBackup(backup)} className="btn btn-secondary btn-sm" title="Preview" aria-label="Preview backup">
                       <EyeIcon className="h-3.5 w-3.5" />
                     </button>
                     {!backup.is_restore_point && (
                       <>
-                        <button onClick={() => handleSetRestorePoint(backup)} className="btn btn-secondary btn-sm" title="Set Restore Point">
+                        <button onClick={() => handleSetRestorePoint(backup)} className="btn btn-secondary btn-sm" title="Set Restore Point" aria-label="Set restore point">
                           <ShieldIcon className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => handleDeleteBackup(backup)} className="btn btn-danger btn-sm" title="Delete">
+                        <button onClick={() => handleDeleteBackup(backup)} className="btn btn-danger btn-sm" title="Delete" aria-label="Delete backup">
                           <TrashIcon className="h-3.5 w-3.5" />
                         </button>
                       </>
@@ -1146,6 +1146,7 @@ function BackupManagement() {
                           type="button"
                           onClick={() => removeTag(index)}
                           className="btn btn-outline-danger btn-sm"
+                          aria-label="Remove tag"
                         >
                           <XCircleIcon className="h-4 w-4" />
                         </button>

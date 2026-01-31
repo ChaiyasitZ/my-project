@@ -18,10 +18,13 @@ import {
 import PageLoader from '../components/PageLoader';
 import Pagination from '../components/Pagination';
 import ZoomControls from '../components/ZoomControls';
+import ConfirmationModal from '../components/ConfirmationModal';
 import { useResponsive } from '../hooks/useResponsive';
+import { useConfirmation } from '../hooks/useConfirmation';
 
 function ConfigurationHistory() {
   const { getItemsPerPage } = useResponsive();
+  const { confirmationState, showConfirmation } = useConfirmation();
   const ITEMS_PER_PAGE = getItemsPerPage('list');
   
   const [configurations, setConfigurations] = useState([]);
@@ -118,9 +121,15 @@ function ConfigurationHistory() {
       return;
     }
 
-    const confirmationMessage = `Are you sure you want to delete ${configurationsToDelete.length} configuration${configurationsToDelete.length > 1 ? 's' : ''}?\n\nThis action cannot be undone.`;
+    const confirmed = await showConfirmation({
+      title: 'Delete Configurations',
+      message: `Are you sure you want to delete ${configurationsToDelete.length} configuration${configurationsToDelete.length > 1 ? 's' : ''}?\n\nThis action cannot be undone.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      type: 'danger'
+    });
 
-    if (window.confirm(confirmationMessage)) {
+    if (confirmed) {
       setClearingAll(true);
       const toastId = toast.loading(`Deleting ${configurationsToDelete.length} configurations...`);
       
@@ -382,14 +391,14 @@ function ConfigurationHistory() {
                   </div>
                   <div className="flex items-center gap-2">
                     {item.status === 'deployed' && (
-                      <button onClick={() => openRollbackModal(item)} className="btn btn-warning btn-sm" title="Rollback">
+                      <button onClick={() => openRollbackModal(item)} className="btn btn-warning btn-sm" title="Rollback" aria-label="Rollback configuration">
                         <RotateCcwIcon className="h-4 w-4" />
                       </button>
                     )}
-                    <button onClick={() => viewDetails(item)} className="btn btn-secondary btn-sm" title="View Details">
+                    <button onClick={() => viewDetails(item)} className="btn btn-secondary btn-sm" title="View Details" aria-label="View configuration details">
                       <EyeIcon className="h-4 w-4" />
                     </button>
-                    <button onClick={() => deleteConfiguration(item.id)} className="btn btn-danger btn-sm" title="Delete">
+                    <button onClick={() => deleteConfiguration(item.id)} className="btn btn-danger btn-sm" title="Delete" aria-label="Delete configuration">
                       <TrashIcon className="h-4 w-4" />
                     </button>
                   </div>
@@ -651,6 +660,18 @@ function ConfigurationHistory() {
         </div>,
         document.body
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmationState.isOpen}
+        onConfirm={confirmationState.onConfirm}
+        onCancel={confirmationState.onCancel}
+        title={confirmationState.title}
+        message={confirmationState.message}
+        confirmText={confirmationState.confirmText}
+        cancelText={confirmationState.cancelText}
+        type={confirmationState.type}
+      />
     </div>
   );
 }

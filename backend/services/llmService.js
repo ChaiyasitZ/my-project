@@ -2655,57 +2655,36 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
       customModelsSection += `=== END CUSTOM YANG MODELS ===\n\nCRITICAL: Generate XML that strictly follows the structure defined in the YANG models above. Use the exact namespaces, containers, lists, and leaf names from the YANG definitions. Do NOT use generic patterns if a specific YANG model applies.\n`;
     }
 
-    return `You are a Cisco NX-OS NETCONF/YANG configuration expert. Generate ONLY valid NETCONF XML configuration payloads.
+    return `You are a Cisco NX-OS NETCONF expert. Generate VALID YANG-compliant XML for NETCONF edit-config operations.
 
-NETCONF/YANG RULES FOR NX-OS:
-1. Use proper Cisco NX-OS YANG model namespaces
-2. Common namespaces:
-   - Device root: xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"
-   - Interface: use System/intf-items namespace
-   - BGP: use System/bgp-items namespace  
-   - OSPF: use System/ospf-items namespace
-   - VLAN: use System/bd-items (bridge domain) namespace
+NAMESPACE: http://cisco.com/ns/yang/cisco-nx-os-device
+ROOT ELEMENT: <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
 
-STRICT OUTPUT RULES:
-1. Generate ONLY the XML content that goes inside <config> tags
-2. Do NOT include <?xml?> declaration
-3. Do NOT include <rpc> or <edit-config> wrapper
-4. Do NOT include any explanatory text or markdown
-5. Use proper indentation (2 spaces)
-6. All XML must be well-formed and valid
-7. Include required YANG namespace declarations
-8. Start directly with the root element${customModelsSection}
+OUTPUT RULES:
+1. Output ONLY the XML content (no explanations, no markdown)
+2. Start with <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+3. End with </System>
+4. Use proper 2-space indentation
+5. All tags must be properly closed
+${customModelsSection}
+NX-OS YANG STRUCTURE REFERENCE:
 
-COMMON NX-OS YANG PATTERNS (Validated for NX-OS 9.x/10.x):
-
-IMPORTANT: Always use proper indentation (2 spaces) and close all XML tags properly.
-
-For Interface Configuration (Physical):
+INTERFACE (Physical):
 <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
   <intf-items>
     <phys-items>
       <PhysIf-list>
         <id>Ethernet1/1</id>
         <adminSt>up</adminSt>
-        <descr>Description here</descr>
+        <descr>Description</descr>
         <mode>trunk</mode>
         <layer>Layer2</layer>
-        <mtu>9216</mtu>
-        <speed>auto</speed>
-        <duplex>auto</duplex>
       </PhysIf-list>
     </phys-items>
   </intf-items>
 </System>
 
-INTERFACE NAMING RULES (CRITICAL):
-- Physical interfaces: Use FULL name like Ethernet1/1, Ethernet1/2 (NOT eth1/1)
-- Management: mgmt0
-- Loopback: loopback0, loopback1 (lowercase)
-- Port-channel: port-channel1
-- VLAN SVI: vlan100 (lowercase)
-
-For VLAN Configuration (Bridge Domain):
+VLAN (Bridge Domain):
 <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
   <bd-items>
     <bd-items>
@@ -2713,24 +2692,18 @@ For VLAN Configuration (Bridge Domain):
         <fabEncap>vlan-100</fabEncap>
         <name>VLAN_NAME</name>
         <adminSt>active</adminSt>
-        <BdState>active</BdState>
-        <mode>CE</mode>
       </BD-list>
     </bd-items>
   </bd-items>
 </System>
 
-VLAN ID FORMAT: Use fabEncap with format "vlan-<id>" (e.g., vlan-100, vlan-200)
-
-For SVI (VLAN Interface) Configuration:
+SVI (VLAN Interface with IP):
 <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
   <intf-items>
     <svi-items>
       <SviIf-list>
         <id>vlan100</id>
         <adminSt>up</adminSt>
-        <descr>SVI for VLAN 100</descr>
-        <mtu>1500</mtu>
       </SviIf-list>
     </svi-items>
   </intf-items>
@@ -2758,14 +2731,13 @@ For SVI (VLAN Interface) Configuration:
   </ipv4-items>
 </System>
 
-For Loopback Interface:
+LOOPBACK:
 <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
   <intf-items>
     <lb-items>
       <LbIf-list>
         <id>lo0</id>
         <adminSt>up</adminSt>
-        <descr>Loopback for Router ID</descr>
       </LbIf-list>
     </lb-items>
   </intf-items>
@@ -2793,7 +2765,7 @@ For Loopback Interface:
   </ipv4-items>
 </System>
 
-For OSPF Configuration:
+OSPF:
 <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
   <ospf-items>
     <inst-items>
@@ -2807,17 +2779,12 @@ For OSPF Configuration:
             <area-items>
               <Area-list>
                 <id>0.0.0.0</id>
-                <type>regular</type>
               </Area-list>
             </area-items>
             <if-items>
               <If-list>
                 <id>Ethernet1/1</id>
                 <area>0.0.0.0</area>
-                <cost>10</cost>
-                <helloIntvl>10</helloIntvl>
-                <deadIntvl>40</deadIntvl>
-                <nwT>p2p</nwT>
               </If-list>
             </if-items>
           </Dom-list>
@@ -2827,7 +2794,7 @@ For OSPF Configuration:
   </ospf-items>
 </System>
 
-For BGP Configuration:
+BGP:
 <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
   <bgp-items>
     <inst-items>
@@ -2838,6 +2805,12 @@ For BGP Configuration:
           <Dom-list>
             <name>default</name>
             <rtrId>1.1.1.1</rtrId>
+            <peer-items>
+              <Peer-list>
+                <addr>10.0.0.2</addr>
+                <asn>65002</asn>
+              </Peer-list>
+            </peer-items>
           </Dom-list>
         </dom-items>
       </Inst-list>
@@ -2845,26 +2818,13 @@ For BGP Configuration:
   </bgp-items>
 </System>
 
-CRITICAL REMINDERS:
-- Always start with <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
-- Use exact element names (case-sensitive!):
-  * Physical interface: PhysIf-list with id like "Ethernet1/1" (full name, NOT eth1/1)
-  * VLAN/Bridge Domain: BD-list with fabEncap like "vlan-100"
-  * SVI interface: SviIf-list with id like "vlan100"
-  * Loopback: LbIf-list with id like "loopback0"
-  * Port-channel: AggrIf-list with id like "port-channel1"
-- adminSt values: up/down for interfaces, enabled/disabled for protocols, active/suspend for VLANs
-- Close all tags properly - XML must be well-formed
-
-For Port-Channel (EtherChannel) Configuration:
+PORT-CHANNEL:
 <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
   <intf-items>
     <aggr-items>
       <AggrIf-list>
         <id>port-channel1</id>
         <adminSt>up</adminSt>
-        <descr>Port-channel to spine</descr>
-        <mtu>9216</mtu>
         <pcMode>active</pcMode>
         <mode>trunk</mode>
         <layer>Layer2</layer>
@@ -2873,38 +2833,19 @@ For Port-Channel (EtherChannel) Configuration:
   </intf-items>
 </System>
 
-For Trunk Port with Allowed VLANs:
-<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
-  <intf-items>
-    <phys-items>
-      <PhysIf-list>
-        <id>Ethernet1/1</id>
-        <adminSt>up</adminSt>
-        <mode>trunk</mode>
-        <layer>Layer2</layer>
-        <trunkVlans>1-100,200,300-400</trunkVlans>
-        <nativeVlan>vlan-999</nativeVlan>
-      </PhysIf-list>
-    </phys-items>
-  </intf-items>
-</System>
+NAMING CONVENTIONS:
+- Physical: Ethernet1/1, Ethernet1/2 (full name)
+- VLAN: fabEncap format vlan-100
+- SVI: vlan100 (lowercase)
+- Loopback: lo0 (short) or loopback0
+- Port-channel: port-channel1
 
-For Access Port Configuration:
-<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
-  <intf-items>
-    <phys-items>
-      <PhysIf-list>
-        <id>Ethernet1/10</id>
-        <adminSt>up</adminSt>
-        <mode>access</mode>
-        <layer>Layer2</layer>
-        <accessVlan>vlan-100</accessVlan>
-      </PhysIf-list>
-    </phys-items>
-  </intf-items>
-</System>
+ELEMENT VALUES:
+- adminSt: up/down (interfaces), enabled/disabled (protocols), active/suspend (VLANs)
+- mode: trunk/access (interfaces)
+- layer: Layer2/Layer3
 
-Output ONLY the XML configuration, nothing else.`;
+Output ONLY the XML configuration now:`;
 
   }
 
@@ -2915,12 +2856,10 @@ Output ONLY the XML configuration, nothing else.`;
     const deviceName = deviceContext.name || 'NX-OS Device';
     const deviceModel = deviceContext.model || 'Cisco Nexus';
     
-    return `Device: ${deviceName} (${deviceType} - ${deviceModel})
-Platform: Cisco NX-OS with NETCONF/YANG support
+    return `Target: ${deviceName} (${deviceModel})
+Request: ${prompt}
 
-Configuration Request: ${prompt}
-
-Generate the NETCONF/YANG XML configuration now (only XML, no explanations):`;
+Generate the NETCONF XML configuration. Output only XML, starting with <System xmlns="...">`;
   }
 
   /**

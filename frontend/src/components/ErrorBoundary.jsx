@@ -53,21 +53,21 @@ class ErrorBoundary extends Component {
       const isDevelopment = import.meta.env.DEV;
 
       return (
-        <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-          <div className="max-w-lg w-full bg-gray-800 rounded-lg shadow-xl border border-gray-700 p-6">
+        <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center p-4">
+          <div className="max-w-lg w-full bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-6">
             {/* Error Icon */}
             <div className="flex items-center justify-center mb-4">
-              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center">
-                <AlertTriangleIcon className="w-8 h-8 text-red-400" />
+              <div className="w-16 h-16 bg-red-100 dark:bg-red-500/20 rounded-full flex items-center justify-center">
+                <AlertTriangleIcon className="w-8 h-8 text-red-500 dark:text-red-400" />
               </div>
             </div>
 
             {/* Error Title */}
-            <h1 className="text-xl font-bold text-white text-center mb-2">
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white text-center mb-2">
               Something went wrong
             </h1>
             
-            <p className="text-gray-400 text-center mb-6">
+            <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
               {errorCount > 2 
                 ? 'This error keeps occurring. Try reloading the page.'
                 : 'An unexpected error occurred. Please try again.'}
@@ -76,16 +76,16 @@ class ErrorBoundary extends Component {
             {/* Error Details (Development Only) */}
             {isDevelopment && error && (
               <div className="mb-6">
-                <div className="bg-red-900/30 border border-red-700 rounded-lg p-4">
-                  <p className="text-red-300 font-mono text-sm mb-2">
+                <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-4">
+                  <p className="text-red-600 dark:text-red-300 font-mono text-sm mb-2">
                     {error.toString()}
                   </p>
                   {errorInfo && (
                     <details className="mt-2">
-                      <summary className="text-red-400 cursor-pointer text-sm hover:text-red-300">
+                      <summary className="text-red-500 dark:text-red-400 cursor-pointer text-sm hover:text-red-600 dark:hover:text-red-300">
                         Component Stack
                       </summary>
-                      <pre className="mt-2 text-xs text-gray-400 overflow-x-auto whitespace-pre-wrap">
+                      <pre className="mt-2 text-xs text-gray-600 dark:text-gray-400 overflow-x-auto whitespace-pre-wrap">
                         {errorInfo.componentStack}
                       </pre>
                     </details>
@@ -106,7 +106,7 @@ class ErrorBoundary extends Component {
               
               <button
                 onClick={this.handleGoHome}
-                className="flex-1 flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2.5 rounded-lg transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-white px-4 py-2.5 rounded-lg transition-colors"
               >
                 <HomeIcon className="w-4 h-4" />
                 Go Home
@@ -117,7 +117,7 @@ class ErrorBoundary extends Component {
             {errorCount > 1 && (
               <button
                 onClick={this.handleReload}
-                className="w-full mt-3 text-gray-400 hover:text-white text-sm transition-colors"
+                className="w-full mt-3 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white text-sm transition-colors"
               >
                 Reload Page
               </button>
@@ -125,7 +125,7 @@ class ErrorBoundary extends Component {
 
             {/* Error Count Badge */}
             {errorCount > 1 && (
-              <p className="text-center text-gray-500 text-xs mt-4">
+              <p className="text-center text-gray-400 dark:text-gray-500 text-xs mt-4">
                 Error occurred {errorCount} times
               </p>
             )}

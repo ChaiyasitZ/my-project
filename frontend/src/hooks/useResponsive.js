@@ -80,11 +80,40 @@ export function useResponsive() {
     };
   };
 
+  // Get form-specific responsive values
+  const getFormStyles = () => {
+    const deviceType = getDeviceType();
+    
+    return {
+      // Input sizing
+      inputSize: deviceType === 'notebook' ? 'input-sm' : 'input-md',
+      inputPadding: deviceType === 'notebook' ? 'px-2 py-1.5' : deviceType === 'desktop' ? 'px-3 py-2' : 'px-4 py-2.5',
+      
+      // Button sizing
+      buttonSize: deviceType === 'notebook' ? 'btn-sm' : 'btn-md',
+      
+      // Label sizing
+      labelSize: deviceType === 'notebook' ? 'text-xs' : 'text-sm',
+      
+      // Form spacing
+      formGap: deviceType === 'notebook' ? 'space-y-2' : deviceType === 'desktop' ? 'space-y-3' : 'space-y-4',
+      gridGap: deviceType === 'notebook' ? 'gap-2' : deviceType === 'desktop' ? 'gap-3' : 'gap-4',
+      
+      // Modal sizing
+      modalWidth: deviceType === 'notebook' ? 'max-w-md' : deviceType === 'desktop' ? 'max-w-lg' : 'max-w-xl',
+      modalPadding: deviceType === 'notebook' ? 'p-4' : deviceType === 'desktop' ? 'p-5' : 'p-6',
+      
+      // Textarea rows
+      textareaRows: deviceType === 'notebook' ? 2 : deviceType === 'desktop' ? 3 : 4,
+    };
+  };
+
   return {
     screenSize,
     deviceType: getDeviceType(),
     getItemsPerPage,
     getSpacing,
+    getFormStyles,
     isNotebook: getDeviceType() === 'notebook',
     isDesktop: getDeviceType() === 'desktop',
     isLarge: getDeviceType() === 'large',

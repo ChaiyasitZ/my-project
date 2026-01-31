@@ -65,7 +65,7 @@ function Pagination({
       )}
       
       {/* Page buttons */}
-      <div className="flex items-center gap-1">
+      <nav className="flex items-center gap-1" role="navigation" aria-label="Pagination">
         {/* Previous button */}
         <button
           onClick={() => onPageChange(currentPage - 1)}
@@ -75,6 +75,7 @@ function Pagination({
                      disabled:opacity-50 disabled:cursor-not-allowed
                      text-gray-700 dark:text-gray-300"
           title="Previous page"
+          aria-label="Go to previous page"
         >
           <ChevronLeftIcon className="h-4 w-4" />
         </button>
@@ -85,6 +86,7 @@ function Pagination({
             <span 
               key={`ellipsis-${index}`} 
               className="px-1.5 py-0.5 text-xs text-gray-500 dark:text-gray-400"
+              aria-hidden="true"
             >
               ...
             </span>
@@ -97,6 +99,8 @@ function Pagination({
                   ? 'bg-blue-600 border-blue-600 text-white' 
                   : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
+              aria-label={`Go to page ${page}`}
+              aria-current={currentPage === page ? 'page' : undefined}
             >
               {page}
             </button>
@@ -112,10 +116,11 @@ function Pagination({
                      disabled:opacity-50 disabled:cursor-not-allowed
                      text-gray-700 dark:text-gray-300"
           title="Next page"
+          aria-label="Go to next page"
         >
           <ChevronRightIcon className="h-4 w-4" />
         </button>
-      </div>
+      </nav>
     </div>
   );
 }
