@@ -35,6 +35,7 @@ import DeviceIcon from '../components/DeviceIcon';
 import ZoomControls from '../components/ZoomControls';
 import { useConfirmation } from '../hooks/useConfirmation';
 import { useResponsive } from '../hooks/useResponsive';
+import { validateConfigPrompt, getValidationErrorMessage } from '../utils/promptValidator';
 import { 
   connectSocket, 
   disconnectSocket,
@@ -751,6 +752,25 @@ ${indentedConfig}
   const handleGenerateConfiguration = async (e) => {
     e.preventDefault();
     if (!selectedDevice || !prompt) return;
+
+    // Validate that the prompt is about network configuration
+    const validation = validateConfigPrompt(prompt);
+    if (!validation.isValid) {
+      const errorMessage = getValidationErrorMessage(validation);
+      setGenerationError(errorMessage);
+      toast.error('Please enter a valid network configuration prompt', { duration: 5000 });
+      
+      // Show suggestion in a separate toast
+      if (validation.suggestions.length > 0) {
+        setTimeout(() => {
+          toast(`💡 Try: "${validation.suggestions[0]}"`, { 
+            duration: 6000,
+            icon: '📝'
+          });
+        }, 500);
+      }
+      return;
+    }
 
     setIsGenerating(true);
     setGenerationError(null);

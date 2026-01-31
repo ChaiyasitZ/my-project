@@ -7,6 +7,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import { generateNetconfWorkflowXml } from '../../utils/yangParser';
 import { translateToEnglish, detectLanguage } from '../../utils/translationUtils';
+import { validateConfigPrompt, getValidationErrorMessage } from '../../utils/promptValidator';
 
 /**
  * Custom hook for configuration generation and deployment
@@ -73,6 +74,25 @@ export const useConfigGeneration = (showConfirmation) => {
   const handleGenerateConfiguration = useCallback(async (e, selectedDevice, selectedYangModelsForGen = []) => {
     e.preventDefault();
     if (!selectedDevice || !prompt) return;
+
+    // Validate that the prompt is about network configuration
+    const validation = validateConfigPrompt(prompt);
+    if (!validation.isValid) {
+      const errorMessage = getValidationErrorMessage(validation);
+      setGenerationError(errorMessage);
+      toast.error('Please enter a valid network configuration prompt', { duration: 5000 });
+      
+      // Show suggestions in a separate toast
+      if (validation.suggestions.length > 0) {
+        setTimeout(() => {
+          toast(`💡 Try: "${validation.suggestions[0]}"`, { 
+            duration: 6000,
+            icon: '📝'
+          });
+        }, 500);
+      }
+      return;
+    }
 
     setIsGenerating(true);
     setGenerationError(null);
