@@ -9,6 +9,7 @@ import BackupSchedule from '../models/BackupSchedule.js';
 import sshService from '../services/sshService.js';
 import backupScheduler from '../services/backupScheduler.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { getOrSetCache, invalidateCache, CacheKeys } from '../lib/cache.js';
 
 const router = express.Router();
 
@@ -40,89 +41,27 @@ router.get('/', async (req, res) => {
       limit = 50, 
       offset = 0,
       sort_by = 'created_at',
-      sort_order = 'desc'
+      sort_order = 'desc',
+      noCache
     } = req.query;
     
-    // Get user's device IDs first
-    const userDevices = await Device.find({ userId: req.userId }).select('_id');
-    const userDeviceIds = userDevices.map(d => d._id);
+    // Create cache key based on query parameters
+    const cacheKey = `backups:${req.userId}:${device_id || 'all'}:${backup_type || 'all'}:${limit}:${offset}:${sort_by}:${sort_order}`;
     
-    // Build filter - only show backups for user's devices
-    const filter = { device_id: { $in: userDeviceIds } };
-    if (device_id) {
-      // Verify user owns the specified device
-      if (userDeviceIds.some(id => id.toString() === device_id)) {
-        filter.device_id = new mongoose.Types.ObjectId(device_id);
-      } else {
-        return res.json({
-          success: true,
-          backups: [],
-          pagination: { total: 0, limit: parseInt(limit), offset: parseInt(offset) }
-        });
+    // Check if client wants fresh data
+    if (noCache !== 'true') {
+      const cachedData = await getOrSetCache(cacheKey, async () => {
+        return await fetchBackupsData(req.userId, device_id, backup_type, limit, offset, sort_by, sort_order);
+      }, 30); // 30 second TTL for backups
+      
+      if (cachedData) {
+        return res.json(cachedData);
       }
     }
-    if (backup_type) filter.backup_type = backup_type;
     
-    // Build sort object
-    const allowedSortFields = ['created_at', 'backup_name', 'file_size'];
-    const sortField = allowedSortFields.includes(sort_by) ? sort_by : 'created_at';
-    const sortDirection = sort_order.toLowerCase() === 'asc' ? 1 : -1;
-    const sortObj = { [sortField]: sortDirection };
-    
-    // Use aggregation to join with devices in a single query (eliminates N+1)
-    const [backups, countResult] = await Promise.all([
-      ConfigurationBackup.aggregate([
-        { $match: filter },
-        { $sort: sortObj },
-        { $skip: parseInt(offset) },
-        { $limit: parseInt(limit) },
-        {
-          $lookup: {
-            from: 'devices',
-            localField: 'device_id',
-            foreignField: '_id',
-            as: 'device',
-            pipeline: [{ $project: { name: 1, type: 1, ip_address: 1 } }]
-          }
-        },
-        { $unwind: { path: '$device', preserveNullAndEmptyArrays: true } },
-        {
-          $project: {
-            _id: 1,
-            device_id: 1,
-            backup_name: 1,
-            description: 1,
-            backup_type: 1,
-            config_type: 1,
-            file_size: 1,
-            config_hash: 1,
-            created_by: 1,
-            is_restore_point: 1,
-            tags: 1,
-            createdAt: 1,
-            updatedAt: 1,
-            device_name: '$device.name',
-            device_type: '$device.type',
-            ip_address: '$device.ip_address'
-          }
-        }
-      ]),
-      ConfigurationBackup.countDocuments(filter)
-    ]);
-    
-    // Add id alias for compatibility
-    const enhancedBackups = backups.map(b => ({ ...b, id: b._id }));
-    
-    res.json({
-      success: true,
-      backups: enhancedBackups,
-      pagination: {
-        total: countResult,
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        hasMore: parseInt(offset) + parseInt(limit) < countResult
-      }
-    });
+    // Fetch fresh data if cache miss or noCache requested
+    const result = await fetchBackupsData(req.userId, device_id, backup_type, limit, offset, sort_by, sort_order);
+    res.json(result);
     
   } catch (error) {
     console.error('Error fetching backups:', error);
@@ -132,6 +71,90 @@ router.get('/', async (req, res) => {
     });
   }
 });
+
+// Helper function to fetch backups data
+async function fetchBackupsData(userId, device_id, backup_type, limit, offset, sort_by, sort_order) {
+  // Get user's device IDs first
+  const userDevices = await Device.find({ userId }).select('_id').lean();
+  const userDeviceIds = userDevices.map(d => d._id);
+  
+  // Build filter - only show backups for user's devices
+  const filter = { device_id: { $in: userDeviceIds } };
+  if (device_id) {
+    // Verify user owns the specified device
+    if (userDeviceIds.some(id => id.toString() === device_id)) {
+      filter.device_id = new mongoose.Types.ObjectId(device_id);
+    } else {
+      return {
+        success: true,
+        backups: [],
+        pagination: { total: 0, limit: parseInt(limit), offset: parseInt(offset) }
+      };
+    }
+  }
+  if (backup_type) filter.backup_type = backup_type;
+  
+  // Build sort object
+  const allowedSortFields = ['created_at', 'backup_name', 'file_size'];
+  const sortField = allowedSortFields.includes(sort_by) ? sort_by : 'created_at';
+  const sortDirection = sort_order.toLowerCase() === 'asc' ? 1 : -1;
+  const sortObj = { [sortField]: sortDirection };
+  
+  // Use aggregation to join with devices in a single query (eliminates N+1)
+  const [backups, countResult] = await Promise.all([
+    ConfigurationBackup.aggregate([
+      { $match: filter },
+      { $sort: sortObj },
+      { $skip: parseInt(offset) },
+      { $limit: parseInt(limit) },
+      {
+        $lookup: {
+          from: 'devices',
+          localField: 'device_id',
+          foreignField: '_id',
+          as: 'device',
+          pipeline: [{ $project: { name: 1, type: 1, ip_address: 1 } }]
+        }
+      },
+      { $unwind: { path: '$device', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 1,
+          device_id: 1,
+          backup_name: 1,
+          description: 1,
+          backup_type: 1,
+          config_type: 1,
+          file_size: 1,
+          config_hash: 1,
+          created_by: 1,
+          is_restore_point: 1,
+          tags: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          device_name: '$device.name',
+          device_type: '$device.type',
+          ip_address: '$device.ip_address'
+        }
+      }
+    ]),
+    ConfigurationBackup.countDocuments(filter)
+  ]);
+  
+  // Add id alias for compatibility
+  const enhancedBackups = backups.map(b => ({ ...b, id: b._id }));
+  
+  return {
+    success: true,
+    backups: enhancedBackups,
+    pagination: {
+      total: countResult,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      hasMore: parseInt(offset) + parseInt(limit) < countResult
+    }
+  };
+}
 
 // ============================================
 // SCHEDULE ROUTES - Must be defined BEFORE /:id routes
@@ -613,6 +636,9 @@ router.post('/', async (req, res) => {
       console.log(`⏱️ [TIMING] Database save: ${Date.now() - saveStartTime}ms`);
       console.log(`⏱️ [TIMING] Total backup time: ${Date.now() - backupStartTime}ms`);
       
+      // Invalidate backup cache for this user
+      invalidateCache(CacheKeys.backups(req.userId));
+      
       // Don't include the actual config in the response for performance
       const { running_config, startup_config, ...backupResponse } = backup.toObject();
       
@@ -946,6 +972,9 @@ router.delete('/:id', async (req, res) => {
     }
     
     await ConfigurationBackup.findByIdAndDelete(id);
+    
+    // Invalidate backup cache for this user
+    invalidateCache(CacheKeys.backups(req.userId));
     
     res.json({
       success: true,

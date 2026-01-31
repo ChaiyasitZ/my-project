@@ -99,6 +99,8 @@ configurationHistorySchema.pre('save', function(next) {
 configurationHistorySchema.index({ device_id: 1, created_at: -1 }); // Device history sorted
 configurationHistorySchema.index({ status: 1, created_at: -1 }); // Filter by status
 configurationHistorySchema.index({ device_id: 1, status: 1, created_at: -1 }); // Combined filter
+configurationHistorySchema.index({ userId: 1, created_at: -1 }); // User history sorted (for pagination)
+configurationHistorySchema.index({ userId: 1, status: 1, created_at: -1 }); // User history with status filter
 
 // Virtual to get device info
 configurationHistorySchema.virtual('device', {

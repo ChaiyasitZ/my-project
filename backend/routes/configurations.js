@@ -9,6 +9,7 @@ import sshService from '../services/sshService.js';
 import backupScheduler from '../services/backupScheduler.js';
 import notificationService from '../services/notificationService.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { getOrSetCache, invalidateCache, CacheKeys } from '../lib/cache.js';
 
 const router = express.Router();
 
@@ -343,6 +344,9 @@ router.post('/generate', async (req, res) => {
     await configuration.save();
     console.log('✅ Configuration saved to history:', configuration._id);
     console.log('📅 Created at timestamp:', configuration.created_at, 'Date:', new Date(configuration.created_at));
+    
+    // Invalidate configuration history cache for this user
+    invalidateCache(CacheKeys.configurations(req.userId));
     
     const responseConfig = {
       ...configuration.toObject(),
@@ -848,45 +852,25 @@ router.get('/history/:device_id', async (req, res) => {
 // GET /api/configurations/history - Get all configuration history (simplified for raw AI)
 router.get('/history', async (req, res) => {
   try {
-    const { limit = 50, offset = 0, status } = req.query;
+    const { limit = 50, offset = 0, status, noCache } = req.query;
     
-    // Build filter with userId
-    const filter = { userId: req.userId };
-    if (status) filter.status = status;
+    // Create cache key based on query parameters
+    const cacheKey = `configHistory:${req.userId}:${status || 'all'}:${limit}:${offset}`;
     
-    // Get configurations with pagination
-    const configurations = await ConfigurationHistory.find(filter)
-      .sort({ created_at: -1 })
-      .limit(parseInt(limit))
-      .skip(parseInt(offset))
-      .lean();
+    // Check if client wants fresh data
+    if (noCache !== 'true') {
+      const cachedData = await getOrSetCache(cacheKey, async () => {
+        return await fetchConfigHistoryData(req.userId, status, limit, offset);
+      }, 30); // 30 second TTL
+      
+      if (cachedData) {
+        return res.json(cachedData);
+      }
+    }
     
-    // Get total count for user
-    const total = await ConfigurationHistory.countDocuments(filter);
-    
-    // Get user's devices for lookup
-    const userDevices = await Device.find({ userId: req.userId }).select('name type ip_address').lean();
-    const deviceMap = new Map(userDevices.map(d => [d._id.toString(), d]));
-    
-    // Enhance configurations with device info
-    const enhancedConfigurations = configurations.map(config => {
-      const device = deviceMap.get(config.device_id?.toString());
-      return {
-        ...config,
-        id: config._id, // Add id for compatibility
-        device_name: device?.name,
-        device_type: device?.type,
-        ip_address: device?.ip_address
-      };
-    });
-    
-    res.json({
-      success: true,
-      configurations: enhancedConfigurations,
-      total,
-      limit: parseInt(limit),
-      offset: parseInt(offset)
-    });
+    // Fetch fresh data if cache miss or noCache requested
+    const result = await fetchConfigHistoryData(req.userId, status, limit, offset);
+    res.json(result);
     
   } catch (error) {
     console.error('Error fetching configuration history:', error);
@@ -896,6 +880,47 @@ router.get('/history', async (req, res) => {
     });
   }
 });
+
+// Helper function to fetch configuration history data
+async function fetchConfigHistoryData(userId, status, limit, offset) {
+  // Build filter with userId
+  const filter = { userId };
+  if (status) filter.status = status;
+  
+  // Get configurations with pagination and device lookup in parallel
+  const [configurations, total, userDevices] = await Promise.all([
+    ConfigurationHistory.find(filter)
+      .sort({ created_at: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset))
+      .lean(),
+    ConfigurationHistory.countDocuments(filter),
+    Device.find({ userId }).select('name type ip_address').lean()
+  ]);
+  
+  // Create device map for O(1) lookups
+  const deviceMap = new Map(userDevices.map(d => [d._id.toString(), d]));
+  
+  // Enhance configurations with device info
+  const enhancedConfigurations = configurations.map(config => {
+    const device = deviceMap.get(config.device_id?.toString());
+    return {
+      ...config,
+      id: config._id, // Add id for compatibility
+      device_name: device?.name,
+      device_type: device?.type,
+      ip_address: device?.ip_address
+    };
+  });
+  
+  return {
+    success: true,
+    configurations: enhancedConfigurations,
+    total,
+    limit: parseInt(limit),
+    offset: parseInt(offset)
+  };
+}
 
 // GET /api/configurations/:id - Get specific configuration (simplified for raw AI)
 router.get('/:id', async (req, res) => {
@@ -955,6 +980,9 @@ router.delete('/:id', async (req, res) => {
         message: 'Configuration not found'
       });
     }
+    
+    // Invalidate configuration history cache for this user
+    invalidateCache(CacheKeys.configurations(req.userId));
     
     res.json({
       success: true,

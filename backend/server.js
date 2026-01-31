@@ -9,6 +9,9 @@ import { Server } from 'socket.io';
 import { config } from './config/config.js';
 import { mongooseOptions } from './lib/mongodb.js';
 
+// Performance middleware
+import { compressionMiddleware, responseTimeMiddleware } from './middleware/performance.js';
+
 // Import routes
 import devicesRouter from './routes/devices.js';
 import configurationsRouter from './routes/configurations.js';
@@ -61,6 +64,12 @@ if (config.server.nodeEnv === 'production') {
 
 // CORS
 app.use(cors(config.cors));
+
+// Response compression for better performance
+app.use(compressionMiddleware);
+
+// Response time tracking (adds X-Response-Time header)
+app.use(responseTimeMiddleware);
 
 // Body parser
 app.use(express.json({ limit: '10mb' }));

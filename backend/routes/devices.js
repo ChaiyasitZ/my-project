@@ -5,6 +5,7 @@ import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import sshService from '../services/sshService.js';
 import netconfService from '../services/netconfService.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { getOrSetCache, invalidateCache, CacheKeys } from '../lib/cache.js';
 
 const router = express.Router();
 
@@ -49,57 +50,72 @@ const deviceUpdateSchema = Joi.object({
 // GET /api/devices - Get all devices
 router.get('/', async (req, res) => {
   try {
-    const { status, type, limit = 50, offset = 0 } = req.query;
+    const { status, type, limit = 50, offset = 0, noCache } = req.query;
     
     // Build query filter - include userId to filter by user
     const filter = { userId: req.userId };
     if (status) filter.status = status;
     if (type) filter.type = type;
     
-    // Get total count for pagination
-    const total = await Device.countDocuments(filter);
+    // Create cache key based on query params
+    const cacheKey = `${CacheKeys.devices(req.userId)}:${status || 'all'}:${type || 'all'}:${limit}:${offset}`;
     
-    // Use aggregation with $lookup to get config stats in a single query (fixes N+1)
-    const enhancedDevices = await Device.aggregate([
-      { $match: filter },
-      { $sort: { created_at: -1 } },
-      { $skip: parseInt(offset) },
-      { $limit: parseInt(limit) },
-      {
-        $lookup: {
-          from: 'configurationhistories',
-          localField: '_id',
-          foreignField: 'device_id',
-          as: 'config_history'
-        }
-      },
-      {
-        $addFields: {
-          id: '$_id',
-          total_configs: { $size: '$config_history' },
-          deployed_configs: {
-            $size: {
-              $filter: {
-                input: '$config_history',
-                as: 'config',
-                cond: { $eq: ['$$config.status', 'deployed'] }
+    // Try cache first (unless noCache query param is set)
+    const fetchDevices = async () => {
+      // Get total count for pagination
+      const total = await Device.countDocuments(filter);
+      
+      // Use aggregation with $lookup to get config stats in a single query (fixes N+1)
+      const enhancedDevices = await Device.aggregate([
+        { $match: filter },
+        { $sort: { createdAt: -1 } },
+        { $skip: parseInt(offset) },
+        { $limit: parseInt(limit) },
+        {
+          $lookup: {
+            from: 'configurationhistories',
+            localField: '_id',
+            foreignField: 'device_id',
+            as: 'config_history'
+          }
+        },
+        {
+          $addFields: {
+            id: '$_id',
+            total_configs: { $size: '$config_history' },
+            deployed_configs: {
+              $size: {
+                $filter: {
+                  input: '$config_history',
+                  as: 'config',
+                  cond: { $eq: ['$$config.status', 'deployed'] }
+                }
               }
-            }
-          },
-          last_config_date: { $max: '$config_history.created_at' }
+            },
+            last_config_date: { $max: '$config_history.created_at' }
+          }
+        },
+        {
+          $project: {
+            config_history: 0, // Remove the large array from response
+            password: 0, // Don't send password
+            enable_password: 0
+          }
         }
-      },
-      {
-        $project: {
-          config_history: 0 // Remove the large array from response
-        }
-      }
-    ]);
+      ]);
+      
+      return { devices: enhancedDevices, total };
+    };
+    
+    // Use cache with 30 second TTL (or bypass with noCache param)
+    const result = noCache 
+      ? await fetchDevices() 
+      : await getOrSetCache(cacheKey, fetchDevices, 30);
     
     res.json({
       success: true,
-      devices: enhancedDevices,
-      total,
+      devices: result.devices,
+      total: result.total,
       limit: parseInt(limit),
       offset: parseInt(offset)
     });
@@ -211,6 +227,9 @@ router.post('/', async (req, res) => {
     const device = new Device({ ...value, userId: req.userId });
     await device.save();
     
+    // Invalidate device cache for this user
+    invalidateCache(CacheKeys.devices(req.userId));
+    
     // Return device without password
     const deviceResponse = {
       ...device.toObject(),
@@ -295,6 +314,9 @@ router.put('/:id', async (req, res) => {
       });
     }
     
+    // Invalidate device cache for this user
+    invalidateCache(CacheKeys.devices(req.userId));
+    
     // Return device without password
     const deviceResponse = {
       ...device.toObject(),
@@ -330,6 +352,9 @@ router.delete('/:id', async (req, res) => {
         message: 'Device not found'
       });
     }
+    
+    // Invalidate device cache for this user
+    invalidateCache(CacheKeys.devices(req.userId));
     
     res.json({
       success: true,
