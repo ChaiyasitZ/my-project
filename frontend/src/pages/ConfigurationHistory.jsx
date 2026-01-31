@@ -25,7 +25,7 @@ import { useConfirmation } from '../hooks/useConfirmation';
 function ConfigurationHistory() {
   const { getItemsPerPage } = useResponsive();
   const { confirmationState, showConfirmation } = useConfirmation();
-  const ITEMS_PER_PAGE = getItemsPerPage('list');
+  const defaultItemsPerPage = getItemsPerPage('list');
   
   const [configurations, setConfigurations] = useState([]);
   const [groupedConfigurations, setGroupedConfigurations] = useState([]);
@@ -34,6 +34,7 @@ function ConfigurationHistory() {
   const [clearingAll, setClearingAll] = useState(false);
   const [filter, setFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(defaultItemsPerPage);
   const [selectedConfig, setSelectedConfig] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showRollbackModal, setShowRollbackModal] = useState(false);
@@ -80,12 +81,18 @@ function ConfigurationHistory() {
     setCurrentPage(1);
   }, [filter]);
 
+  // Handle items per page change
+  const handleItemsPerPageChange = useCallback((newSize) => {
+    setItemsPerPage(newSize);
+    setCurrentPage(1); // Reset to first page when changing page size
+  }, []);
+
   // Paginated configurations
-  const totalPages = Math.ceil(groupedConfigurations.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(groupedConfigurations.length / itemsPerPage);
   const paginatedConfigurations = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return groupedConfigurations.slice(start, start + ITEMS_PER_PAGE);
-  }, [groupedConfigurations, currentPage]);
+    const start = (currentPage - 1) * itemsPerPage;
+    return groupedConfigurations.slice(start, start + itemsPerPage);
+  }, [groupedConfigurations, currentPage, itemsPerPage]);
 
   const applyFilters = () => {
     return groupedConfigurations;
@@ -427,8 +434,10 @@ function ConfigurationHistory() {
           currentPage={currentPage}
           totalPages={totalPages}
           totalItems={groupedConfigurations.length}
-          itemsPerPage={ITEMS_PER_PAGE}
+          itemsPerPage={itemsPerPage}
           onPageChange={setCurrentPage}
+          onItemsPerPageChange={handleItemsPerPageChange}
+          showPageSizeSelector={true}
         />
       )}
 

@@ -1,16 +1,21 @@
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
 
+// Available options for items per page
+const PAGE_SIZE_OPTIONS = [5, 10, 15, 20, 25, 50];
+
 function Pagination({ 
   currentPage, 
   totalPages, 
   totalItems,
   itemsPerPage,
   onPageChange,
-  showInfo = true 
+  onItemsPerPageChange,
+  showInfo = true,
+  showPageSizeSelector = false
 }) {
-  if (totalPages <= 1) return null;
+  if (totalPages <= 1 && !showPageSizeSelector) return null;
 
-  const startItem = (currentPage - 1) * itemsPerPage + 1;
+  const startItem = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
   const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
   // Generate page numbers to display
@@ -55,14 +60,43 @@ function Pagination({
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 px-2">
-      {/* Info */}
-      {showInfo && (
-        <div className="text-xs text-gray-600 dark:text-gray-400">
-          Showing <span className="font-medium">{startItem}</span> to{' '}
-          <span className="font-medium">{endItem}</span> of{' '}
-          <span className="font-medium">{totalItems}</span> items
-        </div>
-      )}
+      {/* Left side: Info and Page Size Selector */}
+      <div className="flex items-center gap-4">
+        {/* Page Size Selector */}
+        {showPageSizeSelector && onItemsPerPageChange && (
+          <div className="flex items-center gap-2">
+            <label htmlFor="pageSize" className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
+              Show:
+            </label>
+            <select
+              id="pageSize"
+              value={itemsPerPage}
+              onChange={(e) => onItemsPerPageChange(Number(e.target.value))}
+              className="min-w-[60px] pl-2 pr-6 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded-md 
+                         bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300
+                         focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500
+                         appearance-none bg-no-repeat bg-right cursor-pointer"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                backgroundPosition: 'right 6px center'
+              }}
+            >
+              {PAGE_SIZE_OPTIONS.map(size => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        
+        {/* Info */}
+        {showInfo && (
+          <div className="text-xs text-gray-600 dark:text-gray-400">
+            Showing <span className="font-medium">{startItem}</span> to{' '}
+            <span className="font-medium">{endItem}</span> of{' '}
+            <span className="font-medium">{totalItems}</span> items
+          </div>
+        )}
+      </div>
       
       {/* Page buttons */}
       <nav className="flex items-center gap-1" role="navigation" aria-label="Pagination">

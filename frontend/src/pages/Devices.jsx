@@ -22,7 +22,6 @@ import { useConfirmation } from '../hooks/useConfirmation';
 function Devices() {
   const { getItemsPerPage, getSpacing, deviceType, getFormStyles } = useResponsive();
   const { confirmationState, showConfirmation } = useConfirmation();
-  const ITEMS_PER_PAGE = getItemsPerPage('list');
   const spacing = getSpacing();
   const formStyles = getFormStyles();
   
@@ -39,6 +38,7 @@ function Devices() {
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5); // Default to 5 items
   
   const [formData, setFormData] = useState({
     name: '',
@@ -106,11 +106,17 @@ function Devices() {
   }, [devices, selectedFilter, searchTerm]);
 
   // Paginated devices
-  const totalPages = Math.ceil(filteredDevices.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(filteredDevices.length / itemsPerPage);
   const paginatedDevices = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredDevices.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredDevices, currentPage]);
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredDevices.slice(start, start + itemsPerPage);
+  }, [filteredDevices, currentPage, itemsPerPage]);
+
+  // Handle items per page change
+  const handleItemsPerPageChange = useCallback((newSize) => {
+    setItemsPerPage(newSize);
+    setCurrentPage(1); // Reset to first page when changing page size
+  }, []);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -678,8 +684,10 @@ function Devices() {
           currentPage={currentPage}
           totalPages={totalPages}
           totalItems={filteredDevices.length}
-          itemsPerPage={ITEMS_PER_PAGE}
+          itemsPerPage={itemsPerPage}
           onPageChange={setCurrentPage}
+          onItemsPerPageChange={handleItemsPerPageChange}
+          showPageSizeSelector={true}
         />
       )}
 

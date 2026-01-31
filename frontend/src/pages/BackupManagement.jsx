@@ -79,7 +79,7 @@ const formatDate = (dateValue) => {
 
 function BackupManagement() {
   const { getItemsPerPage } = useResponsive();
-  const ITEMS_PER_PAGE = getItemsPerPage('grid');
+  const defaultItemsPerPage = getItemsPerPage('grid');
   
   const [backups, setBackups] = useState([]);
   const [devices, setDevices] = useState([]);
@@ -100,6 +100,7 @@ function BackupManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [subscriptions, setSubscriptions] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(defaultItemsPerPage);
   
   // Backup creation progress state
   const [showProgressModal, setShowProgressModal] = useState(false);
@@ -543,11 +544,17 @@ function BackupManagement() {
   }, [backups, searchTerm, configFilter]);
 
   // Pagination
-  const totalPages = Math.ceil(filteredBackups.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(filteredBackups.length / itemsPerPage);
   const paginatedBackups = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredBackups.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredBackups, currentPage]);
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredBackups.slice(start, start + itemsPerPage);
+  }, [filteredBackups, currentPage, itemsPerPage]);
+
+  // Handle items per page change
+  const handleItemsPerPageChange = useCallback((newSize) => {
+    setItemsPerPage(newSize);
+    setCurrentPage(1); // Reset to first page when changing page size
+  }, []);
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -989,8 +996,10 @@ function BackupManagement() {
           currentPage={currentPage}
           totalPages={totalPages}
           totalItems={filteredBackups.length}
-          itemsPerPage={ITEMS_PER_PAGE}
+          itemsPerPage={itemsPerPage}
           onPageChange={setCurrentPage}
+          onItemsPerPageChange={handleItemsPerPageChange}
+          showPageSizeSelector={true}
         />
       )}
 
