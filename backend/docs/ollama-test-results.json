@@ -1,0 +1,723 @@
+{
+  "testDate": "2026-02-01T18:47:33.779Z",
+  "models": {
+    "qwen2.5-coder:7b": {
+      "model": "qwen2.5-coder:7b",
+      "tests": [
+        {
+          "testId": 1,
+          "testName": "VLAN Configuration (CLI)",
+          "category": "VLAN",
+          "type": "cli",
+          "deviceType": "nexus",
+          "prompt": "Generate Cisco NX-OS CLI commands to configure VLAN 100 named \"Production\" and VLAN 200 named \"Development\"",
+          "response": "To configure VLANs on a Cisco Nexus switch using the NX-OS CLI, you can use the following commands:\n\n```shell\n# Enter global configuration mode\nconfigure terminal\n\n# Create VLAN 100 and assign it the name \"Production\"\nvlan 100\nname Production\n\n# Exit VLAN configuration mode\nexit\n\n# Create VLAN 200 and assign it the name \"Development\"\nvlan 200\nname Development\n\n# Exit VLAN configuration mode\nexit\n\n# Save the configuration to ensure changes persist after reboot\nwrite memory\n```\n\nThese commands will create two VLANs, named \"Production\" for VLAN 100 and \"Development\" for VLAN 200. After running these commands, you should save the configuration to make sure that your settings are preserved across reboots of the switch.",
+          "responseTime": 66.074,
+          "totalDuration": 66.0413378,
+          "tokensGenerated": 171,
+          "evaluation": {
+            "keywordMatches": 6,
+            "totalKeywords": 6,
+            "matchedKeywords": [
+              "vlan",
+              "100",
+              "200",
+              "name",
+              "Production",
+              "Development"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        },
+        {
+          "testId": 2,
+          "testName": "Interface Configuration (CLI)",
+          "category": "Interface",
+          "type": "cli",
+          "deviceType": "nexus",
+          "prompt": "Generate Cisco NX-OS CLI commands to configure interface Ethernet1/1 with IP address 192.168.1.1/24 and description \"Uplink to Core\"",
+          "response": "To configure the interface `Ethernet1/1` on a Cisco Nexus switch (NX-OS) with an IP address of `192.168.1.1/24` and a description of `\"Uplink to Core\"`, you can use the following CLI commands:\n\n```shell\ninterface Ethernet1/1\n ip address 192.168.1.1 255.255.255.0\n description Uplink to Core\n no shutdown\n```\n\nHere's a breakdown of what each command does:\n- `interface Ethernet1/1`: Enters interface configuration mode for the specified interface.\n- `ip address 192.168.1.1 255.255.255.0`: Assigns an IP address and subnet mask to the interface.\n- `description Uplink to Core`: Adds a description to the interface, which can be useful for documentation purposes.\n- `no shutdown`: Ensures that the interface is up and running.\n\nAfter entering these commands, you should save your configuration to make sure it persists across reboots:\n\n```shell\nwrite memory\n```\n\nThis command will write the current configuration to the startup configuration file.",
+          "responseTime": 39.593,
+          "totalDuration": 39.5897824,
+          "tokensGenerated": 263,
+          "evaluation": {
+            "keywordMatches": 5,
+            "totalKeywords": 5,
+            "matchedKeywords": [
+              "interface",
+              "Ethernet1/1",
+              "ip address",
+              "192.168.1.1",
+              "description"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        },
+        {
+          "testId": 3,
+          "testName": "OSPF Configuration (CLI)",
+          "category": "Routing",
+          "type": "cli",
+          "deviceType": "ios-xe",
+          "prompt": "Generate Cisco IOS-XE CLI commands to configure OSPF process 1 with router-id 1.1.1.1 and advertise network 10.0.0.0/24 in area 0",
+          "response": "To configure OSPF process 1 with a router ID of `1.1.1.1` and advertise the network `10.0.0.0/24` in area `0`, you can use the following Cisco IOS-XE CLI commands:\n\n```shell\nrouter ospf 1\n router-id 1.1.1.1\n network 10.0.0.0 0.0.0.255 area 0\n```\n\nHere's a breakdown of each command:\n\n- `router ospf 1`: This command enters the OSPF configuration mode for process ID 1.\n  \n- `router-id 1.1.1.1`: This sets the router ID to `1.1.1.1`. The router ID should be unique within the OSPF domain and typically uses a loopback interface IP address.\n\n- `network 10.0.0.0 0.0.0.255 area 0`: This command advertises the network `10.0.0.0/24` in area `0`. The wildcard mask `0.0.0.255` corresponds to the subnet mask `255.255.255.0`.\n\nAfter entering these commands, you can verify the OSPF configuration using the following command:\n\n```shell\nshow ip ospf interface\n```\n\nThis will display the OSPF configuration and status of the interfaces involved in OSPF process 1.",
+          "responseTime": 46.558,
+          "totalDuration": 46.5542139,
+          "tokensGenerated": 314,
+          "evaluation": {
+            "keywordMatches": 5,
+            "totalKeywords": 5,
+            "matchedKeywords": [
+              "router ospf",
+              "router-id",
+              "network",
+              "10.0.0.0",
+              "area"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        },
+        {
+          "testId": 4,
+          "testName": "BGP Configuration (CLI)",
+          "category": "Routing",
+          "type": "cli",
+          "deviceType": "ios-xe",
+          "prompt": "Generate Cisco IOS-XE CLI commands to configure BGP AS 65001 with neighbor 10.0.0.2 in AS 65002",
+          "response": "To configure BGP on a Cisco device running IOS-XE, you can use the following CLI commands:\n\n```plaintext\nconfigure terminal\n\nrouter bgp 65001\n neighbor 10.0.0.2 remote-as 65002\n neighbor 10.0.0.2 update-source Loopback0\n neighbor 10.0.0.2 ebgp-multihop 2\n neighbor 10.0.0.2 timers 30 90\n\n address-family ipv4 unicast\n  neighbor 10.0.0.2 activate\n exit-address-family\n\nexit-router\n\nend\nwrite memory\n```\n\n### Explanation of Commands:\n\n1. **`configure terminal`**: Enters global configuration mode.\n  \n2. **`router bgp 65001`**: Starts the BGP process with AS number `65001`.\n\n3. **`neighbor 10.0.0.2 remote-as 65002`**: Specifies that the neighbor at IP address `10.0.0.2` is part of AS `65002`.\n\n4. **`neighbor 10.0.0.2 update-source Loopback0`**: Specifies that BGP updates from this neighbor should be sent using the IP address configured on the Loopback0 interface.\n\n5. **`neighbor 10.0.0.2 ebgp-multihop 2`**: Configures E-BGP to allow multi-hop routes with a maximum hop count of `2`.\n\n6. **`neighbor 10.0.0.2 timers 30 90`**: Sets the keepalive and hold timers for BGP sessions. The first value (`30`) is the keepalive interval in seconds, and the second value (`90`) is the hold time in seconds.\n\n7. **`address-family ipv4 unicast`**: Enters address family configuration mode for IPv4 unicast.\n\n8. **`neighbor 10.0.0.2 activate`**: Activates BGP on this neighbor for IPv4 unicast.\n\n9. **`exit-address-family`**: Exits the address family configuration mode.\n\n10. **`exit-router`**: Exits the router configuration mode.\n\n11. **`end`**: Returns to privileged EXEC mode.\n\n12. **`write memory`**: Saves the current configuration to NVRAM.\n\n### Notes:\n- Ensure that the IP address `10.0.0.2` is reachable from your device.\n- Adjust the timers and other parameters as per your network requirements.\n- The `update-source Loopback0` command ensures that BGP updates are sent with a valid source IP, which can be useful for security reasons.\n\nThis configuration will establish an E-BGP session between your router and the neighbor at `10.0.0.2`.",
+          "responseTime": 94.462,
+          "totalDuration": 94.4571431,
+          "tokensGenerated": 612,
+          "evaluation": {
+            "keywordMatches": 6,
+            "totalKeywords": 6,
+            "matchedKeywords": [
+              "router bgp",
+              "65001",
+              "neighbor",
+              "10.0.0.2",
+              "remote-as",
+              "65002"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        },
+        {
+          "testId": 5,
+          "testName": "NETCONF VLAN (NX-OS)",
+          "category": "VLAN",
+          "type": "netconf",
+          "deviceType": "nexus",
+          "prompt": "Generate NETCONF XML using Cisco NX-OS YANG model to configure VLAN 100 with name \"Production\". Use namespace http://cisco.com/ns/yang/cisco-nx-os-device",
+          "response": "To configure VLAN 100 with the name \"Production\" on a Cisco NX-OS device using NETCONF and the YANG model, you can use the following XML configuration:\n\n```xml\n<config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n    <native xmlns=\"http://cisco.com/ns/yang/cisco-nx-os-device\">\n        <vlan>\n            <id>100</id>\n            <name>Production</name>\n        </vlan>\n    </native>\n</config>\n```\n\nThis XML snippet uses the Cisco NX-OS YANG model to define a VLAN with an ID of 100 and a name of \"Production\". The `xmlns` attribute specifies the namespace for the Cisco NX-OS device configuration.",
+          "responseTime": 26.01,
+          "totalDuration": 26.0061813,
+          "tokensGenerated": 167,
+          "evaluation": {
+            "keywordMatches": 3,
+            "totalKeywords": 6,
+            "matchedKeywords": [
+              "cisco-nx-os-device",
+              "100",
+              "Production"
+            ],
+            "missedKeywords": [
+              "<config>",
+              "<System>",
+              "<vlan-id>"
+            ],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 75
+          },
+          "success": true
+        },
+        {
+          "testId": 6,
+          "testName": "NETCONF Interface (IOS-XE)",
+          "category": "Interface",
+          "type": "netconf",
+          "deviceType": "ios-xe",
+          "prompt": "Generate NETCONF XML using Cisco IOS-XE YANG model to configure GigabitEthernet1 with IP 192.168.1.1/24. Use namespace http://cisco.com/ns/yang/Cisco-IOS-XE-native",
+          "response": "Certainly! Below is an example of a NETCONF XML configuration using the Cisco IOS-XE YANG model to configure GigabitEthernet1 with an IP address of 192.168.1.1/24.\n\n```xml\n<config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n    <native xmlns=\"http://cisco.com/ns/yang/Cisco-IOS-XE-native\">\n        <interface>\n            <GigabitEthernet>\n                <name>1</name>\n                <ip>\n                    <address>\n                        <primary>\n                            <address>192.168.1.1</address>\n                            <mask>255.255.255.0</mask>\n                        </primary>\n                    </address>\n                </ip>\n            </GigabitEthernet>\n        </interface>\n    </native>\n</config>\n```\n\n### Explanation:\n- **`<config>`**: The root element of the NETCONF configuration.\n- **`<native>`**: The top-level container for Cisco IOS-XE YANG model.\n- **`<interface>`**: Container for interface configurations.\n  - **`<GigabitEthernet>`**: Specific interface type, in this case GigabitEthernet1.\n    - **`<name>1</name>`**: Specifies the interface number (1).\n    - **`<ip>`**: Container for IP configuration.\n      - **`<address>`**: Container for address configuration.\n        - **`<primary>`**: Primary IP address configuration.\n          - **`<address>192.168.1.1</address>`**: The IP address to be assigned.\n          - **`<mask>255.255.255.0</mask>`**: Subnet mask.\n\nThis XML can be sent via NETCONF to a Cisco device running IOS-XE to configure the specified interface with the given IP address.",
+          "responseTime": 60.965,
+          "totalDuration": 60.9606538,
+          "tokensGenerated": 412,
+          "evaluation": {
+            "keywordMatches": 6,
+            "totalKeywords": 6,
+            "matchedKeywords": [
+              "<config>",
+              "<native>",
+              "Cisco-IOS-XE-native",
+              "<GigabitEthernet>",
+              "<ip>",
+              "<address>"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        },
+        {
+          "testId": 7,
+          "testName": "Access Control List (CLI)",
+          "category": "Security",
+          "type": "cli",
+          "deviceType": "ios-xe",
+          "prompt": "Generate Cisco IOS-XE CLI commands to create an extended access-list named \"BLOCK_TELNET\" that denies TCP traffic to port 23 from any source to any destination",
+          "response": "Here is the Cisco IOS-XE CLI command to create an extended access-list named \"BLOCK_TELNET\" that denies TCP traffic to port 23 from any source to any destination:\n\n```\naccess-list BLOCK_TELNET extended deny tcp any any eq 23\n```",
+          "responseTime": 8.852,
+          "totalDuration": 8.8514112,
+          "tokensGenerated": 58,
+          "evaluation": {
+            "keywordMatches": 5,
+            "totalKeywords": 6,
+            "matchedKeywords": [
+              "extended",
+              "BLOCK_TELNET",
+              "deny",
+              "tcp",
+              "23"
+            ],
+            "missedKeywords": [
+              "ip access-list"
+            ],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 92
+          },
+          "success": true
+        },
+        {
+          "testId": 8,
+          "testName": "Static Route (CLI)",
+          "category": "Routing",
+          "type": "cli",
+          "deviceType": "nexus",
+          "prompt": "Generate Cisco NX-OS CLI commands to configure a static route to network 172.16.0.0/16 via next-hop 10.0.0.1",
+          "response": "To configure a static route on a Cisco Nexus switch (NX-OS) for the network `172.16.0.0/16` with the next hop address `10.0.0.1`, you can use the following CLI commands:\n\n```shell\nconfigure terminal\n\nip route 172.16.0.0/16 10.0.0.1\n\nend\n```\n\nHere's a breakdown of each command:\n- `configure terminal`: Enters global configuration mode.\n- `ip route 172.16.0.0/16 10.0.0.1`: Configures a static route to the network `172.16.0.0/16` via the next hop address `10.0.0.1`.\n- `end`: Exits global configuration mode and returns to privileged EXEC mode.\n\nAfter entering these commands, the switch will have a static route configured that directs traffic destined for the `172.16.0.0/16` network to use `10.0.0.1` as the next hop.",
+          "responseTime": 37.395,
+          "totalDuration": 37.3925762,
+          "tokensGenerated": 246,
+          "evaluation": {
+            "keywordMatches": 3,
+            "totalKeywords": 3,
+            "matchedKeywords": [
+              "ip route",
+              "172.16.0.0",
+              "10.0.0.1"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        }
+      ],
+      "avgResponseTime": 47.488625,
+      "avgScore": 95.875,
+      "totalTokens": 2243,
+      "successCount": 8,
+      "failCount": 0
+    },
+    "codegemma:7b": {
+      "model": "codegemma:7b",
+      "tests": [
+        {
+          "testId": 1,
+          "testName": "VLAN Configuration (CLI)",
+          "category": "VLAN",
+          "type": "cli",
+          "deviceType": "nexus",
+          "prompt": "Generate Cisco NX-OS CLI commands to configure VLAN 100 named \"Production\" and VLAN 200 named \"Development\"",
+          "response": "```\nconfigure terminal\nvlan 100\nname Production\nvlan 200\nname Development\nexit\n```",
+          "responseTime": 27.009,
+          "totalDuration": 27.0081333,
+          "tokensGenerated": 27,
+          "evaluation": {
+            "keywordMatches": 6,
+            "totalKeywords": 6,
+            "matchedKeywords": [
+              "vlan",
+              "100",
+              "200",
+              "name",
+              "Production",
+              "Development"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        },
+        {
+          "testId": 2,
+          "testName": "Interface Configuration (CLI)",
+          "category": "Interface",
+          "type": "cli",
+          "deviceType": "nexus",
+          "prompt": "Generate Cisco NX-OS CLI commands to configure interface Ethernet1/1 with IP address 192.168.1.1/24 and description \"Uplink to Core\"",
+          "response": "```\ninterface Ethernet1/1\ndescription Uplink to Core\nip address 192.168.1.1 255.255.255.0\nno shutdown\n```",
+          "responseTime": 9.387,
+          "totalDuration": 9.384457,
+          "tokensGenerated": 48,
+          "evaluation": {
+            "keywordMatches": 5,
+            "totalKeywords": 5,
+            "matchedKeywords": [
+              "interface",
+              "Ethernet1/1",
+              "ip address",
+              "192.168.1.1",
+              "description"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        },
+        {
+          "testId": 3,
+          "testName": "OSPF Configuration (CLI)",
+          "category": "Routing",
+          "type": "cli",
+          "deviceType": "ios-xe",
+          "prompt": "Generate Cisco IOS-XE CLI commands to configure OSPF process 1 with router-id 1.1.1.1 and advertise network 10.0.0.0/24 in area 0",
+          "response": "```\nrouter ospf 1\n router-id 1.1.1.1\n network 10.0.0.0 0.0.0.255 area 0\n```",
+          "responseTime": 9.412,
+          "totalDuration": 9.4101058,
+          "tokensGenerated": 46,
+          "evaluation": {
+            "keywordMatches": 5,
+            "totalKeywords": 5,
+            "matchedKeywords": [
+              "router ospf",
+              "router-id",
+              "network",
+              "10.0.0.0",
+              "area"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        },
+        {
+          "testId": 4,
+          "testName": "BGP Configuration (CLI)",
+          "category": "Routing",
+          "type": "cli",
+          "deviceType": "ios-xe",
+          "prompt": "Generate Cisco IOS-XE CLI commands to configure BGP AS 65001 with neighbor 10.0.0.2 in AS 65002",
+          "response": "```\nrouter bgp 65001\nneighbor 10.0.0.2 remote-as 65002\nneighbor 10.0.0.2 update-source loopback0\nneighbor 10.0.0.2 allowas-in\nneighbor 10.0.0.2 network 0.0.0.0 0.0.0.0\n```",
+          "responseTime": 17.621,
+          "totalDuration": 17.6191965,
+          "tokensGenerated": 94,
+          "evaluation": {
+            "keywordMatches": 6,
+            "totalKeywords": 6,
+            "matchedKeywords": [
+              "router bgp",
+              "65001",
+              "neighbor",
+              "10.0.0.2",
+              "remote-as",
+              "65002"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        },
+        {
+          "testId": 5,
+          "testName": "NETCONF VLAN (NX-OS)",
+          "category": "VLAN",
+          "type": "netconf",
+          "deviceType": "nexus",
+          "prompt": "Generate NETCONF XML using Cisco NX-OS YANG model to configure VLAN 100 with name \"Production\". Use namespace http://cisco.com/ns/yang/cisco-nx-os-device",
+          "response": "```xml\n<config>\n  <native xmlns=\"http://cisco.com/ns/yang/cisco-nx-os-device\">\n    <vlan>\n      <name>Production</name>\n      <vid>100</vid>\n    </vlan>\n  </native>\n</config>\n```",
+          "responseTime": 14.693,
+          "totalDuration": 14.6901203,
+          "tokensGenerated": 72,
+          "evaluation": {
+            "keywordMatches": 4,
+            "totalKeywords": 6,
+            "matchedKeywords": [
+              "<config>",
+              "cisco-nx-os-device",
+              "100",
+              "Production"
+            ],
+            "missedKeywords": [
+              "<System>",
+              "<vlan-id>"
+            ],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 83
+          },
+          "success": true
+        },
+        {
+          "testId": 6,
+          "testName": "NETCONF Interface (IOS-XE)",
+          "category": "Interface",
+          "type": "netconf",
+          "deviceType": "ios-xe",
+          "prompt": "Generate NETCONF XML using Cisco IOS-XE YANG model to configure GigabitEthernet1 with IP 192.168.1.1/24. Use namespace http://cisco.com/ns/yang/Cisco-IOS-XE-native",
+          "response": "```xml\n<netconf-data>\n  <native xmlns=\"http://cisco.com/ns/yang/Cisco-IOS-XE-native\">\n    <interface>\n      <GigabitEthernet1>\n        <ip>\n          <address>\n            <primary>\n              <address>192.168.1.1</address>\n              <mask>255.255.255.0</mask>\n            </primary>\n          </address>\n        </ip>\n      </GigabitEthernet1>\n    </interface>\n  </native>\n</netconf-data>\n```",
+          "responseTime": 29.187,
+          "totalDuration": 29.1850109,
+          "tokensGenerated": 144,
+          "evaluation": {
+            "keywordMatches": 3,
+            "totalKeywords": 6,
+            "matchedKeywords": [
+              "Cisco-IOS-XE-native",
+              "<ip>",
+              "<address>"
+            ],
+            "missedKeywords": [
+              "<config>",
+              "<native>",
+              "<GigabitEthernet>"
+            ],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 75
+          },
+          "success": true
+        },
+        {
+          "testId": 7,
+          "testName": "Access Control List (CLI)",
+          "category": "Security",
+          "type": "cli",
+          "deviceType": "ios-xe",
+          "prompt": "Generate Cisco IOS-XE CLI commands to create an extended access-list named \"BLOCK_TELNET\" that denies TCP traffic to port 23 from any source to any destination",
+          "response": "```\nip access-list extended BLOCK_TELNET\npermit any any\ndeny tcp any any eq 23\npermit any any\n```",
+          "responseTime": 6.715,
+          "totalDuration": 6.7132357,
+          "tokensGenerated": 31,
+          "evaluation": {
+            "keywordMatches": 6,
+            "totalKeywords": 6,
+            "matchedKeywords": [
+              "ip access-list",
+              "extended",
+              "BLOCK_TELNET",
+              "deny",
+              "tcp",
+              "23"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        },
+        {
+          "testId": 8,
+          "testName": "Static Route (CLI)",
+          "category": "Routing",
+          "type": "cli",
+          "deviceType": "nexus",
+          "prompt": "Generate Cisco NX-OS CLI commands to configure a static route to network 172.16.0.0/16 via next-hop 10.0.0.1",
+          "response": "```\nconfigure terminal\nip route 172.16.0.0 255.255.0.0 10.0.0.1\nno shutdown\nexit\n```",
+          "responseTime": 9.721,
+          "totalDuration": 9.7173358,
+          "tokensGenerated": 47,
+          "evaluation": {
+            "keywordMatches": 3,
+            "totalKeywords": 3,
+            "matchedKeywords": [
+              "ip route",
+              "172.16.0.0",
+              "10.0.0.1"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        }
+      ],
+      "avgResponseTime": 15.468125,
+      "avgScore": 94.75,
+      "totalTokens": 509,
+      "successCount": 8,
+      "failCount": 0
+    },
+    "codellama:7b": {
+      "model": "codellama:7b",
+      "tests": [
+        {
+          "testId": 1,
+          "testName": "VLAN Configuration (CLI)",
+          "category": "VLAN",
+          "type": "cli",
+          "deviceType": "nexus",
+          "prompt": "Generate Cisco NX-OS CLI commands to configure VLAN 100 named \"Production\" and VLAN 200 named \"Development\"",
+          "response": "\nHere are the Cisco NX-OS CLI commands to configure VLANs 100 named \"Production\" and 200 named \"Development\":\n```bash\nswitch(config)# vlan 100\nswitch(config-vlan100)# name Production\nswitch(config-vlan100)# exit\nswitch(config)# vlan 200\nswitch(config-vlan200)# name Development\nswitch(config-vlan200)# exit\n```",
+          "responseTime": 42.46,
+          "totalDuration": 42.4581096,
+          "tokensGenerated": 122,
+          "evaluation": {
+            "keywordMatches": 6,
+            "totalKeywords": 6,
+            "matchedKeywords": [
+              "vlan",
+              "100",
+              "200",
+              "name",
+              "Production",
+              "Development"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        },
+        {
+          "testId": 2,
+          "testName": "Interface Configuration (CLI)",
+          "category": "Interface",
+          "type": "cli",
+          "deviceType": "nexus",
+          "prompt": "Generate Cisco NX-OS CLI commands to configure interface Ethernet1/1 with IP address 192.168.1.1/24 and description \"Uplink to Core\"",
+          "response": "\nHere are the Cisco NX-OS CLI commands to configure interface Ethernet1/1 with an IP address of 192.168.1.1/24 and a description of \"Uplink to Core\":\n```\nSwitch# conf t\nSwitch(config)# int ethernet 1/1\nSwitch(config-if)# ip add 192.168.1.1 255.255.255.0\nSwitch(config-if)# desc Uplink to Core\n```\nNote: The \"conf t\" command is used to enter configuration mode, and the \"int ethernet 1/1\" command is used to configure interface Ethernet1/1. The \"ip add 192.168.1.1 255.255.255.0\" command is used to assign an IP address of 192.168.1.1 with a subnet mask of 255.255.255.0 to the interface, and the \"desc Uplink to Core\" command is used to set a description for the interface.",
+          "responseTime": 33.819,
+          "totalDuration": 33.8166014,
+          "tokensGenerated": 265,
+          "evaluation": {
+            "keywordMatches": 5,
+            "totalKeywords": 5,
+            "matchedKeywords": [
+              "interface",
+              "Ethernet1/1",
+              "ip address",
+              "192.168.1.1",
+              "description"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        },
+        {
+          "testId": 3,
+          "testName": "OSPF Configuration (CLI)",
+          "category": "Routing",
+          "type": "cli",
+          "deviceType": "ios-xe",
+          "prompt": "Generate Cisco IOS-XE CLI commands to configure OSPF process 1 with router-id 1.1.1.1 and advertise network 10.0.0.0/24 in area 0",
+          "response": "\nHere are the Cisco IOS-XE CLI commands to configure OSPF process 1 with router-id 1.1.1.1 and advertise network 10.0.0.0/24 in area 0:\n```\nRouter(config)#router ospf 1\nRouter(ospf 1)#router-id 1.1.1.1\nRouter(ospf 1)#area 0\nRouter(area 0)#network 10.0.0.0/24 advertise\n```\nNote: The above commands are for Cisco IOS-XE version 16.9 and later. For earlier versions, the syntax may be slightly different.",
+          "responseTime": 20.539,
+          "totalDuration": 20.5362564,
+          "tokensGenerated": 163,
+          "evaluation": {
+            "keywordMatches": 5,
+            "totalKeywords": 5,
+            "matchedKeywords": [
+              "router ospf",
+              "router-id",
+              "network",
+              "10.0.0.0",
+              "area"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        },
+        {
+          "testId": 4,
+          "testName": "BGP Configuration (CLI)",
+          "category": "Routing",
+          "type": "cli",
+          "deviceType": "ios-xe",
+          "prompt": "Generate Cisco IOS-XE CLI commands to configure BGP AS 65001 with neighbor 10.0.0.2 in AS 65002",
+          "response": "\nTo configure BGP on Cisco IOS-XE, you can use the following commands:\n```\nRouter(config)# router bgp 65001\nRouter(config-router)# neighbor 10.0.0.2 remote-as 65002\nRouter(config-router)# address-family ipv4 unicast\nRouter(config-router-af)# redistribute connected\n```\nThese commands will configure the BGP router with AS number 65001 to neighbor 10.0.0.2 in AS number 65002, and enable IPv4 unicast redistribution from the connected route table.\n\nNote: The above commands are just an example and may need to be modified based on your specific network configuration.",
+          "responseTime": 23.493,
+          "totalDuration": 23.4906434,
+          "tokensGenerated": 181,
+          "evaluation": {
+            "keywordMatches": 6,
+            "totalKeywords": 6,
+            "matchedKeywords": [
+              "router bgp",
+              "65001",
+              "neighbor",
+              "10.0.0.2",
+              "remote-as",
+              "65002"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        },
+        {
+          "testId": 5,
+          "testName": "NETCONF VLAN (NX-OS)",
+          "category": "VLAN",
+          "type": "netconf",
+          "deviceType": "nexus",
+          "prompt": "Generate NETCONF XML using Cisco NX-OS YANG model to configure VLAN 100 with name \"Production\". Use namespace http://cisco.com/ns/yang/cisco-nx-os-device",
+          "response": "```\n<config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n  <native xmlns=\"http://cisco.com/ns/yang/cisco-nx-os-device\">\n    <vlan>\n      <name>Production</name>\n      <id>100</id>\n    </vlan>\n  </native>\n</config>\n```\nThis is an example of how to configure VLAN 100 with the name \"Production\" using NETCONF and the Cisco NX-OS YANG model. The `config` element is used to specify the configuration data, and the `native` element is used to indicate that the configuration should be applied at the native level of the device. The `vlan` element is used to configure the VLAN, and the `name` and `id` elements are used to set the name and ID of the VLAN, respectively.\n\nNote that this is just an example, and you will need to modify it to fit your specific needs. Additionally, you may need to use a different namespace for the YANG model depending on the version of NX-OS you are using.",
+          "responseTime": 35.48,
+          "totalDuration": 35.4774683,
+          "tokensGenerated": 268,
+          "evaluation": {
+            "keywordMatches": 3,
+            "totalKeywords": 6,
+            "matchedKeywords": [
+              "cisco-nx-os-device",
+              "100",
+              "Production"
+            ],
+            "missedKeywords": [
+              "<config>",
+              "<System>",
+              "<vlan-id>"
+            ],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 75
+          },
+          "success": true
+        },
+        {
+          "testId": 6,
+          "testName": "NETCONF Interface (IOS-XE)",
+          "category": "Interface",
+          "type": "netconf",
+          "deviceType": "ios-xe",
+          "prompt": "Generate NETCONF XML using Cisco IOS-XE YANG model to configure GigabitEthernet1 with IP 192.168.1.1/24. Use namespace http://cisco.com/ns/yang/Cisco-IOS-XE-native",
+          "response": "\nHere is an example of how you can generate NETCONF XML using the Cisco IOS-XE YANG model to configure GigabitEthernet1 with IP 192.168.1.1/24:\n```\n<config xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n  <native xmlns=\"http://cisco.com/ns/yang/Cisco-IOS-XE-native\">\n    <interface>\n      <GigabitEthernet>\n        <name>GigabitEthernet1</name>\n        <ip>\n          <address>\n            <ip-address>192.168.1.1</ip-address>\n            <prefix-length>24</prefix-length>\n          </address>\n        </ip>\n      </GigabitEthernet>\n    </interface>\n  </native>\n</config>\n```\nThis NETCONF XML configuration uses the `http://cisco.com/ns/yang/Cisco-IOS-XE-native` namespace to specify the Cisco IOS-XE YANG model for the configuration. The `<interface>` element specifies that we want to configure an interface named GigabitEthernet1, and the `<ip>` element specifies that we want to configure the IP address of this interface. The `<address>` element specifies the IP address itself, and the `<prefix-length>` element specifies the prefix length (in this case, 24).\n\nNote that this is just an example configuration, and you may need to modify it to fit your specific needs. For example, if you want to configure a different interface or use a different IP address, you would need to update the configuration accordingly.",
+          "responseTime": 52.277,
+          "totalDuration": 52.2748697,
+          "tokensGenerated": 411,
+          "evaluation": {
+            "keywordMatches": 4,
+            "totalKeywords": 6,
+            "matchedKeywords": [
+              "Cisco-IOS-XE-native",
+              "<GigabitEthernet>",
+              "<ip>",
+              "<address>"
+            ],
+            "missedKeywords": [
+              "<config>",
+              "<native>"
+            ],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 83
+          },
+          "success": true
+        },
+        {
+          "testId": 7,
+          "testName": "Access Control List (CLI)",
+          "category": "Security",
+          "type": "cli",
+          "deviceType": "ios-xe",
+          "prompt": "Generate Cisco IOS-XE CLI commands to create an extended access-list named \"BLOCK_TELNET\" that denies TCP traffic to port 23 from any source to any destination",
+          "response": "\nHere are the Cisco IOS-XE CLI commands to create an extended access-list named \"BLOCK_TELNET\" that denies TCP traffic to port 23 from any source to any destination:\n```\nconfig t\nip access-list standard BLOCK_TELNET\ndeny tcp any any eq 23\nend\n```\nThese commands create a new extended access list named \"BLOCK_TELNET\" and add a deny rule for TCP traffic on port 23 from any source to any destination.",
+          "responseTime": 15.526,
+          "totalDuration": 15.5246414,
+          "tokensGenerated": 119,
+          "evaluation": {
+            "keywordMatches": 6,
+            "totalKeywords": 6,
+            "matchedKeywords": [
+              "ip access-list",
+              "extended",
+              "BLOCK_TELNET",
+              "deny",
+              "tcp",
+              "23"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        },
+        {
+          "testId": 8,
+          "testName": "Static Route (CLI)",
+          "category": "Routing",
+          "type": "cli",
+          "deviceType": "nexus",
+          "prompt": "Generate Cisco NX-OS CLI commands to configure a static route to network 172.16.0.0/16 via next-hop 10.0.0.1",
+          "response": "\nTo configure a static route in Cisco NX-OS using the CLI, you can use the \"ip route\" command followed by the destination network and the next-hop IP address. For example:\n```\nR1(config)# ip route 172.16.0.0/16 10.0.0.1\n```\nThis will add a static route to the routing table with the destination network of 172.16.0.0/16 and the next-hop IP address of 10.0.0.1.\n\nYou can also use the \"ip route\" command with the \"distance\" option to specify a distance value for the route. For example:\n```\nR1(config)# ip route 172.16.0.0/16 10.0.0.1 distance 10\n```\nThis will add a static route with a distance value of 10 to the routing table.\n\nYou can also use the \"ip route\" command with the \"metric\" option to specify a metric value for the route. For example:\n```\nR1(config)# ip route 172.16.0.0/16 10.0.0.1 metric 10\n```\nThis will add a static route with a metric value of 10 to the routing table.\n\nYou can also use the \"ip route\" command with the \"tag\" option to specify a tag for the route. For example:\n```\nR1(config)# ip route 172.16.0.0/16 10.0.0.1 tag 10\n```\nThis will add a static route with a tag value of 10 to the routing table.\n\nYou can also use the \"ip route\" command with the \"track\" option to specify a track number for the route. For example:\n```\nR1(config)# ip route 172.16.0.0/16 10.0.0.1 track 10\n```\nThis will add a static route with a track number of 10 to the routing table.\n\nYou can also use the \"ip route\" command with the \"preference\" option to specify a preference value for the route. For example:\n```\nR1(config)# ip route 172.16.0.0/16 10.0.0.1 preference 10\n```\nThis will add a static route with a preference value of 10 to the routing table.\n\nYou can also use the \"ip route\" command with the \"blackhole\" option to specify that the route should be treated as a blackhole. For example:\n```\nR1(config)# ip route 172.16.0.0/16 10.0.0.1 blackhole\n```\nThis will add a static route with the \"blackhole\" option set to true to the routing table.",
+          "responseTime": 94.98,
+          "totalDuration": 94.9779405,
+          "tokensGenerated": 675,
+          "evaluation": {
+            "keywordMatches": 3,
+            "totalKeywords": 3,
+            "matchedKeywords": [
+              "ip route",
+              "172.16.0.0",
+              "10.0.0.1"
+            ],
+            "missedKeywords": [],
+            "syntaxValid": true,
+            "containsCode": true,
+            "score": 100
+          },
+          "success": true
+        }
+      ],
+      "avgResponseTime": 39.82175,
+      "avgScore": 94.75,
+      "totalTokens": 2204,
+      "successCount": 8,
+      "failCount": 0
+    }
+  },
+  "summary": {}
+}

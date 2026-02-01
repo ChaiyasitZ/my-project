@@ -2605,11 +2605,15 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
 
   /**
    * Build system message for NETCONF/YANG generation
+   * Supports both NX-OS and IOS-XE device types
    * @param {string} prompt - User configuration request
-   * @param {string} deviceType - Type of device
+   * @param {string} deviceType - Type of device: 'nexus', 'nxos', 'ios-xe', 'iosxe', 'ios'
    * @param {array} customYangModels - Custom YANG models for enhanced generation
    */
   _buildNetconfSystemMessage(prompt, deviceType, customYangModels = []) {
+    // Normalize device type
+    const normalizedType = this._normalizeDeviceType(deviceType);
+    
     // Build custom YANG models section
     let customModelsSection = '';
     if (customYangModels && customYangModels.length > 0) {
@@ -2655,6 +2659,36 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
       customModelsSection += `=== END CUSTOM YANG MODELS ===\n\nCRITICAL: Generate XML that strictly follows the structure defined in the YANG models above. Use the exact namespaces, containers, lists, and leaf names from the YANG definitions. Do NOT use generic patterns if a specific YANG model applies.\n`;
     }
 
+    // Return device-specific system message
+    if (normalizedType === 'ios-xe') {
+      return this._buildIosXeNetconfSystemMessage(customModelsSection);
+    } else {
+      return this._buildNxosNetconfSystemMessage(customModelsSection);
+    }
+  }
+
+  /**
+   * Normalize device type string
+   * @param {string} deviceType - Raw device type
+   * @returns {string} - Normalized: 'nxos' or 'ios-xe'
+   */
+  _normalizeDeviceType(deviceType) {
+    const type = (deviceType || '').toLowerCase().replace(/[_\s]/g, '-');
+    
+    if (type.includes('xe') || type === 'ios' || type === 'router') {
+      return 'ios-xe';
+    }
+    if (type.includes('nx') || type === 'nexus') {
+      return 'nxos';
+    }
+    // Default to nxos for backward compatibility
+    return 'nxos';
+  }
+
+  /**
+   * Build NX-OS specific NETCONF system message
+   */
+  _buildNxosNetconfSystemMessage(customModelsSection = '') {
     return `You are a Cisco NX-OS NETCONF expert. Generate VALID YANG-compliant XML for NETCONF edit-config operations.
 
 NAMESPACE: http://cisco.com/ns/yang/cisco-nx-os-device
@@ -2741,28 +2775,6 @@ LOOPBACK:
       </LbIf-list>
     </lb-items>
   </intf-items>
-  <ipv4-items>
-    <inst-items>
-      <Inst-list>
-        <name>default</name>
-        <dom-items>
-          <Dom-list>
-            <name>default</name>
-            <if-items>
-              <If-list>
-                <id>lo0</id>
-                <addr-items>
-                  <Addr-list>
-                    <addr>1.1.1.1/32</addr>
-                  </Addr-list>
-                </addr-items>
-              </If-list>
-            </if-items>
-          </Dom-list>
-        </dom-items>
-      </Inst-list>
-    </inst-items>
-  </ipv4-items>
 </System>
 
 OSPF:
@@ -2776,17 +2788,6 @@ OSPF:
           <Dom-list>
             <name>default</name>
             <rtrId>1.1.1.1</rtrId>
-            <area-items>
-              <Area-list>
-                <id>0.0.0.0</id>
-              </Area-list>
-            </area-items>
-            <if-items>
-              <If-list>
-                <id>Ethernet1/1</id>
-                <area>0.0.0.0</area>
-              </If-list>
-            </if-items>
           </Dom-list>
         </dom-items>
       </Inst-list>
@@ -2805,12 +2806,6 @@ BGP:
           <Dom-list>
             <name>default</name>
             <rtrId>1.1.1.1</rtrId>
-            <peer-items>
-              <Peer-list>
-                <addr>10.0.0.2</addr>
-                <asn>65002</asn>
-              </Peer-list>
-            </peer-items>
           </Dom-list>
         </dom-items>
       </Inst-list>
@@ -2826,19 +2821,10 @@ PORT-CHANNEL:
         <id>port-channel1</id>
         <adminSt>up</adminSt>
         <pcMode>active</pcMode>
-        <mode>trunk</mode>
-        <layer>Layer2</layer>
       </AggrIf-list>
     </aggr-items>
   </intf-items>
 </System>
-
-NAMING CONVENTIONS:
-- Physical: Ethernet1/1, Ethernet1/2 (full name)
-- VLAN: fabEncap format vlan-100
-- SVI: vlan100 (lowercase)
-- Loopback: lo0 (short) or loopback0
-- Port-channel: port-channel1
 
 ELEMENT VALUES:
 - adminSt: up/down (interfaces), enabled/disabled (protocols), active/suspend (VLANs)
@@ -2846,26 +2832,258 @@ ELEMENT VALUES:
 - layer: Layer2/Layer3
 
 Output ONLY the XML configuration now:`;
+  }
 
+  /**
+   * Build IOS-XE specific NETCONF system message
+   */
+  _buildIosXeNetconfSystemMessage(customModelsSection = '') {
+    return `You are a Cisco IOS-XE NETCONF expert. Generate VALID YANG-compliant XML for NETCONF edit-config operations.
+
+NAMESPACE: http://cisco.com/ns/yang/Cisco-IOS-XE-native
+ROOT ELEMENT: <native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">
+
+OUTPUT RULES:
+1. Output ONLY the XML content (no explanations, no markdown)
+2. Start with <native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">
+3. End with </native>
+4. Use proper 2-space indentation
+5. All tags must be properly closed
+${customModelsSection}
+IOS-XE YANG STRUCTURE REFERENCE:
+
+HOSTNAME:
+<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">
+  <hostname>ROUTER-NAME</hostname>
+</native>
+
+INTERFACE (GigabitEthernet):
+<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">
+  <interface>
+    <GigabitEthernet>
+      <name>0/0/0</name>
+      <description>WAN Interface</description>
+      <ip>
+        <address>
+          <primary>
+            <address>192.168.1.1</address>
+            <mask>255.255.255.0</mask>
+          </primary>
+        </address>
+      </ip>
+      <shutdown xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0" nc:operation="remove"/>
+    </GigabitEthernet>
+  </interface>
+</native>
+
+LOOPBACK INTERFACE:
+<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">
+  <interface>
+    <Loopback>
+      <name>0</name>
+      <description>Router-ID</description>
+      <ip>
+        <address>
+          <primary>
+            <address>1.1.1.1</address>
+            <mask>255.255.255.255</mask>
+          </primary>
+        </address>
+      </ip>
+    </Loopback>
+  </interface>
+</native>
+
+VLAN INTERFACE (SVI):
+<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">
+  <interface>
+    <Vlan>
+      <name>100</name>
+      <description>Management VLAN</description>
+      <ip>
+        <address>
+          <primary>
+            <address>10.0.100.1</address>
+            <mask>255.255.255.0</mask>
+          </primary>
+        </address>
+      </ip>
+    </Vlan>
+  </interface>
+</native>
+
+VLAN DATABASE:
+<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">
+  <vlan>
+    <vlan-list xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-vlan">
+      <id>100</id>
+      <name>DATA-VLAN</name>
+    </vlan-list>
+  </vlan>
+</native>
+
+SWITCHPORT ACCESS:
+<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">
+  <interface>
+    <GigabitEthernet>
+      <name>1/0/1</name>
+      <switchport>
+        <access xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-switch">
+          <vlan>
+            <vlan>100</vlan>
+          </vlan>
+        </access>
+        <mode xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-switch">
+          <access/>
+        </mode>
+      </switchport>
+    </GigabitEthernet>
+  </interface>
+</native>
+
+SWITCHPORT TRUNK:
+<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">
+  <interface>
+    <GigabitEthernet>
+      <name>1/0/24</name>
+      <switchport>
+        <trunk xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-switch">
+          <allowed>
+            <vlan>
+              <vlans>100,200,300</vlans>
+            </vlan>
+          </allowed>
+          <native>
+            <vlan>1</vlan>
+          </native>
+        </trunk>
+        <mode xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-switch">
+          <trunk/>
+        </mode>
+      </switchport>
+    </GigabitEthernet>
+  </interface>
+</native>
+
+OSPF ROUTING:
+<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">
+  <router>
+    <ospf xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-ospf">
+      <id>1</id>
+      <router-id>1.1.1.1</router-id>
+      <network>
+        <ip>192.168.0.0</ip>
+        <wildcard>0.0.255.255</wildcard>
+        <area>0</area>
+      </network>
+    </ospf>
+  </router>
+</native>
+
+BGP ROUTING:
+<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">
+  <router>
+    <bgp xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-bgp">
+      <id>65001</id>
+      <bgp>
+        <router-id>
+          <ip-id>1.1.1.1</ip-id>
+        </router-id>
+      </bgp>
+      <neighbor>
+        <id>10.0.0.2</id>
+        <remote-as>65002</remote-as>
+      </neighbor>
+    </bgp>
+  </router>
+</native>
+
+EIGRP ROUTING:
+<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">
+  <router>
+    <eigrp xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-eigrp">
+      <id>100</id>
+      <network>
+        <number>10.0.0.0</number>
+      </network>
+    </eigrp>
+  </router>
+</native>
+
+STATIC ROUTE:
+<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">
+  <ip>
+    <route>
+      <ip-route-interface-forwarding-list>
+        <prefix>0.0.0.0</prefix>
+        <mask>0.0.0.0</mask>
+        <fwd-list>
+          <fwd>10.0.0.1</fwd>
+        </fwd-list>
+      </ip-route-interface-forwarding-list>
+    </route>
+  </ip>
+</native>
+
+ACL (Standard):
+<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">
+  <ip>
+    <access-list>
+      <standard xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-acl">
+        <name>10</name>
+        <access-list-seq-rule>
+          <sequence>10</sequence>
+          <permit>
+            <std-ace>
+              <ipv4-prefix>192.168.1.0</ipv4-prefix>
+              <mask>0.0.0.255</mask>
+            </std-ace>
+          </permit>
+        </access-list-seq-rule>
+      </standard>
+    </access-list>
+  </ip>
+</native>
+
+INTERFACE NAMING:
+- GigabitEthernet: <name>0/0/0</name> or <name>1/0/1</name>
+- TenGigabitEthernet: <name>1/0/1</name>
+- Loopback: <name>0</name> (just the number)
+- Vlan: <name>100</name> (just the VLAN number)
+- Port-channel: <name>1</name>
+
+IMPORTANT IOS-XE NOTES:
+- Use full subnet masks (255.255.255.0), not CIDR notation
+- Interface names use just the port numbers after the type
+- Many features require additional YANG namespaces (Cisco-IOS-XE-ospf, Cisco-IOS-XE-bgp, etc.)
+- Use nc:operation="remove" to delete/disable features
+
+Output ONLY the XML configuration now:`;
   }
 
   /**
    * Build user message for NETCONF/YANG generation
+   * Supports both NX-OS and IOS-XE devices
    */
   _buildNetconfUserMessage(prompt, deviceType, deviceContext) {
-    const deviceName = deviceContext.name || 'NX-OS Device';
-    const deviceModel = deviceContext.model || 'Cisco Nexus';
+    const normalizedType = this._normalizeDeviceType(deviceType);
+    const deviceName = deviceContext.name || (normalizedType === 'ios-xe' ? 'IOS-XE Device' : 'NX-OS Device');
+    const deviceModel = deviceContext.model || (normalizedType === 'ios-xe' ? 'Cisco Router/Catalyst' : 'Cisco Nexus');
+    
+    const rootElement = normalizedType === 'ios-xe' ? '<native xmlns="...">' : '<System xmlns="...">';
     
     return `Target: ${deviceName} (${deviceModel})
+Device Type: ${normalizedType === 'ios-xe' ? 'Cisco IOS-XE' : 'Cisco NX-OS'}
 Request: ${prompt}
 
-Generate the NETCONF XML configuration. Output only XML, starting with <System xmlns="...">`;
+Generate the NETCONF XML configuration. Output only XML, starting with ${rootElement}`;
   }
 
   /**
    * Clean NETCONF configuration output
+   * Handles both NX-OS and IOS-XE formats
    */
-  _cleanNetconfConfiguration(rawConfig) {
+  _cleanNetconfConfiguration(rawConfig, deviceType = 'nxos') {
     if (!rawConfig) return '';
     
     let cleaned = rawConfig;
@@ -2892,18 +3110,37 @@ Generate the NETCONF XML configuration. Output only XML, starting with <System x
     // Remove XML declaration if present (we add our own)
     cleaned = cleaned.replace(/<\?xml[^?]*\?>/gi, '').trim();
     
-    // Try to extract <System> with namespace first (preferred for NX-OS)
-    const systemWithNsMatch = cleaned.match(/(<System\s+xmlns="http:\/\/cisco\.com\/ns\/yang\/cisco-nx-os-device">[\s\S]*<\/System>)/i);
-    if (systemWithNsMatch && systemWithNsMatch[1]) {
-      console.log(`✅ LLM: Extracted <System> with NX-OS namespace`);
-      return systemWithNsMatch[1].trim();
-    }
+    // Detect device type from content
+    const isIosXe = cleaned.includes('Cisco-IOS-XE') || cleaned.includes('<native');
     
-    // Try to extract <System> without namespace and add it
-    const systemWithoutNsMatch = cleaned.match(/(<System>[\s\S]*<\/System>)/i);
-    if (systemWithoutNsMatch && systemWithoutNsMatch[1]) {
-      console.log(`⚠️ LLM: Found <System> without namespace, adding NX-OS namespace`);
-      return systemWithoutNsMatch[1].replace('<System>', '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">').trim();
+    if (isIosXe) {
+      // Try to extract <native> with namespace first (preferred for IOS-XE)
+      const nativeWithNsMatch = cleaned.match(/(<native\s+xmlns="http:\/\/cisco\.com\/ns\/yang\/Cisco-IOS-XE-native">[\s\S]*<\/native>)/i);
+      if (nativeWithNsMatch && nativeWithNsMatch[1]) {
+        console.log(`✅ LLM: Extracted <native> with IOS-XE namespace`);
+        return nativeWithNsMatch[1].trim();
+      }
+      
+      // Try to extract <native> without namespace and add it
+      const nativeWithoutNsMatch = cleaned.match(/(<native>[\s\S]*<\/native>)/i);
+      if (nativeWithoutNsMatch && nativeWithoutNsMatch[1]) {
+        console.log(`⚠️ LLM: Found <native> without namespace, adding IOS-XE namespace`);
+        return nativeWithoutNsMatch[1].replace('<native>', '<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">').trim();
+      }
+    } else {
+      // Try to extract <System> with namespace first (preferred for NX-OS)
+      const systemWithNsMatch = cleaned.match(/(<System\s+xmlns="http:\/\/cisco\.com\/ns\/yang\/cisco-nx-os-device">[\s\S]*<\/System>)/i);
+      if (systemWithNsMatch && systemWithNsMatch[1]) {
+        console.log(`✅ LLM: Extracted <System> with NX-OS namespace`);
+        return systemWithNsMatch[1].trim();
+      }
+      
+      // Try to extract <System> without namespace and add it
+      const systemWithoutNsMatch = cleaned.match(/(<System>[\s\S]*<\/System>)/i);
+      if (systemWithoutNsMatch && systemWithoutNsMatch[1]) {
+        console.log(`⚠️ LLM: Found <System> without namespace, adding NX-OS namespace`);
+        return systemWithoutNsMatch[1].replace('<System>', '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">').trim();
+      }
     }
     
     // Remove RPC wrappers if present (keep everything else)
@@ -2923,10 +3160,16 @@ Generate the NETCONF XML configuration. Output only XML, starting with <System x
       cleaned = cleaned.replace(/<target[^>]*>[\s\S]*?<\/target>/gi, '').trim();
     }
     
-    // Final check - if we have <System> without namespace, add it
+    // Final check - if we have <System> without namespace, add it (NX-OS)
     if (cleaned.includes('<System>') && !cleaned.includes('xmlns=')) {
       cleaned = cleaned.replace('<System>', '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">');
       console.log(`✅ LLM: Added NX-OS namespace to <System>`);
+    }
+    
+    // Final check - if we have <native> without namespace, add it (IOS-XE)
+    if (cleaned.includes('<native>') && !cleaned.includes('xmlns=')) {
+      cleaned = cleaned.replace('<native>', '<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">');
+      console.log(`✅ LLM: Added IOS-XE namespace to <native>`);
     }
     
     return cleaned.trim();
@@ -2934,14 +3177,19 @@ Generate the NETCONF XML configuration. Output only XML, starting with <System x
 
   /**
    * Validate NETCONF configuration
+   * Supports both NX-OS and IOS-XE formats
    */
   _validateNetconfConfiguration(configuration, deviceType) {
+    const normalizedType = this._normalizeDeviceType(deviceType);
+    const isIosXe = normalizedType === 'ios-xe' || configuration.includes('Cisco-IOS-XE') || configuration.includes('<native');
+    
     const validation = {
       isValid: true,
       score: 100,
       errors: [],
       warnings: [],
-      explanation: []
+      explanation: [],
+      deviceType: isIosXe ? 'ios-xe' : 'nxos'
     };
 
     if (!configuration || configuration.length < 50) {
@@ -2959,23 +3207,77 @@ Generate the NETCONF XML configuration. Output only XML, starting with <System x
       return validation;
     }
 
-    // Check for NX-OS namespace
-    if (!configuration.includes('cisco.com/ns/yang/cisco-nx-os-device')) {
-      validation.warnings.push('Missing NX-OS YANG namespace - this may cause the device to reject the configuration');
-      validation.score -= 20;
-    }
+    if (isIosXe) {
+      // IOS-XE specific validation
+      
+      // Check for IOS-XE namespace
+      if (!configuration.includes('Cisco-IOS-XE-native')) {
+        validation.warnings.push('Missing IOS-XE YANG namespace - this may cause the device to reject the configuration');
+        validation.score -= 20;
+      }
 
-    // Check for System root element
-    if (!configuration.includes('<System')) {
-      validation.warnings.push('Missing <System> root element - NX-OS YANG requires this as the root');
-      validation.score -= 15;
-    }
+      // Check for native root element
+      if (!configuration.includes('<native')) {
+        validation.warnings.push('Missing <native> root element - IOS-XE YANG requires this as the root');
+        validation.score -= 15;
+      }
 
-    // Check for closing </System> tag
-    if (configuration.includes('<System') && !configuration.includes('</System>')) {
-      validation.errors.push('Missing closing </System> tag - XML is malformed');
-      validation.isValid = false;
-      validation.score -= 30;
+      // Check for closing </native> tag
+      if (configuration.includes('<native') && !configuration.includes('</native>')) {
+        validation.errors.push('Missing closing </native> tag - XML is malformed');
+        validation.isValid = false;
+        validation.score -= 30;
+      }
+
+      // Check for common IOS-XE YANG elements
+      const hasInterface = configuration.includes('<interface>');
+      const hasRouter = configuration.includes('<router>');
+      const hasVlan = configuration.includes('<vlan>') || configuration.includes('<Vlan>');
+      const hasIp = configuration.includes('<ip>');
+      const hasHostname = configuration.includes('<hostname>');
+      
+      if (hasInterface || hasRouter || hasVlan || hasIp || hasHostname) {
+        validation.explanation.push('✓ Contains valid IOS-XE YANG configuration elements');
+      } else {
+        validation.warnings.push('No recognized IOS-XE YANG configuration elements found');
+        validation.score -= 5;
+      }
+      
+    } else {
+      // NX-OS specific validation
+      
+      // Check for NX-OS namespace
+      if (!configuration.includes('cisco.com/ns/yang/cisco-nx-os-device')) {
+        validation.warnings.push('Missing NX-OS YANG namespace - this may cause the device to reject the configuration');
+        validation.score -= 20;
+      }
+
+      // Check for System root element
+      if (!configuration.includes('<System')) {
+        validation.warnings.push('Missing <System> root element - NX-OS YANG requires this as the root');
+        validation.score -= 15;
+      }
+
+      // Check for closing </System> tag
+      if (configuration.includes('<System') && !configuration.includes('</System>')) {
+        validation.errors.push('Missing closing </System> tag - XML is malformed');
+        validation.isValid = false;
+        validation.score -= 30;
+      }
+
+      // Check for common NX-OS YANG elements
+      const hasIntfItems = configuration.includes('<intf-items>') || configuration.includes('<intf-items/>');
+      const hasBdItems = configuration.includes('<bd-items>') || configuration.includes('<bd-items/>');
+      const hasOspfItems = configuration.includes('<ospf-items>');
+      const hasBgpItems = configuration.includes('<bgp-items>');
+      const hasIpv4Items = configuration.includes('<ipv4-items>');
+      
+      if (hasIntfItems || hasBdItems || hasOspfItems || hasBgpItems || hasIpv4Items) {
+        validation.explanation.push('✓ Contains valid NX-OS YANG configuration elements');
+      } else {
+        validation.warnings.push('No recognized NX-OS YANG configuration elements found');
+        validation.score -= 5;
+      }
     }
 
     // Improved tag balance check - count self-closing tags properly
@@ -2990,28 +3292,14 @@ Generate the NETCONF XML configuration. Output only XML, starting with <System x
       validation.score -= 10;
     }
 
-    // Check for common NX-OS YANG elements
-    const hasIntfItems = configuration.includes('<intf-items>') || configuration.includes('<intf-items/>');
-    const hasBdItems = configuration.includes('<bd-items>') || configuration.includes('<bd-items/>');
-    const hasOspfItems = configuration.includes('<ospf-items>');
-    const hasBgpItems = configuration.includes('<bgp-items>');
-    const hasIpv4Items = configuration.includes('<ipv4-items>');
-    
-    if (hasIntfItems || hasBdItems || hasOspfItems || hasBgpItems || hasIpv4Items) {
-      validation.explanation.push('✓ Contains valid NX-OS YANG configuration elements');
-    } else {
-      validation.warnings.push('No recognized NX-OS YANG configuration elements found');
-      validation.score -= 5;
-    }
-
-    validation.explanation.push('✓ NETCONF/YANG XML configuration generated');
+    validation.explanation.push(`✓ NETCONF/YANG XML configuration generated for ${isIosXe ? 'IOS-XE' : 'NX-OS'}`);
     
     if (validation.score >= 80) {
       validation.explanation.push('✓ Configuration structure looks valid');
     }
     
     // Log validation result for debugging
-    console.log(`🔍 NETCONF Validation: score=${validation.score}, errors=${validation.errors.length}, warnings=${validation.warnings.length}`);
+    console.log(`🔍 NETCONF Validation (${isIosXe ? 'IOS-XE' : 'NX-OS'}): score=${validation.score}, errors=${validation.errors.length}, warnings=${validation.warnings.length}`);
     if (validation.errors.length > 0) {
       console.log(`❌ Validation errors: ${validation.errors.join(', ')}`);
     }

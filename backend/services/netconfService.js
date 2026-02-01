@@ -1,15 +1,37 @@
 import { Client } from 'ssh2';
 
 /**
- * NETCONF Service for Cisco NX-OS devices
+ * NETCONF Service for Cisco NX-OS and IOS-XE devices
  * Uses NETCONF over SSH (RFC 6241) for programmatic device configuration
  * Using NETCONF 1.0 (end-of-message delimiter) for compatibility
+ * 
+ * Supported Device Types:
+ * - Cisco NX-OS (Nexus switches): Uses cisco-nx-os-device YANG namespace
+ * - Cisco IOS-XE (Routers/Catalyst switches): Uses Cisco-IOS-XE-native YANG namespace
  */
 export class NetconfService {
   constructor() {
     this.connections = new Map();
     this.defaultPort = 830; // Standard NETCONF port
     this.sessionTimeout = 300000; // 5 minutes
+    
+    // YANG Namespaces for different device types
+    this.NAMESPACES = {
+      'nxos': 'http://cisco.com/ns/yang/cisco-nx-os-device',
+      'nexus': 'http://cisco.com/ns/yang/cisco-nx-os-device',
+      'ios-xe': 'http://cisco.com/ns/yang/Cisco-IOS-XE-native',
+      'iosxe': 'http://cisco.com/ns/yang/Cisco-IOS-XE-native',
+      'ios': 'http://cisco.com/ns/yang/Cisco-IOS-XE-native'
+    };
+    
+    // Root elements for different device types
+    this.ROOT_ELEMENTS = {
+      'nxos': 'System',
+      'nexus': 'System',
+      'ios-xe': 'native',
+      'iosxe': 'native',
+      'ios': 'native'
+    };
     
     // NETCONF message constants - Only advertise base:1.0 to use simple delimiter framing
     // If we advertise 1.1, server might switch to chunked framing which is more complex
@@ -347,12 +369,67 @@ ${rpcContent}
   }
 
   /**
+   * Detect device type from NETCONF capabilities
+   * @param {string} deviceId - Device ID
+   * @returns {string} - Device type: 'nxos', 'ios-xe', or 'unknown'
+   */
+  detectDeviceType(deviceId) {
+    const session = this.connections.get(deviceId);
+    if (!session || !session.capabilities) {
+      return 'unknown';
+    }
+    
+    const caps = session.capabilities.join(' ').toLowerCase();
+    
+    // Check for NX-OS
+    if (caps.includes('cisco-nx-os') || caps.includes('nx-os-device')) {
+      console.log(`🔍 NETCONF: Detected NX-OS device`);
+      return 'nxos';
+    }
+    
+    // Check for IOS-XE
+    if (caps.includes('cisco-ios-xe') || caps.includes('ios-xe-native') || caps.includes('xe-native')) {
+      console.log(`🔍 NETCONF: Detected IOS-XE device`);
+      return 'ios-xe';
+    }
+    
+    // Check for IETF/OpenConfig models (common in IOS-XE)
+    if (caps.includes('ietf-interfaces') && caps.includes('cisco.com')) {
+      console.log(`🔍 NETCONF: Detected Cisco device with IETF models (likely IOS-XE)`);
+      return 'ios-xe';
+    }
+    
+    console.log(`⚠️ NETCONF: Could not detect device type from capabilities`);
+    return 'unknown';
+  }
+
+  /**
+   * Get namespace for device type
+   * @param {string} deviceType - Device type
+   * @returns {string} - YANG namespace URL
+   */
+  getNamespace(deviceType) {
+    return this.NAMESPACES[deviceType] || this.NAMESPACES['nxos'];
+  }
+
+  /**
+   * Get root element for device type
+   * @param {string} deviceType - Device type
+   * @returns {string} - Root element name (System for NX-OS, native for IOS-XE)
+   */
+  getRootElement(deviceType) {
+    return this.ROOT_ELEMENTS[deviceType] || 'System';
+  }
+
+  /**
    * Get device details via NETCONF <get> operation
    * Retrieves system info, interfaces, VLANs, and other operational data
+   * Supports both NX-OS and IOS-XE devices
    * @param {string} deviceId - Device ID
    * @param {string} dataType - Type of data to retrieve: 'system', 'interfaces', 'vlans', 'routing', 'all'
+   * @param {string} deviceType - Optional device type override: 'nxos', 'ios-xe', or auto-detect
    */
-  async getDeviceDetails(deviceId, dataType = 'all') {
+  async getDeviceDetails(deviceId, dataType = 'all', deviceType = null) {
     console.log(`📊 NETCONF: Getting device details (type: ${dataType})...`);
     
     const session = this.connections.get(deviceId);
@@ -360,59 +437,19 @@ ${rpcContent}
       throw new Error('No active NETCONF session');
     }
     
-    // Build filter based on data type requested
+    // Auto-detect device type if not provided
+    const detectedType = deviceType || this.detectDeviceType(deviceId);
+    console.log(`📊 NETCONF: Using device type: ${detectedType}`);
+    
+    // Build filter based on data type and device type
     let filterXml = '';
     
-    switch (dataType) {
-      case 'system':
-        filterXml = `<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
-      <name/>
-      <serial/>
-      <version/>
-      <model/>
-      <uptime/>
-      <fm-items/>
-    </System>`;
-        break;
-        
-      case 'interfaces':
-        filterXml = `<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
-      <intf-items>
-        <phys-items/>
-        <svi-items/>
-        <aggr-items/>
-        <lb-items/>
-      </intf-items>
-    </System>`;
-        break;
-        
-      case 'vlans':
-        filterXml = `<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
-      <bd-items/>
-    </System>`;
-        break;
-        
-      case 'routing':
-        filterXml = `<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
-      <ospf-items/>
-      <bgp-items/>
-      <ipv4-items/>
-    </System>`;
-        break;
-        
-      case 'all':
-      default:
-        // Get comprehensive system info
-        filterXml = `<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
-      <name/>
-      <serial/>
-      <version/>
-      <model/>
-      <fm-items/>
-      <intf-items/>
-      <bd-items/>
-    </System>`;
-        break;
+    if (detectedType === 'ios-xe') {
+      // IOS-XE YANG filters
+      filterXml = this._buildIosXeFilter(dataType);
+    } else {
+      // NX-OS YANG filters (default)
+      filterXml = this._buildNxosFilter(dataType);
     }
     
     const rpcContent = `  <get>
@@ -438,6 +475,128 @@ ${rpcContent}
     } catch (error) {
       console.error(`❌ NETCONF: Failed to get device details: ${error.message}`);
       throw error;
+    }
+  }
+
+  /**
+   * Build NX-OS YANG filter XML
+   * @param {string} dataType - Type of data to retrieve
+   * @returns {string} - NX-OS YANG filter XML
+   */
+  _buildNxosFilter(dataType) {
+    const ns = this.NAMESPACES['nxos'];
+    
+    switch (dataType) {
+      case 'system':
+        return `<System xmlns="${ns}">
+      <name/>
+      <serial/>
+      <version/>
+      <model/>
+      <uptime/>
+      <fm-items/>
+    </System>`;
+        
+      case 'interfaces':
+        return `<System xmlns="${ns}">
+      <intf-items>
+        <phys-items/>
+        <svi-items/>
+        <aggr-items/>
+        <lb-items/>
+      </intf-items>
+    </System>`;
+        
+      case 'vlans':
+        return `<System xmlns="${ns}">
+      <bd-items/>
+    </System>`;
+        
+      case 'routing':
+        return `<System xmlns="${ns}">
+      <ospf-items/>
+      <bgp-items/>
+      <ipv4-items/>
+    </System>`;
+        
+      case 'all':
+      default:
+        return `<System xmlns="${ns}">
+      <name/>
+      <serial/>
+      <version/>
+      <model/>
+      <fm-items/>
+      <intf-items/>
+      <bd-items/>
+    </System>`;
+    }
+  }
+
+  /**
+   * Build IOS-XE YANG filter XML
+   * Uses Cisco-IOS-XE-native and related YANG modules
+   * @param {string} dataType - Type of data to retrieve
+   * @returns {string} - IOS-XE YANG filter XML
+   */
+  _buildIosXeFilter(dataType) {
+    const ns = this.NAMESPACES['ios-xe'];
+    const nsInterfaces = 'urn:ietf:params:xml:ns:yang:ietf-interfaces';
+    
+    switch (dataType) {
+      case 'system':
+        return `<native xmlns="${ns}">
+      <hostname/>
+      <version/>
+      <boot/>
+      <service/>
+      <ip>
+        <domain/>
+      </ip>
+    </native>`;
+        
+      case 'interfaces':
+        // Use both native and IETF interfaces model
+        return `<native xmlns="${ns}">
+      <interface>
+        <GigabitEthernet/>
+        <TenGigabitEthernet/>
+        <Loopback/>
+        <Vlan/>
+        <Port-channel/>
+      </interface>
+    </native>`;
+        
+      case 'vlans':
+        return `<native xmlns="${ns}">
+      <vlan/>
+    </native>`;
+        
+      case 'routing':
+        return `<native xmlns="${ns}">
+      <router>
+        <ospf/>
+        <bgp/>
+        <eigrp/>
+      </router>
+      <ip>
+        <route/>
+      </ip>
+    </native>`;
+        
+      case 'all':
+      default:
+        return `<native xmlns="${ns}">
+      <hostname/>
+      <version/>
+      <interface>
+        <GigabitEthernet/>
+        <Loopback/>
+        <Vlan/>
+      </interface>
+      <vlan/>
+      <router/>
+    </native>`;
     }
   }
 

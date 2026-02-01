@@ -16,7 +16,7 @@ const deviceSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['router', 'switch', 'nexus'],
+    enum: ['router', 'switch', 'nexus', 'ios-xe'],
     maxlength: 50
   },
   layer: {
@@ -31,7 +31,7 @@ const deviceSchema = new mongoose.Schema({
         if (this.type === 'switch') {
           return value !== undefined && value !== null;
         }
-        // Routers and Nexus don't have layers
+        // Routers, Nexus, and IOS-XE don't have layers
         return value === undefined || value === null;
       },
       message: 'Layer specification is only for switch devices'
@@ -63,8 +63,8 @@ const deviceSchema = new mongoose.Schema({
   netconf_enabled: {
     type: Boolean,
     default: function() {
-      // Enable NETCONF by default for Nexus devices
-      return this.type === 'nexus';
+      // Enable NETCONF by default for Nexus and IOS-XE devices
+      return this.type === 'nexus' || this.type === 'ios-xe';
     }
   },
   username: {
