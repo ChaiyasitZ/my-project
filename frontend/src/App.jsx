@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import axios from 'axios';
@@ -26,12 +26,16 @@ import AuthCallback from './pages/AuthCallback';
 
 import './App.css';
 
-// API Configuration - Detect environment based on hostname
+// API Configuration - Detect environment
+const isElectron = window.location.protocol === 'file:' || 
+                   window.location.hostname === '' ||
+                   navigator.userAgent.includes('Electron');
 const isLocalhost = window.location.hostname === 'localhost' || 
                     window.location.hostname === '127.0.0.1';
 
+// For Electron/file:// mode, always use localhost backend
 const API_BASE_URL = import.meta.env.VITE_API_URL || 
-                     (isLocalhost ? 'http://localhost:3001/api' : '/api');
+                     (isElectron || isLocalhost ? 'http://localhost:3001/api' : '/api');
 
 axios.defaults.baseURL = API_BASE_URL;
 

@@ -134,8 +134,29 @@ export const AuthProvider = ({ children }) => {
     return false;
   };
 
-  // Login with Google (redirect)
-  const loginWithGoogle = () => {
+  // Login with Google (redirect or Electron IPC)
+  const loginWithGoogle = async () => {
+    // Check if running in Electron
+    if (window.electronAPI && window.electronAPI.loginWithGoogle) {
+      try {
+        const result = await window.electronAPI.loginWithGoogle();
+        if (result.success && result.token) {
+          localStorage.setItem('authToken', result.token);
+          if (result.refreshToken) {
+            localStorage.setItem('refreshToken', result.refreshToken);
+          }
+          setAuthHeader(result.token);
+          await fetchUser();
+          window.location.hash = '#/dashboard';
+          return;
+        }
+      } catch (err) {
+        console.error('Electron OAuth error:', err);
+      }
+      return;
+    }
+    
+    // Standard browser redirect
     const apiBaseUrl = axios.defaults.baseURL || '';
     window.location.href = `${apiBaseUrl}/auth/google`;
   };

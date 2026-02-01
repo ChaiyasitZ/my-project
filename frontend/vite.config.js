@@ -4,8 +4,11 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  base: './', // Use relative paths for Electron
   build: {
     chunkSizeWarningLimit: 600, // Increase limit to 600 kB
+    outDir: 'dist',
+    assetsDir: 'assets',
   },
   test: {
     globals: true,

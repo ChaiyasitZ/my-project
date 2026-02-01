@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NetConfig Settings</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #f1f5f9;
+      padding: 30px;
+    }
+
+    h1 {
+      font-size: 24px;
+      margin-bottom: 30px;
+      color: #3b82f6;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #94a3b8;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 15px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-size: 14px;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+
+    input::placeholder {
+      color: #64748b;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 5px;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 30px;
+    }
+
+    button {
+      flex: 1;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #3b82f6;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #2563eb;
+    }
+
+    .btn-secondary {
+      background: #334155;
+      color: #f1f5f9;
+    }
+
+    .btn-secondary:hover {
+      background: #475569;
+    }
+
+    .status {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 8px;
+      font-size: 14px;
+      display: none;
+    }
+
+    .status.success {
+      display: block;
+      background: rgba(34, 197, 94, 0.2);
+      color: #22c55e;
+      border: 1px solid #22c55e;
+    }
+
+    .status.error {
+      display: block;
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 1px solid #ef4444;
+    }
+  </style>
+</head>
+<body>
+  <h1>⚙️ Settings</h1>
+
+  <form id="settingsForm">
+    <div class="form-group">
+      <label>MongoDB Connection URI</label>
+      <input type="text" id="mongoUri" placeholder="mongodb+srv://user:pass@cluster.mongodb.net/netconfig">
+      <div class="hint">Your MongoDB Atlas or local MongoDB connection string</div>
+    </div>
+
+    <div class="form-group">
+      <label>Server Port</label>
+      <input type="number" id="port" value="3001" min="1024" max="65535">
+      <div class="hint">Local backend server port (default: 3001)</div>
+    </div>
+
+    <div class="form-group">
+      <label>JWT Secret</label>
+      <input type="password" id="jwtSecret" placeholder="Enter a secure secret key">
+      <div class="hint">Secret key for authentication tokens</div>
+    </div>
+
+    <div class="form-group">
+      <label>OpenRouter API Key (Optional)</label>
+      <input type="password" id="openrouterApiKey" placeholder="sk-or-...">
+      <div class="hint">For AI-powered configuration generation</div>
+    </div>
+
+    <div class="buttons">
+      <button type="button" class="btn-secondary" onclick="window.close()">Cancel</button>
+      <button type="submit" class="btn-primary">Save Settings</button>
+    </div>
+
+    <div class="status" id="status"></div>
+  </form>
+
+  <script>
+    // Load current settings
+    async function loadSettings() {
+      try {
+        const settings = await window.electronAPI.getSettings();
+        document.getElementById('mongoUri').value = settings.mongoUri || '';
+        document.getElementById('port').value = settings.port || 3001;
+        document.getElementById('jwtSecret').value = settings.jwtSecret || '';
+        document.getElementById('openrouterApiKey').value = settings.openrouterApiKey || '';
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    }
+
+    // Save settings
+    document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const settings = {
+        mongoUri: document.getElementById('mongoUri').value,
+        port: parseInt(document.getElementById('port').value),
+        jwtSecret: document.getElementById('jwtSecret').value,
+        openrouterApiKey: document.getElementById('openrouterApiKey').value
+      };
+
+      try {
+        const result = await window.electronAPI.saveSettings(settings);
+        
+        const status = document.getElementById('status');
+        status.className = 'status success';
+        status.textContent = result.restarted 
+          ? '✓ Settings saved. Server restarted.'
+          : '✓ Settings saved successfully.';
+        
+        setTimeout(() => {
+          window.close();
+        }, 1500);
+      } catch (error) {
+        const status = document.getElementById('status');
+        status.className = 'status error';
+        status.textContent = '✗ Failed to save settings: ' + error.message;
+      }
+    });
+
+    // Load on start
+    loadSettings();
+  </script>
+</body>
+</html>
