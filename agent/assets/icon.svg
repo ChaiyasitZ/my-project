@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6"/>
+      <stop offset="100%" style="stop-color:#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="128" cy="128" r="120" fill="url(#gradient)"/>
+  
+  <!-- Network icon -->
+  <g fill="white">
+    <!-- Center node -->
+    <circle cx="128" cy="128" r="24"/>
+    
+    <!-- Top node -->
+    <circle cx="128" cy="56" r="16"/>
+    <rect x="124" y="72" width="8" height="32"/>
+    
+    <!-- Bottom node -->
+    <circle cx="128" cy="200" r="16"/>
+    <rect x="124" y="152" width="8" height="32"/>
+    
+    <!-- Left node -->
+    <circle cx="56" cy="128" r="16"/>
+    <rect x="72" y="124" width="32" height="8"/>
+    
+    <!-- Right node -->
+    <circle cx="200" cy="128" r="16"/>
+    <rect x="152" y="124" width="32" height="8"/>
+  </g>
+  
+  <!-- Gear overlay -->
+  <g transform="translate(128, 128)" fill="none" stroke="white" stroke-width="3">
+    <circle r="36"/>
+  </g>
+</svg>

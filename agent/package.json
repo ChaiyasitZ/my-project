@@ -40,11 +40,11 @@
     "win": {
       "target": [
         {
-          "target": "nsis",
+          "target": "portable",
           "arch": ["x64"]
         }
       ],
-      "icon": "assets/icon.ico"
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
