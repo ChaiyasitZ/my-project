@@ -31,15 +31,10 @@ let backendReady = false;
 
 // Paths
 const isDev = process.argv.includes('--dev');
-const resourcesPath = isDev 
-  ? path.join(__dirname, '..') 
-  : process.resourcesPath;
 const backendPath = isDev 
   ? path.join(__dirname, '..', 'backend')
-  : path.join(resourcesPath, 'backend');
-const frontendPath = isDev 
-  ? path.join(__dirname, 'frontend-dist')
-  : path.join(__dirname, 'frontend-dist');
+  : path.join(__dirname, 'backend').replace('app.asar', 'app.asar.unpacked');
+const frontendPath = path.join(__dirname, 'frontend-dist');
 
 // Backend port
 const BACKEND_PORT = store.get('port');

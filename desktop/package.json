@@ -42,25 +42,12 @@
     "files": [
       "main.js",
       "preload.js",
+      "settings.html",
       "backend/**/*",
       "frontend-dist/**/*",
-      "assets/**/*",
-      "!backend/node_modules",
-      "!backend/tests",
-      "!backend/docs"
+      "assets/**/*"
     ],
-    "extraResources": [
-      {
-        "from": "../backend",
-        "to": "backend",
-        "filter": [
-          "**/*",
-          "!node_modules/**/*",
-          "!tests/**/*",
-          "!docs/**/*"
-        ]
-      }
-    ],
+    "extraResources": [],
     "win": {
       "target": [
         {
