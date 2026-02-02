@@ -11,6 +11,8 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
+import os from 'os';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,6 +21,7 @@ const __dirname = path.dirname(__filename);
 const OLLAMA_HOST = 'http://localhost:11434';
 const MODELS = ['qwen2.5-coder:7b', 'codegemma:7b', 'codellama:7b'];
 const TIMEOUT = 120000; // 2 minutes per request
+const TEST_ROUNDS = 3; // Number of test rounds per model
 
 // Test prompts for network configuration
 const TEST_PROMPTS = [
@@ -102,6 +105,166 @@ const results = {
   models: {},
   summary: {}
 };
+
+/**
+ * Get system resource usage
+ */
+function getSystemResources() {
+  const resources = {
+    cpu: {
+      usage: 0,
+      cores: os.cpus().length,
+      model: os.cpus()[0]?.model || 'Unknown'
+    },
+    memory: {
+      total: Math.round(os.totalmem() / (1024 * 1024 * 1024) * 100) / 100, // GB
+      free: Math.round(os.freemem() / (1024 * 1024 * 1024) * 100) / 100, // GB
+      used: 0,
+      usagePercent: 0
+    },
+    gpu: {
+      name: 'N/A',
+      memoryTotal: 0,
+      memoryUsed: 0,
+      memoryFree: 0,
+      utilization: 0,
+      temperature: 0
+    }
+  };
+
+  // Calculate memory usage
+  resources.memory.used = Math.round((resources.memory.total - resources.memory.free) * 100) / 100;
+  resources.memory.usagePercent = Math.round((resources.memory.used / resources.memory.total) * 100 * 10) / 10;
+
+  // Get CPU usage (Windows)
+  try {
+    const cpuOutput = execSync('wmic cpu get loadpercentage /value', { encoding: 'utf8', timeout: 5000 });
+    const cpuMatch = cpuOutput.match(/LoadPercentage=(\d+)/);
+    if (cpuMatch) {
+      resources.cpu.usage = parseInt(cpuMatch[1]);
+    }
+  } catch (e) {
+    // Fallback: calculate from os.cpus()
+    const cpus = os.cpus();
+    let totalIdle = 0, totalTick = 0;
+    for (const cpu of cpus) {
+      for (const type in cpu.times) {
+        totalTick += cpu.times[type];
+      }
+      totalIdle += cpu.times.idle;
+    }
+    resources.cpu.usage = Math.round((1 - totalIdle / totalTick) * 100);
+  }
+
+  // Get GPU info (NVIDIA)
+  try {
+    const gpuOutput = execSync(
+      'nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu --format=csv,noheader,nounits',
+      { encoding: 'utf8', timeout: 5000 }
+    );
+    const gpuParts = gpuOutput.trim().split(', ');
+    if (gpuParts.length >= 6) {
+      resources.gpu.name = gpuParts[0].trim();
+      resources.gpu.memoryTotal = parseInt(gpuParts[1]) || 0; // MB
+      resources.gpu.memoryUsed = parseInt(gpuParts[2]) || 0; // MB
+      resources.gpu.memoryFree = parseInt(gpuParts[3]) || 0; // MB
+      resources.gpu.utilization = parseInt(gpuParts[4]) || 0; // %
+      resources.gpu.temperature = parseInt(gpuParts[5]) || 0; // °C
+    }
+  } catch (e) {
+    // No NVIDIA GPU or nvidia-smi not available
+  }
+
+  return resources;
+}
+
+/**
+ * Track resources during model inference
+ */
+async function trackResourcesDuring(asyncFn, intervalMs = 500) {
+  const samples = [];
+  let running = true;
+
+  // Start sampling
+  const sampler = setInterval(() => {
+    if (running) {
+      samples.push({
+        timestamp: Date.now(),
+        resources: getSystemResources()
+      });
+    }
+  }, intervalMs);
+
+  // Take initial sample
+  samples.push({
+    timestamp: Date.now(),
+    resources: getSystemResources()
+  });
+
+  try {
+    const result = await asyncFn();
+    running = false;
+    clearInterval(sampler);
+
+    // Take final sample
+    samples.push({
+      timestamp: Date.now(),
+      resources: getSystemResources()
+    });
+
+    // Calculate resource statistics
+    const stats = calculateResourceStats(samples);
+    return { result, resourceStats: stats, samples };
+  } catch (error) {
+    running = false;
+    clearInterval(sampler);
+    throw error;
+  }
+}
+
+/**
+ * Calculate resource statistics from samples
+ */
+function calculateResourceStats(samples) {
+  if (samples.length === 0) return null;
+
+  const cpuUsages = samples.map(s => s.resources.cpu.usage);
+  const memUsages = samples.map(s => s.resources.memory.usagePercent);
+  const gpuUsages = samples.map(s => s.resources.gpu.utilization);
+  const gpuMemUsages = samples.map(s => s.resources.gpu.memoryUsed);
+  const gpuTemps = samples.map(s => s.resources.gpu.temperature);
+
+  const avg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length * 10) / 10 : 0;
+  const max = arr => arr.length ? Math.max(...arr) : 0;
+  const min = arr => arr.length ? Math.min(...arr) : 0;
+
+  return {
+    sampleCount: samples.length,
+    duration: (samples[samples.length - 1].timestamp - samples[0].timestamp) / 1000,
+    cpu: {
+      avg: avg(cpuUsages),
+      max: max(cpuUsages),
+      min: min(cpuUsages),
+      cores: samples[0].resources.cpu.cores,
+      model: samples[0].resources.cpu.model
+    },
+    memory: {
+      avgUsagePercent: avg(memUsages),
+      maxUsagePercent: max(memUsages),
+      totalGB: samples[0].resources.memory.total
+    },
+    gpu: {
+      name: samples[0].resources.gpu.name,
+      avgUtilization: avg(gpuUsages),
+      maxUtilization: max(gpuUsages),
+      avgMemoryMB: avg(gpuMemUsages),
+      maxMemoryMB: max(gpuMemUsages),
+      peakMemoryMB: max(gpuMemUsages),
+      avgTemperature: avg(gpuTemps),
+      maxTemperature: max(gpuTemps)
+    }
+  };
+}
 
 /**
  * Make HTTP request to Ollama API
@@ -226,31 +389,38 @@ function evaluateResponse(response, expectedKeywords, type) {
 }
 
 /**
- * Run test for a single model
+ * Run test for a single model (one round) with resource tracking
  */
-async function testModel(model) {
-  console.log(`\n${'='.repeat(60)}`);
-  console.log(`Testing Model: ${model}`);
-  console.log(`${'='.repeat(60)}`);
-
+async function testModelRound(model, round) {
   const modelResults = {
     model: model,
+    round: round,
     tests: [],
     avgResponseTime: 0,
     avgScore: 0,
     totalTokens: 0,
     successCount: 0,
-    failCount: 0
+    failCount: 0,
+    resourceStats: null,
+    testResources: []
   };
 
   let totalTime = 0;
   let totalScore = 0;
+  const allResourceSamples = [];
 
   for (const test of TEST_PROMPTS) {
-    console.log(`\n  [${test.id}/${TEST_PROMPTS.length}] ${test.name}...`);
+    console.log(`\n    [${test.id}/${TEST_PROMPTS.length}] ${test.name}...`);
     
     try {
-      const result = await ollamaGenerate(model, test.prompt);
+      // Track resources during this test
+      const { result, resourceStats, samples } = await trackResourcesDuring(
+        () => ollamaGenerate(model, test.prompt),
+        500 // Sample every 500ms
+      );
+      
+      allResourceSamples.push(...samples);
+      
       const evaluation = evaluateResponse(result.response, test.expectedKeywords, test.type);
       
       const testResult = {
@@ -265,20 +435,32 @@ async function testModel(model) {
         totalDuration: result.totalDuration,
         tokensGenerated: result.evalCount,
         evaluation: evaluation,
-        success: true
+        success: true,
+        resources: resourceStats
       };
 
       modelResults.tests.push(testResult);
+      modelResults.testResources.push({
+        testId: test.id,
+        testName: test.name,
+        resources: resourceStats
+      });
       modelResults.totalTokens += result.evalCount;
       modelResults.successCount++;
       totalTime += result.responseTime;
       totalScore += evaluation.score;
 
-      console.log(`       ✓ Score: ${evaluation.score}/100 | Time: ${result.responseTime.toFixed(2)}s | Tokens: ${result.evalCount}`);
-      console.log(`       Keywords: ${evaluation.keywordMatches}/${evaluation.totalKeywords} | Syntax: ${evaluation.syntaxValid ? '✓' : '✗'}`);
+      // Display resource usage
+      const gpuInfo = resourceStats.gpu.name !== 'N/A' 
+        ? ` | GPU: ${resourceStats.gpu.avgUtilization}% (${resourceStats.gpu.avgMemoryMB}MB)`
+        : '';
+      
+      console.log(`         ✓ Score: ${evaluation.score}/100 | Time: ${result.responseTime.toFixed(2)}s | Tokens: ${result.evalCount}`);
+      console.log(`         Keywords: ${evaluation.keywordMatches}/${evaluation.totalKeywords} | Syntax: ${evaluation.syntaxValid ? '✓' : '✗'}`);
+      console.log(`         Resources: CPU ${resourceStats.cpu.avg}% | RAM ${resourceStats.memory.avgUsagePercent}%${gpuInfo}`);
       
     } catch (error) {
-      console.log(`       ✗ Error: ${error.message}`);
+      console.log(`         ✗ Error: ${error.message}`);
       modelResults.tests.push({
         testId: test.id,
         testName: test.name,
@@ -299,6 +481,11 @@ async function testModel(model) {
     modelResults.avgScore = totalScore / modelResults.successCount;
   }
 
+  // Calculate overall resource stats for this round
+  if (allResourceSamples.length > 0) {
+    modelResults.resourceStats = calculateResourceStats(allResourceSamples);
+  }
+
   return modelResults;
 }
 
@@ -307,12 +494,15 @@ async function testModel(model) {
  */
 function generateReport(results) {
   const report = [];
+  const totalTestsPerModel = TEST_PROMPTS.length * TEST_ROUNDS;
   
   report.push('╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗');
   report.push('║                           OLLAMA MODEL COMPARISON TEST RESULTS - Network Configuration                              ║');
   report.push('╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣');
   report.push(`║  Test Date: ${results.testDate.padEnd(103)}║`);
-  report.push(`║  Total Test Cases: ${TEST_PROMPTS.length.toString().padEnd(95)}║`);
+  report.push(`║  Test Prompts: ${TEST_PROMPTS.length.toString().padEnd(100)}║`);
+  report.push(`║  Test Rounds: ${TEST_ROUNDS.toString().padEnd(101)}║`);
+  report.push(`║  Total Tests per Model: ${totalTestsPerModel.toString().padEnd(91)}║`);
   report.push('╠══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╣');
   
   // Summary Table Header
@@ -325,13 +515,29 @@ function generateReport(results) {
   const sortedModels = Object.values(results.models).sort((a, b) => b.avgScore - a.avgScore);
   
   for (const model of sortedModels) {
-    const successRate = ((model.successCount / TEST_PROMPTS.length) * 100).toFixed(1);
+    const successRate = ((model.successCount / totalTestsPerModel) * 100).toFixed(1);
     const tokensPerSec = model.avgResponseTime > 0 ? (model.totalTokens / (model.avgResponseTime * model.successCount)).toFixed(1) : '0';
     
     report.push(`║ ${model.model.padEnd(25)} ║ ${model.avgScore.toFixed(1).padStart(15)} ║ ${model.avgResponseTime.toFixed(2).padStart(15)} ║ ${model.totalTokens.toString().padStart(15)} ║ ${(successRate + '%').padStart(15)} ║ ${tokensPerSec.padStart(17)} ║`);
   }
   
   report.push('╠═══════════════════════════╩═════════════════╩═════════════════╩═════════════════╩═════════════════╩═══════════════════╣');
+  
+  // Round breakdown
+  report.push('║                                           SCORES BY ROUND                                                             ║');
+  report.push('╠═══════════════════════════╦═════════════════╦═════════════════╦═════════════════╦═════════════════════════════════════╣');
+  report.push('║          Model            ║     Round 1     ║     Round 2     ║     Round 3     ║            Average                  ║');
+  report.push('╠═══════════════════════════╬═════════════════╬═════════════════╬═════════════════╬═════════════════════════════════════╣');
+  
+  for (const model of sortedModels) {
+    const rounds = model.rounds || [];
+    const r1 = rounds[0] ? rounds[0].avgScore.toFixed(1) : '-';
+    const r2 = rounds[1] ? rounds[1].avgScore.toFixed(1) : '-';
+    const r3 = rounds[2] ? rounds[2].avgScore.toFixed(1) : '-';
+    report.push(`║ ${model.model.padEnd(25)} ║ ${r1.padStart(15)} ║ ${r2.padStart(15)} ║ ${r3.padStart(15)} ║ ${model.avgScore.toFixed(1).padStart(35)} ║`);
+  }
+  
+  report.push('╠═══════════════════════════╩═════════════════╩═════════════════╩═════════════════╩═════════════════════════════════════╣');
   
   // Detailed scores by category
   report.push('║                                           SCORES BY CATEGORY                                                          ║');
@@ -420,6 +626,42 @@ function generateReport(results) {
     report.push(`║ ${label.padEnd(25)} ║ ${qwenScore.padStart(15)} ║ ${gemmaScore.padStart(15)} ║ ${llamaScore.padStart(15)} ║ ${(winner ? winner[0].split(':')[0] : 'N/A').padStart(35)} ║`);
   }
   
+  report.push('╠═══════════════════════════╩═════════════════╩═════════════════╩═════════════════╩═════════════════════════════════════╣');
+  
+  // Resource Usage Section
+  report.push('║                                         RESOURCE USAGE                                                                ║');
+  report.push('╠═══════════════════════════╦═════════════════╦═════════════════╦═════════════════╦═════════════════════════════════════╣');
+  report.push('║          Model            ║   CPU Avg (%)   ║   RAM Avg (%)   ║   GPU Avg (%)   ║    GPU Memory (MB)                  ║');
+  report.push('╠═══════════════════════════╬═════════════════╬═════════════════╬═════════════════╬═════════════════════════════════════╣');
+  
+  for (const model of sortedModels) {
+    const res = model.resourceStats || {};
+    const cpuAvg = res.cpu?.avg?.toFixed(1) || '-';
+    const ramAvg = res.memory?.avgUsagePercent?.toFixed(1) || '-';
+    const gpuAvg = res.gpu?.avgUtilization?.toFixed(1) || '-';
+    const gpuMem = res.gpu?.avgMemoryMB?.toFixed(0) || '-';
+    
+    report.push(`║ ${model.model.padEnd(25)} ║ ${cpuAvg.padStart(15)} ║ ${ramAvg.padStart(15)} ║ ${gpuAvg.padStart(15)} ║ ${gpuMem.padStart(35)} ║`);
+  }
+  
+  report.push('╠═══════════════════════════╩═════════════════╩═════════════════╩═════════════════╩═════════════════════════════════════╣');
+  
+  // Peak Resource Usage
+  report.push('║                                      PEAK RESOURCE USAGE                                                              ║');
+  report.push('╠═══════════════════════════╦═════════════════╦═════════════════╦═════════════════╦═════════════════════════════════════╣');
+  report.push('║          Model            ║   CPU Max (%)   ║   RAM Max (%)   ║   GPU Max (%)   ║   Peak GPU Memory (MB)              ║');
+  report.push('╠═══════════════════════════╬═════════════════╬═════════════════╬═════════════════╬═════════════════════════════════════╣');
+  
+  for (const model of sortedModels) {
+    const res = model.resourceStats || {};
+    const cpuMax = res.cpu?.max?.toFixed(1) || '-';
+    const ramMax = res.memory?.maxUsagePercent?.toFixed(1) || '-';
+    const gpuMax = res.gpu?.maxUtilization?.toFixed(1) || '-';
+    const gpuMemMax = res.gpu?.peakMemoryMB?.toFixed(0) || '-';
+    
+    report.push(`║ ${model.model.padEnd(25)} ║ ${cpuMax.padStart(15)} ║ ${ramMax.padStart(15)} ║ ${gpuMax.padStart(15)} ║ ${gpuMemMax.padStart(35)} ║`);
+  }
+  
   report.push('╚═══════════════════════════╩═════════════════╩═════════════════╩═════════════════╩═════════════════════════════════════╝');
   
   return report.join('\n');
@@ -472,26 +714,125 @@ async function main() {
   console.log('═'.repeat(60));
   console.log(`\nModels to test: ${MODELS.join(', ')}`);
   console.log(`Test cases: ${TEST_PROMPTS.length}`);
+  console.log(`Test rounds: ${TEST_ROUNDS}`);
+  console.log(`Total tests per model: ${TEST_PROMPTS.length * TEST_ROUNDS}`);
   console.log(`Started at: ${new Date().toISOString()}`);
   
-  // Test each model
+  // Store all rounds for each model
+  results.rounds = TEST_ROUNDS;
+  results.allRounds = {};
+  
+  // Test each model for multiple rounds
   for (const model of MODELS) {
-    try {
-      const modelResults = await testModel(model);
-      results.models[model] = modelResults;
-    } catch (error) {
-      console.error(`\nFailed to test model ${model}: ${error.message}`);
-      results.models[model] = {
-        model: model,
-        error: error.message,
-        tests: [],
-        avgResponseTime: 0,
-        avgScore: 0,
-        totalTokens: 0,
-        successCount: 0,
-        failCount: TEST_PROMPTS.length
+    console.log(`\n${'═'.repeat(60)}`);
+    console.log(`  Testing Model: ${model}`);
+    console.log(`${'═'.repeat(60)}`);
+    
+    results.allRounds[model] = [];
+    
+    // Initialize aggregated results for this model
+    const aggregatedResults = {
+      model: model,
+      tests: [],
+      avgResponseTime: 0,
+      avgScore: 0,
+      totalTokens: 0,
+      successCount: 0,
+      failCount: 0,
+      rounds: [],
+      resourceStats: null,
+      allResourceStats: []
+    };
+    
+    // Run multiple rounds
+    for (let round = 1; round <= TEST_ROUNDS; round++) {
+      console.log(`\n  ┌─────────────────────────────────────────────┐`);
+      console.log(`  │  Round ${round} of ${TEST_ROUNDS}                                  │`);
+      console.log(`  └─────────────────────────────────────────────┘`);
+      
+      try {
+        const roundResults = await testModelRound(model, round);
+        results.allRounds[model].push(roundResults);
+        aggregatedResults.rounds.push({
+          round: round,
+          avgScore: roundResults.avgScore,
+          avgResponseTime: roundResults.avgResponseTime,
+          successCount: roundResults.successCount,
+          resourceStats: roundResults.resourceStats
+        });
+        
+        // Collect resource stats from this round
+        if (roundResults.resourceStats) {
+          aggregatedResults.allResourceStats.push(roundResults.resourceStats);
+        }
+        
+        // Accumulate stats
+        aggregatedResults.totalTokens += roundResults.totalTokens;
+        aggregatedResults.successCount += roundResults.successCount;
+        aggregatedResults.failCount += roundResults.failCount;
+        
+        // Merge tests with round indicator
+        for (const test of roundResults.tests) {
+          aggregatedResults.tests.push({
+            ...test,
+            round: round
+          });
+        }
+        
+      } catch (error) {
+        console.error(`\n  ✗ Round ${round} failed: ${error.message}`);
+        aggregatedResults.failCount += TEST_PROMPTS.length;
+      }
+    }
+    
+    // Calculate final averages across all rounds
+    const allSuccessfulTests = aggregatedResults.tests.filter(t => t.success);
+    if (allSuccessfulTests.length > 0) {
+      aggregatedResults.avgResponseTime = allSuccessfulTests.reduce((sum, t) => sum + t.responseTime, 0) / allSuccessfulTests.length;
+      aggregatedResults.avgScore = allSuccessfulTests.reduce((sum, t) => sum + t.evaluation.score, 0) / allSuccessfulTests.length;
+    }
+    
+    // Aggregate resource stats across all rounds
+    if (aggregatedResults.allResourceStats.length > 0) {
+      const allStats = aggregatedResults.allResourceStats;
+      aggregatedResults.resourceStats = {
+        sampleCount: allStats.reduce((sum, s) => sum + s.sampleCount, 0),
+        duration: allStats.reduce((sum, s) => sum + s.duration, 0),
+        cpu: {
+          avg: allStats.reduce((sum, s) => sum + s.cpu.avg, 0) / allStats.length,
+          max: Math.max(...allStats.map(s => s.cpu.max)),
+          min: Math.min(...allStats.map(s => s.cpu.min)),
+          cores: allStats[0].cpu.cores,
+          model: allStats[0].cpu.model
+        },
+        memory: {
+          avgUsagePercent: allStats.reduce((sum, s) => sum + s.memory.avgUsagePercent, 0) / allStats.length,
+          maxUsagePercent: Math.max(...allStats.map(s => s.memory.maxUsagePercent)),
+          totalGB: allStats[0].memory.totalGB
+        },
+        gpu: {
+          name: allStats[0].gpu.name,
+          avgUtilization: allStats.reduce((sum, s) => sum + s.gpu.avgUtilization, 0) / allStats.length,
+          maxUtilization: Math.max(...allStats.map(s => s.gpu.maxUtilization)),
+          avgMemoryMB: allStats.reduce((sum, s) => sum + s.gpu.avgMemoryMB, 0) / allStats.length,
+          peakMemoryMB: Math.max(...allStats.map(s => s.gpu.peakMemoryMB)),
+          avgTemperature: allStats.reduce((sum, s) => sum + s.gpu.avgTemperature, 0) / allStats.length,
+          maxTemperature: Math.max(...allStats.map(s => s.gpu.maxTemperature))
+        }
       };
     }
+    
+    results.models[model] = aggregatedResults;
+    
+    // Print round summary
+    console.log(`\n  ┌─────────────────────────────────────────────┐`);
+    console.log(`  │  ${model} - Round Summary              │`);
+    console.log(`  └─────────────────────────────────────────────┘`);
+    for (const roundStat of aggregatedResults.rounds) {
+      console.log(`    Round ${roundStat.round}: Score ${roundStat.avgScore.toFixed(1)}/100 | Time: ${roundStat.avgResponseTime.toFixed(2)}s | Success: ${roundStat.successCount}/${TEST_PROMPTS.length}`);
+    }
+    console.log(`    ─────────────────────────────────────────`);
+    console.log(`    Average: Score ${aggregatedResults.avgScore.toFixed(1)}/100 | Time: ${aggregatedResults.avgResponseTime.toFixed(2)}s`);
   }
   
   // Generate reports
@@ -535,12 +876,15 @@ async function main() {
  */
 function generateMarkdownReport(results) {
   const md = [];
+  const totalTestsPerModel = TEST_PROMPTS.length * TEST_ROUNDS;
   
   md.push('# Ollama Model Comparison Test Results');
   md.push('## Network Configuration Generation for Cisco Devices');
   md.push('');
   md.push(`**Test Date:** ${results.testDate}`);
-  md.push(`**Total Test Cases:** ${TEST_PROMPTS.length}`);
+  md.push(`**Test Prompts:** ${TEST_PROMPTS.length}`);
+  md.push(`**Test Rounds:** ${TEST_ROUNDS}`);
+  md.push(`**Total Tests per Model:** ${totalTestsPerModel}`);
   md.push('');
   
   md.push('---');
@@ -553,6 +897,8 @@ function generateMarkdownReport(results) {
   md.push('2. **codegemma:7b** - Google\'s code generation model');
   md.push('3. **codellama:7b** - Meta\'s code-specialized LLaMA model');
   md.push('');
+  md.push(`Each model was tested **${TEST_ROUNDS} times** to ensure statistical reliability.`);
+  md.push('');
   
   md.push('---');
   md.push('');
@@ -564,11 +910,36 @@ function generateMarkdownReport(results) {
   const sortedModels = Object.values(results.models).sort((a, b) => b.avgScore - a.avgScore);
   
   for (const model of sortedModels) {
-    const successRate = ((model.successCount / TEST_PROMPTS.length) * 100).toFixed(1);
+    const successRate = ((model.successCount / totalTestsPerModel) * 100).toFixed(1);
     const tokensPerSec = model.avgResponseTime > 0 ? 
       (model.totalTokens / (model.avgResponseTime * model.successCount)).toFixed(1) : '0';
     
     md.push(`| ${model.model} | ${model.avgScore.toFixed(1)} | ${model.avgResponseTime.toFixed(2)} | ${model.totalTokens} | ${successRate}% | ${tokensPerSec} |`);
+  }
+  
+  md.push('');
+  md.push('---');
+  md.push('');
+  md.push('## Results by Round');
+  md.push('');
+  md.push('| Model | Round 1 | Round 2 | Round 3 | Average | Std Dev |');
+  md.push('|-------|---------|---------|---------|---------|---------|');
+  
+  for (const model of sortedModels) {
+    const rounds = model.rounds || [];
+    const scores = rounds.map(r => r.avgScore);
+    const avg = model.avgScore.toFixed(1);
+    
+    // Calculate standard deviation
+    const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const variance = scores.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / scores.length;
+    const stdDev = Math.sqrt(variance).toFixed(2);
+    
+    const r1 = rounds[0] ? rounds[0].avgScore.toFixed(1) : '-';
+    const r2 = rounds[1] ? rounds[1].avgScore.toFixed(1) : '-';
+    const r3 = rounds[2] ? rounds[2].avgScore.toFixed(1) : '-';
+    
+    md.push(`| ${model.model} | ${r1} | ${r2} | ${r3} | **${avg}** | ${stdDev} |`);
   }
   
   md.push('');
@@ -650,6 +1021,58 @@ function generateMarkdownReport(results) {
     const winner = scoreValues.sort((a, b) => b[1] - a[1])[0][0].split(':')[0];
     
     md.push(`| ${label} | ${scores['qwen2.5-coder:7b']} | ${scores['codegemma:7b']} | ${scores['codellama:7b']} | **${winner}** |`);
+  }
+  
+  md.push('');
+  md.push('---');
+  md.push('');
+  
+  // Resource Usage Section
+  md.push('## Resource Usage');
+  md.push('');
+  md.push('### System Information');
+  md.push('');
+  
+  // Get system info from first model's resource stats
+  const firstModel = sortedModels[0];
+  if (firstModel && firstModel.resourceStats) {
+    const res = firstModel.resourceStats;
+    md.push(`- **CPU:** ${res.cpu?.model || 'Unknown'} (${res.cpu?.cores || 0} cores)`);
+    md.push(`- **RAM:** ${res.memory?.totalGB || 0} GB total`);
+    md.push(`- **GPU:** ${res.gpu?.name || 'N/A'}`);
+    md.push('');
+  }
+  
+  md.push('### Average Resource Usage');
+  md.push('');
+  md.push('| Model | CPU Avg (%) | RAM Avg (%) | GPU Avg (%) | GPU Memory (MB) |');
+  md.push('|-------|-------------|-------------|-------------|-----------------|');
+  
+  for (const model of sortedModels) {
+    const res = model.resourceStats || {};
+    const cpuAvg = res.cpu?.avg?.toFixed(1) || '-';
+    const ramAvg = res.memory?.avgUsagePercent?.toFixed(1) || '-';
+    const gpuAvg = res.gpu?.avgUtilization?.toFixed(1) || '-';
+    const gpuMem = res.gpu?.avgMemoryMB?.toFixed(0) || '-';
+    
+    md.push(`| ${model.model} | ${cpuAvg} | ${ramAvg} | ${gpuAvg} | ${gpuMem} |`);
+  }
+  
+  md.push('');
+  md.push('### Peak Resource Usage');
+  md.push('');
+  md.push('| Model | CPU Max (%) | RAM Max (%) | GPU Max (%) | Peak GPU Memory (MB) | GPU Temp (°C) |');
+  md.push('|-------|-------------|-------------|-------------|----------------------|---------------|');
+  
+  for (const model of sortedModels) {
+    const res = model.resourceStats || {};
+    const cpuMax = res.cpu?.max?.toFixed(1) || '-';
+    const ramMax = res.memory?.maxUsagePercent?.toFixed(1) || '-';
+    const gpuMax = res.gpu?.maxUtilization?.toFixed(1) || '-';
+    const gpuMemMax = res.gpu?.peakMemoryMB?.toFixed(0) || '-';
+    const gpuTemp = res.gpu?.maxTemperature?.toFixed(0) || '-';
+    
+    md.push(`| ${model.model} | ${cpuMax} | ${ramMax} | ${gpuMax} | ${gpuMemMax} | ${gpuTemp} |`);
   }
   
   md.push('');
