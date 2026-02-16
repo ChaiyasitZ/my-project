@@ -1,0 +1,50 @@
+{
+  "name": "netconfig-agent-gui",
+  "version": "1.0.0",
+  "description": "NetConfig Agent - GUI desktop app for managing network devices",
+  "main": "src/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder --win --publish never",
+    "build:mac": "electron-builder --mac --publish never",
+    "build:linux": "electron-builder --linux --publish never",
+    "build:all": "electron-builder -mwl --publish never"
+  },
+  "build": {
+    "appId": "com.netconfig.agent",
+    "productName": "NetConfig Agent",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": "dir",
+      "sign": false,
+      "signingHashAlgorithms": null,
+      "signDlls": false
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Utility"
+    },
+    "portable": {
+      "artifactName": "NetConfigAgent-${os}-${arch}.${ext}"
+    }
+  },
+  "dependencies": {
+    "ssh2": "^1.15.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}
