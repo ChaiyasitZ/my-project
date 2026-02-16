@@ -257,7 +257,11 @@ async function connectToMongoDB() {
     console.log('🍃 Connected to MongoDB Atlas');
   } catch (error) {
     console.error('❌ Failed to connect to MongoDB:', error);
-    process.exit(1);
+    // Only exit on local development - on serverless, let the request handle the error gracefully
+    if (!process.env.VERCEL) {
+      process.exit(1);
+    }
+    throw error;
   }
 }
 
