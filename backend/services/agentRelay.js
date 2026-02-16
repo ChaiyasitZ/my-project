@@ -52,7 +52,7 @@ class AgentRelay {
       const updated = await AgentCommand.findById(command._id);
       
       if (updated.status === 'completed') {
-        return updated.result || { success: true };
+        return { success: true, ...(updated.result || {}) };
       }
       
       if (updated.status === 'failed') {

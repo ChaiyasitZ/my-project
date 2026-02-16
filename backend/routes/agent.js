@@ -429,7 +429,7 @@ router.post('/poll/result/:commandId', authenticateAgent, async (req, res) => {
       { _id: req.params.commandId, userId: req.userId },
       {
         status: success ? 'completed' : 'failed',
-        result: success ? resultData : null,
+        result: success ? { success: true, ...resultData } : null,
         error: errorMsg || null,
         completedAt: new Date()
       }
