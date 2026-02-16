@@ -93,8 +93,8 @@ app.get('/api/health', async (req, res) => {
       version: '2.0.0',
       environment: config.server.nodeEnv,
       database: 'MongoDB Atlas',
-      scheduler_active: backupScheduler.isInitialized,
-      active_schedules: backupScheduler.getActiveSchedules().length
+      scheduler_active: backupScheduler?.isInitialized ?? false,
+      active_schedules: backupScheduler?.isInitialized ? backupScheduler.getActiveSchedules().length : 0
     });
   } catch (error) {
     res.status(503).json({
