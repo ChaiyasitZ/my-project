@@ -410,7 +410,7 @@ function AgentSettings() {
                   <p className="font-medium text-gray-700 dark:text-gray-300">Ollama is required for AI features</p>
                   <p>1. Download from <a href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">ollama.com</a></p>
                   <p>2. Run: <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">ollama serve</code></p>
-                  <p>3. Pull: <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">ollama pull llama3.2</code></p>
+                  <p>3. Pull: <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">ollama pull qwen2.5-coder:7b</code></p>
                 </div>
               </div>
             </div>
@@ -438,7 +438,7 @@ function AgentSettings() {
                   <a href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-[11px] hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
                     <DownloadIcon className="h-3 w-3" /> Ollama
                   </a>
-                  <code className="px-2 py-1 bg-gray-900 dark:bg-gray-800 rounded text-[11px] text-green-400 font-mono">ollama pull llama3.2</code>
+                  <code className="px-2 py-1 bg-gray-900 dark:bg-gray-800 rounded text-[11px] text-green-400 font-mono">ollama pull qwen2.5-coder:7b</code>
                 </div>
               </div>
             </div>

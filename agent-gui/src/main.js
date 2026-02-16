@@ -432,7 +432,7 @@ class ConsoleHandler {
 
 // ─── Ollama Handler ───
 class OllamaHandler {
-  constructor() { this.baseUrl = 'http://localhost:11434'; this.model = 'llama3.2'; }
+  constructor() { this.baseUrl = 'http://localhost:11434'; this.model = 'qwen2.5-coder:7b'; }
   setModel(m) { this.model = m; }
   getModel() { return this.model; }
 
