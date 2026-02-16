@@ -144,6 +144,39 @@ class HttpPollingClient extends EventEmitter {
           }
           break;
         }
+        case 'agent:ssh:backup': {
+          // All-in-one: connect → show running/startup config → disconnect
+          const bk = data;
+          try {
+            await this.handlers.ssh.connect({ deviceId: bk.deviceId, host: bk.host, port: bk.port || 22, username: bk.username, password: bk.password });
+            const runResult = await this.handlers.ssh.executeCommand(bk.deviceId, 'terminal length 0\nshow running-config');
+            let startupResult = { output: '' };
+            if (bk.configType !== 'running-config') {
+              try { startupResult = await this.handlers.ssh.executeCommand(bk.deviceId, 'show startup-config'); } catch (e) {}
+            }
+            this.handlers.ssh.disconnect(bk.deviceId);
+            // Clean config output (remove command echo and trailing prompts)
+            const cleanConfig = (raw) => {
+              const lines = raw.split('\n');
+              const start = lines.findIndex(l => l.includes('Current configuration') || l.includes('version '));
+              return start >= 0 ? lines.slice(start).join('\n').trim() : raw.trim();
+            };
+            const runningConfig = cleanConfig(runResult.output || '');
+            const startupConfig = startupResult.output ? cleanConfig(startupResult.output) : '';
+            result = {
+              success: true,
+              runningConfig,
+              startupConfig,
+              runningConfigSize: Buffer.byteLength(runningConfig),
+              startupConfigSize: Buffer.byteLength(startupConfig),
+              configType: bk.configType || 'both'
+            };
+          } catch (bkErr) {
+            try { this.handlers.ssh.disconnect(bk.deviceId); } catch (e) {}
+            throw bkErr;
+          }
+          break;
+        }
         case 'agent:ssh:open-shell': {
           result = await this._openShell(data);
           break;

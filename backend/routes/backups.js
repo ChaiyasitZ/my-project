@@ -7,11 +7,109 @@ import ConfigurationBackup from '../models/ConfigurationBackup.js';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import BackupSchedule from '../models/BackupSchedule.js';
 import sshService from '../services/sshService.js';
+import agentRelay from '../services/agentRelay.js';
 import backupScheduler from '../services/backupScheduler.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getOrSetCache, invalidateCache, CacheKeys } from '../lib/cache.js';
 
 const router = express.Router();
+
+/**
+ * Create a backup via agent relay (preferred) or direct SSH (fallback).
+ * Returns { success, runningConfig, startupConfig, runningConfigSize, startupConfigSize, configType }
+ */
+async function backupViaAgent(userId, device, configType = 'both') {
+  const agentOnline = await agentRelay.isAgentOnline(userId);
+  if (agentOnline) {
+    const result = await agentRelay.sendToAgent(userId, 'agent:ssh:backup', {
+      deviceId: device._id.toString(),
+      host: device.ip_address,
+      port: device.ssh_port || 22,
+      username: device.username,
+      password: device.password,
+      configType
+    }, 25000);
+    if (result.pending) {
+      return { success: true, runningConfig: '', startupConfig: '', runningConfigSize: 0, startupConfigSize: 0, configType, pending: true, commandId: result.commandId };
+    }
+    if (!result.success) {
+      throw new Error(result.error || result.message || 'Agent backup failed');
+    }
+    return result;
+  }
+  // Fallback to direct SSH (desktop/local mode)
+  return await sshService.createFullBackup(device, { config_type: configType });
+}
+
+/**
+ * Deploy/restore config via agent relay or direct SSH.
+ */
+async function deployViaAgent(userId, device, configCommands) {
+  const agentOnline = await agentRelay.isAgentOnline(userId);
+  if (agentOnline) {
+    const result = await agentRelay.sendToAgent(userId, 'agent:ssh:deploy-config', {
+      deviceId: device._id.toString(),
+      host: device.ip_address,
+      port: device.ssh_port || 22,
+      username: device.username,
+      password: device.password,
+      commands: configCommands,
+      enablePassword: device.enable_password
+    }, 25000);
+    if (!result.success && !result.pending) {
+      throw new Error(result.error || result.message || 'Agent deployment failed');
+    }
+    return result;
+  }
+  return await sshService.sendConfigCommands(device, configCommands);
+}
+
+/**
+ * Execute a single SSH command via agent or direct.
+ */
+async function execViaAgent(userId, device, command) {
+  const agentOnline = await agentRelay.isAgentOnline(userId);
+  if (agentOnline) {
+    // Connect, exec, disconnect in one shot
+    const connectResult = await agentRelay.sendToAgent(userId, 'agent:ssh:connect', {
+      deviceId: device._id.toString(),
+      host: device.ip_address,
+      port: device.ssh_port || 22,
+      username: device.username,
+      password: device.password
+    });
+    if (!connectResult.success) throw new Error(connectResult.error || 'SSH connect failed');
+    const result = await agentRelay.sendToAgent(userId, 'agent:ssh:exec', {
+      deviceId: device._id.toString(),
+      command
+    });
+    await agentRelay.sendToAgent(userId, 'agent:ssh:disconnect', { deviceId: device._id.toString() }).catch(() => {});
+    return { success: true, output: result.output || '' };
+  }
+  return await sshService.executeCommand(device, command);
+}
+
+/**
+ * Test SSH connection via agent or direct.
+ */
+async function testConnectionViaAgent(userId, device) {
+  const agentOnline = await agentRelay.isAgentOnline(userId);
+  if (agentOnline) {
+    const result = await agentRelay.sendToAgent(userId, 'agent:ssh:connect', {
+      deviceId: device._id.toString(),
+      host: device.ip_address,
+      port: device.ssh_port || 22,
+      username: device.username,
+      password: device.password
+    });
+    if (result.success) {
+      await agentRelay.sendToAgent(userId, 'agent:ssh:disconnect', { deviceId: device._id.toString() }).catch(() => {});
+      return { success: true, message: `Connected to ${device.ip_address} via agent` };
+    }
+    return { success: false, message: result.error || 'Connection failed' };
+  }
+  return await sshService.testConnection(device);
+}
 
 // Apply authentication middleware to all routes
 router.use(authenticateToken);
@@ -364,8 +462,8 @@ router.post('/session', async (req, res) => {
     console.log(`💾 Creating session-based backup for ${device.name}`);
     
     try {
-      // Use existing session backup method (no enable command)
-      const backupResult = await sshService.optimizedBackup(device, config_type);
+      // Use agent relay for SSH backup
+      const backupResult = await backupViaAgent(req.userId, device, config_type);
       
       if (!backupResult.success) {
         throw new Error('Failed to create session-based backup');
@@ -473,8 +571,8 @@ router.post('/fast', async (req, res) => {
     console.log(`💾 Creating fast backup for ${device.name}`);
     
     try {
-      // Use fast backup method with persistent sessions
-      const backupResult = await sshService.fastBackup(device);
+      // Use agent relay for fast backup
+      const backupResult = await backupViaAgent(req.userId, device, 'running-config');
       
       if (!backupResult.success) {
         throw new Error('Failed to create fast backup');
@@ -567,26 +665,15 @@ router.post('/', async (req, res) => {
     const backupStartTime = Date.now();
     
     try {
-      // Check if device has an active SSH session first
-      const deviceId = device._id || device.id;
-      const sessionKey = `${deviceId}_persistent`;
-      const existingSession = sshService.persistentSessions.get(sessionKey);
-      const hasActiveSession = existingSession && sshService.isSessionValid(existingSession);
-      
-      console.log(`⏱️ [TIMING] Session check: ${Date.now() - backupStartTime}ms, hasActiveSession: ${hasActiveSession}`);
+      // Use agent relay for SSH backup (agent handles connection lifecycle)
+      console.log(`⏱️ [TIMING] Starting agent backup...`);
       
       let backupResult;
       const sshStartTime = Date.now();
       
-      if (hasActiveSession) {
-        console.log(`⚡ Using optimized backup (active session)`);
-        backupResult = await sshService.optimizedBackup(device, config_type);
-      } else {
-        console.log(`🐢 Using full backup (no active session)`);
-        backupResult = await sshService.createFullBackup(device, { config_type });
-      }
+      backupResult = await backupViaAgent(req.userId, device, config_type);
       
-      console.log(`⏱️ [TIMING] SSH backup completed in ${Date.now() - sshStartTime}ms`)
+      console.log(`⏱️ [TIMING] Agent backup completed in ${Date.now() - sshStartTime}ms`)
       
       if (!backupResult.success) {
         throw new Error(`Backup creation failed: ${backupResult.runningError || backupResult.startupError || 'Unknown error'}`);
@@ -763,7 +850,7 @@ router.post('/:id/restore', async (req, res) => {
       let checkpointId = null;
       if (create_checkpoint) {
         try {
-          const checkpointResult = await sshService.createFullBackup(device);
+          const checkpointResult = await backupViaAgent(req.userId, device, 'both');
           if (checkpointResult.success) {
             const checkpointHash = crypto
               .createHash('sha256')
@@ -830,7 +917,7 @@ router.post('/:id/restore', async (req, res) => {
         }
       }
       
-      const restoreResult = await sshService.applyConfigurationFromBackup(device, configToRestore);
+      const restoreResult = await deployViaAgent(req.userId, device, configToRestore);
       
       if (!restoreResult.success) {
         throw new Error('Failed to restore configuration');
@@ -1106,8 +1193,8 @@ router.get('/enable-test/:device_id', async (req, res) => {
     console.log(`🔍 Testing enable command for ${device.name}`);
     
     try {
-      // Test just the enable command
-      const enableResult = await sshService.executeCommand(device, 'show privilege');
+      // Test just the enable command via agent
+      const enableResult = await execViaAgent(req.userId, device, 'show privilege');
       
       res.json({
         success: true,
@@ -1168,13 +1255,13 @@ router.get('/ssh-debug/:device_id', async (req, res) => {
     
     console.log(`🔍 SSH Debug for ${device.name}`);
     
-    // Test connection with detailed logging
-    const connectionResult = await sshService.testConnection(device);
+    // Test connection via agent relay
+    const connectionResult = await testConnectionViaAgent(req.userId, device);
     
-    // If full test fails, try basic connection
+    // If full test fails, try once more
     let basicConnectionResult = null;
     if (!connectionResult.success) {
-      basicConnectionResult = await sshService.testBasicConnection(device);
+      basicConnectionResult = await testConnectionViaAgent(req.userId, device);
     }
     
     res.json({
@@ -1239,8 +1326,8 @@ router.get('/test/:device_id', async (req, res) => {
     console.log(`🧪 Testing backup for ${device.name}`);
     
     try {
-      // Test connection first
-      const connectionTest = await sshService.testConnection(device);
+      // Test connection first via agent
+      const connectionTest = await testConnectionViaAgent(req.userId, device);
       
       if (!connectionTest.success) {
         return res.json({
@@ -1252,17 +1339,26 @@ router.get('/test/:device_id', async (req, res) => {
         });
       }
       
-      // Test running config retrieval
-      const runningConfigResult = await sshService.getRunningConfig(device);
+      // Test config retrieval via agent backup
+      const configResult = await backupViaAgent(req.userId, device, 'both');
       
-      // Test startup config retrieval (optional, might fail on some devices)
+      const runningConfigResult = configResult.success ? {
+        success: true,
+        config: configResult.runningConfig,
+        size: configResult.runningConfigSize || (configResult.runningConfig || '').length
+      } : { success: false, error: configResult.message, config: null, size: 0 };
+      
       let startupConfigResult = null;
-      try {
-        startupConfigResult = await sshService.getStartupConfig(device);
-      } catch (startupError) {
+      if (configResult.success && configResult.startupConfig) {
+        startupConfigResult = {
+          success: true,
+          config: configResult.startupConfig,
+          size: configResult.startupConfigSize || (configResult.startupConfig || '').length
+        };
+      } else {
         startupConfigResult = { 
           success: false, 
-          error: startupError.message,
+          error: configResult.message || 'No startup config',
           config: null,
           size: 0 
         };
@@ -1394,7 +1490,7 @@ router.post('/schedules', async (req, res) => {
         }
 
         console.log(`💾 Backing up ${device.name}...`);
-        const backupResult = await sshService.createFullBackup(device);
+        const backupResult = await backupViaAgent(req.userId, device, 'both');
 
         if (backupResult.success) {
           const configHash = crypto
@@ -1570,7 +1666,7 @@ router.post('/custom', async (req, res) => {
 
     console.log(`💾 Creating custom backup "${backup_name}" for ${device.name}...`);
 
-    const backupResult = await sshService.createFullBackup(device);
+    const backupResult = await backupViaAgent(req.userId, device, 'both');
 
     if (!backupResult.success) {
       throw new Error('Failed to create backup');
@@ -1681,7 +1777,7 @@ router.post('/post-deploy-schedule', async (req, res) => {
       for (const device of devices) {
         try {
           console.log(`💾 Initial backup for ${device.name}...`);
-          const backupResult = await sshService.createFullBackup(device);
+          const backupResult = await backupViaAgent(req.userId, device, 'both');
 
           if (backupResult.success) {
             const configHash = crypto

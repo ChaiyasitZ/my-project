@@ -350,7 +350,7 @@ function AgentSettings() {
               </div>
               <div>
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {ollamaStatus?.ollama?.available ? 'Ollama AI Ready' : 'Ollama Not Available'}
+                  {ollamaStatus?.ollama?.available ? 'Ollama Model Ready' : 'Ollama Not Available'}
                 </h2>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {ollamaStatus?.ollama?.available
