@@ -795,7 +795,59 @@ ${indentedConfig}
 
       const response = await axios.post(endpoint, requestData);
 
-      if (response.data.configuration) {
+      // Handle async Ollama generation (pending state)
+      if (response.data.pending && response.data.commandId) {
+        toast('Generating via Ollama AI...', { icon: '🧠', duration: 5000 });
+        
+        // Poll for result (check every 2 seconds, up to 120 seconds)
+        const commandId = response.data.commandId;
+        const maxPollTime = 120000;
+        const pollInterval = 2000;
+        const pollStart = Date.now();
+        
+        let ollamaResult = null;
+        while (Date.now() - pollStart < maxPollTime) {
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+          try {
+            const pollRes = await axios.get(`/configurations/llm-result/${commandId}`);
+            if (pollRes.data.status === 'completed') {
+              ollamaResult = pollRes.data.result;
+              break;
+            } else if (pollRes.data.status === 'failed') {
+              throw new Error(pollRes.data.error || 'Ollama generation failed');
+            }
+            // Still pending/processing — continue polling
+          } catch (pollErr) {
+            if (pollErr.response?.status === 404) {
+              throw new Error('Generation request expired. Please try again.');
+            }
+            throw pollErr;
+          }
+        }
+        
+        if (!ollamaResult) {
+          throw new Error('Ollama generation timed out. Try a smaller model or simpler prompt.');
+        }
+
+        // For async Ollama, we get raw LLM content — show it as a basic result
+        // The full processing (cleaning, validation, saving) needs a second API call
+        toast.success('Configuration generated via Ollama!');
+        
+        // Re-submit with the Ollama result to get full processing
+        // The backend already processed and saved it if it completed within 8s
+        // For async results, we show the raw content
+        if (ollamaResult.content) {
+          setGeneratedConfig({
+            generated_config: ollamaResult.content,
+            validation: { score: 0, warnings: ['Generated via Ollama — async result, validation pending'] },
+            model: ollamaResult.model || 'ollama',
+            provider: 'ollama',
+            method: 'ollama_chat'
+          });
+          setEditedConfig(ollamaResult.content);
+          setIsEditing(false);
+        }
+      } else if (response.data.configuration) {
         console.log('📥 Received configuration:', response.data.configuration);
         console.log('📅 Frontend received created_at:', response.data.configuration.created_at, typeof response.data.configuration.created_at);
         

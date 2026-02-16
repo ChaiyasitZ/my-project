@@ -8,11 +8,12 @@ export const config = {
     mongodb_uri: process.env.MONGODB_URI
   },
 
-  // OpenRouter LLM Configuration
+  // LLM Configuration (supports 'openrouter' or 'ollama')
   llm: {
     provider: process.env.LLM_PROVIDER || 'openrouter',
     apiKey: process.env.OPENROUTER_API_KEY,
     model: process.env.OPENROUTER_MODEL,
+    ollamaModel: process.env.OLLAMA_MODEL || 'llama3.2',
   },
 
   // Server Configuration
@@ -36,9 +37,10 @@ export const config = {
   cors: {
     origin: process.env.FRONTEND_URL ? [
       process.env.FRONTEND_URL,
+      ...(process.env.ADDITIONAL_ORIGINS ? process.env.ADDITIONAL_ORIGINS.split(',') : []),
       'http://localhost:5173', 
       'http://localhost:3000'
-    ] : true, // Allow all origins in production if FRONTEND_URL not set
+    ] : true, // Allow all origins in development if FRONTEND_URL not set
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],

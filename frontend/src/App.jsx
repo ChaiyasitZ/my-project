@@ -30,6 +30,8 @@ import './App.css';
 const isLocalhost = window.location.hostname === 'localhost' || 
                     window.location.hostname === '127.0.0.1';
 
+// In production (Vercel): uses same-origin /api (serverless functions)
+// In development: uses localhost:3001/api
 const API_BASE_URL = import.meta.env.VITE_API_URL || 
                      (isLocalhost ? 'http://localhost:3001/api' : '/api');
 

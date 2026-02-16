@@ -82,14 +82,25 @@ vi.mock('react-hot-toast', () => ({
   Toaster: () => null
 }));
 
-// Mock socket.io-client
-vi.mock('socket.io-client', () => ({
-  io: vi.fn(() => ({
-    on: vi.fn(),
-    off: vi.fn(),
-    emit: vi.fn(),
+// Mock socket service (now HTTP polling based)
+vi.mock('../services/socket', () => ({
+  default: {
+    connected: false,
     connect: vi.fn(),
     disconnect: vi.fn(),
-    connected: false
-  }))
+    on: vi.fn(),
+    off: vi.fn(),
+    emit: vi.fn()
+  },
+  connectSocket: vi.fn(),
+  disconnectSocket: vi.fn(),
+  subscribeToBackupProgress: vi.fn(() => vi.fn()),
+  subscribeToDeploymentProgress: vi.fn(() => vi.fn()),
+  subscribeToScheduleResults: vi.fn(() => vi.fn()),
+  subscribeToBackupSummary: vi.fn(() => vi.fn()),
+  subscribeToBackupError: vi.fn(() => vi.fn()),
+  subscribeToAgentStatus: vi.fn(() => vi.fn()),
+  subscribeToShellData: vi.fn(() => vi.fn()),
+  subscribeToShellClosed: vi.fn(() => vi.fn()),
+  sendShellInput: vi.fn()
 }));

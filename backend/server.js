@@ -4,8 +4,6 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
 import session from 'express-session';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
 import { config } from './config/config.js';
 import { mongooseOptions } from './lib/mongodb.js';
 
@@ -16,23 +14,10 @@ import consoleRouter from './routes/console.js';
 import backupsRouter from './routes/backups.js';
 import yangModelsRouter from './routes/yangModels.js';
 import authRouter, { passport } from './routes/auth.js';
+import agentRouter from './routes/agent.js';
 import backupScheduler from './services/backupScheduler.js';
 
-
 const app = express();
-const httpServer = createServer(app);
-
-// Initialize Socket.IO with CORS
-const io = new Server(httpServer, {
-  cors: {
-    origin: config.cors.origin,
-    methods: ['GET', 'POST'],
-    credentials: true
-  }
-});
-
-// Export io for use in other modules
-export { io };
 
 // Security middleware
 app.use(helmet({
@@ -118,6 +103,7 @@ app.use('/api/configurations', configurationsRouter);
 app.use('/api/console', consoleRouter);
 app.use('/api/backups', backupsRouter);
 app.use('/api/yang-models', yangModelsRouter);
+app.use('/api/agent', agentRouter);
 
 // API index endpoint
 app.get('/api', (req, res) => {
@@ -158,7 +144,7 @@ app.get('/api', (req, res) => {
       'SSH Session Reuse',
       'Automated Backups',
       'NETCONF/YANG Support',
-      'Real-time WebSocket Updates'
+      'HTTP Polling Agent Relay'
     ]
   });
 });
@@ -287,13 +273,13 @@ async function connectDB() {
 // Local development server
 if (!process.env.VERCEL) {
   connectToMongoDB().then(() => {
-    httpServer.listen(PORT, async () => {
+    app.listen(PORT, async () => {
       console.log(`🚀 Network Automation API server running on port ${PORT}`);
       console.log(`🌍 Environment: ${config.server.nodeEnv}`);
       console.log(`🤖 LLM Provider: ${config.llm.provider}`);
       console.log(`🧠 LLM Model: ${config.llm.model}`);
       console.log(`🔗 Frontend URL: ${config.cors.origin}`);
-      console.log(`🔌 WebSocket server ready for real-time notifications`);
+      console.log(`📡 Agent communication: HTTP polling (serverless compatible)`);
       
       // Initialize backup scheduler after server starts
       try {
@@ -305,21 +291,7 @@ if (!process.env.VERCEL) {
   });
 }
 
-// Socket.IO connection handling
-io.on('connection', (socket) => {
-  console.log(`🔌 Client connected: ${socket.id}`);
-  
-  socket.on('disconnect', () => {
-    console.log(`🔌 Client disconnected: ${socket.id}`);
-  });
-  
-  socket.on('subscribe:backups', (data) => {
-    console.log(`📡 Client ${socket.id} subscribed to backup notifications`);
-    socket.join('backup-notifications');
-  });
-});
-
-// Vercel serverless handler - must be at the end for ES module syntax
+// Vercel serverless handler
 export default async (req, res) => {
   if (process.env.VERCEL) {
     await connectDB();

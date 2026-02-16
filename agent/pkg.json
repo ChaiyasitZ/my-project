@@ -1,0 +1,9 @@
+{
+  "pkg": {
+    "assets": [
+      "node_modules/ssh2/**/*"
+    ],
+    "targets": ["node18-win-x64"],
+    "outputPath": "dist"
+  }
+}

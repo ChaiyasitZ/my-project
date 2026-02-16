@@ -319,7 +319,7 @@ function OverviewDiagram() {
             </Box>
           </div>
           <div className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
-            Node.js + Express + Socket.IO
+            Node.js + Express + HTTP Polling
           </div>
         </div>
 
