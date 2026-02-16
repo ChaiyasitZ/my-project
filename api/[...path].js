@@ -4,36 +4,28 @@ let app;
 
 async function getApp() {
   if (!app) {
-    try {
-      const mod = await import('../backend/server.js');
-      app = mod.default;
-      console.log('[Vercel] Server module loaded successfully');
-    } catch (err) {
-      console.error('[Vercel] FATAL: Failed to load server module:', err.message, err.stack);
-      throw err;
-    }
+    const mod = await import('../backend/server.js');
+    app = mod.default;
   }
   return app;
 }
 
-// Vercel strips the /api prefix for functions in the api/ directory
-// We need to prepend it back so Express route matching works
+// Vercel passes the URL with /api prefix intact due to rewrite rules
+// Only prepend /api if stripped (depends on Vercel routing config)
 export default async function handler(req, res) {
   try {
-    const handler = await getApp();
-    // Only prepend /api if the URL doesn't already start with it
+    const appHandler = await getApp();
     if (!req.url.startsWith('/api')) {
       req.url = `/api${req.url}`;
     }
-    return await handler(req, res);
+    return await appHandler(req, res);
   } catch (err) {
-    console.error('[Vercel] Request handler error:', err.message, err.stack);
+    console.error('[Vercel] Request error:', err.message);
     res.statusCode = 500;
-    res.end(JSON.stringify({ error: err.message }));
+    res.end(JSON.stringify({ error: 'Internal server error' }));
   }
 }
 
-// Vercel config for this function
 export const config = {
-  maxDuration: 10  // 10 seconds max (Vercel Hobby limit)
+  maxDuration: 10
 };
