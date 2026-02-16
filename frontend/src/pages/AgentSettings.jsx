@@ -177,133 +177,184 @@ function AgentSettings() {
   const info = agentStatus?.agentInfo;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Page Header */}
       <div className="flex items-center gap-3">
-        <div className="p-2.5 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl shadow-lg">
-          <MonitorSmartphoneIcon className="h-6 w-6 text-white" />
+        <div className="p-2 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl shadow-lg">
+          <MonitorSmartphoneIcon className="h-5 w-5 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Agent Settings</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Agent Settings</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
             Manage your local NetConfig Agent connection
           </p>
         </div>
       </div>
 
-      {/* Agent Status Card */}
-      <div className={`rounded-2xl border-2 p-6 transition-all duration-300 ${
-        isOnline
-          ? 'border-green-200 dark:border-green-800 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30'
-          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'
-      }`}>
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            {/* Status Icon */}
-            <div className={`relative p-3 rounded-2xl ${
-              isOnline
-                ? 'bg-green-100 dark:bg-green-900/50'
-                : 'bg-gray-100 dark:bg-gray-800'
-            }`}>
-              {isOnline ? (
-                <WifiIcon className="h-8 w-8 text-green-600 dark:text-green-400" />
-              ) : (
-                <WifiOffIcon className="h-8 w-8 text-gray-400 dark:text-gray-500" />
-              )}
-              {/* Pulse indicator */}
-              {isOnline && (
-                <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-4 w-4 bg-green-500"></span>
-                </span>
-              )}
+      {/* Top Row: Status + Token side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Agent Status Card */}
+        <div className={`rounded-xl border-2 p-4 transition-all duration-300 ${
+          isOnline
+            ? 'border-green-200 dark:border-green-800 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30'
+            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`relative p-2.5 rounded-xl ${
+                isOnline
+                  ? 'bg-green-100 dark:bg-green-900/50'
+                  : 'bg-gray-100 dark:bg-gray-800'
+              }`}>
+                {isOnline ? (
+                  <WifiIcon className="h-6 w-6 text-green-600 dark:text-green-400" />
+                ) : (
+                  <WifiOffIcon className="h-6 w-6 text-gray-400 dark:text-gray-500" />
+                )}
+                {isOnline && (
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                  </span>
+                )}
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {isOnline ? 'Agent Connected' : 'Agent Offline'}
+                </h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {isOnline
+                    ? `From ${info?.hostname || 'unknown host'}`
+                    : 'Start the agent to connect'}
+                </p>
+              </div>
             </div>
-
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {isOnline ? 'Agent Connected' : 'Agent Offline'}
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {isOnline
-                  ? `Connected from ${info?.hostname || 'unknown host'}`
-                  : 'Start the agent on your computer to connect'}
-              </p>
-            </div>
+            <button
+              onClick={refreshStatus}
+              disabled={refreshing}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+              title="Refresh status"
+            >
+              <RefreshCwIcon className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
           </div>
 
-          {/* Refresh button */}
-          <button
-            onClick={refreshStatus}
-            disabled={refreshing}
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-            title="Refresh status"
-          >
-            <RefreshCwIcon className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
-          </button>
+          {/* Agent Info (when connected) */}
+          {isOnline && info && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {[
+                { icon: MonitorIcon, color: 'text-blue-500', label: 'Name', value: info.name },
+                { icon: GlobeIcon, color: 'text-purple-500', label: 'Platform', value: info.platform },
+                { icon: TerminalIcon, color: 'text-orange-500', label: 'Version', value: info.version },
+                { icon: ClockIcon, color: 'text-green-500', label: 'Hostname', value: info.hostname },
+              ].map(({ icon: Icon, color, label, value }) => (
+                <div key={label} className="flex items-center gap-1.5 bg-white dark:bg-gray-800 rounded-lg px-2 py-1.5 shadow-sm">
+                  <Icon className={`h-3.5 w-3.5 ${color} flex-shrink-0`} />
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">{label}</p>
+                    <p className="text-xs font-medium text-gray-900 dark:text-white truncate">{value || 'N/A'}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Agent Info (when connected) */}
-        {isOnline && info && (
-          <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-xl px-3 py-2.5 shadow-sm">
-              <MonitorIcon className="h-4 w-4 text-blue-500 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Name</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{info.name || 'N/A'}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-xl px-3 py-2.5 shadow-sm">
-              <GlobeIcon className="h-4 w-4 text-purple-500 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Platform</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{info.platform || 'N/A'}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-xl px-3 py-2.5 shadow-sm">
-              <TerminalIcon className="h-4 w-4 text-orange-500 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Version</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{info.version || 'N/A'}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-xl px-3 py-2.5 shadow-sm">
-              <ClockIcon className="h-4 w-4 text-green-500 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Hostname</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{info.hostname || 'N/A'}</p>
-              </div>
-            </div>
+        {/* Token Management Card */}
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <KeyIcon className="h-4 w-4 text-amber-500" />
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Agent Token</h3>
           </div>
-        )}
+          
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Generate a token to authenticate your agent connection.
+          </p>
+
+          {token ? (
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-1.5">
+                <div className="flex-1 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2 font-mono text-xs border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  {showToken ? (
+                    <span className="text-gray-900 dark:text-gray-100 break-all">{token}</span>
+                  ) : (
+                    <span className="text-gray-400">{'•'.repeat(32)}</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowToken(!showToken)}
+                  className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  title={showToken ? 'Hide token' : 'Show token'}
+                >
+                  <ShieldCheckIcon className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={handleCopyToken}
+                  className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                  title="Copy token"
+                >
+                  {copied ? <CheckIcon className="h-4 w-4" /> : <CopyIcon className="h-4 w-4" />}
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleGenerateToken}
+                  disabled={generating}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors text-xs font-medium disabled:opacity-50"
+                >
+                  <RefreshCwIcon className={`h-3.5 w-3.5 ${generating ? 'animate-spin' : ''}`} />
+                  Regenerate
+                </button>
+                <button
+                  onClick={handleRevokeToken}
+                  disabled={revoking}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-xs font-medium disabled:opacity-50"
+                >
+                  <TrashIcon className={`h-3.5 w-3.5 ${revoking ? 'animate-spin' : ''}`} />
+                  Revoke
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handleGenerateToken}
+              disabled={generating}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg shadow-blue-500/25 text-sm font-medium disabled:opacity-50"
+            >
+              <KeyIcon className={`h-4 w-4 ${generating ? 'animate-spin' : ''}`} />
+              Generate Agent Token
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Ollama AI Status Card */}
+      {/* Ollama AI Status Card (only when online) */}
       {isOnline && (
-        <div className={`rounded-2xl border-2 p-6 transition-all duration-300 ${
+        <div className={`rounded-xl border-2 p-4 transition-all duration-300 ${
           ollamaStatus?.ollama?.available
             ? 'border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/30'
             : 'border-amber-200 dark:border-amber-800 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/30'
         }`}>
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-2xl ${
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-xl ${
                 ollamaStatus?.ollama?.available
                   ? 'bg-purple-100 dark:bg-purple-900/50'
                   : 'bg-amber-100 dark:bg-amber-900/50'
               }`}>
-                <BrainCircuitIcon className={`h-8 w-8 ${
+                <BrainCircuitIcon className={`h-5 w-5 ${
                   ollamaStatus?.ollama?.available
                     ? 'text-purple-600 dark:text-purple-400'
                     : 'text-amber-600 dark:text-amber-400'
                 }`} />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
                   {ollamaStatus?.ollama?.available ? 'Ollama AI Ready' : 'Ollama Not Available'}
                 </h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
                   {ollamaStatus?.ollama?.available
-                    ? `v${ollamaStatus.ollama.version} — ${ollamaStatus.ollama.modelCount || 0} model(s) installed`
+                    ? `v${ollamaStatus.ollama.version} — ${ollamaStatus.ollama.modelCount || 0} model(s)`
                     : ollamaStatus?.ollama?.error || 'Install Ollama on your agent machine'}
                 </p>
               </div>
@@ -311,38 +362,38 @@ function AgentSettings() {
             <button
               onClick={fetchOllamaStatus}
               disabled={ollamaLoading}
-              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               title="Refresh Ollama status"
             >
-              <RefreshCwIcon className={`h-5 w-5 ${ollamaLoading ? 'animate-spin' : ''}`} />
+              <RefreshCwIcon className={`h-4 w-4 ${ollamaLoading ? 'animate-spin' : ''}`} />
             </button>
           </div>
 
           {ollamaStatus?.ollama?.available && ollamaStatus.ollama.models?.length > 0 && (
-            <div className="mt-5 space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                <CpuIcon className="h-4 w-4" />
-                <span>Available Models</span>
+            <div className="mt-3">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <CpuIcon className="h-3.5 w-3.5" />
+                <span>Models</span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5">
                 {ollamaStatus.ollama.models.map((model) => (
                   <button
                     key={model.name}
                     onClick={() => handleChangeModel(model.name)}
                     disabled={changingModel || model.name === ollamaStatus.ollama.currentModel}
-                    className={`flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                       model.name === ollamaStatus.ollama.currentModel
-                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25'
+                        ? 'bg-purple-600 text-white shadow-md shadow-purple-500/25'
                         : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 border border-gray-200 dark:border-gray-700'
                     }`}
                   >
-                    <span className="flex items-center gap-2">
+                    <span className="flex items-center gap-1.5">
                       {model.name === ollamaStatus.ollama.currentModel && (
-                        <SparklesIcon className="h-4 w-4" />
+                        <SparklesIcon className="h-3.5 w-3.5" />
                       )}
                       {model.name}
                     </span>
-                    <span className="text-xs opacity-70">
+                    <span className="text-[10px] opacity-70">
                       {model.size ? `${(model.size / 1e9).toFixed(1)}GB` : ''}
                     </span>
                   </button>
@@ -352,16 +403,14 @@ function AgentSettings() {
           )}
 
           {!ollamaStatus?.ollama?.available && (
-            <div className="mt-5 p-4 bg-white dark:bg-gray-800 rounded-xl border border-amber-200 dark:border-amber-800">
-              <div className="flex items-start gap-3">
-                <AlertTriangleIcon className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-                  <p className="font-medium">Ollama is required for AI features</p>
-                  <p className="text-gray-500 dark:text-gray-400">
-                    1. Download from <a href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">ollama.com/download</a>
-                  </p>
-                  <p className="text-gray-500 dark:text-gray-400">2. Run: <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">ollama serve</code></p>
-                  <p className="text-gray-500 dark:text-gray-400">3. Pull a model: <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">ollama pull llama3.2</code></p>
+            <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-amber-200 dark:border-amber-800">
+              <div className="flex items-start gap-2">
+                <AlertTriangleIcon className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
+                  <p className="font-medium text-gray-700 dark:text-gray-300">Ollama is required for AI features</p>
+                  <p>1. Download from <a href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">ollama.com</a></p>
+                  <p>2. Run: <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">ollama serve</code></p>
+                  <p>3. Pull: <code className="bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">ollama pull llama3.2</code></p>
                 </div>
               </div>
             </div>
@@ -369,221 +418,100 @@ function AgentSettings() {
         </div>
       )}
 
-      {/* Token Management Card */}
-      <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <KeyIcon className="h-5 w-5 text-amber-500" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Agent Token</h3>
-        </div>
-        
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-          Generate a token to authenticate your agent. The agent will use this token to securely connect to your account.
-        </p>
-
-        {token ? (
-          <div className="space-y-4">
-            {/* Token display */}
-            <div className="flex items-center gap-2">
-              <div className="flex-1 bg-gray-50 dark:bg-gray-800 rounded-xl px-4 py-3 font-mono text-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                {showToken ? (
-                  <span className="text-gray-900 dark:text-gray-100 break-all">{token}</span>
-                ) : (
-                  <span className="text-gray-400">{'•'.repeat(40)}</span>
-                )}
-              </div>
-              <button
-                onClick={() => setShowToken(!showToken)}
-                className="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                title={showToken ? 'Hide token' : 'Show token'}
-              >
-                <ShieldCheckIcon className="h-5 w-5" />
-              </button>
-              <button
-                onClick={handleCopyToken}
-                className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
-                title="Copy token"
-              >
-                {copied ? <CheckIcon className="h-5 w-5" /> : <CopyIcon className="h-5 w-5" />}
-              </button>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleGenerateToken}
-                disabled={generating}
-                className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-xl hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors text-sm font-medium disabled:opacity-50"
-              >
-                <RefreshCwIcon className={`h-4 w-4 ${generating ? 'animate-spin' : ''}`} />
-                Regenerate Token
-              </button>
-              <button
-                onClick={handleRevokeToken}
-                disabled={revoking}
-                className="flex items-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors text-sm font-medium disabled:opacity-50"
-              >
-                <TrashIcon className={`h-4 w-4 ${revoking ? 'animate-spin' : ''}`} />
-                Revoke Token
-              </button>
-            </div>
+      {/* Bottom Row: Setup Guide + Architecture side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Setup Instructions - takes 2 columns */}
+        <div className="lg:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <InfoIcon className="h-4 w-4 text-blue-500" />
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Quick Setup Guide</h3>
           </div>
-        ) : (
-          <button
-            onClick={handleGenerateToken}
-            disabled={generating}
-            className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg shadow-blue-500/25 font-medium disabled:opacity-50"
-          >
-            <KeyIcon className={`h-5 w-5 ${generating ? 'animate-spin' : ''}`} />
-            Generate Agent Token
-          </button>
-        )}
-      </div>
-
-      {/* Setup Instructions Card */}
-      <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <InfoIcon className="h-5 w-5 text-blue-500" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Quick Setup Guide</h3>
-        </div>
-        
-        <div className="space-y-4">
-          <div className="flex gap-4">
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-sm">
-              1
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Install Ollama</h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                Download and install Ollama, then pull a model for AI configuration generation.
-              </p>
-              <div className="mt-2 space-y-1">
-                <a
-                  href="https://ollama.com/download"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <DownloadIcon className="h-4 w-4" />
-                  Download Ollama
-                </a>
-                <div className="bg-gray-900 dark:bg-gray-800 rounded-lg px-4 py-2 font-mono text-sm text-green-400">
-                  <span className="text-gray-500">$</span> ollama pull llama3.2
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+            {/* Step 1 */}
+            <div className="flex gap-2.5">
+              <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-xs">1</div>
+              <div>
+                <h4 className="text-xs font-semibold text-gray-900 dark:text-white">Install Ollama</h4>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Download Ollama and pull a model.</p>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  <a href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-[11px] hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                    <DownloadIcon className="h-3 w-3" /> Ollama
+                  </a>
+                  <code className="px-2 py-1 bg-gray-900 dark:bg-gray-800 rounded text-[11px] text-green-400 font-mono">ollama pull llama3.2</code>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="flex gap-4">
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-sm">
-              2
+            {/* Step 2 - Downloads */}
+            <div className="flex gap-2.5">
+              <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-xs">2</div>
+              <div className="w-full">
+                <h4 className="text-xs font-semibold text-gray-900 dark:text-white">Download Agent</h4>
+                <div className="mt-1.5 flex flex-col gap-1">
+                  <a href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.0.0/NetConfigAgent.exe" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-[11px] hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-800">
+                    <MonitorIcon className="h-3 w-3 flex-shrink-0" />
+                    <span className="font-medium">Windows</span>
+                    <span className="text-[10px] opacity-60">x64</span>
+                    <DownloadIcon className="h-3 w-3 ml-auto flex-shrink-0" />
+                  </a>
+                  <a href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.0.0/NetConfigAgent-macos-x64" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-[11px] hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700">
+                    <AppWindowMacIcon className="h-3 w-3 flex-shrink-0" />
+                    <span className="font-medium">macOS</span>
+                    <span className="text-[10px] opacity-60">Intel/ARM</span>
+                    <DownloadIcon className="h-3 w-3 ml-auto flex-shrink-0" />
+                  </a>
+                  <a href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.0.0/NetConfigAgent-linux-x64" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-[11px] hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700">
+                    <TerminalIcon className="h-3 w-3 flex-shrink-0" />
+                    <span className="font-medium">Linux</span>
+                    <span className="text-[10px] opacity-60">x64</span>
+                    <DownloadIcon className="h-3 w-3 ml-auto flex-shrink-0" />
+                  </a>
+                </div>
+              </div>
             </div>
-            <div className="w-full">
-              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Download the Agent</h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                Download the NetConfig Agent for your operating system.
-              </p>
-              <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <a
-                  href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.0.0/NetConfigAgent.exe"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-800"
-                >
-                  <MonitorIcon className="h-4 w-4 flex-shrink-0" />
-                  <div className="min-w-0">
-                    <p className="font-medium">Windows</p>
-                    <p className="text-xs opacity-70">x64 (.exe)</p>
-                  </div>
-                  <DownloadIcon className="h-3.5 w-3.5 ml-auto flex-shrink-0" />
-                </a>
-                <a
-                  href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.0.0/NetConfigAgent-macos-x64"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700"
-                >
-                  <AppWindowMacIcon className="h-4 w-4 flex-shrink-0" />
-                  <div className="min-w-0">
-                    <p className="font-medium">macOS</p>
-                    <p className="text-xs opacity-70">Intel / Apple Silicon</p>
-                  </div>
-                  <DownloadIcon className="h-3.5 w-3.5 ml-auto flex-shrink-0" />
-                </a>
-                <a
-                  href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.0.0/NetConfigAgent-linux-x64"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700"
-                >
-                  <TerminalIcon className="h-4 w-4 flex-shrink-0" />
-                  <div className="min-w-0">
-                    <p className="font-medium">Linux</p>
-                    <p className="text-xs opacity-70">x64</p>
-                  </div>
-                  <DownloadIcon className="h-3.5 w-3.5 ml-auto flex-shrink-0" />
-                </a>
+
+            {/* Step 3 */}
+            <div className="flex gap-2.5">
+              <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-xs">3</div>
+              <div>
+                <h4 className="text-xs font-semibold text-gray-900 dark:text-white">Generate & Copy Token</h4>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Click &quot;Generate Agent Token&quot; above and copy it.</p>
+              </div>
+            </div>
+
+            {/* Step 4 */}
+            <div className="flex gap-2.5">
+              <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-xs">4</div>
+              <div>
+                <h4 className="text-xs font-semibold text-gray-900 dark:text-white">Run the Agent</h4>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Paste your token when prompted.</p>
+                <code className="mt-1 inline-block px-2 py-1 bg-gray-900 dark:bg-gray-800 rounded text-[11px] text-green-400 font-mono">./netconfig-agent</code>
               </div>
             </div>
           </div>
-
-          <div className="flex gap-4">
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-sm">
-              3
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Generate a Token</h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                Click "Generate Agent Token" above and copy the token.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-4">
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-sm">
-              4
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Run the Agent</h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                Run the agent executable. On first launch, paste your token when prompted. The agent will connect automatically.
-              </p>
-              <div className="mt-2 bg-gray-900 dark:bg-gray-800 rounded-lg px-4 py-2.5 font-mono text-sm text-green-400 overflow-x-auto">
-                <span className="text-gray-500">$</span> ./netconfig-agent
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-4">
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center text-green-600 dark:text-green-400 font-bold text-sm">
-              5
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Start Configuring</h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                Once connected, all SSH/NETCONF commands will be routed through your agent to reach devices on your local network.
-              </p>
-            </div>
-          </div>
         </div>
-      </div>
 
-      {/* Architecture Info */}
-      <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">How it works</h3>
-        <div className="flex items-center justify-center gap-2 text-xs text-gray-500 dark:text-gray-400 font-mono flex-wrap">
-          <span className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-lg font-semibold">Browser</span>
-          <span>→</span>
-          <span className="px-3 py-1.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-lg font-semibold">Cloud API</span>
-          <span>→ HTTP →</span>
-          <span className="px-3 py-1.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-lg font-semibold">Agent (Your PC)</span>
-          <span>→</span>
-          <span className="px-3 py-1.5 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded-lg font-semibold">Network Devices</span>
-        </div>
-        <div className="flex items-center justify-center gap-2 text-xs text-gray-500 dark:text-gray-400 font-mono flex-wrap mt-2">
-          <span className="px-3 py-1.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-lg font-semibold">Agent</span>
-          <span>→</span>
-          <span className="px-3 py-1.5 bg-fuchsia-100 dark:bg-fuchsia-900/40 text-fuchsia-700 dark:text-fuchsia-300 rounded-lg font-semibold">Ollama AI (Local)</span>
-          <span>→ AI Config Generation</span>
+        {/* Architecture Info - takes 1 column */}
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 flex flex-col justify-center">
+          <h3 className="text-xs font-semibold text-gray-900 dark:text-white mb-3">How it works</h3>
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400 font-mono flex-wrap">
+              <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded font-semibold">Browser</span>
+              <span>→</span>
+              <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded font-semibold">API</span>
+              <span>→</span>
+              <span className="px-2 py-1 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded font-semibold">Agent</span>
+              <span>→</span>
+              <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 rounded font-semibold">Devices</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400 font-mono flex-wrap">
+              <span className="px-2 py-1 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded font-semibold">Agent</span>
+              <span>→</span>
+              <span className="px-2 py-1 bg-fuchsia-100 dark:bg-fuchsia-900/40 text-fuchsia-700 dark:text-fuchsia-300 rounded font-semibold">Ollama AI</span>
+              <span>→ Config Gen</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
