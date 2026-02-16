@@ -62,6 +62,25 @@ btnSave.addEventListener('click', async () => {
   showToast('Settings saved');
 });
 
+// ─── Save & Reconnect ───
+const btnReconnect = $('btn-reconnect');
+if (btnReconnect) {
+  btnReconnect.addEventListener('click', async () => {
+    await window.agent.saveConfig({
+      serverUrl: inputServer.value.trim(),
+      agentName: inputName.value.trim(),
+      agentToken: inputToken.value.trim()
+    });
+    if (isConnected) {
+      await window.agent.disconnect();
+      // Small delay to let disconnect complete
+      await new Promise(r => setTimeout(r, 500));
+    }
+    setConnecting();
+    await window.agent.connect();
+  });
+}
+
 // ─── Connect/Disconnect ───
 btnConnect.addEventListener('click', async () => {
   if (isConnected) {
@@ -97,9 +116,6 @@ function updateConnectionUI(connected) {
   if (connected) {
     btnConnect.className = 'btn btn-connect connected';
     btnConnect.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 0 1 0 12.73"/><path d="M5.64 5.64a9 9 0 0 0 0 12.73"/></svg> Disconnect';
-    // Collapse settings
-    $('settings-body').classList.add('collapsed');
-    $('settings-chevron').classList.add('collapsed');
   } else {
     btnConnect.className = 'btn btn-connect';
     btnConnect.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg> Connect';
