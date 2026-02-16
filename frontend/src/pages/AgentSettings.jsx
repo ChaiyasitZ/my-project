@@ -28,6 +28,7 @@ function AgentSettings() {
   const [agentStatus, setAgentStatus] = useState(null); // { online, agentInfo }
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [revoking, setRevoking] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -37,19 +38,29 @@ function AgentSettings() {
   const [changingModel, setChangingModel] = useState(false);
 
   // Fetch agent status and token on mount
-  const fetchAgentData = useCallback(async () => {
+  const fetchAgentData = useCallback(async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       const [statusRes, tokenRes] = await Promise.all([
         axios.get('/agent/status'),
         axios.get('/agent/token')
       ]);
       setAgentStatus(statusRes.data);
-      setToken(tokenRes.data.agentToken || null);
+      const newToken = tokenRes.data.agentToken || null;
+      setToken(prev => {
+        // If token was already visible and we still have the same token, keep showToken state
+        if (prev && newToken && prev === newToken) return prev;
+        return newToken;
+      });
     } catch (error) {
       console.error('Failed to fetch agent data:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -211,11 +222,12 @@ function AgentSettings() {
 
           {/* Refresh button */}
           <button
-            onClick={fetchAgentData}
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            onClick={() => fetchAgentData(true)}
+            disabled={refreshing}
+            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
             title="Refresh status"
           >
-            <RefreshCwIcon className="h-5 w-5" />
+            <RefreshCwIcon className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
