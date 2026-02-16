@@ -6,6 +6,7 @@ import sshService from '../services/sshService.js';
 import netconfService from '../services/netconfService.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getOrSetCache, invalidateCache, CacheKeys } from '../lib/cache.js';
+import agentRelay from '../services/agentRelay.js';
 
 const router = express.Router();
 
@@ -132,8 +133,21 @@ router.get('/', async (req, res) => {
 // GET /api/devices/sessions/stats - Get SSH session statistics
 router.get('/sessions/stats', async (req, res) => {
   try {
+    // Try agent relay first (Vercel mode)
+    const agentOnline = await agentRelay.isAgentOnline(req.userId);
+    if (agentOnline) {
+      const result = await agentRelay.sendToAgent(req.userId, 'agent:status', {});
+      return res.json({
+        success: true,
+        message: 'SSH session statistics retrieved via agent',
+        stats: {
+          activePersistentSessions: result.connections?.ssh?.activeConnections || 0,
+          pooledSessions: result.connections?.ssh?.activeShells || 0,
+          sessions: []
+        }
+      });
+    }
     const stats = sshService.getSessionStats();
-    
     res.json({
       success: true,
       message: 'SSH session statistics retrieved',
@@ -143,7 +157,6 @@ router.get('/sessions/stats', async (req, res) => {
         sessions: stats.sessions
       }
     });
-    
   } catch (error) {
     console.error('Error fetching session stats:', error);
     res.status(500).json({
@@ -475,10 +488,31 @@ router.post('/:id/test', async (req, res) => {
       });
     }
     
-    // Test SSH connection
+    // Test SSH connection via agent relay (Vercel) or direct (local)
     let testResult;
     try {
-      testResult = await sshService.testConnection(device);
+      const agentOnline = await agentRelay.isAgentOnline(req.userId);
+      if (agentOnline) {
+        // Route through agent
+        const result = await agentRelay.sendToAgent(req.userId, 'agent:ssh:connect', {
+          deviceId: device._id.toString(),
+          host: device.ip_address,
+          port: device.ssh_port || 22,
+          username: device.username,
+          password: device.password
+        });
+        if (result.success) {
+          // Disconnect after test
+          await agentRelay.sendToAgent(req.userId, 'agent:ssh:disconnect', {
+            deviceId: device._id.toString()
+          }).catch(() => {});
+          testResult = { success: true, message: `Connected to ${device.ip_address} via agent` };
+        } else {
+          testResult = { success: false, message: result.error || 'Connection failed via agent' };
+        }
+      } else {
+        testResult = await sshService.testConnection(device);
+      }
     } catch (error) {
       testResult = {
         success: false,
@@ -546,11 +580,43 @@ router.post('/:id/ssh/connect', async (req, res) => {
       // Update status to connecting
       device.ssh_status = 'connecting';
       await device.save();
+
+      // Try agent relay first (Vercel mode)
+      const agentOnline = await agentRelay.isAgentOnline(req.userId);
+      if (agentOnline) {
+        const result = await agentRelay.sendToAgent(req.userId, 'agent:ssh:connect', {
+          deviceId: device._id.toString(),
+          host: device.ip_address,
+          port: device.ssh_port || 22,
+          username: device.username,
+          password: device.password
+        });
+        if (result.success) {
+          device.status = 'active';
+          device.ssh_status = 'connected';
+          device.ssh_connected_at = new Date();
+          device.ssh_session_id = `agent-${device._id}`;
+          await device.save();
+          return res.json({
+            success: true,
+            message: `SSH session connected to ${device.name} via agent`,
+            session: {
+              session_id: `agent-${device._id}`,
+              device_name: device.name,
+              device_ip: device.ip_address,
+              is_privileged: false,
+              connected_at: new Date().toISOString(),
+              use_count: 0
+            }
+          });
+        } else {
+          throw new Error(result.error || 'Agent SSH connection failed');
+        }
+      }
       
-      // Create persistent session
+      // Fallback: direct SSH (local/desktop mode)
       const session = await sshService.getOrCreatePersistentSession(device);
       
-      // Update device status to active on successful connection
       device.status = 'active';
       device.ssh_status = 'connected';
       device.ssh_connected_at = new Date();
@@ -571,7 +637,6 @@ router.post('/:id/ssh/connect', async (req, res) => {
       });
       
     } catch (connectionError) {
-      // Update device status to reflect connection failure
       device.status = 'error';
       device.ssh_status = 'error';
       await device.save();
@@ -607,16 +672,20 @@ router.post('/:id/ssh/disconnect', async (req, res) => {
     
     console.log(`🔌 Disconnecting SSH session from ${device.name} (${device.ip_address})`);
     
-    // Find and disconnect persistent session
+    // Try agent relay first
+    const agentOnline = await agentRelay.isAgentOnline(req.userId);
+    if (agentOnline) {
+      await agentRelay.sendToAgent(req.userId, 'agent:ssh:disconnect', {
+        deviceId: device._id.toString()
+      }).catch(() => {});
+    }
+
+    // Also clean up local sessions if any
     const sessionKey = `${id}_persistent`;
-    const session = sshService.persistentSessions.get(sessionKey);
-    
+    const session = sshService.persistentSessions?.get(sessionKey);
     if (session) {
-      if (session.connection) {
-        session.connection.end();
-      }
+      if (session.connection) session.connection.end();
       sshService.persistentSessions.delete(sessionKey);
-      console.log(`✅ SSH session disconnected from ${device.name}`);
     }
     
     // Update device status
@@ -646,9 +715,11 @@ router.get('/ssh/status-all', async (req, res) => {
     const devices = await Device.find({ userId: req.userId });
     
     const statusList = devices.map(device => {
+      // In Vercel mode, rely on DB ssh_status; locally check sshService
       const sessionKey = `${device.id}_persistent`;
-      const session = sshService.persistentSessions.get(sessionKey);
-      const isConnected = session && sshService.isSessionValid(session);
+      const session = sshService.persistentSessions?.get(sessionKey);
+      const isLocalConnected = session && sshService.isSessionValid?.(session);
+      const isConnected = isLocalConnected || device.ssh_status === 'connected';
       
       return {
         device_id: device.id,
@@ -688,13 +759,14 @@ router.get('/:id/ssh/status', async (req, res) => {
     }
     
     const sessionKey = `${id}_persistent`;
-    const session = sshService.persistentSessions.get(sessionKey);
+    const session = sshService.persistentSessions?.get(sessionKey);
     
     // Also check optimized session pool
-    const deviceSessions = sshService.sessionPool.get(id) || [];
-    const poolSessions = deviceSessions.filter(s => sshService.isSessionValid(s));
+    const deviceSessions = sshService.sessionPool?.get(id) || [];
+    const poolSessions = deviceSessions.filter(s => sshService.isSessionValid?.(s));
     
-    const isConnected = session && sshService.isSessionValid(session);
+    const isLocalConnected = session && sshService.isSessionValid?.(session);
+    const isConnected = isLocalConnected || device.ssh_status === 'connected';
     
     res.json({
       success: true,

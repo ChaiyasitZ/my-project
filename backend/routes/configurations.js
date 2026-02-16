@@ -7,12 +7,41 @@ import ConfigurationBackup from '../models/ConfigurationBackup.js';
 import AgentCommand from '../models/AgentCommand.js';
 import llmService from '../services/llmService.js';
 import sshService from '../services/sshService.js';
+import agentRelay from '../services/agentRelay.js';
 import backupScheduler from '../services/backupScheduler.js';
 import notificationService from '../services/notificationService.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getOrSetCache, invalidateCache, CacheKeys } from '../lib/cache.js';
 
 const router = express.Router();
+
+/**
+ * Deploy configuration via agent relay (preferred) or direct SSH (fallback).
+ * Uses the all-in-one agent:ssh:deploy-config command for Vercel serverless.
+ */
+async function deployViaAgent(userId, device, configCommands) {
+  const agentOnline = await agentRelay.isAgentOnline(userId);
+  if (agentOnline) {
+    const result = await agentRelay.sendToAgent(userId, 'agent:ssh:deploy-config', {
+      deviceId: device._id.toString(),
+      host: device.ip_address,
+      port: device.ssh_port || 22,
+      username: device.username,
+      password: device.password,
+      commands: configCommands,
+      enablePassword: device.enable_password
+    }, 25000);
+    if (result.pending) {
+      return { success: true, output: 'Configuration sent to agent (processing...)', pending: true, commandId: result.commandId };
+    }
+    if (!result.success) {
+      throw new Error(result.error || result.message || 'Agent deployment failed');
+    }
+    return result;
+  }
+  // Fallback to direct SSH (desktop/local mode)
+  return await sshService.sendConfigCommands(device, configCommands);
+}
 
 // Apply authentication middleware to all routes
 router.use(authenticateToken);
@@ -514,7 +543,8 @@ router.post('/session-apply', async (req, res) => {
     
     try {
       const deploymentStart = Date.now();
-      const deployResult = await sshService.fastDeployWithSession(
+      const deployResult = await deployViaAgent(
+        req.userId,
         configuration.device,
         configuration.deployment_config
       );
@@ -635,7 +665,8 @@ router.post('/fast-apply', async (req, res) => {
     
     try {
       const deploymentStart = Date.now();
-      const deployResult = await sshService.fastDeploy(
+      const deployResult = await deployViaAgent(
+        req.userId,
         configuration.device,
         configuration.deployment_config
       );
@@ -749,14 +780,7 @@ router.post('/apply', async (req, res) => {
       const configToApply = configuration.deployment_config || configuration.generated_config;
       console.log(`📡 Deploying configuration to ${device.ip_address} (${configToApply.split('\n').length} lines)`);
       
-      // Clean up any existing SSH sessions for this device to prevent "Channel open failure"
-      console.log(`🧹 Cleaning up existing SSH sessions for ${device.name}...`);
-      sshService.disconnect(device._id);
-      
-      // Small delay to allow device to release the VTY line
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // STEP 1: Deploy configuration (no automatic backups - user must subscribe for auto-backup)
+      // STEP 1: Deploy configuration via agent relay (or direct SSH fallback)
       await notificationService.emitDeploymentProgress(
         'in-progress',
         `Deploying configuration to ${device.name}...`,
@@ -764,7 +788,7 @@ router.post('/apply', async (req, res) => {
       );
       
       const deploymentStart = Date.now();
-      const sshResult = await sshService.sendConfigCommands(device, configToApply);
+      const sshResult = await deployViaAgent(req.userId, device, configToApply);
       const deploymentTime = Date.now() - deploymentStart;
       console.log(`✅ Configuration deployed successfully in ${deploymentTime}ms`);
       
@@ -777,10 +801,6 @@ router.post('/apply', async (req, res) => {
           deploymentTimeSeconds: (deploymentTime / 1000).toFixed(2)
         }
       );
-      
-      // Clean up SSH session after deployment
-      console.log(`🧹 Cleaning up SSH session after deployment...`);
-      sshService.disconnect(device._id);
       
       // STEP 2: Update configuration status with timestamp
       configuration.status = 'deployed';
@@ -1102,7 +1122,7 @@ router.post('/apply-multi', async (req, res) => {
         const configToApply = configuration.deployment_config || configuration.generated_config;
         console.log(`📡 Deploying to ${device.name}: clean config (${configToApply.split('\n').length} lines, no comments)`);
         
-        const sshResult = await sshService.sendConfigCommands(device, configToApply);
+        const sshResult = await deployViaAgent(req.userId, device, configToApply);
         
         // Update configuration status
         configuration.status = 'deployed';
@@ -1992,8 +2012,8 @@ router.post('/:id/rollback', async (req, res) => {
     
     console.log(`📡 Rolling back ${device.name} from config ${currentConfig._id} to ${targetConfig._id}`);
     
-    // Deploy the target configuration via SSH
-    const sshResult = await sshService.sendConfigCommands(device, configToApply);
+    // Deploy the target configuration via agent relay (or direct SSH fallback)
+    const sshResult = await deployViaAgent(req.userId, device, configToApply);
     
     // Mark the current configuration as rolled_back
     currentConfig.status = 'rolled_back';

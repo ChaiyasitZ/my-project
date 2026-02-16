@@ -131,6 +131,19 @@ class HttpPollingClient extends EventEmitter {
         case 'agent:ssh:send-config':
           result = await this.handlers.ssh.sendConfig(data.deviceId, data.commands, data.enablePassword);
           break;
+        case 'agent:ssh:deploy-config': {
+          // All-in-one: connect → send config → disconnect (single round trip for Vercel)
+          const { deviceId, host, port, username, password, commands, enablePassword } = data;
+          try {
+            await this.handlers.ssh.connect({ deviceId, host, port: port || 22, username, password });
+            result = await this.handlers.ssh.sendConfig(deviceId, commands, enablePassword);
+            this.handlers.ssh.disconnect(deviceId);
+          } catch (deployErr) {
+            this.handlers.ssh.disconnect(deviceId);
+            throw deployErr;
+          }
+          break;
+        }
         case 'agent:ssh:open-shell': {
           result = await this._openShell(data);
           break;

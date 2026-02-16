@@ -44,7 +44,7 @@ class AgentRelay {
     });
 
     // Long-poll: wait for result (up to timeoutMs, leave 2s buffer for Vercel)
-    const maxWait = Math.min(timeoutMs, 8000);
+    const maxWait = Math.min(timeoutMs, 25000);
     const pollInterval = 300; // Check every 300ms
     const startTime = Date.now();
 
