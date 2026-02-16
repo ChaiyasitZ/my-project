@@ -36,6 +36,11 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  agentToken: {
+    type: String,
+    default: null,
+    index: true
+  },
   preferences: {
     theme: {
       type: String,
@@ -59,6 +64,7 @@ const userSchema = new mongoose.Schema({
 // Index for faster queries
 userSchema.index({ email: 1 });
 userSchema.index({ lastLogin: -1 });
+userSchema.index({ agentToken: 1 }, { sparse: true });
 
 // Static method to find or create user from Google profile
 userSchema.statics.findOrCreateFromGoogle = async function(profile) {
