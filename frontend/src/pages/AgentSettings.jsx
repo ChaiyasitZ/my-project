@@ -460,7 +460,7 @@ function AgentSettings() {
                 Download the NetConfig Agent for your operating system and extract it.
               </p>
               <a
-                href="https://github.com/your-repo/netconfig-agent/releases"
+                href="https://github.com/ChaiyasitZ/my-project/releases"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
