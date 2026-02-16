@@ -14,7 +14,7 @@ export async function setupCLI(config) {
       type: 'input',
       name: 'serverUrl',
       message: 'NetConfig server URL:',
-      default: config.get('serverUrl') || 'https://your-app.vercel.app',
+      default: config.get('serverUrl') || 'https://my-project-seven-plum-24.vercel.app',
       validate: (input) => {
         if (!input.startsWith('http://') && !input.startsWith('https://')) {
           return 'URL must start with http:// or https://';
