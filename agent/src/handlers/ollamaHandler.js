@@ -12,7 +12,7 @@
  */
 
 const OLLAMA_BASE_URL = 'http://localhost:11434';
-const DEFAULT_MODEL = 'llama3.2';
+const DEFAULT_MODEL = 'qwen2.5-coder'; // Change to your preferred model
 const REQUEST_TIMEOUT = 120000; // 120 seconds for generation
 
 export class OllamaHandler {
