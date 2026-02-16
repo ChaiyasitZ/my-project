@@ -52,8 +52,8 @@ function AuthenticatedLayout({ children, connectionStatus, sidebarCollapsed, onT
       />
       
       {/* Main content area */}
-      <div className="flex-1 lg:ml-0 w-full">
-        <main className="pt-20 lg:pt-6 px-4 sm:px-6 lg:px-8">
+      <div className="flex-1 lg:ml-0 min-w-0">
+        <main className="pt-20 lg:pt-6 pb-8 px-4 sm:px-6 lg:px-8 overflow-x-hidden">
           <div className="max-w-7xl mx-auto w-full">
             <PageTransition>
               {children}

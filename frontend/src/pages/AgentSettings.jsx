@@ -18,7 +18,8 @@ import {
   BrainCircuitIcon,
   CpuIcon,
   SparklesIcon,
-  AlertTriangleIcon
+  AlertTriangleIcon,
+  AppWindowMacIcon
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -466,20 +467,52 @@ function AgentSettings() {
             <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-sm">
               2
             </div>
-            <div>
+            <div className="w-full">
               <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Download the Agent</h4>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                Download the NetConfig Agent for your operating system and extract it.
+                Download the NetConfig Agent for your operating system.
               </p>
-              <a
-                href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.0.0/NetConfigAgent.exe"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 mt-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              >
-                <DownloadIcon className="h-4 w-4" />
-                Download Agent
-              </a>
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <a
+                  href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.0.0/NetConfigAgent.exe"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-800"
+                >
+                  <MonitorIcon className="h-4 w-4 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-medium">Windows</p>
+                    <p className="text-xs opacity-70">x64 (.exe)</p>
+                  </div>
+                  <DownloadIcon className="h-3.5 w-3.5 ml-auto flex-shrink-0" />
+                </a>
+                <a
+                  href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.0.0/NetConfigAgent-macos-x64"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700"
+                >
+                  <AppWindowMacIcon className="h-4 w-4 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-medium">macOS</p>
+                    <p className="text-xs opacity-70">Intel / Apple Silicon</p>
+                  </div>
+                  <DownloadIcon className="h-3.5 w-3.5 ml-auto flex-shrink-0" />
+                </a>
+                <a
+                  href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.0.0/NetConfigAgent-linux-x64"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700"
+                >
+                  <TerminalIcon className="h-4 w-4 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-medium">Linux</p>
+                    <p className="text-xs opacity-70">x64</p>
+                  </div>
+                  <DownloadIcon className="h-3.5 w-3.5 ml-auto flex-shrink-0" />
+                </a>
+              </div>
             </div>
           </div>
 
