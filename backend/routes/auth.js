@@ -61,7 +61,7 @@ router.get('/google',
 router.get('/google/callback',
   passport.authenticate('google', { 
     session: false,
-    failureRedirect: `${config.auth.frontendUrl}/login?error=auth_failed`
+    failureRedirect: `${config.auth.frontendUrl}/#/login?error=auth_failed`
   }),
   (req, res) => {
     try {
@@ -69,15 +69,14 @@ router.get('/google/callback',
       const token = generateToken(req.user);
       const refreshToken = generateRefreshToken(req.user);
       
-      // Redirect to frontend with token
-      const redirectUrl = new URL(`${config.auth.frontendUrl}/auth/callback`);
-      redirectUrl.searchParams.set('token', token);
-      redirectUrl.searchParams.set('refreshToken', refreshToken);
+      // Redirect to frontend with token (using hash routing for HashRouter)
+      const baseUrl = config.auth.frontendUrl;
+      const redirectUrl = `${baseUrl}/#/auth/callback?token=${encodeURIComponent(token)}&refreshToken=${encodeURIComponent(refreshToken)}`;
       
-      res.redirect(redirectUrl.toString());
+      res.redirect(redirectUrl);
     } catch (error) {
       console.error('OAuth callback error:', error);
-      res.redirect(`${config.auth.frontendUrl}/login?error=token_generation_failed`);
+      res.redirect(`${config.auth.frontendUrl}/#/login?error=token_generation_failed`);
     }
   }
 );
