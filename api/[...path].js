@@ -21,7 +21,10 @@ async function getApp() {
 export default async function handler(req, res) {
   try {
     const handler = await getApp();
-    req.url = `/api${req.url}`;
+    // Only prepend /api if the URL doesn't already start with it
+    if (!req.url.startsWith('/api')) {
+      req.url = `/api${req.url}`;
+    }
     return await handler(req, res);
   } catch (err) {
     console.error('[Vercel] Request handler error:', err.message, err.stack);
