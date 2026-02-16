@@ -1,4 +1,11 @@
-import { Client } from 'ssh2';
+// Dynamic import for ssh2 (has optional native addon)
+let Client;
+try {
+  const ssh2 = await import('ssh2');
+  Client = ssh2.Client;
+} catch (e) {
+  console.warn('⚠️ ssh2 not available - direct NETCONF disabled (serverless mode)');
+}
 
 /**
  * NETCONF Service for Cisco NX-OS and IOS-XE devices

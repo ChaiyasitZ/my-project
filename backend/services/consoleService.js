@@ -1,5 +1,13 @@
-import { SerialPort } from 'serialport';
-import { ReadlineParser } from '@serialport/parser-readline';
+// Dynamic import for serialport (native module - not available on serverless)
+let SerialPort, ReadlineParser;
+try {
+  const sp = await import('serialport');
+  SerialPort = sp.SerialPort;
+  const rp = await import('@serialport/parser-readline');
+  ReadlineParser = rp.ReadlineParser;
+} catch (e) {
+  console.warn('⚠️ serialport not available - console features disabled (serverless mode)');
+}
 
 export class ConsoleService {
   constructor() {

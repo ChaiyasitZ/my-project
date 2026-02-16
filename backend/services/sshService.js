@@ -1,5 +1,13 @@
-import { Client } from 'ssh2';
 import { promisify } from 'util';
+
+// Dynamic import for ssh2 (has optional native addon)
+let Client;
+try {
+  const ssh2 = await import('ssh2');
+  Client = ssh2.Client;
+} catch (e) {
+  console.warn('⚠️ ssh2 not available - direct SSH disabled (serverless mode)');
+}
 
 export class SSHService {
   constructor() {
