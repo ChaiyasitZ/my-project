@@ -4,7 +4,6 @@ import crypto from 'crypto';
 import Device from '../models/Device.js';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import ConfigurationBackup from '../models/ConfigurationBackup.js';
-import AgentCommand from '../models/AgentCommand.js';
 import llmService from '../services/llmService.js';
 import sshService from '../services/sshService.js';
 import backupScheduler from '../services/backupScheduler.js';
@@ -69,47 +68,6 @@ router.get('/ai-status', async (req, res) => {
         error: error.message 
       }
     });
-  }
-});
-
-// GET /api/configurations/llm-result/:commandId - Poll for async Ollama generation result
-router.get('/llm-result/:commandId', async (req, res) => {
-  try {
-    const command = await AgentCommand.findOne({
-      _id: req.params.commandId,
-      userId: req.userId
-    });
-
-    if (!command) {
-      return res.status(404).json({ error: 'Command not found' });
-    }
-
-    if (command.status === 'completed') {
-      // The result contains the raw Ollama response (OpenAI-compatible format)
-      // The frontend needs to process this through the same pipeline as sync generation
-      const llmResponse = command.result;
-      const rawContent = llmResponse?.choices?.[0]?.message?.content?.trim();
-
-      return res.json({
-        status: 'completed',
-        result: {
-          success: true,
-          content: rawContent,
-          usage: llmResponse?.usage,
-          model: llmResponse?.model,
-          provider: llmResponse?.provider || 'ollama'
-        }
-      });
-    }
-
-    if (command.status === 'failed') {
-      return res.json({ status: 'failed', error: command.error });
-    }
-
-    // Still pending or processing
-    res.json({ status: command.status });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
   }
 });
 
@@ -239,7 +197,7 @@ Return ONLY the translated text, nothing else.
 Text to translate:
 ${text}`;
     
-    const translatedText = await llmService.generateRawCompletion(translationPrompt, req.userId);
+    const translatedText = await llmService.generateRawCompletion(translationPrompt);
     
     res.json({
       success: true,
@@ -321,7 +279,7 @@ router.post('/generate', async (req, res) => {
         name: device.name,
         model: device.model,
         location: device.location
-      }, 'cisco_cli', true, { userId: req.userId });
+      });
     } catch (aiError) {
       console.error('❌ AI Service Error:', aiError.message);
       return res.status(503).json({
@@ -329,23 +287,13 @@ router.post('/generate', async (req, res) => {
         message: 'AI service is currently unavailable',
         error: aiError.message,
         suggestions: [
-          'Check your AI configuration (Ollama or OpenRouter)',
-          'Ensure the NetConfig Agent is running with Ollama',
+          'Check your OpenRouter API key configuration',
+          'Verify OpenRouter API is accessible',
           'Try a different model if current one is unavailable'
         ]
       });
     }
     const executionTime = Date.now() - startTime;
-
-    // Handle async pending (Ollama generation still in progress) 
-    if (aiResult.pending) {
-      return res.json({
-        success: true,
-        pending: true,
-        commandId: aiResult.commandId,
-        message: 'Configuration generation in progress via Ollama. Poll for result.'
-      });
-    }
     
     console.log('🤖 AI generation completed:', {
       success: aiResult.success,
@@ -370,8 +318,7 @@ router.post('/generate', async (req, res) => {
     const explanationResult = await llmService.generateExplanation(
       aiResult.displayConfig || aiResult.configuration,
       device.type,
-      prompt,
-      req.userId
+      prompt
     );
     
     if (explanationResult.success) {
@@ -757,7 +704,7 @@ router.post('/apply', async (req, res) => {
       await new Promise(resolve => setTimeout(resolve, 500));
       
       // STEP 1: Deploy configuration (no automatic backups - user must subscribe for auto-backup)
-      await notificationService.emitDeploymentProgress(
+      notificationService.emitDeploymentProgress(
         'in-progress',
         `Deploying configuration to ${device.name}...`,
         { deviceName: device.name, deviceId: device._id }
@@ -768,7 +715,7 @@ router.post('/apply', async (req, res) => {
       const deploymentTime = Date.now() - deploymentStart;
       console.log(`✅ Configuration deployed successfully in ${deploymentTime}ms`);
       
-      await notificationService.emitDeploymentProgress(
+      notificationService.emitDeploymentProgress(
         'complete',
         `Configuration deployed successfully in ${(deploymentTime / 1000).toFixed(2)}s`,
         { 
@@ -796,7 +743,7 @@ router.post('/apply', async (req, res) => {
         // Only show notification if backups were actually triggered
         if (scheduleResult.success && scheduleResult.devices_backed_up > 0) {
           console.log(`🚀 Post-deployment backup triggered for device ${device._id}`);
-          await notificationService.emitPostDeployScheduleResults(
+          notificationService.emitPostDeployScheduleResults(
             scheduleResult.results || [],
             {
               total_schedules: scheduleResult.results?.length || 0,
@@ -1260,18 +1207,8 @@ router.post('/netconf/generate', async (req, res) => {
       name: device.name,
       model: device.model,
       location: device.location
-    }, customYangModels, true, { userId: req.userId });
+    }, customYangModels);
     const executionTime = Date.now() - startTime;
-
-    // Handle async pending (Ollama generation still in progress)
-    if (aiResult.pending) {
-      return res.json({
-        success: true,
-        pending: true,
-        commandId: aiResult.commandId,
-        message: 'NETCONF configuration generation in progress via Ollama. Poll for result.'
-      });
-    }
     
     if (!aiResult.success) {
       return res.status(400).json({
@@ -1286,8 +1223,7 @@ router.post('/netconf/generate', async (req, res) => {
     const explanationResult = await llmService.generateExplanation(
       aiResult.displayConfig,
       device.type,
-      prompt,
-      req.userId
+      prompt
     );
     
     // Save to configuration history with userId

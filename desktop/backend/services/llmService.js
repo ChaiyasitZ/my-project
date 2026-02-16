@@ -1,11 +1,8 @@
 import axios from 'axios';
-import agentRelay from './agentRelay.js';
 
 /**
- * LLM Service for Cisco Configuration Generation
- * Supports two providers:
- *   1. OpenRouter (cloud) - direct API call
- *   2. Ollama (local)     - relayed through user's agent to local Ollama instance
+ * OpenRouter LLM Service for Cisco Configuration Generation
+ * Uses OpenRouter API for access to multiple AI models
  * 
  * Features:
  * - Response caching for repeated prompts
@@ -19,7 +16,6 @@ export class LLMService {
     this.provider = process.env.LLM_PROVIDER || 'openrouter';
     this.apiKey = process.env.OPENROUTER_API_KEY || '';
     this.model = process.env.OPENROUTER_MODEL || '';
-    this.ollamaModel = process.env.OLLAMA_MODEL || 'llama3.2';
     this.apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
     this.timeout = 120000; // 120 seconds
     
@@ -78,18 +74,9 @@ export class LLMService {
     };
     
     if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
-      if (this.provider === 'ollama') {
-        console.log(`🤖 LLM Provider: Ollama (via agent) — model: ${this.ollamaModel}`);
-        console.log(`   OpenRouter API key not needed in Ollama mode.`);
-      } else {
-        console.warn(`⚠️ OpenRouter API key not configured! Please set OPENROUTER_API_KEY in .env`);
-      }
+      console.warn(`⚠️ OpenRouter API key not configured! Please set OPENROUTER_API_KEY in .env`);
     } else {
       console.log(`..........................`);
-    }
-
-    if (this.provider === 'ollama') {
-      console.log(`🤖 LLM Provider: Ollama (via agent) — model: ${this.ollamaModel}`);
     }
     
     // Clean up expired cache entries periodically (store interval ID for shutdown)
@@ -185,113 +172,32 @@ export class LLMService {
   }
 
   /**
-   * Check if this service is running in Ollama mode
-   */
-  isOllamaMode() {
-    return this.provider === 'ollama';
-  }
-
-  /**
-   * Get the effective model name for the current provider
-   */
-  getActiveModel() {
-    return this.provider === 'ollama' ? this.ollamaModel : this.model;
-  }
-
-  /**
-   * Unified chat completion call — routes to OpenRouter or Ollama via agent.
-   * 
-   * @param {Array<{role:string,content:string}>} messages - Chat messages
-   * @param {Object} params - temperature, max_tokens, top_p, etc.
-   * @param {string|null} userId - Required for Ollama mode (to find user's agent)
-   * @returns {Object} OpenAI-compatible response: { choices, usage, model, provider, pending?, commandId? }
-   */
-  async _callChatCompletion(messages, params = {}, userId = null) {
-    if (this.provider === 'ollama') {
-      return this._chatViaOllama(userId, messages, params);
-    }
-    // Default: OpenRouter direct API call
-    const response = await this.client.post('/chat/completions', {
-      model: params.model || this.model,
-      messages,
-      temperature: params.temperature ?? this.defaultParams.temperature,
-      max_tokens: params.max_tokens ?? this.defaultParams.max_tokens,
-      top_p: params.top_p ?? this.defaultParams.top_p,
-      frequency_penalty: params.frequency_penalty ?? this.defaultParams.frequency_penalty,
-      presence_penalty: params.presence_penalty ?? this.defaultParams.presence_penalty,
-      stop: params.stop ?? this.defaultParams.stop
-    });
-    return response.data;
-  }
-
-  /**
-   * Send a chat completion through the user's agent to local Ollama.
-   * Long-polls for up to 8 seconds; returns { pending, commandId } if not done.
-   * 
-   * @param {string} userId 
-   * @param {Array} messages 
-   * @param {Object} params 
-   * @returns {Object} OpenAI-compatible response or { pending, commandId }
-   */
-  async _chatViaOllama(userId, messages, params = {}) {
-    if (!userId) {
-      throw new Error('Ollama mode requires an active agent. Please start the NetConfig Agent on your computer.');
-    }
-
-    const isOnline = await agentRelay.isAgentOnline(userId);
-    if (!isOnline) {
-      throw new Error('Agent not connected. Please start the NetConfig Agent with Ollama to use AI features.');
-    }
-
-    const result = await agentRelay.sendToAgent(userId, 'agent:ollama:chat', {
-      messages,
-      model: params.model || this.ollamaModel,
-      temperature: params.temperature ?? this.defaultParams.temperature,
-      max_tokens: params.max_tokens ?? this.defaultParams.max_tokens,
-      top_p: params.top_p ?? this.defaultParams.top_p,
-      frequency_penalty: params.frequency_penalty ?? this.defaultParams.frequency_penalty,
-      presence_penalty: params.presence_penalty ?? this.defaultParams.presence_penalty,
-      stop: params.stop ?? this.defaultParams.stop
-    }, 8000);
-
-    // If the agent didn't respond within 8s, return pending for async polling
-    if (result.pending) {
-      return { pending: true, commandId: result.commandId };
-    }
-
-    // Result should be OpenAI-compatible: { choices, usage, model, provider }
-    return result;
-  }
-
-  /**
    * Generate a raw text completion from a simple prompt
    * Used for translation and other simple text generation tasks
-   * @param {string} prompt 
-   * @param {string|null} userId - Required when provider is 'ollama'
    */
-  async generateRawCompletion(prompt, userId = null) {
+  async generateRawCompletion(prompt) {
     try {
-      // In Ollama mode, skip API key check
-      if (this.provider !== 'ollama') {
-        if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
-          throw new Error('OpenRouter API key not configured');
-        }
+      // Check API key
+      if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
+        throw new Error('OpenRouter API key not configured');
       }
       
       // Check rate limit
       this._checkRateLimit();
       
-      const messages = [{ role: 'user', content: prompt }];
-      const params = { temperature: 0.3, max_tokens: 1000, stop: [] };
-
-      const llmResponse = await this._callChatCompletion(messages, params, userId);
-
-      // Handle async pending (Ollama took longer than 8s)
-      if (llmResponse.pending) {
-        return { pending: true, commandId: llmResponse.commandId };
-      }
+      const response = await this.client.post('/chat/completions', {
+        model: this.model,
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 1000
+      });
       
-      const result = llmResponse?.choices?.[0]?.message?.content?.trim();
+      const result = response.data?.choices?.[0]?.message?.content?.trim();
       
       if (!result) {
         throw new Error('Empty response from LLM');
@@ -314,14 +220,12 @@ export class LLMService {
    * @param {string} originalPrompt - The original user prompt for the deployment
    * @returns {Object} { backup_name: string, description: string }
    */
-  async generateBackupMetadata(deployedConfig, deviceName, deviceType, originalPrompt = '', userId = null) {
+  async generateBackupMetadata(deployedConfig, deviceName, deviceType, originalPrompt = '') {
     try {
-      // Check API key (skip in Ollama mode)
-      if (this.provider !== 'ollama') {
-        if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
-          console.warn('⚠️ LLM API key not configured, using fallback backup metadata');
-          return this._generateFallbackBackupMetadata(deviceName, originalPrompt);
-        }
+      // Check API key
+      if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
+        console.warn('⚠️ LLM API key not configured, using fallback backup metadata');
+        return this._generateFallbackBackupMetadata(deviceName, originalPrompt);
       }
       
       // Check rate limit
@@ -346,21 +250,17 @@ ${deployedConfig.substring(0, 1500)}${deployedConfig.length > 1500 ? '\n... (tru
 
 Generate backup_name and description as JSON:`;
 
-      const messages = [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ];
-      const params = { temperature: 0.3, max_tokens: 300, stop: [] };
-
-      const llmResponse = await this._callChatCompletion(messages, params, userId);
-
-      // If pending (Ollama async), use fallback metadata
-      if (llmResponse.pending) {
-        console.warn('⚠️ Ollama generation pending, using fallback backup metadata');
-        return this._generateFallbackBackupMetadata(deviceName, originalPrompt);
-      }
+      const response = await this.client.post('/chat/completions', {
+        model: this.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 300
+      });
       
-      const result = llmResponse?.choices?.[0]?.message?.content?.trim();
+      const result = response.data?.choices?.[0]?.message?.content?.trim();
       
       if (!result) {
         console.warn('⚠️ Empty LLM response, using fallback backup metadata');
@@ -415,29 +315,18 @@ Generate backup_name and description as JSON:`;
   }
 
   /**
-   * Generate Cisco configuration from text prompt
-   * Routes to OpenRouter (cloud) or Ollama (local via agent) depending on provider setting.
-   * 
-   * @param {string} prompt
-   * @param {string} deviceType
-   * @param {Object} deviceContext
-   * @param {string} templateName
-   * @param {boolean} useCache
-   * @param {Object} options - { userId } required for Ollama mode
-   * @returns {Object} Generation result or { pending, commandId } for async Ollama
+   * Generate Cisco configuration from text prompt using OpenRouter
    */
-  async generateConfiguration(prompt, deviceType, deviceContext = {}, templateName = 'cisco_cli', useCache = true, options = {}) {
+  async generateConfiguration(prompt, deviceType, deviceContext = {}, templateName = 'cisco_cli', useCache = true) {
     const startTime = Date.now();
     this.stats.totalRequests++;
     
     try {
       console.log(`🚀 Generating config for ${deviceType}: "${prompt}"`);
 
-      // Check API key (skip in Ollama mode)
-      if (this.provider !== 'ollama') {
-        if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
-          throw new Error('OpenRouter API key not configured. Please set OPENROUTER_API_KEY in .env file');
-        }
+      // Check API key
+      if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
+        throw new Error('OpenRouter API key not configured. Please set OPENROUTER_API_KEY in .env file');
       }
       
       // Check cache first (if enabled)
@@ -472,49 +361,47 @@ Generate backup_name and description as JSON:`;
       
       console.log(`📝 System message length: ${systemMessage.length} characters`);
       console.log(`📝 User message length: ${userMessage.length} characters`);
-      console.log(`🎯 Using model: ${this.getActiveModel()} (${this.provider})`);
+      console.log(`🎯 Using model: ${this.model}`);
       
-      const messages = [
-        { role: 'system', content: systemMessage },
-        { role: 'user', content: userMessage }
-      ];
-
-      // Call LLM (OpenRouter or Ollama via agent) with retry logic
-      let llmResponse;
+      // Call OpenRouter API with retry logic
+      let response;
       let retryCount = 0;
-      const maxRetries = this.provider === 'ollama' ? 0 : 2; // No retries for Ollama (async)
+      const maxRetries = 2;
       
       while (retryCount <= maxRetries) {
         try {
-          llmResponse = await this._callChatCompletion(messages, this.defaultParams, options.userId || null);
+          response = await this.client.post('/chat/completions', {
+            model: this.model,
+            messages: [
+              {
+                role: 'system',
+                content: systemMessage
+              },
+              {
+                role: 'user',
+                content: userMessage
+              }
+            ],
+            ...this.defaultParams
+          });
           break; // Success, exit retry loop
         } catch (apiError) {
           retryCount++;
           if (retryCount > maxRetries) {
-            throw this.provider === 'ollama' ? apiError : this._handleApiError(apiError);
+            throw this._handleApiError(apiError);
           }
           console.log(`⚠️ Retry ${retryCount}/${maxRetries} after error: ${apiError.message}`);
-          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
         }
       }
 
-      // Handle async pending (Ollama generation still in progress)
-      if (llmResponse.pending) {
-        return {
-          success: true,
-          pending: true,
-          commandId: llmResponse.commandId,
-          message: 'Configuration generation in progress via Ollama. Poll for result.'
-        };
-      }
-
-      // Parse LLM response (same format for both OpenRouter and Ollama)
-      const rawConfig = llmResponse?.choices?.[0]?.message?.content?.trim();
+      // Parse OpenRouter response
+      const rawConfig = response.data?.choices?.[0]?.message?.content?.trim();
       
       if (!rawConfig) {
-        console.error(`❌ Empty response from ${this.provider}`);
-        console.error(`❌ Response structure:`, JSON.stringify(llmResponse, null, 2).substring(0, 500));
-        throw new Error(`Empty response from ${this.getActiveModel()} - API may have issues`);
+        console.error(`❌ Empty response from OpenRouter`);
+        console.error(`❌ Response structure:`, JSON.stringify(response.data, null, 2).substring(0, 500));
+        throw new Error(`Empty response from ${this.model} - API may have issues`);
       }
       
       console.log(`📦 Raw response: ${rawConfig.length} chars`);
@@ -545,22 +432,21 @@ Generate backup_name and description as JSON:`;
   const validation = this._validateConfiguration(ensuredConfig, deviceType);
       
       const executionTime = Date.now() - startTime;
-      const tokensUsed = llmResponse?.usage?.total_tokens || 0;
+      const tokensUsed = response.data?.usage?.total_tokens || 0;
       
       console.log(`✅ Generated successfully (${executionTime}ms, ${tokensUsed} tokens)`);
       console.log(`📋 Clean config:\n${cleanConfig.substring(0, 200)}...`);
       console.log(`✅ Validation score: ${validation.score}/100`);
       
-      const activeModel = this.getActiveModel();
       const result = {
         success: true,
         configuration: deploymentConfig,
         displayConfig: ensuredConfig,
         deploymentConfig,
-        model: activeModel,
-        provider: this.provider,
+        model: this.model,
+        provider: 'openrouter',
         deviceType,
-        method: `${this.provider}_chat`,
+        method: 'openrouter_chat',
         executionTime,
         tokensUsed,
         validation,
@@ -2196,36 +2082,6 @@ Generate the Cisco IOS commands now:`;
    */
   async getServiceStatus() {
     try {
-      // Ollama mode - check status via agent (no API key needed)
-      if (this.provider === 'ollama') {
-        return {
-          status: "configured",
-          service: "Ollama (Local AI via Agent)",
-          provider: 'ollama',
-          model: this.ollamaModel,
-          modelAvailable: true,
-          knowledgeBase: {
-            categories: Object.keys(this.knowledgeBase),
-            totalProtocols: Object.keys(this.knowledgeBase.routing).length,
-            totalFeatures: Object.keys(this.knowledgeBase.switching).length + 
-                          Object.keys(this.knowledgeBase.interfaces).length + 
-                          Object.keys(this.knowledgeBase.security).length
-          },
-          features: [
-            "🏠 Local Ollama AI (no cloud API needed)",
-            "🧠 Comprehensive Cisco knowledge base",
-            "🎯 Context-aware configuration generation",
-            "📚 Protocol-specific best practices",
-            "🔧 Syntax validation and examples",
-            "🔒 Private — data stays on your machine"
-          ],
-          setup: [
-            "Ollama runs on agent machine (localhost:11434)",
-            "Check agent settings for Ollama status and model selection"
-          ]
-        };
-      }
-
       // Check if API key is configured
       if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
         return {
@@ -2474,17 +2330,15 @@ Generate the Cisco IOS commands now:`;
   /**
    * Generate human-readable explanation of configuration
    */
-  async generateExplanation(configuration, deviceType, originalPrompt = '', userId = null) {
+  async generateExplanation(configuration, deviceType, originalPrompt = '') {
     const startTime = Date.now();
     
     try {
       console.log(`📖 Generating explanation for ${deviceType} config`);
 
-      // Check API key (skip in Ollama mode)
-      if (this.provider !== 'ollama') {
-        if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
-          throw new Error('OpenRouter API key not configured');
-        }
+      // Check API key
+      if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
+        throw new Error('OpenRouter API key not configured');
       }
 
       // Detect if the original prompt is in Thai
@@ -2533,27 +2387,26 @@ ${configuration}
 
 Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO markdown, just simple sentences):`;
 
-      console.log(`🎯 Calling explanation model: ${this.getActiveModel()}`);
+      console.log(`🎯 Calling explanation model: ${this.model}`);
       
-      const messages = [
-        { role: 'system', content: systemMessage },
-        { role: 'user', content: userMessage }
-      ];
-      const params = { temperature: 0.4, max_tokens: 300, top_p: 0.9, stop: [] };
+      const response = await this.client.post('/chat/completions', {
+        model: this.model,
+        messages: [
+          {
+            role: 'system',
+            content: systemMessage
+          },
+          {
+            role: 'user',
+            content: userMessage
+          }
+        ],
+        temperature: 0.4,  // Slightly higher for more natural language
+        max_tokens: 300,   // Reduced for concise explanation
+        top_p: 0.9
+      });
 
-      const llmResponse = await this._callChatCompletion(messages, params, userId);
-
-      // Handle async pending (Ollama)
-      if (llmResponse.pending) {
-        return {
-          success: true,
-          pending: true,
-          commandId: llmResponse.commandId,
-          explanation: 'Generating explanation via Ollama...'
-        };
-      }
-
-      const explanation = llmResponse.choices[0]?.message?.content?.trim();
+      const explanation = response.data.choices[0]?.message?.content?.trim();
       
       if (!explanation) {
         throw new Error('No explanation generated');
@@ -2568,7 +2421,7 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
         .trim();
 
       const executionTime = Date.now() - startTime;
-      const tokensUsed = llmResponse.usage?.total_tokens || 0;
+      const tokensUsed = response.data.usage?.total_tokens || 0;
       
       console.log(`✅ Explanation generated (${executionTime}ms, ${tokensUsed} tokens)`);
       
@@ -2577,7 +2430,7 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
         explanation: cleanExplanation,
         executionTime,
         tokensUsed,
-        model: this.getActiveModel()
+        model: this.model
       };
       
     } catch (error) {
@@ -2600,7 +2453,7 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
    * @param {array} customYangModels - Custom YANG models for reference
    * @param {boolean} useCache - Whether to use cached responses (default true)
    */
-  async generateNetconfConfig(prompt, deviceType, deviceContext = {}, customYangModels = [], useCache = true, options = {}) {
+  async generateNetconfConfig(prompt, deviceType, deviceContext = {}, customYangModels = [], useCache = true) {
     const startTime = Date.now();
     this.stats.totalRequests++;
     
@@ -2608,11 +2461,9 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
       console.log(`🌐 Generating NETCONF/YANG config for ${deviceType}: "${prompt}"`);
       console.log(`📚 Custom YANG models provided: ${customYangModels.length}`);
 
-      // Check API key (skip in Ollama mode)
-      if (this.provider !== 'ollama') {
-        if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
-          throw new Error('OpenRouter API key not configured. Please set OPENROUTER_API_KEY in .env file');
-        }
+      // Check API key
+      if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
+        throw new Error('OpenRouter API key not configured. Please set OPENROUTER_API_KEY in .env file');
       }
       
       // Check cache first (if enabled and no custom models)
@@ -2635,60 +2486,58 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
       const userMessage = this._buildNetconfUserMessage(prompt, deviceType, deviceContext);
       
       console.log(`📝 NETCONF System message length: ${systemMessage.length} characters`);
-      console.log(`🎯 Using model: ${this.getActiveModel()} (${this.provider})`);
+      console.log(`🎯 Using model: ${this.model}`);
       console.log(`📤 User message: ${userMessage.substring(0, 200)}...`);
       
-      const messages = [
-        { role: 'system', content: systemMessage },
-        { role: 'user', content: userMessage }
-      ];
-      const params = {
+      // Call OpenRouter API
+      let response;
+      let retryCount = 0;
+      const maxRetries = 2;
+      
+      const requestPayload = {
+        model: this.model,
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: userMessage }
+        ],
         temperature: 0.1,
-        max_tokens: 4000,
-        top_p: 0.9,
-        stop: []
+        max_tokens: 4000, // Increased for complex NETCONF XML
+        top_p: 0.9
+        // No stop sequences for NETCONF - let it complete the XML fully
       };
       
-      // Call LLM (OpenRouter or Ollama via agent) with retry logic
-      let llmResponse;
-      let retryCount = 0;
-      const maxRetries = this.provider === 'ollama' ? 0 : 2;
-      
-      console.log(`📨 Sending NETCONF request to ${this.provider}...`);
+      console.log(`📨 Sending NETCONF request to OpenRouter...`);
       
       while (retryCount <= maxRetries) {
         try {
-          llmResponse = await this._callChatCompletion(messages, params, options.userId || null);
-          console.log(`📥 Received response.`);
-          if (llmResponse.choices?.[0]) {
-            console.log(`📊 Content length: ${llmResponse.choices[0].message?.content?.length || 0}`);
-            console.log(`📊 Finish reason: ${llmResponse.choices[0].finish_reason}`);
+          response = await this.client.post('/chat/completions', requestPayload);
+          console.log(`📥 Received response. Status: ${response.status}`);
+          console.log(`📊 Response data keys: ${Object.keys(response.data || {}).join(', ')}`);
+          console.log(`📊 Choices count: ${response.data?.choices?.length || 0}`);
+          if (response.data?.choices?.[0]) {
+            console.log(`📊 First choice keys: ${Object.keys(response.data.choices[0]).join(', ')}`);
+            console.log(`📊 Message keys: ${Object.keys(response.data.choices[0].message || {}).join(', ')}`);
+            console.log(`📊 Content length: ${response.data.choices[0].message?.content?.length || 0}`);
+            console.log(`📊 Finish reason: ${response.data.choices[0].finish_reason}`);
           }
           break;
         } catch (apiError) {
           retryCount++;
           console.error(`❌ API Error: ${apiError.message}`);
-          if (retryCount > maxRetries) throw this.provider === 'ollama' ? apiError : this._handleApiError(apiError);
+          if (apiError.response) {
+            console.error(`❌ API Error Response: ${JSON.stringify(apiError.response.data)}`);
+          }
+          if (retryCount > maxRetries) throw this._handleApiError(apiError);
           console.log(`⚠️ Retry ${retryCount}/${maxRetries}: ${apiError.message}`);
-          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
         }
       }
 
-      // Handle async pending (Ollama generation still in progress)
-      if (llmResponse.pending) {
-        return {
-          success: true,
-          pending: true,
-          commandId: llmResponse.commandId,
-          message: 'NETCONF configuration generation in progress via Ollama. Poll for result.'
-        };
-      }
-
-      const rawConfig = llmResponse?.choices?.[0]?.message?.content?.trim();
+      const rawConfig = response.data?.choices?.[0]?.message?.content?.trim();
       
       if (!rawConfig) {
-        console.error('❌ Empty response from API. Full response:', JSON.stringify(llmResponse, null, 2));
-        throw new Error(`Empty response from ${this.getActiveModel()}`);
+        console.error('❌ Empty response from API. Full response:', JSON.stringify(response.data, null, 2));
+        throw new Error(`Empty response from ${this.model}`);
       }
       
       console.log(`📦 Raw NETCONF response: ${rawConfig.length} chars`);
@@ -2702,21 +2551,20 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
       
       const validation = this._validateNetconfConfiguration(cleanConfig, deviceType);
       const executionTime = Date.now() - startTime;
-      const tokensUsed = llmResponse?.usage?.total_tokens || 0;
+      const tokensUsed = response.data?.usage?.total_tokens || 0;
       
       console.log(`✅ NETCONF config generated successfully (${executionTime}ms, ${tokensUsed} tokens)`);
       
-      const activeModel = this.getActiveModel();
       const result = {
         success: true,
         configuration: cleanConfig,
         displayConfig: cleanConfig,
         deploymentConfig: cleanConfig,
-        model: activeModel,
-        provider: this.provider,
+        model: this.model,
+        provider: 'openrouter',
         deviceType,
         configType: 'netconf-yang',
-        method: `${this.provider}_netconf`,
+        method: 'openrouter_netconf',
         executionTime,
         tokensUsed,
         validation,

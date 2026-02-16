@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useRef } from 'react';
+import html2canvas from 'html2canvas';
 import { 
   NetworkIcon, 
   ServerIcon, 
@@ -14,7 +14,6 @@ import {
   LayoutDashboardIcon,
   GitBranchIcon,
   LayersIcon,
-  ArrowLeftIcon,
   PrinterIcon,
   DownloadIcon,
   KeyIcon,
@@ -26,11 +25,15 @@ import {
   RefreshCwIcon,
   ZapIcon,
   LockIcon,
-  GlobeIcon
+  GlobeIcon,
+  SunIcon,
+  MoonIcon,
+  ImageIcon
 } from 'lucide-react';
 
-function Diagrams() {
+function Diagrams({ darkMode, onToggleDarkMode }) {
   const [activeTab, setActiveTab] = useState('overview');
+  const diagramRef = useRef(null);
 
   const tabs = [
     { id: 'overview', label: 'System Overview', icon: LayoutDashboardIcon },
@@ -42,29 +45,56 @@ function Diagrams() {
     window.print();
   };
 
+  const handleExportPNG = async () => {
+    if (!diagramRef.current) return;
+    
+    try {
+      const canvas = await html2canvas(diagramRef.current, {
+        backgroundColor: darkMode ? '#030712' : '#f9fafb',
+        scale: 2,
+        useCORS: true,
+        logging: false
+      });
+      
+      const link = document.createElement('a');
+      link.download = `netconfig-${activeTab}-diagram.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert('Failed to export diagram');
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className={`min-h-screen ${darkMode ? 'dark bg-gray-950' : 'bg-gray-50'}`}>
       {/* Standalone Header */}
       <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50 print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
-              <Link 
-                to="/dashboard" 
-                className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-              >
-                <ArrowLeftIcon className="h-5 w-5" />
-                <span className="text-sm font-medium">Back to App</span>
-              </Link>
-              <div className="h-6 w-px bg-gray-300 dark:bg-gray-700"></div>
               <div className="flex items-center gap-2">
                 <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg">
                   <NetworkIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                 </div>
-                <span className="text-lg font-bold text-gray-900 dark:text-white">System Documentation</span>
+                <span className="text-lg font-bold text-gray-900 dark:text-white">NetConfig System Diagrams</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={onToggleDarkMode}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                {darkMode ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
+                {darkMode ? 'Light' : 'Dark'}
+              </button>
+              <button
+                onClick={handleExportPNG}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <ImageIcon className="h-4 w-4" />
+                Export PNG
+              </button>
               <button
                 onClick={handlePrint}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
@@ -118,7 +148,7 @@ function Diagrams() {
           </div>
 
           {/* Diagram Content */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 overflow-x-auto print:shadow-none print:p-0">
+          <div ref={diagramRef} className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 overflow-x-auto print:shadow-none print:p-0">
             {activeTab === 'overview' && <OverviewDiagram />}
             {activeTab === 'context' && <ContextDiagram />}
             {activeTab === 'dataflow' && <DataFlowDiagram />}
@@ -329,7 +359,7 @@ function OverviewDiagram() {
             </Box>
           </div>
           <div className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
-            Node.js + Express + HTTP Polling
+            Node.js + Express + Socket.IO
           </div>
         </div>
 
