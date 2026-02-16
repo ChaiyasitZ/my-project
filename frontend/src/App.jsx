@@ -23,6 +23,7 @@ import Diagrams from './pages/Diagrams';
 import NotFound from './pages/NotFound';
 import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
+import AgentSettings from './pages/AgentSettings';
 
 import './App.css';
 
@@ -194,6 +195,17 @@ function AppContent() {
               onToggleSidebar={handleToggleSidebar}
             >
               <BackupManagement />
+            </AuthenticatedLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/agent-settings" element={
+          <ProtectedRoute>
+            <AuthenticatedLayout 
+              connectionStatus={connectionStatus} 
+              sidebarCollapsed={sidebarCollapsed} 
+              onToggleSidebar={handleToggleSidebar}
+            >
+              <AgentSettings />
             </AuthenticatedLayout>
           </ProtectedRoute>
         } />

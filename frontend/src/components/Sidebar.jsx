@@ -7,6 +7,7 @@ import {
   ClockIcon,
   TerminalIcon,
   HardDriveDownloadIcon,
+  MonitorSmartphoneIcon,
   Menu,
   X,
   ChevronLeft,
@@ -25,6 +26,7 @@ const navigation = [
   { name: 'Console Setup', href: '/console', icon: TerminalIcon },
   { name: 'History', href: '/configuration-history', icon: ClockIcon },
   { name: 'Backups', href: '/backups', icon: HardDriveDownloadIcon },
+  { name: 'Agent Settings', href: '/agent-settings', icon: MonitorSmartphoneIcon },
 ];
 
 function Sidebar({ connectionStatus = { backend: 'checking', database: 'checking', version: null }, isCollapsed = false, onToggleCollapse }) {
