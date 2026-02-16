@@ -38,36 +38,46 @@ function AgentSettings() {
   const [ollamaLoading, setOllamaLoading] = useState(false);
   const [changingModel, setChangingModel] = useState(false);
 
-  // Fetch agent status and token on mount
-  const fetchAgentData = useCallback(async (isRefresh = false) => {
+  // Fetch agent status only (used by refresh button)
+  const refreshStatus = useCallback(async () => {
     try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-      const [statusRes, tokenRes] = await Promise.all([
-        axios.get('/agent/status'),
-        axios.get('/agent/token')
-      ]);
-      setAgentStatus(statusRes.data);
-      const newToken = tokenRes.data.agentToken || null;
-      setToken(prev => {
-        // If token was already visible and we still have the same token, keep showToken state
-        if (prev && newToken && prev === newToken) return prev;
-        return newToken;
-      });
+      setRefreshing(true);
+      const res = await axios.get('/agent/status');
+      setAgentStatus(res.data);
     } catch (error) {
-      console.error('Failed to fetch agent data:', error);
+      console.error('Failed to refresh status:', error);
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
+  // Fetch both status and token on initial mount
   useEffect(() => {
-    fetchAgentData();
-  }, [fetchAgentData]);
+    let cancelled = false;
+    const fetchInitialData = async () => {
+      try {
+        setLoading(true);
+        // Fetch status and token independently so one failure doesn't block the other
+        const [statusRes, tokenRes] = await Promise.allSettled([
+          axios.get('/agent/status'),
+          axios.get('/agent/token')
+        ]);
+        if (cancelled) return;
+        if (statusRes.status === 'fulfilled') {
+          setAgentStatus(statusRes.value.data);
+        }
+        if (tokenRes.status === 'fulfilled') {
+          setToken(tokenRes.value.data.agentToken || null);
+        }
+      } catch (error) {
+        console.error('Failed to fetch agent data:', error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    fetchInitialData();
+    return () => { cancelled = true; };
+  }, []);
 
   // Fetch Ollama status when agent is online
   const fetchOllamaStatus = useCallback(async () => {
@@ -223,7 +233,7 @@ function AgentSettings() {
 
           {/* Refresh button */}
           <button
-            onClick={() => fetchAgentData(true)}
+            onClick={refreshStatus}
             disabled={refreshing}
             className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
             title="Refresh status"
