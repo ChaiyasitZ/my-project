@@ -966,114 +966,114 @@ function DFDLevel0() {
         Context Diagram - System Boundary
       </h3>
       
-      <div className="relative min-w-[900px] h-[400px]">
-        {/* SVG for arrow connections */}
+      <div className="relative min-w-[1100px] h-[520px]">
         <svg className="absolute inset-0 w-full h-full" style={{ zIndex: 0 }}>
           <defs>
-            <marker id="arrow-right" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <marker id="arrow-ctx" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
               <polygon points="0 0, 10 3.5, 0 7" className="fill-gray-500 dark:fill-gray-400" />
             </marker>
           </defs>
           
-          {/* Admin to System */}
-          <g className="stroke-blue-500">
-            <line x1="150" y1="180" x2="350" y2="180" strokeWidth="2" markerEnd="url(#arrow-right)" />
-            <text x="250" y="170" className="fill-blue-600 text-[11px] font-medium" textAnchor="middle">Config Requests</text>
-          </g>
-          <g className="stroke-blue-400">
-            <line x1="350" y1="220" x2="150" y2="220" strokeWidth="2" markerEnd="url(#arrow-right)" />
-            <text x="250" y="240" className="fill-blue-600 text-[11px] font-medium" textAnchor="middle">Generated Configs</text>
-          </g>
+          {/* Admin → System (blue) */}
+          <line x1="155" y1="240" x2="330" y2="240" stroke="#3B82F6" strokeWidth="2" markerEnd="url(#arrow-ctx)" />
+          <text x="242" y="230" className="fill-blue-500 dark:fill-blue-400 text-[11px] font-medium" textAnchor="middle">Config Requests</text>
+          <line x1="330" y1="280" x2="155" y2="280" stroke="#3B82F6" strokeWidth="2" markerEnd="url(#arrow-ctx)" />
+          <text x="242" y="300" className="fill-blue-500 dark:fill-blue-400 text-[11px] font-medium" textAnchor="middle">Generated Configs</text>
           
-          {/* System to Devices */}
-          <g className="stroke-green-500">
-            <line x1="550" y1="180" x2="750" y2="180" strokeWidth="2" markerEnd="url(#arrow-right)" />
-            <text x="650" y="170" className="fill-green-600 text-[11px] font-medium" textAnchor="middle">SSH/NETCONF</text>
-          </g>
-          <g className="stroke-green-400">
-            <line x1="750" y1="220" x2="550" y2="220" strokeWidth="2" markerEnd="url(#arrow-right)" />
-            <text x="650" y="240" className="fill-green-600 text-[11px] font-medium" textAnchor="middle">Running Config</text>
-          </g>
+          {/* System → Desktop Agent (cyan) */}
+          <line x1="575" y1="240" x2="685" y2="240" stroke="#06B6D4" strokeWidth="2" markerEnd="url(#arrow-ctx)" />
+          <text x="630" y="230" className="fill-cyan-600 dark:fill-cyan-400 text-[11px] font-medium" textAnchor="middle">Commands</text>
+          <line x1="685" y1="280" x2="575" y2="280" stroke="#06B6D4" strokeWidth="2" markerEnd="url(#arrow-ctx)" />
+          <text x="630" y="300" className="fill-cyan-600 dark:fill-cyan-400 text-[11px] font-medium" textAnchor="middle">Results</text>
           
-          {/* System to AI */}
-          <g className="stroke-pink-500">
-            <line x1="500" y1="120" x2="650" y2="50" strokeWidth="2" markerEnd="url(#arrow-right)" />
-            <text x="580" y="70" className="fill-pink-600 text-[11px] font-medium" textAnchor="middle">AI Prompt</text>
-          </g>
-          <g className="stroke-pink-400">
-            <line x1="680" y1="70" x2="520" y2="120" strokeWidth="2" markerEnd="url(#arrow-right)" />
-            <text x="620" y="110" className="fill-pink-600 text-[11px] font-medium" textAnchor="middle">Config</text>
-          </g>
+          {/* Desktop Agent → Network Devices (green) */}
+          <line x1="840" y1="240" x2="960" y2="240" stroke="#22C55E" strokeWidth="2" markerEnd="url(#arrow-ctx)" />
+          <text x="900" y="230" className="fill-green-600 dark:fill-green-400 text-[11px] font-medium" textAnchor="middle">SSH/NETCONF</text>
+          <line x1="960" y1="280" x2="840" y2="280" stroke="#22C55E" strokeWidth="2" markerEnd="url(#arrow-ctx)" />
+          <text x="900" y="300" className="fill-green-600 dark:fill-green-400 text-[11px] font-medium" textAnchor="middle">Running Config</text>
           
-          {/* System to DB */}
-          <g className="stroke-purple-500">
-            <line x1="430" y1="280" x2="430" y2="350" strokeWidth="2" markerEnd="url(#arrow-right)" />
-            <text x="400" y="320" className="fill-purple-600 text-[11px] font-medium">Write</text>
-          </g>
-          <g className="stroke-purple-400">
-            <line x1="470" y1="350" x2="470" y2="280" strokeWidth="2" markerEnd="url(#arrow-right)" />
-            <text x="500" y="320" className="fill-purple-600 text-[11px] font-medium">Read</text>
-          </g>
+          {/* Google OAuth ↔ System (orange) */}
+          <line x1="335" y1="110" x2="410" y2="170" stroke="#F97316" strokeWidth="2" markerEnd="url(#arrow-ctx)" />
+          <text x="345" y="142" className="fill-orange-500 dark:fill-orange-400 text-[11px] font-medium">JWT</text>
+          <line x1="430" y1="170" x2="360" y2="110" stroke="#F97316" strokeWidth="2" markerEnd="url(#arrow-ctx)" />
+          <text x="415" y="132" className="fill-orange-500 dark:fill-orange-400 text-[11px] font-medium">Auth</text>
           
-          {/* Google OAuth to System */}
-          <g className="stroke-orange-500">
-            <line x1="300" y1="50" x2="400" y2="120" strokeWidth="2" markerEnd="url(#arrow-right)" />
-            <text x="320" y="70" className="fill-orange-600 text-[11px] font-medium">JWT</text>
-          </g>
-          <g className="stroke-orange-400">
-            <line x1="380" y1="120" x2="280" y2="60" strokeWidth="2" markerEnd="url(#arrow-right)" />
-            <text x="360" y="110" className="fill-orange-600 text-[11px] font-medium">Auth</text>
-          </g>
+          {/* Ollama ↔ System (pink) */}
+          <line x1="530" y1="170" x2="620" y2="110" stroke="#EC4899" strokeWidth="2" markerEnd="url(#arrow-ctx)" />
+          <text x="595" y="132" className="fill-pink-500 dark:fill-pink-400 text-[11px] font-medium">AI Prompt</text>
+          <line x1="640" y1="110" x2="550" y2="170" stroke="#EC4899" strokeWidth="2" markerEnd="url(#arrow-ctx)" />
+          <text x="565" y="152" className="fill-pink-500 dark:fill-pink-400 text-[11px] font-medium">Config</text>
+          
+          {/* System ↔ MongoDB (purple) */}
+          <line x1="440" y1="365" x2="440" y2="425" stroke="#A855F7" strokeWidth="2" markerEnd="url(#arrow-ctx)" />
+          <text x="410" y="400" className="fill-purple-500 dark:fill-purple-400 text-[11px] font-medium">Write</text>
+          <line x1="480" y1="425" x2="480" y2="365" stroke="#A855F7" strokeWidth="2" markerEnd="url(#arrow-ctx)" />
+          <text x="505" y="400" className="fill-purple-500 dark:fill-purple-400 text-[11px] font-medium">Read</text>
         </svg>
         
-        {/* Entities */}
-        <div className="absolute left-0 top-1/2 -translate-y-1/2">
-          <div className="w-32 h-32 rounded-full bg-white dark:bg-gray-800 border-3 border-blue-500 flex flex-col items-center justify-center shadow-lg">
+        {/* Admin Entity - Left */}
+        <div className="absolute left-[15px] top-[195px]">
+          <div className="w-[130px] h-[130px] rounded-full bg-white dark:bg-gray-800 border-3 border-blue-500 flex flex-col items-center justify-center shadow-lg">
             <UsersIcon className="h-8 w-8 text-blue-500 mb-1" />
             <span className="text-sm font-bold text-gray-800 dark:text-white">Network</span>
             <span className="text-sm font-bold text-gray-800 dark:text-white">Admin</span>
           </div>
         </div>
         
-        <div className="absolute right-0 top-1/2 -translate-y-1/2">
-          <div className="w-32 h-32 rounded-full bg-white dark:bg-gray-800 border-3 border-green-500 flex flex-col items-center justify-center shadow-lg">
+        {/* Central System Process */}
+        <div className="absolute left-[335px] top-[160px]">
+          <div className="w-[240px] h-[200px] rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 flex flex-col items-center justify-center shadow-2xl border-4 border-indigo-300">
+            <NetworkIcon className="h-12 w-12 text-white mb-2" />
+            <span className="text-sm font-bold text-white text-center">Network Config</span>
+            <span className="text-sm font-bold text-white text-center">Management</span>
+            <span className="text-xs text-indigo-200 mt-1">0.0</span>
+          </div>
+        </div>
+        
+        {/* Desktop Agent - Right of Center */}
+        <div className="absolute left-[685px] top-[215px]">
+          <div className="w-[155px] h-[90px] bg-white dark:bg-gray-800 border-3 border-cyan-500 rounded-xl flex flex-col items-center justify-center shadow-lg">
+            <MonitorIcon className="h-7 w-7 text-cyan-500 mb-1" />
+            <span className="text-xs font-bold text-gray-800 dark:text-white">Desktop Agent</span>
+            <span className="text-[10px] text-gray-500 dark:text-gray-400">(Electron App)</span>
+          </div>
+        </div>
+        
+        {/* Network Devices - Far Right */}
+        <div className="absolute left-[960px] top-[195px]">
+          <div className="w-[130px] h-[130px] rounded-full bg-white dark:bg-gray-800 border-3 border-green-500 flex flex-col items-center justify-center shadow-lg">
             <ServerIcon className="h-8 w-8 text-green-500 mb-1" />
             <span className="text-sm font-bold text-gray-800 dark:text-white">Network</span>
             <span className="text-sm font-bold text-gray-800 dark:text-white">Devices</span>
           </div>
         </div>
         
-        <div className="absolute left-1/4 top-0">
-          <div className="w-28 h-28 rounded-full bg-white dark:bg-gray-800 border-3 border-orange-500 flex flex-col items-center justify-center shadow-lg">
+        {/* Google OAuth - Top Left */}
+        <div className="absolute left-[260px] top-[5px]">
+          <div className="w-[110px] h-[105px] rounded-full bg-white dark:bg-gray-800 border-3 border-orange-500 flex flex-col items-center justify-center shadow-lg">
             <CloudIcon className="h-7 w-7 text-orange-500 mb-1" />
             <span className="text-xs font-bold text-gray-800 dark:text-white">Google</span>
+            <span className="text-[10px] text-gray-500 dark:text-gray-400">OAuth 2.0</span>
           </div>
         </div>
         
-        <div className="absolute right-1/4 top-0">
-          <div className="w-28 h-28 rounded-full bg-white dark:bg-gray-800 border-3 border-pink-500 flex flex-col items-center justify-center shadow-lg">
+        {/* Ollama - Top Right */}
+        <div className="absolute left-[590px] top-[5px]">
+          <div className="w-[110px] h-[105px] rounded-full bg-white dark:bg-gray-800 border-3 border-pink-500 flex flex-col items-center justify-center shadow-lg">
             <BrainCircuitIcon className="h-7 w-7 text-pink-500 mb-1" />
             <span className="text-xs font-bold text-gray-800 dark:text-white">Ollama</span>
+            <span className="text-[10px] text-gray-500 dark:text-gray-400">LLM</span>
           </div>
         </div>
         
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-0">
+        {/* MongoDB - Bottom Center */}
+        <div className="absolute left-[355px] top-[425px]">
           <div className="px-6 py-3 bg-white dark:bg-gray-800 border-3 border-purple-500 rounded-lg flex items-center gap-3 shadow-lg">
             <DatabaseIcon className="h-7 w-7 text-purple-500" />
             <div>
               <span className="text-sm font-bold text-gray-800 dark:text-white block">MongoDB Atlas</span>
-              <span className="text-[10px] text-gray-500">D1-D5</span>
+              <span className="text-[10px] text-gray-500 dark:text-gray-400">D1-D5</span>
             </div>
-          </div>
-        </div>
-        
-        {/* Central Process */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <div className="w-48 h-48 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 flex flex-col items-center justify-center shadow-2xl border-4 border-indigo-300">
-            <NetworkIcon className="h-12 w-12 text-white mb-2" />
-            <span className="text-sm font-bold text-white text-center">Network Config</span>
-            <span className="text-sm font-bold text-white text-center">Management</span>
-            <span className="text-xs text-indigo-200 mt-1">0.0</span>
           </div>
         </div>
       </div>
@@ -1081,7 +1081,7 @@ function DFDLevel0() {
   );
 }
 
-// DFD Level 1 - Main Processes
+// DFD Level 1 - Main Processes (redesigned layout: minimal crossings, Desktop Agent as SSH gateway)
 function DFDLevel1() {
   return (
     <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-2xl p-6 overflow-x-auto">
@@ -1090,218 +1090,226 @@ function DFDLevel1() {
         Main Process Decomposition
       </h3>
       
-      {/* SVG-based DFD with connected arrows */}
-      <div className="relative min-w-[1000px] h-[650px] mx-auto">
+      <div className="relative min-w-[1100px] h-[750px] mx-auto">
         <svg className="absolute inset-0 w-full h-full" style={{ zIndex: 1 }}>
           <defs>
             <marker id="arrowL1" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-              <polygon points="0 0, 8 3, 0 6" fill="#374151" />
+              <polygon points="0 0, 8 3, 0 6" fill="#6B7280" />
             </marker>
           </defs>
           
-          {/* ===== User/Admin Entity Flows ===== */}
-          {/* User to 1.0 Authentication */}
-          <line x1="100" y1="100" x2="270" y2="100" stroke="#3B82F6" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="185" y="90" className="text-[10px] fill-blue-600" textAnchor="middle">ข้อมูลเข้าสู่ระบบ</text>
-          <line x1="270" y1="120" x2="100" y2="120" stroke="#3B82F6" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="185" y="138" className="text-[10px] fill-blue-600" textAnchor="middle">ผลการเข้าสู่ระบบ</text>
+          {/* ===== User → Processes (horizontal, no crossings) ===== */}
+          {/* User ↔ 1.0 Auth */}
+          <line x1="110" y1="68" x2="240" y2="68" stroke="#3B82F6" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="175" y="60" className="text-[10px] fill-blue-500 dark:fill-blue-400" textAnchor="middle">ข้อมูลเข้าสู่ระบบ</text>
+          <line x1="240" y1="88" x2="110" y2="88" stroke="#3B82F6" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="175" y="106" className="text-[10px] fill-blue-500 dark:fill-blue-400" textAnchor="middle">ผลการเข้าสู่ระบบ</text>
           
-          {/* User to 2.0 Device Mgmt */}
-          <line x1="100" y1="200" x2="270" y2="200" stroke="#10B981" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="185" y="190" className="text-[10px] fill-green-600" textAnchor="middle">จัดการอุปกรณ์</text>
-          <line x1="270" y1="220" x2="100" y2="220" stroke="#10B981" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="185" y="238" className="text-[10px] fill-green-600" textAnchor="middle">รายการอุปกรณ์</text>
+          {/* User ↔ 2.0 Device */}
+          <line x1="110" y1="188" x2="240" y2="188" stroke="#10B981" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="175" y="180" className="text-[10px] fill-green-500 dark:fill-green-400" textAnchor="middle">จัดการอุปกรณ์</text>
+          <line x1="240" y1="208" x2="110" y2="208" stroke="#10B981" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="175" y="226" className="text-[10px] fill-green-500 dark:fill-green-400" textAnchor="middle">รายการอุปกรณ์</text>
           
-          {/* User to 3.0 Config Gen */}
-          <line x1="100" y1="300" x2="270" y2="300" stroke="#EC4899" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="185" y="290" className="text-[10px] fill-pink-600" textAnchor="middle">Prompt ภาษาธรรมชาติ</text>
-          <line x1="270" y1="320" x2="100" y2="320" stroke="#EC4899" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="185" y="338" className="text-[10px] fill-pink-600" textAnchor="middle">คอนฟิกที่สร้าง</text>
+          {/* User ↔ 3.0 Config */}
+          <line x1="110" y1="308" x2="240" y2="308" stroke="#EC4899" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="175" y="300" className="text-[10px] fill-pink-500 dark:fill-pink-400" textAnchor="middle">Prompt ภาษาธรรมชาติ</text>
+          <line x1="240" y1="328" x2="110" y2="328" stroke="#EC4899" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="175" y="346" className="text-[10px] fill-pink-500 dark:fill-pink-400" textAnchor="middle">คอนฟิกที่สร้าง</text>
           
-          {/* User to 4.0 Deployment */}
-          <line x1="100" y1="400" x2="270" y2="400" stroke="#6366F1" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="185" y="390" className="text-[10px] fill-indigo-600" textAnchor="middle">Deploy คอนฟิก</text>
-          <line x1="270" y1="420" x2="100" y2="420" stroke="#6366F1" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="185" y="438" className="text-[10px] fill-indigo-600" textAnchor="middle">สถานะ Deploy</text>
+          {/* User ↔ 4.0 Deploy */}
+          <line x1="110" y1="428" x2="240" y2="428" stroke="#6366F1" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="175" y="420" className="text-[10px] fill-indigo-500 dark:fill-indigo-400" textAnchor="middle">Deploy คอนฟิก</text>
+          <line x1="240" y1="448" x2="110" y2="448" stroke="#6366F1" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="175" y="466" className="text-[10px] fill-indigo-500 dark:fill-indigo-400" textAnchor="middle">สถานะ Deploy</text>
           
-          {/* User to 5.0 Backup */}
-          <line x1="100" y1="500" x2="270" y2="500" stroke="#14B8A6" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="185" y="490" className="text-[10px] fill-teal-600" textAnchor="middle">สร้าง/กู้คืน Backup</text>
-          <line x1="270" y1="520" x2="100" y2="520" stroke="#14B8A6" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="185" y="538" className="text-[10px] fill-teal-600" textAnchor="middle">รายการ Backup</text>
+          {/* User ↔ 5.0 Backup */}
+          <line x1="110" y1="548" x2="240" y2="548" stroke="#14B8A6" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="175" y="540" className="text-[10px] fill-teal-500 dark:fill-teal-400" textAnchor="middle">สร้าง/กู้คืน Backup</text>
+          <line x1="240" y1="568" x2="110" y2="568" stroke="#14B8A6" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="175" y="586" className="text-[10px] fill-teal-500 dark:fill-teal-400" textAnchor="middle">รายการ Backup</text>
           
-          {/* ===== Google OAuth Entity Flows ===== */}
-          {/* 1.0 to Google OAuth */}
-          <line x1="370" y1="90" x2="550" y2="50" stroke="#F97316" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="470" y="55" className="text-[10px] fill-orange-600" textAnchor="middle">OAuth Request</text>
-          <line x1="550" y1="70" x2="370" y2="110" stroke="#F97316" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="475" y="100" className="text-[10px] fill-orange-600" textAnchor="middle">JWT Token</text>
+          {/* ===== Process → External Entities (right side, no crossings) ===== */}
+          {/* 1.0 ↔ Google OAuth (horizontal - same height) */}
+          <line x1="345" y1="68" x2="530" y2="55" stroke="#F97316" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="438" y="50" className="text-[10px] fill-orange-500 dark:fill-orange-400" textAnchor="middle">OAuth Request</text>
+          <line x1="530" y1="75" x2="345" y2="88" stroke="#F97316" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="438" y="96" className="text-[10px] fill-orange-500 dark:fill-orange-400" textAnchor="middle">JWT Token</text>
           
-          {/* ===== Ollama Entity Flows ===== */}
-          {/* 3.0 to Ollama */}
-          <line x1="370" y1="290" x2="550" y2="250" stroke="#EC4899" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="470" y="255" className="text-[10px] fill-pink-600" textAnchor="middle">AI Request + Context</text>
-          <line x1="550" y1="270" x2="370" y2="310" stroke="#EC4899" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="475" y="305" className="text-[10px] fill-pink-600" textAnchor="middle">Generated Config</text>
+          {/* 3.0 ↔ Ollama (horizontal - same height) */}
+          <line x1="345" y1="308" x2="530" y2="175" stroke="#EC4899" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="448" y="228" className="text-[10px] fill-pink-500 dark:fill-pink-400" textAnchor="middle">AI Request</text>
+          <line x1="530" y1="195" x2="345" y2="328" stroke="#EC4899" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="420" y="275" className="text-[10px] fill-pink-500 dark:fill-pink-400" textAnchor="middle">Generated Config</text>
           
-          {/* ===== Network Device Entity Flows ===== */}
-          {/* 2.0 to Network Device */}
-          <line x1="370" y1="200" x2="700" y2="145" stroke="#10B981" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="530" y="160" className="text-[10px] fill-green-600" textAnchor="middle">ทดสอบ SSH</text>
-          <line x1="700" y1="165" x2="370" y2="220" stroke="#10B981" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="530" y="205" className="text-[10px] fill-green-600" textAnchor="middle">สถานะเชื่อมต่อ</text>
+          {/* ===== Processes → Desktop Agent (SSH gateway) ===== */}
+          {/* 2.0 → Desktop Agent */}
+          <line x1="345" y1="195" x2="700" y2="350" stroke="#06B6D4" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="540" y="260" className="text-[10px] fill-cyan-600 dark:fill-cyan-400">ทดสอบ SSH</text>
+          <line x1="700" y1="370" x2="345" y2="205" stroke="#06B6D4" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="500" y="305" className="text-[10px] fill-cyan-600 dark:fill-cyan-400">สถานะเชื่อมต่อ</text>
           
-          {/* 4.0 to Network Device */}
-          <line x1="370" y1="400" x2="700" y2="185" stroke="#6366F1" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="480" y="335" className="text-[10px] fill-indigo-600">SSH/NETCONF</text>
-          <line x1="700" y1="205" x2="370" y2="420" stroke="#6366F1" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="580" y="320" className="text-[10px] fill-indigo-600">Result</text>
+          {/* 4.0 → Desktop Agent */}
+          <line x1="345" y1="435" x2="700" y2="390" stroke="#06B6D4" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="530" y="400" className="text-[10px] fill-cyan-600 dark:fill-cyan-400">SSH/NETCONF via Agent</text>
+          <line x1="700" y1="410" x2="345" y2="450" stroke="#06B6D4" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="530" y="445" className="text-[10px] fill-cyan-600 dark:fill-cyan-400">Deploy Result</text>
           
-          {/* 5.0 to Network Device */}
-          <line x1="370" y1="500" x2="700" y2="225" stroke="#14B8A6" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="490" y="420" className="text-[10px] fill-teal-600">Fetch Config</text>
-          <line x1="700" y1="245" x2="370" y2="520" stroke="#14B8A6" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="590" y="395" className="text-[10px] fill-teal-600">Running Config</text>
+          {/* 5.0 → Desktop Agent */}
+          <line x1="345" y1="555" x2="700" y2="430" stroke="#06B6D4" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="540" y="480" className="text-[10px] fill-cyan-600 dark:fill-cyan-400">Backup via Agent</text>
+          <line x1="700" y1="450" x2="345" y2="565" stroke="#06B6D4" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="505" y="525" className="text-[10px] fill-cyan-600 dark:fill-cyan-400">Running Config</text>
           
-          {/* ===== Database Flows ===== */}
-          {/* 1.0 to D1 Users */}
-          <line x1="320" y1="140" x2="320" y2="565" stroke="#A855F7" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="285" y="350" className="text-[10px] fill-purple-600" transform="rotate(-90, 285, 350)">บันทึก/อ่าน User</text>
+          {/* Desktop Agent ↔ Network Device (horizontal) */}
+          <line x1="830" y1="380" x2="920" y2="380" stroke="#22C55E" strokeWidth="2" markerEnd="url(#arrowL1)" />
+          <text x="875" y="370" className="text-[10px] fill-green-600 dark:fill-green-400" textAnchor="middle">SSH</text>
+          <line x1="920" y1="410" x2="830" y2="410" stroke="#22C55E" strokeWidth="2" markerEnd="url(#arrowL1)" />
+          <text x="875" y="432" className="text-[10px] fill-green-600 dark:fill-green-400" textAnchor="middle">Response</text>
           
-          {/* 2.0 to D2 Devices */}
-          <line x1="350" y1="240" x2="450" y2="565" stroke="#A855F7" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="410" y="400" className="text-[10px] fill-purple-600">CRUD</text>
+          {/* ===== Process → Data Stores (vertical down, minimal crossing) ===== */}
+          <line x1="265" y1="100" x2="205" y2="665" stroke="#A855F7" strokeWidth="1" strokeDasharray="4,3" markerEnd="url(#arrowL1)" />
+          <text x="218" y="400" className="text-[9px] fill-purple-500 dark:fill-purple-400" transform="rotate(-85, 218, 400)">User CRUD</text>
           
-          {/* 3.0 to D3 Configs */}
-          <line x1="320" y1="340" x2="530" y2="565" stroke="#A855F7" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="430" y="470" className="text-[10px] fill-purple-600">บันทึกคอนฟิก</text>
+          <line x1="295" y1="220" x2="355" y2="665" stroke="#A855F7" strokeWidth="1" strokeDasharray="4,3" markerEnd="url(#arrowL1)" />
+          <text x="340" y="450" className="text-[9px] fill-purple-500 dark:fill-purple-400" transform="rotate(-85, 340, 450)">Device CRUD</text>
           
-          {/* 4.0 to D3 Configs */}
-          <line x1="530" y1="565" x2="350" y2="440" stroke="#A855F7" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="460" y="510" className="text-[10px] fill-purple-600">อ่านคอนฟิก</text>
+          <line x1="310" y1="340" x2="505" y2="665" stroke="#A855F7" strokeWidth="1" strokeDasharray="4,3" markerEnd="url(#arrowL1)" />
+          <text x="425" y="510" className="text-[9px] fill-purple-500 dark:fill-purple-400" transform="rotate(-75, 425, 510)">บันทึกคอนฟิก</text>
           
-          {/* 5.0 to D4 Backups */}
-          <line x1="350" y1="540" x2="610" y2="565" stroke="#A855F7" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="480" y="555" className="text-[10px] fill-purple-600">Store Backup</text>
+          <line x1="290" y1="460" x2="505" y2="665" stroke="#A855F7" strokeWidth="1" strokeDasharray="4,3" markerEnd="url(#arrowL1)" />
+          <text x="385" y="580" className="text-[9px] fill-purple-500 dark:fill-purple-400" transform="rotate(-70, 385, 580)">อ่านคอนฟิก</text>
+          
+          <line x1="310" y1="580" x2="655" y2="665" stroke="#A855F7" strokeWidth="1" strokeDasharray="4,3" markerEnd="url(#arrowL1)" />
+          <text x="495" y="625" className="text-[9px] fill-purple-500 dark:fill-purple-400" transform="rotate(-15, 495, 625)">Store Backup</text>
         </svg>
         
         {/* User Entity */}
-        <div className="absolute left-0 top-[250px] w-24">
-          <div className="border-2 border-blue-500 bg-white dark:bg-gray-800 px-3 py-8 text-center">
+        <div className="absolute left-[10px] top-[210px] w-[95px]">
+          <div className="border-2 border-blue-500 bg-white dark:bg-gray-800 px-3 py-10 text-center rounded-lg">
             <UsersIcon className="h-8 w-8 text-blue-500 mx-auto mb-2" />
             <span className="text-sm font-bold text-gray-800 dark:text-white">ผู้ใช้</span>
           </div>
         </div>
         
-        {/* Google OAuth Entity */}
-        <div className="absolute left-[550px] top-[25px]">
-          <div className="border-2 border-orange-500 bg-white dark:bg-gray-800 px-4 py-3 text-center">
+        {/* Google OAuth Entity (aligned with 1.0) */}
+        <div className="absolute left-[530px] top-[35px]">
+          <div className="border-2 border-orange-500 bg-white dark:bg-gray-800 px-5 py-3 text-center rounded-lg">
             <CloudIcon className="h-6 w-6 text-orange-500 mx-auto mb-1" />
             <span className="text-sm font-bold text-gray-800 dark:text-white">Google</span>
+            <span className="text-[10px] text-gray-500 dark:text-gray-400 block">OAuth 2.0</span>
           </div>
         </div>
         
-        {/* Ollama Entity */}
-        <div className="absolute left-[550px] top-[230px]">
-          <div className="border-2 border-pink-500 bg-white dark:bg-gray-800 px-4 py-3 text-center">
+        {/* Ollama Entity (between 1.0 and 3.0) */}
+        <div className="absolute left-[530px] top-[155px]">
+          <div className="border-2 border-pink-500 bg-white dark:bg-gray-800 px-5 py-3 text-center rounded-lg">
             <BrainCircuitIcon className="h-6 w-6 text-pink-500 mx-auto mb-1" />
             <span className="text-sm font-bold text-gray-800 dark:text-white">Ollama</span>
+            <span className="text-[10px] text-gray-500 dark:text-gray-400 block">LLM API</span>
           </div>
         </div>
         
-        {/* Network Device Entity */}
-        <div className="absolute right-[120px] top-[130px]">
-          <div className="border-2 border-green-500 bg-white dark:bg-gray-800 px-4 py-4 text-center">
+        {/* Desktop Agent (SSH gateway, right-center) */}
+        <div className="absolute left-[700px] top-[330px]">
+          <div className="border-2 border-cyan-500 bg-cyan-50 dark:bg-cyan-900/30 px-4 py-4 text-center rounded-xl shadow-md">
+            <MonitorIcon className="h-7 w-7 text-cyan-500 mx-auto mb-1" />
+            <span className="text-sm font-bold text-gray-800 dark:text-white">Desktop</span>
+            <span className="text-sm font-bold text-gray-800 dark:text-white block">Agent</span>
+            <span className="text-[9px] text-cyan-600 dark:text-cyan-400 block mt-1">Agent Relay</span>
+          </div>
+        </div>
+        
+        {/* Network Device (far right, aligned with Desktop Agent) */}
+        <div className="absolute left-[920px] top-[350px]">
+          <div className="border-2 border-green-500 bg-white dark:bg-gray-800 px-4 py-4 text-center rounded-lg">
             <ServerIcon className="h-8 w-8 text-green-500 mx-auto mb-1" />
             <span className="text-sm font-bold text-gray-800 dark:text-white">อุปกรณ์</span>
-            <span className="text-xs text-gray-500 block">เครือข่าย</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400 block">เครือข่าย</span>
           </div>
         </div>
         
         {/* Process 1.0 - Authentication */}
-        <div className="absolute left-[270px] top-[85px]">
-          <div className="w-24 h-14 rounded-lg bg-white dark:bg-gray-800 border-2 border-blue-500 flex flex-col items-center justify-center">
-            <span className="text-xs font-bold text-blue-600">1.0</span>
-            <span className="text-[10px] text-center">Authentication</span>
+        <div className="absolute left-[240px] top-[55px]">
+          <div className="w-[105px] h-[50px] rounded-lg bg-blue-500 dark:bg-blue-600 flex flex-col items-center justify-center shadow-md">
+            <span className="text-xs font-bold text-white">1.0</span>
+            <span className="text-[10px] text-white text-center">Authentication</span>
           </div>
         </div>
         
         {/* Process 2.0 - Device Management */}
-        <div className="absolute left-[270px] top-[185px]">
-          <div className="w-24 h-14 rounded-lg bg-white dark:bg-gray-800 border-2 border-green-500 flex flex-col items-center justify-center">
-            <span className="text-xs font-bold text-green-600">2.0</span>
-            <span className="text-[10px] text-center">Device Mgmt</span>
+        <div className="absolute left-[240px] top-[175px]">
+          <div className="w-[105px] h-[50px] rounded-lg bg-green-500 dark:bg-green-600 flex flex-col items-center justify-center shadow-md">
+            <span className="text-xs font-bold text-white">2.0</span>
+            <span className="text-[10px] text-white text-center">Device Mgmt</span>
           </div>
         </div>
         
         {/* Process 3.0 - Config Generation */}
-        <div className="absolute left-[270px] top-[285px]">
-          <div className="w-24 h-14 rounded-lg bg-white dark:bg-gray-800 border-2 border-pink-500 flex flex-col items-center justify-center">
-            <span className="text-xs font-bold text-pink-600">3.0</span>
-            <span className="text-[10px] text-center">Config Gen</span>
+        <div className="absolute left-[240px] top-[295px]">
+          <div className="w-[105px] h-[50px] rounded-lg bg-pink-500 dark:bg-pink-600 flex flex-col items-center justify-center shadow-md">
+            <span className="text-xs font-bold text-white">3.0</span>
+            <span className="text-[10px] text-white text-center">Config Gen</span>
           </div>
         </div>
         
         {/* Process 4.0 - Deployment */}
-        <div className="absolute left-[270px] top-[385px]">
-          <div className="w-24 h-14 rounded-lg bg-white dark:bg-gray-800 border-2 border-indigo-500 flex flex-col items-center justify-center">
-            <span className="text-xs font-bold text-indigo-600">4.0</span>
-            <span className="text-[10px] text-center">Deployment</span>
+        <div className="absolute left-[240px] top-[415px]">
+          <div className="w-[105px] h-[50px] rounded-lg bg-indigo-500 dark:bg-indigo-600 flex flex-col items-center justify-center shadow-md">
+            <span className="text-xs font-bold text-white">4.0</span>
+            <span className="text-[10px] text-white text-center">Deployment</span>
           </div>
         </div>
         
         {/* Process 5.0 - Backup Management */}
-        <div className="absolute left-[270px] top-[485px]">
-          <div className="w-24 h-14 rounded-lg bg-white dark:bg-gray-800 border-2 border-teal-500 flex flex-col items-center justify-center">
-            <span className="text-xs font-bold text-teal-600">5.0</span>
-            <span className="text-[10px] text-center">Backup Mgmt</span>
+        <div className="absolute left-[240px] top-[535px]">
+          <div className="w-[105px] h-[50px] rounded-lg bg-teal-500 dark:bg-teal-600 flex flex-col items-center justify-center shadow-md">
+            <span className="text-xs font-bold text-white">5.0</span>
+            <span className="text-[10px] text-white text-center">Backup Mgmt</span>
           </div>
         </div>
         
-        {/* D1 Data Store - Users */}
-        <div className="absolute left-[280px] bottom-[20px]">
+        {/* Data Stores - Bottom Row */}
+        <div className="absolute left-[160px] bottom-[20px]">
           <div className="flex items-stretch">
-            <div className="w-8 bg-white dark:bg-gray-800 border-t-2 border-b-2 border-l-2 border-gray-700 flex items-center justify-center">
-              <span className="font-bold text-sm">D1</span>
+            <div className="w-8 bg-white dark:bg-gray-800 border-t-2 border-b-2 border-l-2 border-purple-600 dark:border-purple-500 flex items-center justify-center">
+              <span className="font-bold text-xs text-purple-600 dark:text-purple-400">D1</span>
             </div>
-            <div className="border-2 border-gray-700 bg-white dark:bg-gray-800 px-3 py-2">
-              <span className="text-xs font-medium">Users</span>
-            </div>
-          </div>
-        </div>
-        
-        {/* D2 Data Store - Devices */}
-        <div className="absolute left-[400px] bottom-[20px]">
-          <div className="flex items-stretch">
-            <div className="w-8 bg-white dark:bg-gray-800 border-t-2 border-b-2 border-l-2 border-gray-700 flex items-center justify-center">
-              <span className="font-bold text-sm">D2</span>
-            </div>
-            <div className="border-2 border-gray-700 bg-white dark:bg-gray-800 px-3 py-2">
-              <span className="text-xs font-medium">Devices</span>
+            <div className="border-2 border-purple-600 dark:border-purple-500 bg-white dark:bg-gray-800 px-3 py-2">
+              <span className="text-xs font-medium text-gray-800 dark:text-white">Users</span>
             </div>
           </div>
         </div>
         
-        {/* D3 Data Store - Configs */}
-        <div className="absolute left-[510px] bottom-[20px]">
+        <div className="absolute left-[310px] bottom-[20px]">
           <div className="flex items-stretch">
-            <div className="w-8 bg-white dark:bg-gray-800 border-t-2 border-b-2 border-l-2 border-gray-700 flex items-center justify-center">
-              <span className="font-bold text-sm">D3</span>
+            <div className="w-8 bg-white dark:bg-gray-800 border-t-2 border-b-2 border-l-2 border-purple-600 dark:border-purple-500 flex items-center justify-center">
+              <span className="font-bold text-xs text-purple-600 dark:text-purple-400">D2</span>
             </div>
-            <div className="border-2 border-gray-700 bg-white dark:bg-gray-800 px-3 py-2">
-              <span className="text-xs font-medium">Configs</span>
+            <div className="border-2 border-purple-600 dark:border-purple-500 bg-white dark:bg-gray-800 px-3 py-2">
+              <span className="text-xs font-medium text-gray-800 dark:text-white">Devices</span>
             </div>
           </div>
         </div>
         
-        {/* D4 Data Store - Backups */}
-        <div className="absolute left-[620px] bottom-[20px]">
+        <div className="absolute left-[460px] bottom-[20px]">
           <div className="flex items-stretch">
-            <div className="w-8 bg-white dark:bg-gray-800 border-t-2 border-b-2 border-l-2 border-gray-700 flex items-center justify-center">
-              <span className="font-bold text-sm">D4</span>
+            <div className="w-8 bg-white dark:bg-gray-800 border-t-2 border-b-2 border-l-2 border-purple-600 dark:border-purple-500 flex items-center justify-center">
+              <span className="font-bold text-xs text-purple-600 dark:text-purple-400">D3</span>
             </div>
-            <div className="border-2 border-gray-700 bg-white dark:bg-gray-800 px-3 py-2">
-              <span className="text-xs font-medium">Backups</span>
+            <div className="border-2 border-purple-600 dark:border-purple-500 bg-white dark:bg-gray-800 px-3 py-2">
+              <span className="text-xs font-medium text-gray-800 dark:text-white">Configs</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="absolute left-[610px] bottom-[20px]">
+          <div className="flex items-stretch">
+            <div className="w-8 bg-white dark:bg-gray-800 border-t-2 border-b-2 border-l-2 border-purple-600 dark:border-purple-500 flex items-center justify-center">
+              <span className="font-bold text-xs text-purple-600 dark:text-purple-400">D4</span>
+            </div>
+            <div className="border-2 border-purple-600 dark:border-purple-500 bg-white dark:bg-gray-800 px-3 py-2">
+              <span className="text-xs font-medium text-gray-800 dark:text-white">Backups</span>
             </div>
           </div>
         </div>
@@ -1333,7 +1341,7 @@ function DFDLevel1() {
             <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <td className="px-4 py-3"><span className="px-2 py-1 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded font-mono text-xs font-bold">2.0</span></td>
               <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Device Management</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">CRUD for devices (router, switch, nexus, ios-xe), SSH/NETCONF testing</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">CRUD for devices (router, switch, nexus, ios-xe), SSH/NETCONF testing via Desktop Agent</td>
               <td className="px-4 py-3 text-gray-500">Device data (IP, credentials, type)</td>
               <td className="px-4 py-3 text-gray-500">Device records, Connection status</td>
             </tr>
@@ -1347,14 +1355,14 @@ function DFDLevel1() {
             <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <td className="px-4 py-3"><span className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded font-mono text-xs font-bold">4.0</span></td>
               <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Deployment</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Deploy via SSH (CLI) or NETCONF (NX-OS/IOS-XE YANG), track status</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Deploy via Agent Relay → Desktop Agent → SSH (CLI) or NETCONF, track status</td>
               <td className="px-4 py-3 text-gray-500">Configuration, Device credentials</td>
               <td className="px-4 py-3 text-gray-500">Deployment status, Device response</td>
             </tr>
             <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <td className="px-4 py-3"><span className="px-2 py-1 bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 rounded font-mono text-xs font-bold">5.0</span></td>
               <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Backup Management</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Store and restore device configurations, scheduled backups, diff comparison</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Backup/restore via Agent Relay → Desktop Agent → SSH, scheduled backups, diff comparison</td>
               <td className="px-4 py-3 text-gray-500">Device ID, Schedule parameters</td>
               <td className="px-4 py-3 text-gray-500">Backup records, Restore results</td>
             </tr>

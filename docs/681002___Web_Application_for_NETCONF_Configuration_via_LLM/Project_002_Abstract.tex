@@ -1,0 +1,170 @@
+%**************************************************************************************
+% บทคัดย่อภาษาไทย
+%**************************************************************************************
+\phantomsection
+\addcontentsline{toc}{chapter}{บทคัดย่อภาษาไทย}
+
+\vspace*{-0.5in}
+
+
+\begin{tabularx}{\textwidth}{lX}
+ชื่อ                           & : นายชัยสิทธิ์ มินทกร        %ชื่อผู้จัดทำ1 
+%\\     %เว้นบรรทัด เมื่อมีเพื่อนร่วมโปรเจ็ค
+%                             & : นางสาวสิวาลัย จินเจือ            %ชื่อผู้จัดทำ2 
+\\
+ชื่อปริญญานิพนธ์                  & : \hangindent=0.5em          % มีไว้สำหรับตอนชื่อโปรเจ็คเกิน 1 บรรทัด
+                                เว็บแอปพลิเคชันเพื่อการคอนฟิกด้วยวิธี NETCONF ผ่าน LLM  %ระบุชื่อโปรเจ็คภาษาไทย
+\\
+% สาขาวิชา                       & : เทคโนโลยีสารสนเทศ % กรณีเป็นนักศึกษาหลักสูตร IT
+%สาขาวิชา                       & : เทคโนโลยีสารสนเทศ (ต่อเนื่อง) % กรณีเป็นนักศึกษาหลักสูตร ITI
+สาขาวิชา                       & : วิศวกรรมสารสนเทศและเครือข่าย % กรณีเป็นนักศึกษาหลักสูตร INE และ INET
+\\
+                             & : มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าพระนครเหนือ
+\\
+อาจารย์ที่ปรึกษาปริญญานิพนธ์        & : อาจารย์ ดร.วัชรชัย คงศิริวัฒนา    %ระบุชื่ออาจารย์ที่ปรึกษา
+%\\      %เว้นบรรทัด เมื่อมีที่ปรึกษาร่วม
+%ที่ปรึกษาร่วม                    & : ผู้ช่วยศาสตาจารย์ ดร.นิติการ นาคเจือทอง    %ระบุชื่อที่ปรึกษาร่วม (ถ้ามี)
+\\
+ปีการศึกษา                     & : 2568     %ระบุปีการศึกษา
+\end{tabularx}
+
+\vspace{5mm}
+\phantomsection
+\begin{center}\textbf{บทคัดย่อ}\end{center}
+\hspace*{1.3em} %ย่อหน้า
+ โครงการนี้มีวัตถุประสงค์ในการพัฒนาเว็บแอปพลิเคชันเพื่อการจัดการเครือข่าย ที่ช่วยให้ผู้ดูแล
+ ระบบสามารถดำเนินการตั้งค่าอุปกรณ์เครือข่าย Cisco ได้อย่างมีประสิทธิภาพและสะดวกยิ่งขึ้น ระบบ
+ ที่พัฒนาขึ้นรองรับการกำหนดค่าพื้นฐาน เช่น การตั้งค่า IP Address การกำหนดค่า VLAN และการ
+ จัดการ Routing Protocols โดยใช้ Node.js และ Express สำหรับการพัฒนา Backend ที่ Deploy บน 
+ Vercel Serverless และ React สำหรับการพัฒนา Frontend พร้อมทั้งเชื่อมต่อกับ MongoDB Atlas 
+ เพื่อจัดเก็บข้อมูลอุปกรณ์ โดยรองรับการยืนยันตัวตนผ่าน Google OAuth 2.0
+
+ \hspace*{1.3em} %ย่อหน้า
+ นอกจากนี้ ระบบยังผสานเทคโนโลยี Large Language Model (LLM) ผ่าน Ollama ที่รันบนเครื่อง
+ ผู้ใช้ เพื่อสร้างการกำหนดค่าอัตโนมัติจาก Prompt ที่ผู้ใช้กรอก โดยสื่อสารผ่าน Desktop Agent 
+ (Electron Application) ที่เชื่อมต่อกับ Backend ด้วยระบบ Agent Relay แบบ HTTP Polling
+ ช่วยลดความซับซ้อนและความผิดพลาดในการกำหนดค่าด้วยตนเอง อีกทั้งยังมีความสามารถในการ 
+ สำรองข้อมูล (Backup) การตั้งเวลาสำรองอัตโนมัติ และ กู้คืนการตั้งค่า (Rollback) ของอุปกรณ์
+ เพื่อรองรับการจัดการอย่างปลอดภัย
+
+ \hspace*{1.3em} %ย่อหน้า
+ ผลลัพธ์ที่ได้จากโครงการช่วยเพิ่มประสิทธิภาพในการจัดการเครือข่าย ลดระยะเวลาในการกำหนด
+ ค่า และเพิ่มความยืดหยุ่นในการดูแลรักษาอุปกรณ์เครือข่าย Cisco ให้มีความทันสมัยและสอดคล้องกับ
+ ความต้องการขององค์กรในยุคดิจิทัล
+
+\begin{flushright}
+(ปริญญานิพนธ์มีจำนวนทั้งสิ้น \pageref{LastPage} หน้า)
+
+\vfill
+\rule{10 cm}{0.4pt} อาจารย์ที่ปรึกษาปริญญานิพนธ์ 
+%\\ \vspace{3mm}                        %เว้นกรณีมีที่ปรึกษาร่วม
+%\rule{12.6 cm}{0.4pt} ที่ปรึกษาร่วม         % กรณีมีที่ปรึกษาร่วม
+
+\end{flushright}
+
+
+
+
+
+%**************************************************************************************
+% บทคัดย่อภาษาอังกฤษ
+%**************************************************************************************
+\newpage
+\phantomsection
+\addcontentsline{toc}{chapter}{บทคัดย่อภาษาอังกฤษ}
+
+\vspace*{-0.5in}
+
+
+
+\begin{tabularx}{\textwidth}{lX}
+Name                    & : Mr.Chaiyasit Mintakorn  %ชื่อผู้จัดทำ1
+%\\      %เว้นบรรทัดเมื่อมีเพื่อนร่วมโปรเจ็ค
+%                       & : Ms.Siwalai Chinchua      %ชื่อผู้จัดทำ2
+\\
+Project Title           & : \hangindent=0.5em % มีไว้สำหรับตอนชื่อโปรเจ็คเกิน 1 บรรทัด
+                            Web Application for NETCONF Configuration via LLM  %ระบุชื่อโปรเจ็คภาษาอังกฤษ
+\\
+% Major Field             & : Information Technology % กรณีเป็นนักศึกษาหลักสูตร IT
+%Major Field             & : Information Technology (Continuing Program) % กรณีเป็นนักศึกษาหลักสูตร ITI
+Major Field             & : Information and Network Engineering % กรณีเป็นนักศึกษาหลักสูตร INE และ INET
+\\
+                        & : King Mongkut’s University of Technology North Bangkok
+\\
+Project Advisor         & : Dr.Watcharachai Kongsiriwattana   %ระบุชื่ออาจารย์ที่ปรึกษา
+%\\      %เว้นบรรทัด เมื่อมีที่ปรึกษาร่วม
+%Co-Advisor              & : Asst. Prof. Dr.Nitigan Nakjuatong   %ระบุชื่อที่ปรึกษาร่วม (ถ้ามี)
+\\
+Academic Year           & : 2025    %ระบุปีการศึกษา
+\end{tabularx}
+
+\vspace{5mm}
+\begin{center}\textbf{Abstract}\end{center}
+
+\hspace*{1.3em} %ย่อหน้า
+ This project aims to develop a web application for network management that
+ enables system administrators to configure Cisco network devices more efficiently and
+ conveniently. The developed system supports basic configurations such as IP address
+ assignment, VLAN configuration, and routing protocol management.
+ 
+ \hspace*{1.3em} %ย่อหน้า
+ The backend is implemented using Node.js and Express, deployed on Vercel
+ Serverless, while the frontend is developed with React 19 and Vite 6. The system is
+ integrated with MongoDB Atlas to store device-related data, and uses Google OAuth 2.0
+ for authentication. A Desktop Agent built with Electron runs locally on the user's
+ machine, communicating with the backend through an Agent Relay system via HTTP
+ Polling. The system incorporates Ollama Large Language Model (LLM) running locally
+ on the Desktop Agent to automatically generate configurations from user-provided
+ prompts, thereby reducing complexity and minimizing errors in manual configuration.
+ In addition, the system offers features for backup, scheduled automatic backup, and
+ rollback of device configurations, ensuring secure and reliable network management.
+
+ \hspace*{1.3em} %ย่อหน้า
+ The outcome of this project enhances the efficiency of network administration,
+ reduces the time required for configuration, and increases the flexibility of maintaining
+ Cisco network devices. This ensures that the system remains modern, adaptive, and
+ aligned with the organizational needs of the digital era.
+
+\begin{flushright}
+(Total \pageref{LastPage} pages)
+
+\vfill
+
+\rule{12 cm}{0.4pt} Project Advisor
+%\\ \vspace{3mm}                          %เว้นกรณีมีที่ปรึกษาร่วม
+%\rule{12.7 cm}{0.4pt} Co-Advisor         % กรณีมีที่ปรึกษาร่วม
+
+\end{flushright}
+
+
+%**************************************************************************************
+% กิตติกรรมประกาศ
+%**************************************************************************************
+\newpage
+\phantomsection
+\addcontentsline{toc}{chapter}{กิตติกรรมประกาศ}
+
+\vspace*{-0.5in}
+
+
+
+\begin{center}\textbf{กิตติกรรมประกาศ}\end{center}
+
+\hspace*{1.3em}  %ย่อหน้า
+ ปริญานิพนธ์ ”เว็บแอปพลิเคชันเพื่อการคอนฟิกด้วยวิธี NETCONF ผ่าน LLM” จะไม่สามารถ
+ สำเร็จลุล่วงไปได้ด้วยดีหากไม่ได้รับการช่วยเหลือและความอนุเคราะห์จากบุคคลหลายท่าน ทางผู้จัดทำ
+ ต้องขอขอบพระคุณ อาจารย์ ดร.วัชรชัย คงศิริวัฒนา ซึ่งเป็นอาจารย์ที่ปรึกษา ที่ได้กรุณาให้คำปรึกษา
+ และแนะนำแนวทางในการจัดทำปริญญานิพนธ์ รวมทั้งคณาจารย์ภาควิชาเทคโนโลยีสารสนเทศที่ได้ให้
+ ความรู้กับผู้จัดทำเพื่อนำมาประยุกต์ในการจัดทำปริญญานิพนธ์นี้
+\\
+\hspace*{1.3em}  %ย่อหน้า
+ท้ายที่สุดนี้ ทางผู้จัดทำขอน้อมรำลึกพระคุณบิดา มารดา ผู้ซึ่งมีพระคุณอย่างสูงสุดที่ให้ความ
+ อุปการะผู้จัดทำมาโดยตลอด รวมทั้งผู้มีพระคุณทุกท่าน คณะผู้จัดทำรู้สึกซาบซึ้งเป็นอย่างยิ่ง จึงใคร่ขอ
+ ขอบพระคุณเป็นอย่างสูงมา ณ โอกาสนี้ด้วย
+\\
+\begin{flushright}
+\makebox[6cm][l]{ชัยสิทธิ์ มินทกร}      %ชื่อผู้จัดทำ1
+%\\     %เว้นบรรทัด เมื่อมีเพื่อนร่วมโปรเจ็ค
+%\makebox[6cm][l]{สิวาลัย จินเจือ}         %ชื่อผู้จัดทำ2
+
+\end{flushright}

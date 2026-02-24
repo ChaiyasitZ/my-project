@@ -1,0 +1,278 @@
+%*************************************
+% บทที่ 4
+%*************************************
+\chapterTitle{4}{ผลการดำเนินงาน}
+
+\hspace*{1.3em}
+ในการพัฒนา เว็บแอปพลิเคชันเพื่อการคอนฟิกด้วยวิธี NETCONF ผ่าน LLM ได้จัดทำโครงสร้างและการปรับแต่งระบบให้สอดคล้องกับมาตรฐานที่กำหนด ประกอบด้วยการจัดการอุปกรณ์ การสร้างและปรับใช้การกำหนดค่า การสำรองข้อมูล และการประมวลผลด้วย LLM
+\section{ผลการดำเนินงาน}
+\hspace*{1.3em}
+รายละเอียดการทำงานของโปรแกรมผลการดำเนินงานในการจัดทำโครงงานเว็บแอปพลิเคชันเพื่อการคอนฟิกด้วยวิธี NETCONF ผ่าน LLM มีรายละเอียดดังนี้
+
+\begin{figure}[H]
+\centering
+\adjustbox{frame, width=1.0\textwidth}{%สร้างกรอบของภาพ
+    \includegraphics[width=1.0\textwidth]{Image/dashboard.png}
+}
+\caption{\fontSixTeen{หน้าจอ Dashboard}}
+\label{fig4:Dashboard}
+\end{figure}
+
+\hspace*{1.3em} %ย่อหน้า
+จากภาพที่ \ref{fig4:Dashboard} แสดงภาพรวมของระบบ ระบุจำนวนอุปกรณ์ที่เชื่อมต่ออยู่และจำนวน Configurations ที่มีอยู่ในระบบและแสดงรายรายละเอียดของอุปกรณ์ IP Address, Model, Location, Status และรายละเอียดของ Configurations 5 ครั้งล่าสุด
+
+
+\begin{figure}[H]
+\centering
+\adjustbox{frame, width=1.0\textwidth}{%สร้างกรอบของภาพ
+    \includegraphics[width=1.0\textwidth]{Image/DeviceManage.png}
+}
+\caption{\fontSixTeen{หน้าจอ Device Management}}
+\label{fig4:DeviceManage}
+\end{figure}
+
+\hspace*{1.3em} %ย่อหน้า
+จากภาพที่ \ref{fig4:DeviceManage} แสดงหน้าจอสำหรับการจัดการอุปกรณ์ในระบบ ซึ่งประกอบด้วยฟิลด์ต่าง ๆ สำหรับกรอกข้อมูลเริ่มต้น ดังนี้
+
+\hspace*{1.3em} %ย่อหน้า
+หมายเลข 1 ปุ่ม Add Device สำหรับเพิ่มอุปกรณ์ใหม่เพื่อบันทึกข้อมูลอุปกรณ์ใหม่เข้าสู่ระบบ
+
+\hspace*{1.3em}
+หมายเลข 2 ปุ่มรีเฟรช (Refresh) เพื่อดึงข้อมูลอุปกรณ์ล่าสุดจากฐานข้อมูล
+
+\hspace*{1.3em}
+หมายเลข 3 ช่อง Search Bar สำหรับค้นหาอุปกรณ์
+
+\hspace*{1.3em}
+หมายเลข 4 ปุ่ม Test Connection ระหว่างอุปกรณ์กับเว็บแอปพลิเคชัน
+
+\hspace*{1.3em}
+หมายเลข 5 ปุ่ม Connection กับอุปกรณ์ผ่านโปรโตคอล SSH
+
+\hspace*{1.3em}
+หมายเลข 6 ปุ่ม Edit สำหรับแก้ไขข้อมูลของอุปกรณ์
+
+\hspace*{1.3em}
+หมายเลข 7 ปุ่ม Delete สำหรับลบอุปกรณ์ออกจากระบบ
+
+\begin{figure}[H]
+\centering
+\adjustbox{frame, width=1.0\textwidth}{%สร้างกรอบของภาพ
+    \includegraphics[width=1.0\textwidth]{Image/Configurations.png}
+}
+\caption{\fontSixTeen{หน้าจอ LLM Configuration Generator}}
+\label{fig4:Configurations}
+\end{figure}
+
+\hspace*{1.3em} %ย่อหน้า
+จากภาพที่ \ref{fig4:Configurations} แสดงหน้าจอสำหรับการจัดการ Configurations ในระบบ ซึ่งประกอบด้วยฟิลด์ต่าง ๆ สำหรับการกำหนดค่าอุปกรณ์ ดังนี้
+
+\hspace*{1.3em} %ย่อหน้า
+หมายเลข 1 ปุ่มรีเฟรช (Refresh) เพื่อดึงข้อมูลอุปกรณ์ล่าสุดจากฐานข้อมูล
+
+\hspace*{1.3em}
+หมายเลข 2 เลือกอุปกรณ์ที่ต้องการจะ Configurations
+
+\hspace*{1.3em}
+หมายเลข 3 ช่องสำหรับใส่ Prompt ที่ต้องการให้ LLM สร้างคำสั่งการกำหนดค่าอุปกรณ์
+
+\hspace*{1.3em}
+หมายเลข 4 ปุ่ม Generate Configuration เพื่อให้ LLM สร้างคำสั่งการกำหนดค่าอุปกรณ์
+
+\hspace*{1.3em}
+หมายเลข 5 Example Prompt สำหรับตัวอย่างการใส่ Prompt
+
+\hspace*{1.3em}
+หมายเลข 6 ระบุรายละเอียดของ Model ที่ใช้และเวลาที่ใช้ในการสร้างคำสั่ง
+
+\hspace*{1.3em}
+หมายเลข 7 ระบุความถูกต้องของคำสั่งที่สร้างขึ้น
+
+\hspace*{1.3em}
+หมายเลข 8 ช่องแสดงคำสั่งที่ LLM สร้างขึ้น
+
+\hspace*{1.3em}
+หมายเลข 9 ปุ่ม Deploy Configuration เพื่อส่งคำสั่งที่สร้างขึ้นไปยังอุปกรณ์
+
+\hspace*{1.3em}
+หมายเลข 10 ระบุ Timestamp ในการสร้างคำสั่ง
+
+\hspace*{1.3em}
+หมายเลข 11 ปุ่ม Generate New เพื่อสร้างคำสั่งใหม่
+
+
+\begin{figure}[H]
+\centering
+\adjustbox{frame, width=1.0\textwidth}{%สร้างกรอบของภาพ
+    \includegraphics[width=1.0\textwidth]{Image/ConsoleSetup.png}
+}
+\caption{\fontSixTeen{หน้าจอ Console Configuration}}
+\label{fig4:ConsoleSetup}
+\end{figure}
+
+\hspace*{1.3em} %ย่อหน้า
+จากภาพที่ \ref{fig4:ConsoleSetup} แสดงหน้าจอสำหรับ Console Configuration สำหรับการกำหนดค่าอุปกรณ์ SSH ซึ่งประกอบด้วยฟิลด์ต่าง ๆ  ดังนี้
+
+\hspace*{1.3em} %ย่อหน้า
+หมายเลข 1 ปุ่มรีเฟรช (Refresh) เพื่อดึงข้อมูลอุปกรณ์ล่าสุดจากฐานข้อมูล
+
+\hspace*{1.3em}
+หมายเลข 2 เลือก Serial Port ที่เชื่อมต่อกับอุปกรณ์
+
+\hspace*{1.3em}
+หมายเลข 3 เลือก Baud Rate ที่ใช้ในการเชื่อมต่อกับอุปกรณ์
+
+\hspace*{1.3em}
+หมายเลข 4 ปุ่ม Test Connection กับอุปกรณ์ผ่านสาย Serial
+
+\hspace*{1.3em}
+หมายเลข 5 ปุ่ม Connect กับอุปกรณ์ผ่านสาย Serial
+
+\begin{figure}[H]
+\centering
+\adjustbox{frame, width=1.0\textwidth}{%สร้างกรอบของภาพ
+    \includegraphics[width=1.0\textwidth]{Image/ConsoleSetup1.png}
+}
+\caption{\fontSixTeen{หน้าจอ Console Configuration (ต่อ)}}
+\label{fig4:ConsoleSetup1}
+\end{figure}
+
+\hspace*{1.3em} %ย่อหน้า
+จากภาพที่ \ref{fig4:ConsoleSetup1} แสดงหน้าจอสำหรับ Console Configuration สำหรับการกำหนดค่าอุปกรณ์ SSH ซึ่งประกอบด้วยฟิลด์ต่าง ๆ  ดังนี้
+
+\hspace*{1.3em} %ย่อหน้า
+หมายเลข 1 เลือกโหมดที่ต้องการแบบ Template หรือ Custom
+
+\hspace*{1.3em}
+หมายเลข 2 เลือก Template ที่ต้องการใช้ในการตั้งค่าอุปกรณ์
+
+\hspace*{1.3em}
+หมายเลข 3 ระบุค่าต่าง ๆ ที่ต้องการตั้งค่าอุปกรณ์ ซึ่งค่าที่ระบุจะขึ้นอยู่กับ Template ที่เลือก
+
+\hspace*{1.3em}
+หมายเลข 4 ฟิลด์แสดง Configuration Preview ที่จะถูกคอนฟิกให้กับอุปกรณ์
+
+\hspace*{1.3em}
+หมายเลข 5 ปุ่ม Apply Configuration เพื่อส่งคอนฟิกที่สร้างขึ้นไปยังอุปกรณ์
+
+\begin{figure}[H]
+\centering
+\adjustbox{frame, width=1.0\textwidth}{%สร้างกรอบของภาพ
+    \includegraphics[width=1.0\textwidth]{Image/History.png}
+}
+\caption{\fontSixTeen{หน้าจอ Configuration History}}
+\label{fig4:History}
+\end{figure}
+
+\hspace*{1.3em} %ย่อหน้า
+จากภาพที่ \ref{fig4:History} แสดงหน้าจอสำหรับ Configuration History ซึ่งประกอบด้วยฟิลด์ต่าง ๆ  ดังนี้
+
+\hspace*{1.3em} %ย่อหน้า
+หมายเลข 1 ปุ่มรีเฟรช (Refresh) เพื่อดึงข้อมูลอุปกรณ์ล่าสุดจากฐานข้อมูล
+
+\hspace*{1.3em}
+หมายเลข 2 Filter ข้อมูลอุปกรณ์ที่ต้องการดูประวัติการกำหนดค่ามี 4 ตัวเลือก ได้แก่ Generated, Deployed, Failed, Rolled Back
+
+\hspace*{1.3em}
+หมายเลข 3 แสดงรายการและรายละเอียดแบบย่อของ Configuration 
+
+\hspace*{1.3em}
+หมายเลข 4 ปุ่มแสดงรายละเอียดของ Configuration ที่ LLM Generate ออกมา
+
+\hspace*{1.3em}
+หมายเลข 5 ปุ่มลบ (Delete) สำหรับลบ Configuration ที่เลือกออกจากระบบ
+
+\hspace*{1.3em}
+หมายเลข 6 แสดงสถานะของ Configuration ที่เลือก
+
+\hspace*{1.3em}
+หมายเลข 7 ปุ่มลบทั้งหมด (Clear All) สำหรับลบ Configuration ทั้งหมดออกจากระบบ
+
+
+\begin{figure}[htbp]
+\centering
+\adjustbox{frame, width=1.0\textwidth}{%สร้างกรอบของภาพ
+    \includegraphics[width=1.0\textwidth]{Image/Backup.png}
+}
+\caption{\fontSixTeen{หน้าจอ Backup Configuration}}
+\label{fig4:Backup}
+\end{figure}
+\hspace*{1.3em} %ย่อหน้า
+
+\hspace*{1.3em} %ย่อหน้า
+
+\hspace*{1.3em} %ย่อหน้า
+
+\hspace*{1.3em} %ย่อหน้า
+
+\hspace*{1.3em} %ย่อหน้า
+
+\hspace*{1.3em} %ย่อหน้า
+
+\hspace*{1.3em} %ย่อหน้า
+จากภาพที่ \ref{fig4:Backup} แสดงหน้าจอสำหรับ Backup Configuration ซึ่งประกอบด้วยฟิลด์ต่าง ๆ  ดังนี้
+
+\hspace*{1.3em} %ย่อหน้า
+หมายเลข 1 ปุ่มรีเฟรช (Refresh) เพื่อดึงข้อมูลอุปกรณ์ล่าสุดจากฐานข้อมูล
+
+\hspace*{1.3em}
+หมายเลข 2 ปุ่มเ Add Backup เพื่อสำรองข้อมูลการกำหนดค่าปัจจุบันของอุปกรณ์
+
+\hspace*{1.3em}
+หมายเลข 3 แสดงรายละเอียดจำนวน Total Backup, Total Backup Type, Device, Restore Point, Total Size
+
+\hspace*{1.3em}
+หมายเลข 4 Search Bar และ Filter สำหรับค้นหา Backup Configuration 
+
+\hspace*{1.3em}
+หมายเลข 5 แสดงรายการและรายละเอียดแบบย่อของ Backup Configuration
+
+\hspace*{1.3em}
+หมายเลข 6 ปุ่ม Restore สำหรับคืนค่าการกำหนดค่ากลับไปยังจุดที่สำรองข้อมูลไว้
+
+\hspace*{1.3em}
+หมายเลข 7 ปุ่ม Preview สำหรับแสดง Configuration ที่สำรองข้อมูลไว้
+
+\hspace*{1.3em}
+หมายเลข 8 ปุ่ม Restore Point สำหรับแสดงจุดที่สำรองข้อมูลไว้
+
+\hspace*{1.3em}
+หมายเลข 9 ปุ่มลบ (Delete) สำหรับลบ Backup Configuration ที่เลือกออกจากระบบ
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

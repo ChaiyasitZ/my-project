@@ -1,0 +1,31 @@
+%*************************************
+% บทที่ 5
+%*************************************
+\chapterTitle{5}{สรุปผลการดำเนินงาน}
+
+\section{สรุปผลการดำเนินงาน}
+\hspace*{1.3em}
+โครงการ เว็บแอปพลิเคชันเพื่อการคอนฟิกด้วยวิธี NETCONF ผ่าน LLM ได้พัฒนาระบบอัตโนมัติสำหรับการจัดการและสร้างการคอนฟิกอุปกรณ์เครือข่ายโดยใช้เทคโนโลยี Large Language Model (LLM) ผ่าน Ollama ที่รันบนเครื่องผู้ใช้
+ระบบนี้ประกอบด้วยส่วน Frontend ที่ใช้ React 19 และ Vite 6, Backend ที่ใช้ Node.js และ Express ที่ Deploy บน Vercel Serverless พร้อมฐานข้อมูล MongoDB Atlas และ Desktop Agent (Electron Application) สำหรับเชื่อมต่อกับอุปกรณ์เครือข่ายและ Ollama LLM ผ่านระบบ Agent Relay แบบ HTTP Polling
+ผลลัพธ์ที่สำคัญของโครงการคือการสร้างระบบที่สมบูรณ์ ซึ่งครอบคลุมการจัดการอุปกรณ์เครือข่าย การสร้างคำสั่งคอนฟิกด้วย LLM การสำรองข้อมูลและตั้งเวลาสำรองอัตโนมัติ และการเชื่อมต่อผ่าน Agent Relay ไปยัง Desktop Agent สำหรับ SSH และ NETCONF
+ทำให้ผู้ดูแลระบบเครือข่ายสามารถจัดการอุปกรณ์ได้อย่างมีประสิทธิภาพ ลดเวลาในการสร้างการคอนฟิกแบบดั้งเดิม และลดข้อผิดพลาดที่อาจเกิดขึ้นจาก Human Error
+ส่งผลให้ผู้ดูแลระบบสามารถมุ่งเน้นไปที่การวางแผนและพัฒนาโครงสร้างเครือข่ายได้อย่างเต็มที่
+\section{ปัญหาและอุปสรรค}
+\begin{mycustomenum}[label=5.2.\arabic*] 
+    \item การจัดการ SSH Connections ผ่าน Agent Relay เนื่องจาก Backend อยู่บน Vercel Serverless ไม่สามารถเชื่อมต่อ SSH โดยตรงได้ จึงต้องพัฒนาระบบ Agent Relay ที่ใช้ HTTP Polling ผ่าน MongoDB command queue เพื่อส่งคำสั่งไปยัง Desktop Agent ที่รันบนเครื่องผู้ใช้
+    \item การจัดการ Configuration ในการสร้างการคำสั่งคอนฟิกที่ถูกต้องและเหมาะสมกับอุปกรณ์แต่ละประเภท (router, switch, nexus, ios-xe) เป็นเรื่องที่ต้องอาศัยความรู้เฉพาะทางและการทดสอบอย่างละเอียด
+    \item การแก้ไขข้อผิดพลาดของ LLM ที่รันบน Ollama สร้างคำสั่งคอนฟิกที่ไม่ถูกต้อง การวิเคราะห์และแก้ไขข้อผิดพลาดเหล่านั้นอาจเป็นเรื่องที่ท้าทาย
+\end{mycustomenum}
+
+\section{การแก้ปัญหา}
+\begin{mycustomenum}[label=5.3.\arabic*] 
+    \item พัฒนาระบบ Agent Relay สร้างระบบ HTTP Polling แบบ command queue ผ่าน MongoDB โดย Desktop Agent ดึงคำสั่งทุก 2 วินาที และส่ง heartbeat ทุก 5 วินาที พร้อม long-polling สำหรับคำสั่งที่ต้องการผลลัพธ์เร็ว
+    \item สร้าง Configuration Validation สำหรับการสร้างคำสั่งคอนฟิกเพื่อให้ผู้ใช้สามารถใช้งานได้ทันที
+    \item ระบบ Backup และ Rollback พัฒนาระบบสำรองข้อมูลอัตโนมัติ การตั้งเวลาสำรอง (Scheduled Backup) และการ rollback เพื่อลดความเสี่ยงจากการคอนฟิกที่ผิดพลาด
+\end{mycustomenum}
+
+\section{ข้อเสนอแนะ}
+\begin{mycustomenum}[label=5.4.\arabic*] 
+    \item พัฒนาฟีเจอร์เพิ่มเติม เช่น การสร้าง network monitoring dashboard, การวิเคราะห์ performance metrics, หรือการเพิ่มความสามารถในการรองรับอุปกรณ์จากผู้ผลิตอื่นๆ ให้หลากหลายมากขึ้น
+    \item พัฒนา API Integration เพื่อให้สามารถเชื่อมต่อกับระบบ network management อื่นๆ และสร้าง ecosystem ที่ครอบคลุมการจัดการเครือข่ายแบบองค์รวม
+\end{mycustomenum}

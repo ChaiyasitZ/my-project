@@ -24,6 +24,9 @@ contextBridge.exposeInMainWorld('agent', {
   close: () => ipcRenderer.invoke('close'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
+  // Uninstall
+  uninstallAgent: () => ipcRenderer.invoke('uninstall-agent'),
+
   // Event listeners
   onLog: (callback) => {
     const handler = (_, data) => callback(data);
@@ -49,5 +52,10 @@ contextBridge.exposeInMainWorld('agent', {
     const handler = (_, data) => callback(data);
     ipcRenderer.on('logs', handler);
     return () => ipcRenderer.removeListener('logs', handler);
+  },
+  onTriggerUninstall: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('trigger-uninstall', handler);
+    return () => ipcRenderer.removeListener('trigger-uninstall', handler);
   }
 });

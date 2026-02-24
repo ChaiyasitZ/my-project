@@ -721,6 +721,11 @@ app.whenReady().then(() => {
     { label: 'Connect', click: () => connectAgent() },
     { label: 'Disconnect', click: () => disconnectAgent() },
     { type: 'separator' },
+    { label: 'Uninstall Agent', click: () => {
+      if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
+      mainWindow.webContents.send('trigger-uninstall');
+    }},
+    { type: 'separator' },
     { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } }
   ]);
   tray.setContextMenu(trayMenu);
@@ -774,6 +779,62 @@ app.whenReady().then(() => {
 
   ipcMain.handle('minimize', () => mainWindow.minimize());
   ipcMain.handle('close', () => mainWindow.hide());
+
+  // ─── Uninstall Agent ───
+  ipcMain.handle('uninstall-agent', async () => {
+    const { dialog } = require('electron');
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      title: 'Uninstall NetConfig Agent',
+      message: 'Are you sure you want to uninstall NetConfig Agent?',
+      detail: 'This will:\n• Disconnect from the server\n• Delete all saved settings and tokens\n• Remove application data\n• Close the application',
+      buttons: ['Cancel', 'Uninstall'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true
+    });
+
+    if (result.response !== 1) return { cancelled: true };
+
+    try {
+      // 1. Disconnect from server
+      disconnectAgent();
+      addLog('info', 'Uninstalling agent...');
+
+      // 2. Delete config data
+      const configDir = config.configDir;
+      if (fs.existsSync(configDir)) {
+        fs.rmSync(configDir, { recursive: true, force: true });
+      }
+
+      // 3. Remove auto-launch registry (Windows)
+      if (process.platform === 'win32') {
+        try {
+          const { execSync } = require('child_process');
+          execSync('reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "NetConfigAgent" /f', { stdio: 'ignore' });
+        } catch (e) { /* Key may not exist */ }
+      }
+
+      // 4. Clean up app data paths
+      const appDataPaths = [
+        path.join(app.getPath('appData'), 'netconfig-agent-gui'),
+        path.join(app.getPath('appData'), 'NetConfig Agent'),
+      ];
+      for (const p of appDataPaths) {
+        try {
+          if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true });
+        } catch (e) { /* ignore */ }
+      }
+
+      // 5. Quit the app
+      app.isQuitting = true;
+      app.quit();
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
 });
 
 app.on('activate', () => {

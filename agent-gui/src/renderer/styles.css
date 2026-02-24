@@ -498,3 +498,46 @@ body {
 .log-entry.error .log-message { color: var(--error); }
 .log-entry.success .log-message { color: var(--success); }
 .log-entry.command .log-message { color: #c4b5fd; }
+
+/* ─── Uninstall / Danger Zone ─── */
+.uninstall-section {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+}
+
+.uninstall-section .section-title {
+  color: var(--error);
+}
+
+.uninstall-section .section-title svg {
+  color: var(--error);
+}
+
+.uninstall-info {
+  margin-bottom: 10px;
+}
+
+.uninstall-info p {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.btn-uninstall {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--error);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  width: 100%;
+  justify-content: center;
+  padding: 8px 14px;
+}
+
+.btn-uninstall:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: var(--error);
+}
+
+.btn-uninstall:disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
