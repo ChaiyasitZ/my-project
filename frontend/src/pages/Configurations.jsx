@@ -50,6 +50,9 @@ function Configurations() {
   const [showDeviceDropdown, setShowDeviceDropdown] = useState(false);
   const [devicesLoading, setDevicesLoading] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState('');
+  const [selectedDevices, setSelectedDevices] = useState([]); // Multi-device for CLI mode
+  const [multiDeviceResults, setMultiDeviceResults] = useState([]); // Results for multi-device generation
+  const [activeResultTab, setActiveResultTab] = useState(0); // Active tab for multi-device results
   const [prompt, setPrompt] = useState('');
   const [promptLanguage, setPromptLanguage] = useState('en'); // 'en' or 'th'
   const [isTranslating, setIsTranslating] = useState(false);
@@ -732,7 +735,12 @@ ${indentedConfig}
 
   const handleGenerateConfiguration = async (e) => {
     e.preventDefault();
-    if (!selectedDevice || !prompt) return;
+    
+    // Determine if multi-device (CLI mode with multiple devices selected)
+    const isMultiDevice = configMode === 'cli' && selectedDevices.length > 1;
+    const hasDevice = isMultiDevice ? selectedDevices.length > 0 : !!selectedDevice;
+    
+    if (!hasDevice || !prompt) return;
 
     // Validate that the prompt is about network configuration
     const validation = validateConfigPrompt(prompt);
@@ -756,11 +764,40 @@ ${indentedConfig}
     setIsGenerating(true);
     setGenerationError(null);
     setShowConfigProgressModal(true);
+    setMultiDeviceResults([]);
     const modeLabel = configMode === 'netconf' ? 'NETCONF/YANG' : 'CLI';
     
     try {
+      // Multi-device generation (CLI mode)
+      if (isMultiDevice) {
+        const response = await axios.post('/configurations/generate-multi', {
+          device_ids: selectedDevices,
+          prompt: prompt
+        });
+
+        if (response.data.success && response.data.results) {
+          setMultiDeviceResults(response.data.results);
+          setActiveResultTab(0);
+          
+          // If first successful result, also set it as active generatedConfig
+          const firstSuccess = response.data.results.find(r => r.success && r.configuration);
+          if (firstSuccess) {
+            setGeneratedConfig(firstSuccess.configuration);
+            setValidation(firstSuccess.configuration.validation);
+            setEditedConfig(firstSuccess.configuration.generated_config);
+            setIsEditing(false);
+          }
+          
+          toast.success(`Generated configurations for ${response.data.succeeded}/${response.data.total} devices`);
+        } else {
+          throw new Error(response.data.message || 'Multi-device generation failed');
+        }
+        return;
+      }
+
+      // Single device generation (existing flow)
       const requestData = {
-        device_id: selectedDevice,
+        device_id: configMode === 'cli' && selectedDevices.length === 1 ? selectedDevices[0] : selectedDevice,
         prompt: prompt
       };
 
@@ -1000,6 +1037,9 @@ ${indentedConfig}
 
   const resetForm = () => {
     setSelectedDevice('');
+    setSelectedDevices([]);
+    setMultiDeviceResults([]);
+    setActiveResultTab(0);
     setPrompt('');
     setGeneratedConfig(null);
     setValidation(null);
@@ -1178,89 +1218,194 @@ ${indentedConfig}
             >
               <div>
                 <label className={`block ${formStyles.labelSize} font-medium text-gray-700 mb-1`}>
-                  Select Device
+                  {configMode === 'cli' ? 'Select Device(s)' : 'Select Device'}
                 </label>
                 <div className="relative" ref={deviceDropdownRef}>
-                  <button
-                    type="button"
-                    onClick={() => setShowDeviceDropdown(!showDeviceDropdown)}
-                    className="input w-full text-left flex items-center justify-between"
-                  >
-                    {selectedDevice ? (
-                      <div className="flex items-center gap-3">
-                        <DeviceIcon 
-                          deviceType={devices.find(d => d.id === selectedDevice)?.type} 
-                          layer={devices.find(d => d.id === selectedDevice)?.layer}
-                          className="h-5 w-5 text-gray-600 dark:text-gray-400"
-                        />
-                        <span>
-                          {devices.find(d => d.id === selectedDevice)?.name} 
-                          <span className="text-gray-500 dark:text-gray-400 ml-1">
-                            ({devices.find(d => d.id === selectedDevice)?.type})
-                          </span>
-                          <span className="text-gray-400 ml-1">
-                            - {devices.find(d => d.id === selectedDevice)?.ip_address}
-                          </span>
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-gray-500 dark:text-gray-400">Choose a device...</span>
-                    )}
-                    <ChevronDownIcon className={`h-5 w-5 text-gray-400 transition-transform ${showDeviceDropdown ? 'rotate-180' : ''}`} />
-                  </button>
-                  
-                  {showDeviceDropdown && (
-                    <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg max-h-64 overflow-y-auto">
-                      <div 
-                        className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700"
-                        onClick={() => {
-                          setSelectedDevice('');
-                          setShowDeviceDropdown(false);
-                        }}
+                  {/* CLI Mode: Multi-select dropdown */}
+                  {configMode === 'cli' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setShowDeviceDropdown(!showDeviceDropdown)}
+                        className="input w-full text-left flex items-center justify-between"
                       >
-                        Choose a device...
-                      </div>
-                      {devices.map((device) => (
-                        <div
-                          key={device.id}
-                          className={`px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer flex items-center gap-3 transition-colors ${
-                            selectedDevice === device.id ? 'bg-blue-50 dark:bg-blue-900/30 border-l-4 border-blue-500' : ''
-                          }`}
-                          onClick={() => {
-                            setSelectedDevice(device.id);
-                            setSelectedYangModelsForGen([]); // Clear YANG selections when device changes
-                            setShowDeviceDropdown(false);
-                          }}
-                        >
-                          <div className={`p-1.5 rounded-lg ${
-                            device.status === 'active' ? 'bg-green-100 dark:bg-green-900/50' :
-                            device.status === 'inactive' ? 'bg-red-100 dark:bg-red-900/50' : 'bg-amber-100 dark:bg-amber-900/50'
-                          }`}>
-                            <DeviceIcon 
-                              deviceType={device.type} 
-                              layer={device.layer}
-                              className={`h-5 w-5 ${
-                                device.status === 'active' ? 'text-green-600 dark:text-green-400' :
-                                device.status === 'inactive' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
+                        {selectedDevices.length > 0 ? (
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <span className="inline-flex items-center justify-center h-5 min-w-[1.25rem] px-1.5 text-xs font-bold bg-blue-600 text-white rounded-full">
+                              {selectedDevices.length}
+                            </span>
+                            <span className="truncate">
+                              {selectedDevices.length === 1
+                                ? devices.find(d => d.id === selectedDevices[0])?.name || 'Selected'
+                                : `${selectedDevices.length} devices selected`}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-500 dark:text-gray-400">Choose device(s)...</span>
+                        )}
+                        <ChevronDownIcon className={`h-5 w-5 text-gray-400 transition-transform flex-shrink-0 ${showDeviceDropdown ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {showDeviceDropdown && (
+                        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                          {/* Select All / Clear All */}
+                          <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between sticky top-0 bg-white dark:bg-gray-800 z-10">
+                            <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-600 dark:text-gray-400">
+                              <input
+                                type="checkbox"
+                                checked={selectedDevices.length === devices.length && devices.length > 0}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedDevices(devices.map(d => d.id));
+                                  } else {
+                                    setSelectedDevices([]);
+                                  }
+                                }}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              Select All
+                            </label>
+                            {selectedDevices.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedDevices([])}
+                                className="text-xs text-gray-500 hover:text-red-500 transition-colors"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                          {devices.map((device) => (
+                            <label
+                              key={device.id}
+                              className={`px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer flex items-center gap-3 transition-colors ${
+                                selectedDevices.includes(device.id) ? 'bg-blue-50 dark:bg-blue-900/30' : ''
                               }`}
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-gray-900 dark:text-white truncate">{device.name}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                              {device.type}{device.layer ? ` (${device.layer === 'layer-2' ? 'L2' : 'L3'})` : ''} • {device.ip_address}
-                            </div>
-                          </div>
-                          {device.status === 'active' && (
-                            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                          )}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedDevices.includes(device.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedDevices([...selectedDevices, device.id]);
+                                  } else {
+                                    setSelectedDevices(selectedDevices.filter(id => id !== device.id));
+                                  }
+                                }}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <div className={`p-1.5 rounded-lg ${
+                                device.status === 'active' ? 'bg-green-100 dark:bg-green-900/50' :
+                                device.status === 'inactive' ? 'bg-red-100 dark:bg-red-900/50' : 'bg-amber-100 dark:bg-amber-900/50'
+                              }`}>
+                                <DeviceIcon 
+                                  deviceType={device.type} 
+                                  layer={device.layer}
+                                  className={`h-5 w-5 ${
+                                    device.status === 'active' ? 'text-green-600 dark:text-green-400' :
+                                    device.status === 'inactive' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
+                                  }`}
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-gray-900 dark:text-white truncate">{device.name}</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                  {device.type}{device.layer ? ` (${device.layer === 'layer-2' ? 'L2' : 'L3'})` : ''} • {device.ip_address}
+                                </div>
+                              </div>
+                              {device.status === 'active' && (
+                                <span className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></span>
+                              )}
+                            </label>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    </>
+                  ) : (
+                    /* NETCONF Mode: Single-select dropdown (unchanged) */
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setShowDeviceDropdown(!showDeviceDropdown)}
+                        className="input w-full text-left flex items-center justify-between"
+                      >
+                        {selectedDevice ? (
+                          <div className="flex items-center gap-3">
+                            <DeviceIcon 
+                              deviceType={devices.find(d => d.id === selectedDevice)?.type} 
+                              layer={devices.find(d => d.id === selectedDevice)?.layer}
+                              className="h-5 w-5 text-gray-600 dark:text-gray-400"
+                            />
+                            <span>
+                              {devices.find(d => d.id === selectedDevice)?.name} 
+                              <span className="text-gray-500 dark:text-gray-400 ml-1">
+                                ({devices.find(d => d.id === selectedDevice)?.type})
+                              </span>
+                              <span className="text-gray-400 ml-1">
+                                - {devices.find(d => d.id === selectedDevice)?.ip_address}
+                              </span>
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-500 dark:text-gray-400">Choose a device...</span>
+                        )}
+                        <ChevronDownIcon className={`h-5 w-5 text-gray-400 transition-transform ${showDeviceDropdown ? 'rotate-180' : ''}`} />
+                      </button>
+                      
+                      {showDeviceDropdown && (
+                        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                          <div 
+                            className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700"
+                            onClick={() => {
+                              setSelectedDevice('');
+                              setShowDeviceDropdown(false);
+                            }}
+                          >
+                            Choose a device...
+                          </div>
+                          {devices.map((device) => (
+                            <div
+                              key={device.id}
+                              className={`px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer flex items-center gap-3 transition-colors ${
+                                selectedDevice === device.id ? 'bg-blue-50 dark:bg-blue-900/30 border-l-4 border-blue-500' : ''
+                              }`}
+                              onClick={() => {
+                                setSelectedDevice(device.id);
+                                setSelectedYangModelsForGen([]); // Clear YANG selections when device changes
+                                setShowDeviceDropdown(false);
+                              }}
+                            >
+                              <div className={`p-1.5 rounded-lg ${
+                                device.status === 'active' ? 'bg-green-100 dark:bg-green-900/50' :
+                                device.status === 'inactive' ? 'bg-red-100 dark:bg-red-900/50' : 'bg-amber-100 dark:bg-amber-900/50'
+                              }`}>
+                                <DeviceIcon 
+                                  deviceType={device.type} 
+                                  layer={device.layer}
+                                  className={`h-5 w-5 ${
+                                    device.status === 'active' ? 'text-green-600 dark:text-green-400' :
+                                    device.status === 'inactive' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'
+                                  }`}
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-gray-900 dark:text-white truncate">{device.name}</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                  {device.type}{device.layer ? ` (${device.layer === 'layer-2' ? 'L2' : 'L3'})` : ''} • {device.ip_address}
+                                </div>
+                              </div>
+                              {device.status === 'active' && (
+                                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
                 {/* Hidden input for form validation */}
-                <input type="hidden" value={selectedDevice} required />
+                <input type="hidden" value={configMode === 'cli' ? (selectedDevices.length > 0 ? 'ok' : '') : selectedDevice} required />
               </div>
 
               {/* YANG Model Selector (NETCONF mode only) */}
@@ -1379,18 +1524,20 @@ ${indentedConfig}
 
               <button
                 type="submit"
-                disabled={isGenerating || !selectedDevice || !prompt || prompt.length < 10}
+                disabled={isGenerating || (configMode === 'cli' ? selectedDevices.length === 0 : !selectedDevice) || !prompt || prompt.length < 10}
                 className="btn btn-primary btn-md w-full"
               >
                 {isGenerating ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Generating...
+                    {configMode === 'cli' && selectedDevices.length > 1 ? `Generating for ${selectedDevices.length} devices...` : 'Generating...'}
                   </>
                 ) : (
                   <>
                     <SendIcon className="h-4 w-4 mr-2" />
-                    Generate Configuration
+                    {configMode === 'cli' && selectedDevices.length > 1 
+                      ? `Generate for ${selectedDevices.length} Devices` 
+                      : 'Generate Configuration'}
                   </>
                 )}
               </button>
@@ -1453,13 +1600,67 @@ ${indentedConfig}
           </div>
 
           {/* No Configuration Display */}
-          {!generatedConfig && (
+          {!generatedConfig && multiDeviceResults.length === 0 && (
             <div className="text-center py-8">
               <BrainCircuitIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
               <p className="text-gray-500 dark:text-gray-400">No configuration generated yet</p>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                 Select a device and enter a prompt to get started
               </p>
+            </div>
+          )}
+
+          {/* Multi-Device Results Tabs */}
+          {multiDeviceResults.length > 1 && (
+            <div className="mb-3">
+              <div className="flex items-center gap-2 mb-2">
+                <ServerIcon className="h-4 w-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {multiDeviceResults.filter(r => r.success).length}/{multiDeviceResults.length} devices generated
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {multiDeviceResults.map((result, index) => (
+                  <button
+                    key={result.device_id}
+                    onClick={() => {
+                      setActiveResultTab(index);
+                      if (result.success && result.configuration) {
+                        setGeneratedConfig(result.configuration);
+                        setValidation(result.configuration.validation);
+                        setEditedConfig(result.configuration.generated_config);
+                        setIsEditing(false);
+                      } else {
+                        setGeneratedConfig(null);
+                        setValidation(null);
+                      }
+                    }}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                      activeResultTab === index
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : result.success
+                          ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200'
+                    }`}
+                  >
+                    {result.device_name}
+                    {result.success ? (
+                      <CheckCircleIcon className="h-3 w-3 ml-1 inline" />
+                    ) : (
+                      <XCircleIcon className="h-3 w-3 ml-1 inline" />
+                    )}
+                  </button>
+                ))}
+              </div>
+              {/* Show error message for failed device */}
+              {multiDeviceResults[activeResultTab] && !multiDeviceResults[activeResultTab].success && (
+                <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                  <p className="text-sm text-red-700 dark:text-red-400">
+                    <XCircleIcon className="h-4 w-4 inline mr-1" />
+                    Failed: {multiDeviceResults[activeResultTab].error || 'Unknown error'}
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

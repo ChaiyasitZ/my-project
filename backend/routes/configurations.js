@@ -8,7 +8,6 @@ import AgentCommand from '../models/AgentCommand.js';
 import llmService from '../services/llmService.js';
 import sshService from '../services/sshService.js';
 import agentRelay from '../services/agentRelay.js';
-import backupScheduler from '../services/backupScheduler.js';
 import notificationService from '../services/notificationService.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getOrSetCache, invalidateCache, CacheKeys } from '../lib/cache.js';
@@ -71,6 +70,11 @@ const applyConfigSchema = Joi.object({
   configuration_id: Joi.string().required(),
   validate_before_apply: Joi.boolean().optional(),
   mock_deploy: Joi.boolean().optional()
+});
+
+const generateMultiConfigSchema = Joi.object({
+  device_ids: Joi.array().items(Joi.string()).min(1).max(20).required(),
+  prompt: Joi.string().min(10).max(2000).required()
 });
 
 // Configuration rating schema (simplified for raw AI)
@@ -460,6 +464,146 @@ router.post('/generate', async (req, res) => {
   }
 });
 
+// POST /api/configurations/generate-multi - Generate configuration for multiple devices
+router.post('/generate-multi', async (req, res) => {
+  try {
+    const { error, value } = generateMultiConfigSchema.validate(req.body);
+
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        details: error.details
+      });
+    }
+
+    const { device_ids, prompt } = value;
+
+    // Fetch all devices belonging to the user
+    const devices = await Device.find({ _id: { $in: device_ids }, userId: req.userId });
+
+    if (devices.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No valid devices found'
+      });
+    }
+
+    const results = [];
+
+    // Generate configuration for each device sequentially (LLM calls)
+    for (const device of devices) {
+      const startTime = Date.now();
+      try {
+        const aiResult = await llmService.generateConfiguration(prompt, device.type, {
+          name: device.name,
+          model: device.model,
+          location: device.location
+        }, 'cisco_cli', true, { userId: req.userId });
+
+        const executionTime = Date.now() - startTime;
+
+        if (aiResult.pending) {
+          results.push({
+            device_id: device._id,
+            device_name: device.name,
+            device_type: device.type,
+            success: true,
+            pending: true,
+            commandId: aiResult.commandId,
+            message: 'Generation in progress via Ollama'
+          });
+          continue;
+        }
+
+        if (!aiResult.success) {
+          results.push({
+            device_id: device._id,
+            device_name: device.name,
+            device_type: device.type,
+            success: false,
+            error: aiResult.error,
+            execution_time: executionTime
+          });
+          continue;
+        }
+
+        // Generate explanation
+        const explanationResult = await llmService.generateExplanation(
+          aiResult.displayConfig || aiResult.configuration,
+          device.type,
+          prompt,
+          req.userId
+        );
+
+        // Save to history
+        const currentTimestamp = Date.now();
+        const configuration = new ConfigurationHistory({
+          device_id: device._id,
+          userId: req.userId,
+          prompt,
+          generated_config: aiResult.configuration,
+          deployment_config: aiResult.deploymentConfig,
+          ai_model: 'qwen2.5-coder:7b',
+          execution_time: executionTime,
+          status: 'generated',
+          created_at: currentTimestamp
+        });
+
+        await configuration.save();
+
+        results.push({
+          device_id: device._id,
+          device_name: device.name,
+          device_type: device.type,
+          success: true,
+          configuration: {
+            ...configuration.toObject(),
+            id: configuration._id,
+            device_name: device.name,
+            device_type: device.type,
+            validation: aiResult.validation,
+            confidenceScore: aiResult.confidenceScore,
+            recommendations: aiResult.recommendations,
+            explanation: explanationResult.success ? explanationResult.explanation : 'Explanation unavailable',
+            deployment_config: aiResult.deploymentConfig
+          }
+        });
+      } catch (deviceError) {
+        results.push({
+          device_id: device._id,
+          device_name: device.name,
+          device_type: device.type,
+          success: false,
+          error: deviceError.message,
+          execution_time: Date.now() - startTime
+        });
+      }
+    }
+
+    // Invalidate cache
+    invalidateCache(CacheKeys.configurations(req.userId));
+
+    const successCount = results.filter(r => r.success).length;
+
+    res.json({
+      success: true,
+      message: `Generated configurations for ${successCount}/${devices.length} devices`,
+      total: devices.length,
+      succeeded: successCount,
+      failed: devices.length - successCount,
+      results
+    });
+  } catch (error) {
+    console.error('❌ Multi-device generation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate configurations',
+      error: error.message
+    });
+  }
+});
+
 // POST /api/configurations/rate - Rate a configuration (simplified for raw AI)
 router.post('/rate', async (req, res) => {
   try {
@@ -556,39 +700,16 @@ router.post('/session-apply', async (req, res) => {
         configuration.deployment_time = deploymentTime;
         await configuration.save();
         
-        // Trigger post-deployment backup schedules (only if user has created a schedule for this device)
-        let autoBackupResult = null;
-        try {
-          console.log(`🔍 Checking for post-deployment backup schedules for device ${configuration.device._id}...`);
-          autoBackupResult = await backupScheduler.triggerPostDeploySchedules([configuration.device._id.toString()]);
-          
-          if (autoBackupResult.devices_backed_up > 0) {
-            console.log(`✅ Auto backup triggered for ${autoBackupResult.devices_backed_up} device(s)`);
-          } else {
-            console.log(`ℹ️ No backup schedule found for this device - skipping auto backup`);
-          }
-        } catch (scheduleError) {
-          console.warn(`⚠️ Failed to trigger post-deployment schedules: ${scheduleError.message}`);
-        }
-        
         res.json({
           success: true,
-          message: autoBackupResult?.devices_backed_up > 0 
-            ? 'Configuration deployed successfully with auto backup' 
-            : 'Configuration deployed successfully (no backup schedule configured)',
+          message: 'Configuration deployed successfully',
           deployment_time: deploymentTime,
           deployment_time_ms: deploymentTime,
           deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
           output: deployResult.output,
           session_reused: true,
           use_count: deployResult.useCount,
-          command_count: deployResult.commandCount,
-          auto_backup: {
-            enabled: autoBackupResult?.devices_backed_up > 0,
-            message: autoBackupResult?.devices_backed_up > 0 
-              ? 'Backup created via schedule' 
-              : 'No backup schedule configured for this device. Create a backup schedule to enable auto-backup.'
-          }
+          command_count: deployResult.commandCount
         });
       } else {
         throw new Error('Session-based deployment failed');
@@ -678,38 +799,15 @@ router.post('/fast-apply', async (req, res) => {
         configuration.deployment_time = deploymentTime;
         await configuration.save();
         
-        // Trigger post-deployment backup schedules (only if user has created a schedule for this device)
-        let autoBackupResult = null;
-        try {
-          console.log(`🔍 Checking for post-deployment backup schedules for device ${configuration.device._id}...`);
-          autoBackupResult = await backupScheduler.triggerPostDeploySchedules([configuration.device._id.toString()]);
-          
-          if (autoBackupResult.devices_backed_up > 0) {
-            console.log(`✅ Auto backup triggered for ${autoBackupResult.devices_backed_up} device(s)`);
-          } else {
-            console.log(`ℹ️ No backup schedule found for this device - skipping auto backup`);
-          }
-        } catch (scheduleError) {
-          console.warn(`⚠️ Failed to trigger post-deployment schedules: ${scheduleError.message}`);
-        }
-        
         res.json({
           success: true,
-          message: autoBackupResult?.devices_backed_up > 0 
-            ? 'Configuration deployed successfully with auto backup' 
-            : 'Configuration deployed successfully (no backup schedule configured)',
+          message: 'Configuration deployed successfully',
           deployment_time: deploymentTime,
           deployment_time_ms: deploymentTime,
           deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
           output: deployResult.output,
           session_reused: deployResult.sessionReused,
-          command_count: deployResult.commandCount,
-          auto_backup: {
-            enabled: autoBackupResult?.devices_backed_up > 0,
-            message: autoBackupResult?.devices_backed_up > 0 
-              ? 'Backup created via schedule' 
-              : 'No backup schedule configured for this device. Create a backup schedule to enable auto-backup.'
-          }
+          command_count: deployResult.commandCount
         });
       } else {
         throw new Error('Fast deployment failed');
@@ -808,27 +906,6 @@ router.post('/apply', async (req, res) => {
       configuration.deployed_at = Date.now();
       configuration.deployment_time = deploymentTime;
       await configuration.save();
-      
-      // Trigger post-deployment backup schedules (only if there are any)
-      try {
-        const scheduleResult = await backupScheduler.triggerPostDeploySchedules([device._id.toString()]);
-        
-        // Only show notification if backups were actually triggered
-        if (scheduleResult.success && scheduleResult.devices_backed_up > 0) {
-          console.log(`🚀 Post-deployment backup triggered for device ${device._id}`);
-          await notificationService.emitPostDeployScheduleResults(
-            scheduleResult.results || [],
-            {
-              total_schedules: scheduleResult.results?.length || 0,
-              total_devices_backed_up: scheduleResult.devices_backed_up || 0,
-              success: true
-            }
-          );
-        }
-      } catch (scheduleError) {
-        // Only log, don't show error notification for schedule failures
-        console.warn(`⚠️ Failed to check post-deployment schedules: ${scheduleError.message}`);
-      }
       
       res.json({
         success: true,
@@ -1157,16 +1234,6 @@ router.post('/apply-multi', async (req, res) => {
           success: false,
           error: error.message
         });
-      }
-    }
-    
-    // Trigger post-deployment backup schedules for all successfully deployed devices
-    if (deployedDeviceIds.length > 0) {
-      try {
-        console.log(`🚀 Triggering post-deployment backup schedules for ${deployedDeviceIds.length} devices...`);
-        await backupScheduler.triggerPostDeploySchedules(deployedDeviceIds);
-      } catch (scheduleError) {
-        console.warn(`⚠️ Failed to trigger post-deployment schedules: ${scheduleError.message}`);
       }
     }
     
@@ -2029,14 +2096,6 @@ router.post('/:id/rollback', async (req, res) => {
     await targetConfig.save();
     
     console.log(`✅ Rollback successful: ${device.name}`);
-    
-    // Trigger post-deployment backup schedules
-    try {
-      console.log(`🚀 Triggering post-deployment backup schedules for rollback...`);
-      await backupScheduler.triggerPostDeploySchedules([device._id.toString()]);
-    } catch (scheduleError) {
-      console.warn(`⚠️ Failed to trigger post-deployment schedules: ${scheduleError.message}`);
-    }
     
     res.json({
       success: true,

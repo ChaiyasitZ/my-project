@@ -326,6 +326,45 @@ Generate configuration using AI.
 
 ---
 
+### POST /api/configurations/generate-multi
+Generate configuration for multiple devices using AI.
+
+**Request Body:**
+```json
+{
+  "device_ids": ["device_id_1", "device_id_2", "device_id_3"],
+  "prompt": "Configure OSPF area 0 with router-id 1.1.1.1"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Generated configurations for 3/3 devices",
+  "total": 3,
+  "succeeded": 3,
+  "failed": 0,
+  "results": [
+    {
+      "device_id": "...",
+      "device_name": "Router-1",
+      "device_type": "router",
+      "success": true,
+      "configuration": {
+        "_id": "...",
+        "generated_config": "...",
+        "deployment_config": "...",
+        "status": "generated",
+        "execution_time": 1500
+      }
+    }
+  ]
+}
+```
+
+---
+
 ### POST /api/configurations/apply
 Apply configuration to device.
 
@@ -340,18 +379,12 @@ Apply configuration to device.
 ```json
 {
   "success": true,
-  "message": "Configuration applied successfully with automatic backups",
+  "message": "Configuration deployed successfully",
   "deployment_time": 3500,
   "deployment_time_ms": 3500,
   "deployment_time_seconds": "3.50",
   "session_reused": true,
-  "output": "...",
-  "auto_backups": {
-    "pre_deployment_backup_id": null,
-    "post_deployment_backup_id": "...",
-    "pre_deployment_deleted": true,
-    "post_deployment_created": true
-  }
+  "output": "..."
 }
 ```
 

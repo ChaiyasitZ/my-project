@@ -307,7 +307,8 @@
         \textbf{Type Of Data Flow:} & Request Data \\
         \hline
         \textbf{Data Structure:} & คำขอสร้างคอนฟิก = \{ \nonumber \\
-                        & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId, Required)'', \nonumber \\
+                        & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId, Required) - สำหรับสร้างทีละอุปกรณ์'', \nonumber \\
+                        & \hspace{1em} ``device\_ids'' : ``[รหัสอุปกรณ์] (Array of ObjectId) - สำหรับสร้างหลายอุปกรณ์พร้อมกัน'', \nonumber \\
                         & \hspace{1em} ``prompt'' : ``คำสั่ง เช่น config ospf area 0 (ขั้นต่ำ 10 ตัวอักษร)'', \nonumber \\
                         & \hspace{1em} ``config\_type'' : ``cli | netconf-yang'', \nonumber \\
                         & \hspace{1em} ``device\_context'' : \{ \nonumber \\
@@ -1035,9 +1036,9 @@
 \hspace*{1.3em} %ย่อหน้า
 จากภาพที่ \ref{fig3:Config} หน้า LLM Configuration Generation เป็นจุดเด่นหลักของระบบ ซึ่งใช้เทคโนโลยี Large Language Model (LLM) ในการสร้างคำสั่งคอนฟิกสำหรับอุปกรณ์ Cisco โดยอัตโนมัติ 
 \begin{mycustomitem}
-    \item ส่วนการเลือกอุปกรณ์และป้อนคำสั่ง
+    \item ส่วนการเลือกอุปกรณ์และป้อนคำสั่ง (รองรับเลือกหลายอุปกรณ์ด้วย Checkbox ในโหมด CLI)
     \item Quick Templates
-    \item ส่วนแสดงผลลัพธ์
+    \item ส่วนแสดงผลลัพธ์ (แสดงผลแบบ Tab สำหรับแต่ละอุปกรณ์เมื่อเลือกหลายอุปกรณ์)
 \end{mycustomitem}
 การออกแบบนี้ช่วยลดความซับซ้อนในการเขียนคอนฟิก โดยผู้ใช้เพียงแค่อธิบายสิ่งที่ต้องการเป็นภาษาธรรมชาติ ระบบก็จะสร้างคำสั่งที่ถูกต้องตามมาตรฐาน Cisco ให้อัตโนมัติ และตรวจสอบความถูกต้อง
 
