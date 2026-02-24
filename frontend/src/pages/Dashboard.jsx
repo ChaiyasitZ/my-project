@@ -73,16 +73,10 @@ function Dashboard() {
     const signal = abortControllerRef.current.signal;
     
     try {
-      // First check server health
-      const healthResponse = await axios.get('/health', { signal }).catch(() => null);
-      
-      if (!healthResponse?.data?.success) {
-        // Backend is down or database error
-        setLoading(false);
-        return;
-      }
-
+      // Fetch all data in parallel — health check included in the batch
+      // instead of blocking sequentially before data calls
       const [
+        healthResponse,
         devicesResponse, 
         deviceStatsResponse,
         configurationsResponse, 
@@ -90,6 +84,7 @@ function Dashboard() {
         schedulesResponse,
         analyticsResponse
       ] = await Promise.all([
+        axios.get('/health', { signal }).catch(() => null),
         axios.get('/devices', { signal }),
         axios.get('/devices/stats/summary', { signal }).catch(() => ({ data: { stats: {} } })),
         axios.get('/configurations/history?limit=5', { signal }),
@@ -97,6 +92,11 @@ function Dashboard() {
         axios.get('/backups/schedules', { signal }).catch(() => ({ data: { schedules: [] } })),
         axios.get('/configurations/analytics?days=7', { signal }).catch(() => ({ data: { analytics: {} } }))
       ]);
+      
+      if (!healthResponse?.data?.success) {
+        // Backend might be unhealthy but data calls may have succeeded
+        console.warn('Health check failed, using fetched data if available');
+      }
 
       const devicesData = devicesResponse.data.devices || [];
       const deviceStats = deviceStatsResponse.data.stats || {};

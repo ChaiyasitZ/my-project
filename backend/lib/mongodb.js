@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 const isServerless = !!process.env.VERCEL;
 
 export const mongooseOptions = {
-  maxPoolSize: isServerless ? 3 : 10,   // Smaller pool for serverless
+  maxPoolSize: isServerless ? 5 : 10,   // Pool sized for parallel Dashboard requests
   minPoolSize: isServerless ? 0 : 2,    // No minimum for serverless
   serverSelectionTimeoutMS: 5000,  // Timeout for server selection
   socketTimeoutMS: 45000,    // Socket timeout
@@ -15,7 +15,7 @@ export const mongooseOptions = {
 
 // Graceful connection handling
 mongoose.connection.on('connected', () => {
-  console.log(`📱 Mongoose connected to MongoDB (Pool: min=${isServerless ? 0 : 2}, max=${isServerless ? 3 : 10})`);
+  console.log(`📱 Mongoose connected to MongoDB (Pool: min=${isServerless ? 0 : 2}, max=${isServerless ? 5 : 10})`);
 });
 
 mongoose.connection.on('error', (err) => {

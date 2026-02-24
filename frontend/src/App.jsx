@@ -1,5 +1,5 @@
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 
@@ -8,22 +8,25 @@ import Sidebar from './components/Sidebar';
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 import PageTransition from './components/PageTransition';
+import PageLoader from './components/PageLoader';
 
 // Context
 import { AuthProvider, useAuth } from './context/AuthContext';
 
-// Pages - eagerly loaded for instant navigation
+// Critical pages - eagerly loaded for instant navigation
 import Dashboard from './pages/Dashboard';
-import Devices from './pages/Devices';
-import Configurations from './pages/Configurations';
-import ConfigurationHistory from './pages/ConfigurationHistory';
-import ConsoleConfiguration from './pages/ConsoleConfiguration';
-import BackupManagement from './pages/BackupManagement';
-import Diagrams from './pages/Diagrams';
-import NotFound from './pages/NotFound';
 import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
-import AgentSettings from './pages/AgentSettings';
+
+// Secondary pages - lazy loaded to reduce initial bundle size
+const Devices = lazy(() => import('./pages/Devices'));
+const Configurations = lazy(() => import('./pages/Configurations'));
+const ConfigurationHistory = lazy(() => import('./pages/ConfigurationHistory'));
+const ConsoleConfiguration = lazy(() => import('./pages/ConsoleConfiguration'));
+const BackupManagement = lazy(() => import('./pages/BackupManagement'));
+const Diagrams = lazy(() => import('./pages/Diagrams'));
+const AgentSettings = lazy(() => import('./pages/AgentSettings'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
 import './App.css';
 
@@ -121,6 +124,7 @@ function AppContent() {
 
   return (
     <>
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
@@ -213,6 +217,7 @@ function AppContent() {
         <Route path="/diagrams" element={<Diagrams />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </Suspense>
       
       {/* Toast Notifications */}
       <Toaster

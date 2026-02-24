@@ -3,6 +3,37 @@ import { config } from '../config/config.js';
 import User from '../models/User.js';
 
 /**
+ * In-memory user cache to avoid hitting MongoDB on every authenticated request.
+ * When Dashboard fires 7 parallel API calls, this prevents 7 separate User.findById queries.
+ * TTL: 60 seconds — balances freshness with performance.
+ */
+const userCache = new Map();
+const USER_CACHE_TTL = 60 * 1000; // 60 seconds
+
+function getCachedUser(userId) {
+  const entry = userCache.get(userId);
+  if (entry && Date.now() - entry.timestamp < USER_CACHE_TTL) {
+    return entry.user;
+  }
+  if (entry) userCache.delete(userId); // Expired
+  return null;
+}
+
+function setCachedUser(userId, user) {
+  userCache.set(userId, { user, timestamp: Date.now() });
+  // Prevent memory leak: cap at 500 entries
+  if (userCache.size > 500) {
+    const oldestKey = userCache.keys().next().value;
+    userCache.delete(oldestKey);
+  }
+}
+
+/** Invalidate cached user (call on profile update, deactivation, etc.) */
+export function invalidateUserAuthCache(userId) {
+  userCache.delete(userId?.toString());
+}
+
+/**
  * Middleware to verify JWT token and attach user to request
  */
 export const authenticateToken = async (req, res, next) => {
@@ -19,8 +50,16 @@ export const authenticateToken = async (req, res, next) => {
 
     const decoded = jwt.verify(token, config.auth.jwtSecret);
     
-    // Fetch user from database to ensure they still exist and are active
-    const user = await User.findById(decoded.userId);
+    // Try cache first — avoids DB hit on every request
+    let user = getCachedUser(decoded.userId);
+    
+    if (!user) {
+      // Cache miss — fetch from database and cache the result
+      user = await User.findById(decoded.userId).lean();
+      if (user) {
+        setCachedUser(decoded.userId, user);
+      }
+    }
     
     if (!user) {
       return res.status(401).json({
@@ -75,7 +114,12 @@ export const optionalAuth = async (req, res, next) => {
 
     if (token) {
       const decoded = jwt.verify(token, config.auth.jwtSecret);
-      const user = await User.findById(decoded.userId);
+      
+      let user = getCachedUser(decoded.userId);
+      if (!user) {
+        user = await User.findById(decoded.userId).lean();
+        if (user) setCachedUser(decoded.userId, user);
+      }
       
       if (user && user.isActive) {
         req.user = user;
@@ -142,5 +186,6 @@ export default {
   optionalAuth,
   requireAdmin,
   generateToken,
-  generateRefreshToken
+  generateRefreshToken,
+  invalidateUserAuthCache
 };
