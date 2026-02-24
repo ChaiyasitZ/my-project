@@ -345,6 +345,14 @@ function updateTrayMenu() {
       click: () => showSettingsDialog()
     },
     { type: 'separator' },
+    {
+      label: 'Uninstall',
+      click: () => {
+        if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
+        mainWindow.webContents.send('trigger-uninstall');
+      }
+    },
+    { type: 'separator' },
     { 
       label: 'Quit',
       click: () => {
@@ -582,6 +590,61 @@ ipcMain.handle('restart-backend', async () => {
   await startBackend();
   updateTrayMenu();
   return { success: true };
+});
+
+// ─── Uninstall Agent ───
+ipcMain.handle('uninstall-agent', async () => {
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    title: 'Uninstall NetConfig Desktop',
+    message: 'Are you sure you want to uninstall NetConfig Desktop?',
+    detail: 'This will:\n• Stop the backend server\n• Delete all saved settings and tokens\n• Remove application data\n• Close the application',
+    buttons: ['Cancel', 'Uninstall'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true
+  });
+
+  if (result.response !== 1) return { cancelled: true };
+
+  try {
+    // 1. Stop backend server
+    stopBackend();
+
+    // 2. Delete config data (electron-store)
+    const configPath = store.path;
+    const configDir = path.dirname(configPath);
+    if (fs.existsSync(configDir)) {
+      fs.rmSync(configDir, { recursive: true, force: true });
+    }
+
+    // 3. Remove auto-launch registry (Windows)
+    if (process.platform === 'win32') {
+      try {
+        execSync('reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "NetConfig" /f', { stdio: 'ignore' });
+      } catch (e) { /* Key may not exist */ }
+    }
+
+    // 4. Clean up app data paths
+    const appDataPaths = [
+      path.join(app.getPath('appData'), 'netconfig-desktop'),
+      path.join(app.getPath('appData'), 'NetConfig Desktop'),
+      path.join(app.getPath('appData'), 'NetConfig'),
+    ];
+    for (const p of appDataPaths) {
+      try {
+        if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true });
+      } catch (e) { /* ignore */ }
+    }
+
+    // 5. Quit the app
+    isQuitting = true;
+    app.quit();
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 });
 
 // App lifecycle

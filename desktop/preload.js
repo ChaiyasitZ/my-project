@@ -17,6 +17,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // OAuth
   loginWithGoogle: () => ipcRenderer.invoke('oauth-google'),
   
+  // Uninstall
+  uninstallAgent: () => ipcRenderer.invoke('uninstall-agent'),
+  onTriggerUninstall: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('trigger-uninstall', handler);
+    return () => ipcRenderer.removeListener('trigger-uninstall', handler);
+  },
+
   // App info
   isElectron: true,
   platform: process.platform,
