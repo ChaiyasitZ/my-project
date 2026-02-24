@@ -107,8 +107,10 @@ export const AuthProvider = ({ children }) => {
         }
       }
       
-      // Clear auth state on error
-      logout();
+      // Only clear auth for authentication errors (401/403), not server errors (500/503)
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        logout();
+      }
     } finally {
       setLoading(false);
     }
@@ -169,8 +171,16 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('refreshToken', refreshToken);
       }
       setAuthHeader(token);
-      await fetchUser();
-      return true;
+      
+      // Retry fetchUser up to 3 times for transient server errors (cold starts)
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const user = await fetchUser();
+        if (user) return true;
+        if (attempt < 3) {
+          await new Promise(r => setTimeout(r, 1500 * attempt));
+        }
+      }
+      return !!getToken(); // Still return true if token exists (user may load on next render)
     }
     return false;
   };
