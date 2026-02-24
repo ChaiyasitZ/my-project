@@ -65,6 +65,10 @@ export class NetconfService {
    * Connect to device via NETCONF
    */
   async connect(deviceConfig) {
+    if (!Client) {
+      throw new Error('NETCONF direct connection not available (ssh2 not loaded). Use agent relay for NETCONF operations.');
+    }
+
     const { id, _id, ip_address, username, password, netconf_port } = deviceConfig;
     const deviceId = id || _id;
     const port = netconf_port || this.defaultPort;
@@ -1041,6 +1045,51 @@ ${configXml}
   }
 
   /**
+   * Check if direct NETCONF (ssh2) is available
+   */
+  isDirectAvailable() {
+    return !!Client;
+  }
+
+  /**
+   * Store a virtual agent-proxied session.
+   * Used when NETCONF connection is established via agent relay
+   * so that getSessionStatus/getActiveSessions still report it.
+   */
+  storeAgentSession(deviceId, capabilities, deviceIp) {
+    this.connections.set(String(deviceId), {
+      connection: null,
+      stream: null,
+      capabilities: capabilities || [],
+      createdAt: Date.now(),
+      lastUsed: Date.now(),
+      deviceIp: deviceIp,
+      netconfVersion: '1.0',
+      agentSession: true
+    });
+    console.log(`📡 NETCONF: Stored agent session for ${deviceIp} (${(capabilities || []).length} capabilities)`);
+  }
+
+  /**
+   * Check if a session is an agent-proxied session
+   */
+  isAgentSession(deviceId) {
+    const session = this.connections.get(String(deviceId));
+    return session?.agentSession === true;
+  }
+
+  /**
+   * Remove an agent-proxied session
+   */
+  removeAgentSession(deviceId) {
+    const session = this.connections.get(String(deviceId));
+    if (session?.agentSession) {
+      this.connections.delete(String(deviceId));
+      console.log(`📡 NETCONF: Removed agent session for ${session.deviceIp}`);
+    }
+  }
+
+  /**
    * Apply YANG configuration to NX-OS device
    * Uses candidate datastore if available for safer configuration changes
    */
@@ -1427,7 +1476,22 @@ ${configXml}
       };
     }
     
-    // Check if stream is still writable
+    // Agent-proxied sessions don't have a local stream
+    if (session.agentSession) {
+      return {
+        isConnected: true,
+        connected: true,
+        deviceIp: session.deviceIp,
+        createdAt: session.createdAt,
+        lastUsed: session.lastUsed,
+        capabilities: session.capabilities?.length || 0,
+        capabilityList: session.capabilities || [],
+        sessionAge: Date.now() - session.createdAt,
+        agentSession: true
+      };
+    }
+    
+    // Check if stream is still writable (direct sessions only)
     const streamWritable = session.stream?.writable === true;
     
     if (!streamWritable) {
@@ -1448,6 +1512,7 @@ ${configXml}
       createdAt: session.createdAt,
       lastUsed: session.lastUsed,
       capabilities: session.capabilities?.length || 0,
+      capabilityList: session.capabilities || [],
       sessionAge: Date.now() - session.createdAt,
       streamWritable: streamWritable
     };
@@ -1466,7 +1531,8 @@ ${configXml}
         createdAt: session.createdAt,
         lastUsed: session.lastUsed,
         capabilities: session.capabilities?.length || 0,
-        capabilityList: session.capabilities || []
+        capabilityList: session.capabilities || [],
+        agentSession: session.agentSession || false
       });
     }
     

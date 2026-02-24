@@ -819,14 +819,47 @@ router.post('/:id/netconf/test', async (req, res) => {
     
     console.log(`🌐 Testing NETCONF connection to ${device.name} (${device.ip_address}:${device.netconf_port || 830})`);
     
-    // Test NETCONF connection
-    const testResult = await netconfService.testConnection(device);
+    // Try agent relay first (Vercel serverless mode)
+    const agentOnline = await agentRelay.isAgentOnline(req.userId);
+    let testResult;
+    
+    if (agentOnline) {
+      try {
+        const agentResult = await agentRelay.sendToAgent(req.userId, 'agent:netconf:connect', {
+          deviceId: id,
+          ip_address: device.ip_address,
+          username: device.username,
+          password: device.password,
+          netconf_port: device.netconf_port || 830
+        }, 35000);
+        
+        if (agentResult.success) {
+          // Disconnect after test
+          await agentRelay.sendToAgent(req.userId, 'agent:netconf:disconnect', { deviceId: id }, 5000).catch(() => {});
+          testResult = {
+            success: true,
+            message: `NETCONF connection to ${device.name} successful via agent`,
+            capabilities: (agentResult.capabilities || []).length
+          };
+        } else {
+          testResult = { success: false, message: agentResult.message || 'NETCONF connection failed via agent' };
+        }
+      } catch (agentError) {
+        console.warn(`⚠️ NETCONF agent test failed, trying direct: ${agentError.message}`);
+        // Fall through to direct test
+      }
+    }
+    
+    // Fallback: direct NETCONF test
+    if (!testResult) {
+      testResult = await netconfService.testConnection(device);
+    }
     
     res.json({
       success: testResult.success,
       message: testResult.success 
         ? `NETCONF connection to ${device.name} successful` 
-        : `NETCONF connection failed: ${testResult.error}`,
+        : `NETCONF connection failed: ${testResult.error || testResult.message}`,
       connectionTest: {
         success: testResult.success,
         message: testResult.message,
@@ -862,12 +895,12 @@ router.get('/:id/netconf/capabilities', async (req, res) => {
     const sessionStatus = netconfService.getSessionStatus(id);
     
     if (sessionStatus && sessionStatus.isConnected) {
-      const capabilities = netconfService.getCapabilities(id);
+      const capResult = await netconfService.getCapabilities(id);
       return res.json({
         success: true,
         device_name: device.name,
         is_connected: true,
-        capabilities: capabilities || []
+        capabilities: capResult.capabilities || []
       });
     }
     
@@ -947,18 +980,52 @@ router.post('/:id/netconf/connect', async (req, res) => {
       return res.json({
         success: true,
         message: `Already connected to ${device.name}`,
-        capabilities: existingSession.capabilities || 0,
+        capabilities: existingSession.capabilityList || [],
         alreadyConnected: true
       });
     }
     
+    // Try agent relay first (Vercel serverless mode)
+    const agentOnline = await agentRelay.isAgentOnline(req.userId);
+    if (agentOnline) {
+      try {
+        const agentResult = await agentRelay.sendToAgent(req.userId, 'agent:netconf:connect', {
+          deviceId: id,
+          ip_address: device.ip_address,
+          username: device.username,
+          password: device.password,
+          netconf_port: device.netconf_port || 830
+        }, 35000);
+        
+        if (agentResult.success) {
+          // Store agent session locally so getSessionStatus/getActiveSessions work
+          netconfService.storeAgentSession(id, agentResult.capabilities || [], device.ip_address);
+          return res.json({
+            success: true,
+            message: `NETCONF connected to ${device.name} via agent`,
+            capabilities: agentResult.capabilities || [],
+            deviceId: id
+          });
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: agentResult.message || 'NETCONF connection failed via agent'
+          });
+        }
+      } catch (agentError) {
+        console.warn(`⚠️ NETCONF agent relay failed, trying direct: ${agentError.message}`);
+        // Fall through to direct connection
+      }
+    }
+    
+    // Fallback: direct NETCONF connection (desktop/local mode)
     const result = await netconfService.connect(device);
     
     if (result.success) {
       res.json({
         success: true,
         message: `NETCONF connected to ${device.name}`,
-        capabilities: result.capabilities?.length || 0,
+        capabilities: result.capabilities || [],
         deviceId: id
       });
     } else {
@@ -1020,7 +1087,21 @@ router.post('/:id/netconf/disconnect', async (req, res) => {
     
     console.log(`🌐 Disconnecting NETCONF session from ${device.name}`);
     
-    await netconfService.closeSession(id);
+    // Check if this is an agent-proxied session
+    if (netconfService.isAgentSession(id)) {
+      netconfService.removeAgentSession(id);
+      // Also tell the agent to disconnect
+      try {
+        const agentOnline = await agentRelay.isAgentOnline(req.userId);
+        if (agentOnline) {
+          await agentRelay.sendToAgent(req.userId, 'agent:netconf:disconnect', { deviceId: id }, 5000);
+        }
+      } catch (agentErr) {
+        console.warn(`⚠️ Failed to disconnect agent NETCONF: ${agentErr.message}`);
+      }
+    } else {
+      await netconfService.closeSession(id);
+    }
     
     res.json({
       success: true,
@@ -1050,6 +1131,32 @@ router.post('/:id/netconf/get', async (req, res) => {
       });
     }
     
+    let result;
+    const startTime = Date.now();
+    
+    // Route through agent relay for agent-proxied sessions
+    if (netconfService.isAgentSession(id)) {
+      // Build full RPC body for agent
+      let filterXml = '';
+      if (filter) {
+        filterXml = `<filter type="${filter_type}">${filter}</filter>`;
+      }
+      const rpcBody = `<get>${filterXml}</get>`;
+      result = await agentRelay.sendToAgent(req.userId, 'agent:netconf:rpc', {
+        deviceId: id,
+        rpcBody
+      }, 30000);
+      const executionTime = Date.now() - startTime;
+      return res.json({
+        success: true,
+        device_name: device.name,
+        operation: 'get',
+        execution_time_ms: executionTime,
+        response: result.response
+      });
+    }
+    
+    // Direct NETCONF path
     // Build filter XML
     let filterXml = '';
     if (filter) {
@@ -1061,9 +1168,6 @@ router.post('/:id/netconf/get', async (req, res) => {
     
     const rpcContent = `  <get>${filterXml}
   </get>`;
-    
-    let result;
-    const startTime = Date.now();
     
     // Ensure NETCONF session is active
     const sessionStatus = netconfService.getSessionStatus(id);
@@ -1111,6 +1215,24 @@ router.post('/:id/netconf/get-config', async (req, res) => {
     let result;
     const startTime = Date.now();
     
+    // Route through agent relay for agent-proxied sessions
+    if (netconfService.isAgentSession(id)) {
+      result = await agentRelay.sendToAgent(req.userId, 'agent:netconf:get-config', {
+        deviceId: id,
+        filter: filter || ''
+      }, 30000);
+      const executionTime = Date.now() - startTime;
+      return res.json({
+        success: true,
+        device_name: device.name,
+        operation: 'get-config',
+        source,
+        execution_time_ms: executionTime,
+        response: result.response
+      });
+    }
+    
+    // Direct NETCONF path
     // Ensure NETCONF session is active
     const sessionStatus = netconfService.getSessionStatus(id);
     if (!sessionStatus?.isConnected) {
@@ -1164,6 +1286,23 @@ router.post('/:id/netconf/rpc', async (req, res) => {
     let result;
     const startTime = Date.now();
     
+    // Route through agent relay for agent-proxied sessions
+    if (netconfService.isAgentSession(id)) {
+      result = await agentRelay.sendToAgent(req.userId, 'agent:netconf:rpc', {
+        deviceId: id,
+        rpcBody: rpc_content
+      }, 30000);
+      const executionTime = Date.now() - startTime;
+      return res.json({
+        success: true,
+        device_name: device.name,
+        operation: 'custom-rpc',
+        execution_time_ms: executionTime,
+        response: result.response
+      });
+    }
+    
+    // Direct NETCONF path
     // Ensure NETCONF session is active
     const sessionStatus = netconfService.getSessionStatus(id);
     if (!sessionStatus?.isConnected) {
