@@ -1232,7 +1232,7 @@ ${configXml}
    * @param {boolean} validateBeforeCommit - Whether to validate before committing
    */
   async applyNxosConfigWithValidation(deviceId, yangConfig, operation = 'merge', validateBeforeCommit = false) {
-    console.log(`🚀 NETCONF: Applying NX-OS YANG configuration (validate: ${validateBeforeCommit})...`);
+    console.log(`🚀 NETCONF: Applying YANG configuration (validate: ${validateBeforeCommit})...`);
     
     const session = this.connections.get(deviceId);
     if (!session) {
@@ -1254,10 +1254,14 @@ ${configXml}
       return await this.applyNxosConfig(deviceId, yangConfig, operation);
     }
     
-    // First, verify the session is alive
+    // First, verify the session is alive with device-type-aware ping
     try {
       console.log(`🔍 NETCONF: Verifying session is alive...`);
-      await this.sendRpc(deviceId, `  <get><filter type="subtree"><System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><name/></System></filter></get>`, null, 15000);
+      const isIosXe = yangConfig.includes('Cisco-IOS-XE') || yangConfig.includes('<native');
+      const pingFilter = isIosXe
+        ? `  <get><filter type="subtree"><native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native"><hostname/></native></filter></get>`
+        : `  <get><filter type="subtree"><System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><name/></System></filter></get>`;
+      await this.sendRpc(deviceId, pingFilter, null, 15000);
       console.log(`✅ NETCONF: Session is alive`);
     } catch (pingError) {
       throw new Error(`NETCONF session not responding. Please reconnect. Error: ${pingError.message}`);

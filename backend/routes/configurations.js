@@ -1564,16 +1564,27 @@ router.post('/netconf/apply', async (req, res) => {
       }
       
       // Extract just the <System> element if present (NX-OS YANG)
-      // This handles cases where there might be extra wrapper elements
       const systemMatch = configToApply.match(/(<System\s+xmlns="http:\/\/cisco\.com\/ns\/yang\/cisco-nx-os-device">[\s\S]*?<\/System>)/);
       if (systemMatch && systemMatch[1]) {
         configToApply = systemMatch[1].trim();
         console.log(`✅ NETCONF: Using <System> element with NX-OS namespace`);
-      } else if (!configToApply.includes('xmlns=')) {
-        // No namespace found - try to add it
-        console.warn(`⚠️ NETCONF: No xmlns found in config, attempting to add NX-OS namespace`);
-        if (configToApply.includes('<System>')) {
+      }
+      
+      // Extract just the <native> element if present (IOS-XE YANG)
+      const nativeMatch = configToApply.match(/(<native\s+xmlns="http:\/\/cisco\.com\/ns\/yang\/Cisco-IOS-XE-native">[\s\S]*?<\/native>)/);
+      if (nativeMatch && nativeMatch[1]) {
+        configToApply = nativeMatch[1].trim();
+        console.log(`✅ NETCONF: Using <native> element with IOS-XE namespace`);
+      }
+      
+      // If no namespace found, try to detect and add appropriate one
+      if (!configToApply.includes('xmlns=')) {
+        if (configToApply.includes('<native>')) {
+          configToApply = configToApply.replace('<native>', '<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">');
+          console.log(`⚠️ NETCONF: Added IOS-XE namespace to <native>`);
+        } else if (configToApply.includes('<System>')) {
           configToApply = configToApply.replace('<System>', '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">');
+          console.log(`⚠️ NETCONF: Added NX-OS namespace to <System>`);
         }
       }
       
@@ -1620,7 +1631,68 @@ router.post('/netconf/apply', async (req, res) => {
       // Check if we already have an active session from the UI
       let sessionStatus = netconfService.getSessionStatus(deviceId);
       
-      if (!sessionStatus.connected) {
+      // Try agent relay first for NETCONF deploy (Vercel serverless mode)
+      const agentOnline = await agentRelay.isAgentOnline(req.userId);
+      
+      if (agentOnline) {
+        try {
+          // If no session exists, connect via agent first
+          if (!sessionStatus?.isConnected) {
+            console.log(`🔌 NETCONF: Connecting via agent for deploy...`);
+            const connectResult = await agentRelay.sendToAgent(req.userId, 'agent:netconf:connect', {
+              deviceId,
+              ip_address: device.ip_address,
+              username: device.username,
+              password: device.password,
+              netconf_port: device.netconf_port || 830
+            }, 35000);
+            
+            if (!connectResult.success) {
+              throw new Error(connectResult.error || 'Agent NETCONF connection failed');
+            }
+          }
+          
+          // Deploy via agent NETCONF edit-config
+          console.log(`📤 NETCONF: Deploying config via agent...`);
+          const deployResult = await agentRelay.sendToAgent(req.userId, 'agent:netconf:edit-config', {
+            deviceId,
+            config: configToApply
+          }, 30000);
+          
+          const deploymentTime = Date.now() - deploymentStart;
+          
+          // Disconnect after deploy
+          await agentRelay.sendToAgent(req.userId, 'agent:netconf:disconnect', { deviceId }, 5000).catch(() => {});
+          netconfService.removeAgentSession(deviceId);
+          
+          if (!deployResult.success) {
+            throw new Error(deployResult.error || 'NETCONF deployment failed via agent');
+          }
+          
+          // Update configuration status
+          configuration.status = 'deployed';
+          configuration.deployed_at = Date.now();
+          configuration.deployment_time = deploymentTime;
+          configuration.validated_before_deploy = validate_before_apply;
+          await configuration.save();
+          
+          return res.json({
+            success: true,
+            message: 'NETCONF configuration deployed successfully via agent',
+            deployment_time: deploymentTime,
+            deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
+            netconf: true,
+            validated: false, // Agent path doesn't support validate yet
+            response: deployResult.response
+          });
+        } catch (agentError) {
+          console.warn(`⚠️ NETCONF agent deploy failed, trying direct: ${agentError.message}`);
+          // Fall through to direct NETCONF
+        }
+      }
+      
+      // Direct NETCONF path (desktop/local mode)
+      if (!sessionStatus?.isConnected) {
         // No existing session, create a new one
         console.log(`🔌 NETCONF: No existing session, connecting...`);
         const connectResult = await netconfService.connect(device);

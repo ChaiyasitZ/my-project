@@ -50,47 +50,70 @@ export class NetconfHandler {
 
           let buffer = '';
           let helloReceived = false;
-          let serverCapabilities = [];
           let messageId = 1;
 
-          stream.on('data', (data) => {
+          // Store connection entry with mutable capabilities array
+          const entry = {
+            connection: conn,
+            stream,
+            messageId,
+            serverCapabilities: [],
+            ip_address,
+            createdAt: Date.now(),
+            lastUsed: Date.now()
+          };
+          this.connections.set(deviceId, entry);
+
+          const helloHandler = (data) => {
             buffer += data.toString();
 
             if (!helloReceived && buffer.includes(this.MESSAGE_DELIMITER)) {
               helloReceived = true;
+              stream.removeListener('data', helloHandler);
+
               // Parse server capabilities
               const helloMatch = buffer.match(/<capability>([^<]+)<\/capability>/g);
               if (helloMatch) {
-                serverCapabilities = helloMatch.map(c => c.replace(/<\/?capability>/g, ''));
+                entry.serverCapabilities = helloMatch.map(c => c.replace(/<\/?capability>/g, ''));
               }
               buffer = '';
+
+              // Send client hello
+              stream.write(this.NETCONF_HELLO);
+
+              // Resolve after hello exchange completes
+              setTimeout(() => {
+                resolve({
+                  success: true,
+                  deviceId,
+                  message: `NETCONF connected to ${ip_address}`,
+                  capabilities: entry.serverCapabilities
+                });
+              }, 500);
             }
-          });
+          };
 
-          // Send client hello
-          stream.write(this.NETCONF_HELLO);
+          stream.on('data', helloHandler);
 
-          this.connections.set(deviceId, {
-            connection: conn,
-            stream,
-            messageId,
-            serverCapabilities,
-            ip_address,
-            createdAt: Date.now(),
-            lastUsed: Date.now()
-          });
-
-          // Wait for hello exchange
-          const helloTimeout = setTimeout(() => {
-            if (this.connections.has(deviceId)) {
+          // Fallback timeout if hello never arrives
+          setTimeout(() => {
+            if (!helloReceived) {
+              helloReceived = true;
+              stream.removeListener('data', helloHandler);
+              // Send hello anyway
+              stream.write(this.NETCONF_HELLO);
               resolve({
                 success: true,
                 deviceId,
-                message: `NETCONF connected to ${ip_address}`,
-                capabilities: serverCapabilities
+                message: `NETCONF connected to ${ip_address} (no hello received)`,
+                capabilities: entry.serverCapabilities
               });
             }
-          }, 3000);
+          }, 5000);
+
+          stream.on('close', () => {
+            this.connections.delete(deviceId);
+          });
         });
       });
 
@@ -105,9 +128,34 @@ export class NetconfHandler {
         username,
         password,
         readyTimeout: 15000,
+        hostVerifier: () => true,
         algorithms: {
-          kex: ['diffie-hellman-group14-sha256', 'diffie-hellman-group14-sha1', 'diffie-hellman-group-exchange-sha256', 'diffie-hellman-group1-sha1'],
-          cipher: ['aes128-ctr', 'aes192-ctr', 'aes256-ctr', 'aes128-cbc', 'aes256-cbc'],
+          kex: [
+            'ecdh-sha2-nistp256',
+            'ecdh-sha2-nistp384',
+            'ecdh-sha2-nistp521',
+            'diffie-hellman-group14-sha256',
+            'diffie-hellman-group14-sha1',
+            'diffie-hellman-group-exchange-sha256',
+            'diffie-hellman-group-exchange-sha1',
+            'diffie-hellman-group1-sha1'
+          ],
+          cipher: [
+            'aes128-ctr', 'aes192-ctr', 'aes256-ctr',
+            'aes128-gcm', 'aes128-gcm@openssh.com',
+            'aes256-gcm', 'aes256-gcm@openssh.com',
+            'aes128-cbc', 'aes192-cbc', 'aes256-cbc',
+            '3des-cbc'
+          ],
+          hmac: [
+            'hmac-sha2-256', 'hmac-sha2-512', 'hmac-sha1'
+          ],
+          serverHostKey: [
+            'ssh-rsa', 'ssh-dss',
+            'ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384', 'ecdsa-sha2-nistp521',
+            'ssh-ed25519',
+            'rsa-sha2-256', 'rsa-sha2-512'
+          ]
         }
       });
     });
