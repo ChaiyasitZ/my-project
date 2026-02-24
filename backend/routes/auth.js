@@ -87,9 +87,22 @@ router.get('/google/callback',
  * @access  Private
  */
 router.get('/me', authenticateToken, (req, res) => {
+  // req.user may be a lean object (from cache) without Mongoose methods
+  const user = req.user.toSafeObject ? req.user.toSafeObject() : {
+    id: req.user._id,
+    googleId: req.user.googleId,
+    email: req.user.email,
+    name: req.user.name,
+    picture: req.user.picture,
+    role: req.user.role,
+    isActive: req.user.isActive,
+    preferences: req.user.preferences,
+    lastLogin: req.user.lastLogin,
+    createdAt: req.user.createdAt
+  };
   res.json({
     success: true,
-    user: req.user.toSafeObject()
+    user
   });
 });
 
