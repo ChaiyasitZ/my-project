@@ -453,7 +453,7 @@
                         & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId, Required)'', \nonumber \\
                         & \hspace{1em} ``backup\_name'' : ``ชื่อไฟล์สำรอง (สูงสุด 255 ตัวอักษร, Required)'', \nonumber \\
                         & \hspace{1em} ``config\_type'' : ``running-config | startup-config | both'', \nonumber \\
-                        & \hspace{1em} ``backup\_type'' : ``manual | scheduled'', \nonumber \\
+                        & \hspace{1em} ``backup\_type'' : ``manual'', \nonumber \\
                         & \hspace{1em} ``description'' : ``คำอธิบายการสำรอง (Optional)'', \nonumber \\
                         & \hspace{1em} ``tags'' : ``ป้ายกำกับ (Array of Strings)'', \nonumber \\
                         & \hspace{1em} ``is\_restore\_point'' : ``true | false (default: false)'' \nonumber \\
@@ -487,7 +487,7 @@
                         & \hspace{1em} ``running\_config'' : ``Running Configuration (String)'', \nonumber \\
                         & \hspace{1em} ``startup\_config'' : ``Startup Configuration (String)'', \nonumber \\
                         & \hspace{1em} ``config\_type'' : ``running-config | startup-config | both'', \nonumber \\
-                        & \hspace{1em} ``backup\_type'' : ``manual | scheduled'', \nonumber \\
+                        & \hspace{1em} ``backup\_type'' : ``manual'', \nonumber \\
                         & \hspace{1em} ``file\_size'' : ``ขนาดไฟล์ (bytes)'', \nonumber \\
                         & \hspace{1em} ``config\_hash'' : ``SHA-256 Hash สำหรับตรวจสอบความซ้ำ (64 chars)'', \nonumber \\
                         & \hspace{1em} ``created\_by'' : ``ผู้สร้าง (default: system)'', \nonumber \\
@@ -646,9 +646,7 @@
         \hline
         4 & ConfigurationBackup & จัดเก็บไฟล์สำรองข้อมูลการคอนฟิกของอุปกรณ์ \\
         \hline
-        5 & BackupSchedule & เก็บตารางเวลาการสำรองคอนฟิกอัตโนมัติ \\
-        \hline
-        6 & YangModel & จัดเก็บข้อมูล YANG Model ที่ใช้สำหรับ NETCONF Configuration \\
+        5 & YangModel & จัดเก็บข้อมูล YANG Model ที่ใช้สำหรับ NETCONF Configuration \\
         \hline
     \end{tabularx}
 \end{table}
@@ -842,7 +840,7 @@
         \hline
         config\_type & Enum & ประเภท: running-config, startup-config, both \\
         \hline
-        backup\_type & Enum & วิธีการ: manual, scheduled \\
+        backup\_type & Enum & วิธีการ: manual \\
         \hline
         file\_size & Number & ขนาดไฟล์ (bytes) \\
         \hline
@@ -853,55 +851,6 @@
         is\_restore\_point & Boolean & เป็นจุด Restore หรือไม่ \\
         \hline
         tags & Array[String] & ป้ายกำกับ \\
-        \hline
-        createdAt & Date & วันที่สร้าง (Auto) \\
-        \hline
-        updatedAt & Date & วันที่แก้ไข (Auto) \\
-        \hline
-    \end{tabularx}
-\end{table}
-
-% =====================================================
-% Table: BackupSchedule Structure
-% =====================================================
-
-\begin{table}[H]
-    \caption{\fontSixTeen{โครงสร้างตาราง BackupSchedule}}
-    \label{tab:backup-schedule-structure}
-    \fontSixTeen 
-    \begin{tabularx}{\textwidth}{|l|l|X|} 
-        \hline
-        \multicolumn{1}{|c|}{\textbf{ฟิลด์}} & \multicolumn{1}{c|}{\textbf{ประเภท}} & \multicolumn{1}{c|}{\textbf{คำอธิบาย}} \\
-        \hline
-        \_id & ObjectId & รหัสตารางเวลา (Primary Key) \\
-        \hline
-        userId & ObjectId & รหัสผู้ใช้ (Foreign Key $\rightarrow$ User) \\
-        \hline
-        device\_id & ObjectId & รหัสอุปกรณ์ (Foreign Key $\rightarrow$ Device) \\
-        \hline
-        schedule\_name & String(255) & ชื่อตารางเวลา (Required) \\
-        \hline
-        frequency & Enum & ความถี่: daily, weekly, monthly \\
-        \hline
-        day\_of\_week & Number & วันในสัปดาห์ (0-6, สำหรับ weekly) \\
-        \hline
-        day\_of\_month & Number & วันในเดือน (1-31, สำหรับ monthly) \\
-        \hline
-        time & String & เวลาที่ทำ Backup (HH:mm format) \\
-        \hline
-        config\_type & Enum & ประเภท: running-config, startup-config, both \\
-        \hline
-        is\_active & Boolean & สถานะการใช้งาน (default: true) \\
-        \hline
-        retention\_count & Number & จำนวน Backup ที่เก็บไว้ (default: 10) \\
-        \hline
-        last\_run & Date & เวลาที่ทำ Backup ล่าสุด \\
-        \hline
-        next\_run & Date & เวลาที่จะทำ Backup ครั้งถัดไป \\
-        \hline
-        last\_status & Enum & สถานะล่าสุด: success, failed, pending \\
-        \hline
-        last\_error & String & ข้อผิดพลาดล่าสุด (ถ้ามี) \\
         \hline
         createdAt & Date & วันที่สร้าง (Auto) \\
         \hline
@@ -971,19 +920,13 @@
         \hline
         User & ConfigurationBackup & One-to-Many & ผู้ใช้หนึ่งคนมีการสำรองได้หลายรายการ \\
         \hline
-        User & BackupSchedule & One-to-Many & ผู้ใช้หนึ่งคนมีตารางเวลาสำรองได้หลายรายการ \\
-        \hline
         User & YangModel & One-to-Many & ผู้ใช้หนึ่งคนมี YANG Model ได้หลายรายการ \\
         \hline
         Device & ConfigurationHistory & One-to-Many & อุปกรณ์หนึ่งตัวมีประวัติคอนฟิกได้หลายรายการ \\
         \hline
         Device & ConfigurationBackup & One-to-Many & อุปกรณ์หนึ่งตัวมีการสำรองได้หลายรายการ \\
         \hline
-        Device & BackupSchedule & One-to-Many & อุปกรณ์หนึ่งตัวมีตารางเวลาสำรองได้หลายรายการ \\
-        \hline
         ConfigurationBackup & ConfigurationHistory & One-to-Many & Backup หนึ่งรายการสามารถอ้างอิงได้หลาย History \\
-        \hline
-        BackupSchedule & ConfigurationBackup & One-to-Many & ตารางเวลาหนึ่งรายการสามารถสร้าง Backup ได้หลายรายการ \\
         \hline
     \end{tabularx}
 \end{table}
@@ -1025,12 +968,6 @@
         ConfigurationBackup & tags & ค้นหาตามป้ายกำกับ \\
         \hline
         ConfigurationBackup & (userId, createdAt DESC) & เรียงสำรองตามวันที่ \\
-        \hline
-        BackupSchedule & (userId, device\_id) & ค้นหาตารางเวลาตามผู้ใช้และอุปกรณ์ \\
-        \hline
-        BackupSchedule & (is\_active, next\_run) & กรองตารางเวลาที่กำลังทำงาน \\
-        \hline
-        BackupSchedule & next\_run & ค้นหาตารางเวลาถัดไป \\
         \hline
         YangModel & (userId, name, version) (Compound Unique) & ป้องกัน Model ซ้ำ \\
         \hline
