@@ -18,7 +18,6 @@ import backupsRouter from './routes/backups.js';
 import yangModelsRouter from './routes/yangModels.js';
 import authRouter, { passport } from './routes/auth.js';
 import agentRouter from './routes/agent.js';
-import backupScheduler from './services/backupScheduler.js';
 
 const app = express();
 
@@ -92,9 +91,7 @@ app.get('/api/health', async (req, res) => {
       timestamp: new Date().toISOString(),
       version: '2.0.0',
       environment: config.server.nodeEnv,
-      database: 'MongoDB Atlas',
-      scheduler_active: backupScheduler?.isInitialized ?? false,
-      active_schedules: backupScheduler?.isInitialized ? backupScheduler.getActiveSchedules().length : 0
+      database: 'MongoDB Atlas'
     });
   } catch (error) {
     res.status(503).json({
@@ -136,7 +133,7 @@ app.get('/api', (req, res) => {
       },
       backups: {
         url: '/api/backups',
-        description: 'Configuration backups and scheduling'
+        description: 'Configuration backups and restore'
       },
       console: {
         url: '/api/console',
@@ -151,7 +148,7 @@ app.get('/api', (req, res) => {
     features: [
       'AI Configuration Generation',
       'SSH Session Reuse',
-      'Automated Backups',
+      'Manual Backups',
       'NETCONF/YANG Support',
       'HTTP Polling Agent Relay'
     ]
@@ -173,7 +170,7 @@ app.get('/', (req, res) => {
       '📝 Configuration validation',
       '💾 Configuration history',
       '🔧 Real-time monitoring',
-      '📅 Automated backup scheduling',
+
       '🌐 NETCONF/YANG support'
     ],
     endpoints: {
@@ -216,10 +213,6 @@ process.on('SIGTERM', async () => {
   console.log('🛑 SIGTERM received, shutting down gracefully');
   
   try {
-    // Stop backup scheduler
-    backupScheduler.stopAll();
-    console.log('✅ Backup scheduler stopped');
-    
     // Close MongoDB connection
     await mongoose.connection.close();
     console.log('✅ MongoDB connection closed');
@@ -235,10 +228,6 @@ process.on('SIGINT', async () => {
   console.log('🛑 SIGINT received, shutting down gracefully');
   
   try {
-    // Stop backup scheduler
-    backupScheduler.stopAll();
-    console.log('✅ Backup scheduler stopped');
-    
     // Close MongoDB connection
     await mongoose.connection.close();
     console.log('✅ MongoDB connection closed');
@@ -294,12 +283,7 @@ if (!process.env.VERCEL) {
       console.log(`🔗 Frontend URL: ${config.cors.origin}`);
       console.log(`📡 Agent communication: HTTP polling (serverless compatible)`);
       
-      // Initialize backup scheduler after server starts
-      try {
-        await backupScheduler.initialize();
-      } catch (error) {
-        console.error('❌ Failed to initialize backup scheduler:', error);
-      }
+
     });
   });
 }

@@ -94,10 +94,6 @@ export const subscribeToDeploymentProgress = (callback) => {
   return subscribe('deployment:progress', callback);
 };
 
-export const subscribeToScheduleResults = (callback) => {
-  return subscribe('backup:schedule-results', callback);
-};
-
 export const subscribeToBackupSummary = (callback) => {
   return subscribe('backup:summary', callback);
 };

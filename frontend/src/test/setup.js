@@ -96,7 +96,6 @@ vi.mock('../services/socket', () => ({
   disconnectSocket: vi.fn(),
   subscribeToBackupProgress: vi.fn(() => vi.fn()),
   subscribeToDeploymentProgress: vi.fn(() => vi.fn()),
-  subscribeToScheduleResults: vi.fn(() => vi.fn()),
   subscribeToBackupSummary: vi.fn(() => vi.fn()),
   subscribeToBackupError: vi.fn(() => vi.fn()),
   subscribeToAgentStatus: vi.fn(() => vi.fn()),

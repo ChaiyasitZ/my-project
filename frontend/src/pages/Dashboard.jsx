@@ -36,7 +36,6 @@ function Dashboard() {
   });
   const [backupStats, setBackupStats] = useState({
     totalBackups: 0,
-    scheduledBackups: 0,
     manualBackups: 0,
     restorePoints: 0
   });
@@ -46,7 +45,7 @@ function Dashboard() {
     totalGenerations: 0
   });
   const [devices, setDevices] = useState([]);
-  const [schedules, setSchedules] = useState([]);
+
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
   
@@ -81,7 +80,6 @@ function Dashboard() {
         deviceStatsResponse,
         configurationsResponse, 
         backupsResponse,
-        schedulesResponse,
         analyticsResponse
       ] = await Promise.all([
         axios.get('/health', { signal }).catch(() => null),
@@ -89,7 +87,6 @@ function Dashboard() {
         axios.get('/devices/stats/summary', { signal }).catch(() => ({ data: { stats: {} } })),
         axios.get('/configurations/history?limit=5', { signal }),
         axios.get('/backups?limit=100', { signal }).catch(() => ({ data: { backups: [], pagination: { total: 0 } } })),
-        axios.get('/backups/schedules', { signal }).catch(() => ({ data: { schedules: [] } })),
         axios.get('/configurations/analytics?days=7', { signal }).catch(() => ({ data: { analytics: {} } }))
       ]);
       
@@ -104,11 +101,9 @@ function Dashboard() {
       const totalConfigs = configurationsResponse.data.total || 0;
       const backups = backupsResponse.data.backups || [];
       const totalBackups = backupsResponse.data.pagination?.total || backups.length;
-      const schedulesData = schedulesResponse.data.schedules || [];
       const analyticsData = analyticsResponse.data.analytics || {};
 
       setDevices(devicesData);
-      setSchedules(schedulesData);
       
       // Calculate deployed configurations
       const deployedCount = configurations.filter(c => c.status === 'deployed').length;
@@ -126,13 +121,11 @@ function Dashboard() {
       });
 
       // Calculate backup stats
-      const scheduledCount = backups.filter(b => b.backup_type === 'scheduled').length;
       const manualCount = backups.filter(b => b.backup_type === 'manual').length;
       const restorePointCount = backups.filter(b => b.is_restore_point).length;
 
       setBackupStats({
         totalBackups,
-        scheduledBackups: scheduledCount,
         manualBackups: manualCount,
         restorePoints: restorePointCount
       });

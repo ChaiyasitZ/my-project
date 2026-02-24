@@ -41,24 +41,6 @@ class NotificationService {
   }
 
   /**
-   * Emit post-deploy schedule results
-   */
-  async emitPostDeployScheduleResults(schedules, summary) {
-    const event = {
-      schedules,
-      summary,
-      timestamp: new Date().toISOString()
-    };
-
-    await Notification.create({
-      channel: 'backup-notifications',
-      event: 'backup:schedule-results',
-      data: event
-    });
-    console.log(`📡 Stored backup:schedule-results - ${summary.total_schedules} schedules, ${summary.total_devices_backed_up} devices backed up`);
-  }
-
-  /**
    * Emit backup completion summary
    */
   async emitBackupSummary(summary) {

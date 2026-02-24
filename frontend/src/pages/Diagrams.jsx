@@ -1281,8 +1281,8 @@ function DFDLevel1() {
             <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <td className="px-4 py-3"><span className="px-2 py-1 bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 rounded font-mono text-xs font-bold">5.0</span></td>
               <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Backup Management</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Store and restore device configurations, scheduled backups, diff comparison</td>
-              <td className="px-4 py-3 text-gray-500">Device ID, Schedule parameters</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Store and restore device configurations, diff comparison</td>
+              <td className="px-4 py-3 text-gray-500">Device ID, Backup parameters</td>
               <td className="px-4 py-3 text-gray-500">Backup records, Restore results</td>
             </tr>
           </tbody>
@@ -1888,10 +1888,6 @@ function DFDLevel5() {
           {/* 4.4 to User */}
           <line x1="280" y1="530" x2="130" y2="530" stroke="#6B7280" strokeWidth="1.5" markerEnd="url(#arrowL5)" />
           <text x="205" y="548" className="text-[11px] fill-gray-500 dark:fill-gray-400" textAnchor="middle">ยืนยันการบันทึก</text>
-          
-          {/* Scheduler to 4.1 (dashed auto trigger) */}
-          <line x1="130" y1="640" x2="280" y2="100" stroke="#F97316" strokeWidth="1.5" markerEnd="url(#arrowL5Orange)" strokeDasharray="6,4" />
-          <text x="160" y="380" className="text-[11px] fill-orange-500 dark:fill-orange-400">Auto Trigger</text>
         </svg>
         
         {/* User Entity - Centered Left */}
@@ -1900,14 +1896,8 @@ function DFDLevel5() {
             <span className="text-base font-bold text-gray-800 dark:text-white">ผู้ใช้</span>
           </div>
         </div>
-        
-        {/* Scheduler Entity */}
-        <div className="absolute left-[20px] top-[600px] w-24">
-          <div className="border-2 border-orange-500 bg-white dark:bg-gray-800 px-3 py-4 text-center">
-            <RefreshCwIcon className="h-6 w-6 text-orange-500 mx-auto mb-2" />
-            <span className="text-sm font-bold text-gray-800 dark:text-white">Scheduler</span>
-          </div>
-        </div>
+          
+          {/* 4.4 to User */}
         
         {/* Process 4.1 - เริ่ม Backup */}
         <div className="absolute left-[280px] top-[45px]">
@@ -2057,13 +2047,6 @@ function DataDictionary() {
               <td className="px-4 py-3 text-gray-600 dark:text-gray-400">NETCONF data models for device configuration</td>
               <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, name, module, namespace, content, deviceTypes</td>
               <td className="px-4 py-3"><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded text-xs">yangmodels</code></td>
-            </tr>
-            <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-              <td className="px-4 py-3"><span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded font-mono text-xs font-bold">D6</span></td>
-              <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Schedules</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Automated backup schedule definitions</td>
-              <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, name, device_ids, cron_expression, enabled, userId</td>
-              <td className="px-4 py-3"><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded text-xs">backupschedules</code></td>
             </tr>
           </tbody>
         </table>

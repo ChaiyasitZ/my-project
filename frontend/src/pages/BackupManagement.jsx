@@ -20,8 +20,7 @@ import {
   FileTextIcon,
   PlusIcon,
   SearchIcon,
-  EyeIcon,
-  BellIcon
+  EyeIcon
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import BackupCreationModal from '../components/BackupCreationModal';
@@ -98,7 +97,6 @@ function BackupManagement() {
   const [filter, setFilter] = useState('all');
   const [configFilter, setConfigFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [subscriptions, setSubscriptions] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(defaultItemsPerPage);
   
@@ -118,8 +116,7 @@ function BackupManagement() {
     description: '',
     backup_type: 'manual',
     config_type: 'running-config',
-    tags: [],
-    subscription_name: '' // For scheduled/auto-backup
+    tags: []
   });
   
   const [restoreForm, setRestoreForm] = useState({
@@ -153,15 +150,6 @@ function BackupManagement() {
       setBackups(Array.isArray(backupsData) ? backupsData : []);
       setDevices(Array.isArray(devicesData) ? devicesData : []);
       
-      // Fetch schedules separately (optional - don't fail if this errors)
-      try {
-        const schedulesResponse = await axios.get('/backups/schedules');
-        const schedulesData = schedulesResponse.data?.schedules || schedulesResponse.data || [];
-        setSubscriptions(Array.isArray(schedulesData) ? schedulesData.filter(s => s.schedule_type === 'post-deploy') : []);
-      } catch (scheduleError) {
-        console.warn('⚠️ Could not fetch schedules:', scheduleError.message);
-        setSubscriptions([]);
-      }
     } catch (error) {
       console.error('❌ Error fetching data:', error);
       // Don't show toast during silent refresh after backup creation
@@ -171,7 +159,6 @@ function BackupManagement() {
       // Set empty arrays as fallback
       setBackups([]);
       setDevices([]);
-      setSubscriptions([]);
     } finally {
       setLoading(false);
       setInitialLoad(false);
@@ -186,12 +173,6 @@ function BackupManagement() {
     e.preventDefault();
     if (!backupForm.device_id || !backupForm.backup_name) {
       toast.error('Please fill in all required fields');
-      return;
-    }
-
-    // For scheduled backup, subscription name is required
-    if (backupForm.backup_type === 'scheduled' && !backupForm.subscription_name) {
-      toast.error('Please enter a subscription name for scheduled backup');
       return;
     }
 
@@ -226,31 +207,11 @@ function BackupManagement() {
     const progressPromise = simulateProgress();
     
     try {
-      // Create the backup first - exclude subscription_name as it's not part of the backup API
-      const { subscription_name, ...backupData } = backupForm;
       await axios.post('/backups', {
-        ...backupData,
+        ...backupForm,
         tags: backupForm.tags.filter(tag => tag.trim() !== ''),
         config_type: backupForm.config_type
       });
-
-      // If scheduled backup, also create subscription for auto-backup after deploy
-      if (backupForm.backup_type === 'scheduled') {
-        try {
-          await axios.post('/backups/post-deploy-schedule', {
-            name: backupForm.subscription_name,
-            description: `Auto-backup subscription: ${backupForm.subscription_name}`,
-            device_ids: [backupForm.device_id],
-            backup_type: backupForm.config_type,
-            enabled: true,
-            create_initial_backup: false // Already created backup above
-          });
-          console.log('✅ Auto-backup subscription created!');
-        } catch (subError) {
-          console.warn('⚠️ Backup created but subscription failed:', subError.message);
-          // Don't fail the whole operation, just warn
-        }
-      }
 
       // Wait for progress animation to catch up
       await progressPromise;
@@ -265,8 +226,7 @@ function BackupManagement() {
         description: '',
         backup_type: 'manual',
         config_type: 'running-config',
-        tags: [],
-        subscription_name: ''
+        tags: []
       });
 
       console.log('✅ Backup created successfully!');
@@ -313,54 +273,6 @@ function BackupManagement() {
     });
   };
 
-  // Handle cancel/delete subscription
-  const handleCancelSubscription = async (subscription) => {
-    const confirmed = await showConfirmation({
-      title: 'Cancel Auto-Backup Subscription',
-      message: `Are you sure you want to cancel the subscription "${subscription.name}"?\n\nThis will stop automatic backups after deployments for the subscribed devices.`,
-      confirmText: 'Cancel Subscription',
-      cancelText: 'Keep',
-      type: 'warning'
-    });
-
-    if (!confirmed) return;
-
-    try {
-      await axios.delete(`/backups/schedules/${subscription._id || subscription.id}`);
-      toast.success(`Subscription "${subscription.name}" cancelled successfully!`);
-      await fetchData();
-    } catch (error) {
-      console.error('❌ Error cancelling subscription:', error);
-      toast.error('Failed to cancel subscription: ' + (error.response?.data?.message || error.message));
-    }
-  };
-
-  // Check if device has active subscription
-  const getDeviceSubscription = (deviceId) => {
-    return subscriptions.find(sub => 
-      sub.device_ids?.includes(deviceId) && sub.enabled
-    );
-  };
-
-  // Handle subscription creation
-  const handleCreateSubscription = async (subscriptionData) => {
-    try {
-      const response = await axios.post('/backups/post-deploy-schedule', subscriptionData);
-      
-      if (response.data.success) {
-        toast.success(`Subscription "${subscriptionData.name}" created successfully!`);
-        await fetchData(); // Refresh backup list
-        return response.data;
-      } else {
-        throw new Error(response.data.message || 'Failed to create subscription');
-      }
-    } catch (error) {
-      console.error('❌ Error creating subscription:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to create subscription';
-      toast.error(errorMessage);
-      throw error;
-    }
-  };
 
 
   const handleRestoreBackup = async (e) => {
@@ -488,8 +400,6 @@ function BackupManagement() {
     switch (type) {
       case 'manual':
         return <Archive className="h-4 w-4 text-blue-600 dark:text-blue-400" />;
-      case 'scheduled':
-        return <ClockIcon className="h-4 w-4 text-green-600 dark:text-green-400" />;
       default:
         return <FolderIcon className="h-4 w-4 text-gray-600 dark:text-gray-400" />;
     }
@@ -497,8 +407,7 @@ function BackupManagement() {
 
   const getBackupTypeBadge = (type) => {
     const styles = {
-      manual: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300',
-      scheduled: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300'
+      manual: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300'
     };
     return styles[type] || 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300';
   };
@@ -565,7 +474,6 @@ function BackupManagement() {
   const stats = useMemo(() => ({
     total: (backups || []).length,
     manual: (backups || []).filter(b => b?.backup_type === 'manual').length,
-    scheduled: (backups || []).filter(b => b?.backup_type === 'scheduled').length,
     restorePoints: (backups || []).filter(b => b?.is_restore_point).length,
     runningOnly: (backups || []).filter(b => b?.config_type === 'running-config').length,
     startupOnly: (backups || []).filter(b => b?.config_type === 'startup-config').length,
@@ -702,42 +610,6 @@ function BackupManagement() {
         </div>
       </div>
 
-      {/* Active Subscriptions Section */}
-      {subscriptions.length > 0 && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-700 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <BellIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-              <h3 className="font-semibold text-amber-800 dark:text-amber-300">Active Auto-Backup Subscriptions</h3>
-              <span className="px-2 py-0.5 text-xs bg-amber-200 dark:bg-amber-700 text-amber-800 dark:text-amber-200 rounded-full">
-                {subscriptions.length}
-              </span>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {subscriptions.map((sub) => (
-              <div key={sub._id || sub.id} className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-amber-200 dark:border-amber-600">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 dark:text-white truncate">{sub.name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {sub.device_ids?.length || 0} device(s) • {sub.backup_type || 'running-config'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleCancelSubscription(sub)}
-                    className="ml-2 p-1.5 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                    title="Cancel subscription"
-                  >
-                    <XCircleIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Backups Section */}
       {/* Statistics Cards */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -761,18 +633,6 @@ function BackupManagement() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Manual</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.manual}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="flex items-center">
-            <div className="stat-icon-cyan">
-              <RefreshCwIcon className="h-6 w-6" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Scheduled</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.scheduled}</p>
             </div>
           </div>
         </div>
@@ -858,7 +718,6 @@ function BackupManagement() {
                 >
                   <option value="all">All Types</option>
                   <option value="manual">Manual</option>
-                  <option value="scheduled">Scheduled</option>
                 </select>
               </div>
 
@@ -929,7 +788,7 @@ function BackupManagement() {
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${getBackupTypeBadge(backup.backup_type)}`}>
-                      {backup.backup_type === 'manual' ? 'Manual' : 'Scheduled'}
+                      Manual
                     </span>
                     {backup.config_type && (
                       <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300">
@@ -1067,7 +926,6 @@ function BackupManagement() {
                       onChange={(e) => setBackupForm({ ...backupForm, backup_type: e.target.value })}
                     >
                       <option value="manual">Manual</option>
-                      <option value="scheduled">Scheduled</option>
                     </select>
                   </div>
 
@@ -1085,39 +943,6 @@ function BackupManagement() {
                   </div>
                 </div>
 
-                {/* Subscription Name - Only show when backup_type is 'scheduled' */}
-                {backupForm.backup_type === 'scheduled' && (
-                  <div className="p-4 bg-amber-50 dark:bg-amber-900/30 rounded-lg border border-amber-200 dark:border-amber-700">
-                    <div className="flex items-center gap-2 mb-3">
-                      <BellIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                      <span className="font-medium text-amber-800 dark:text-amber-300">Auto-Backup Subscription</span>
-                    </div>
-                    
-                    {/* Check if device already has subscription */}
-                    {backupForm.device_id && getDeviceSubscription(backupForm.device_id) && (
-                      <div className="mb-3 p-2 bg-amber-100 dark:bg-amber-800/50 rounded text-sm text-amber-700 dark:text-amber-300">
-                        <AlertTriangleIcon className="h-4 w-4 inline mr-1" />
-                        This device already has an active subscription: <strong>{getDeviceSubscription(backupForm.device_id).name}</strong>
-                      </div>
-                    )}
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-amber-800 dark:text-amber-300">Subscription Name *</label>
-                      <input
-                        type="text"
-                        required={backupForm.backup_type === 'scheduled'}
-                        className="input mt-1"
-                        placeholder="e.g., Daily Auto-Backup"
-                        value={backupForm.subscription_name}
-                        onChange={(e) => setBackupForm({ ...backupForm, subscription_name: e.target.value })}
-                      />
-                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                        Device will automatically backup after each configuration deployment
-                      </p>
-                    </div>
-                  </div>
-                )}
-
                 {/* Info Box */}
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-700">
                   <div className="text-sm text-blue-800 dark:text-blue-300 grid grid-cols-2 gap-4">
@@ -1125,7 +950,6 @@ function BackupManagement() {
                       <div className="font-medium mb-2">Backup Types:</div>
                       <div className="space-y-1 text-xs">
                         <p><Archive className="h-3 w-3 inline mr-1" /><strong>Manual:</strong> On-demand backup</p>
-                        <p><ClockIcon className="h-3 w-3 inline mr-1" /><strong>Scheduled:</strong> Auto after deploy</p>
                       </div>
                     </div>
                     <div>

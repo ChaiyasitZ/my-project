@@ -30,9 +30,7 @@ Check server health status.
   "timestamp": "2025-11-30T12:00:00.000Z",
   "version": "2.0.0",
   "environment": "development",
-  "database": "MongoDB Atlas",
-  "scheduler_active": true,
-  "active_schedules": 5
+  "database": "MongoDB Atlas"
 }
 ```
 
@@ -496,7 +494,7 @@ Get all backups with filters.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | device_id | string | - | Filter by device |
-| backup_type | string | - | `manual` or `scheduled` |
+| backup_type | string | - | `manual` |
 | limit | number | 50 | Number of results |
 | offset | number | 0 | Skip results |
 | sort_by | string | created_at | Sort field |
@@ -527,7 +525,7 @@ Create a new backup.
 {
   "device_id": "...",
   "backup_name": "Daily Backup",
-  "description": "Scheduled daily backup",
+  "description": "Manual backup",
   "backup_type": "manual",
   "config_type": "running-config",
   "created_by": "admin",
@@ -540,7 +538,7 @@ Create a new backup.
 | device_id | string | ✅ | Device ID |
 | backup_name | string | ✅ | Backup name |
 | description | string | ❌ | Description |
-| backup_type | string | ❌ | `manual` or `scheduled` |
+| backup_type | string | ❌ | `manual` |
 | config_type | string | ❌ | `running-config`, `startup-config`, or `both` |
 | created_by | string | ❌ | Creator name |
 | tags | array | ❌ | Array of tags |
@@ -628,76 +626,6 @@ Test enable mode for device.
 
 ### GET /api/backups/ssh-debug/:device_id
 Debug SSH connection for device.
-
----
-
-## Backup Schedules
-
-### GET /api/backups/schedules
-Get all backup schedules.
-
-**Response:**
-```json
-{
-  "success": true,
-  "schedules": [
-    {
-      "_id": "...",
-      "name": "Daily Backup",
-      "schedule_type": "daily",
-      "time": "02:00",
-      "devices": ["...", "..."],
-      "config_type": "running-config",
-      "is_active": true,
-      "last_run": "2025-11-30T02:00:00.000Z",
-      "next_run": "2025-12-01T02:00:00.000Z"
-    }
-  ]
-}
-```
-
----
-
-### POST /api/backups/schedules
-Create a backup schedule.
-
-**Request Body:**
-```json
-{
-  "name": "Daily Backup",
-  "schedule_type": "daily",
-  "time": "02:00",
-  "devices": ["device_id_1", "device_id_2"],
-  "config_type": "running-config",
-  "retention_days": 30
-}
-```
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| name | string | ✅ | Schedule name |
-| schedule_type | string | ✅ | `daily`, `weekly`, `monthly`, `post-deployment` |
-| time | string | ✅ | Time in HH:MM format |
-| day_of_week | number | ❌ | For weekly: 0-6 (Sunday-Saturday) |
-| day_of_month | number | ❌ | For monthly: 1-31 |
-| devices | array | ✅ | Array of device IDs |
-| config_type | string | ❌ | `running-config`, `startup-config`, `both` |
-| retention_days | number | ❌ | Days to keep backups |
-
----
-
-### DELETE /api/backups/schedules/:id
-Delete a backup schedule.
-
----
-
-### POST /api/backups/schedules/:id/trigger
-Manually trigger a backup schedule.
-
----
-
-### POST /api/backups/post-deploy-schedule
-Create post-deployment backup schedule.
 
 ---
 
@@ -969,8 +897,6 @@ The API uses Socket.IO for real-time updates.
 | `backup-progress` | Backup operation progress |
 | `deployment-progress` | Configuration deployment progress |
 | `device-status-change` | Device status update |
-| `schedule-triggered` | Backup schedule triggered |
-| `post-deploy-schedule-results` | Post-deployment backup results |
 
 ### Example:
 ```javascript

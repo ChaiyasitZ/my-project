@@ -29,7 +29,6 @@ import {
   Router as RouterIcon
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
-import BackupProgressModal from '../components/BackupProgressModal';
 import ConfigProgressModal from '../components/ConfigProgressModal';
 import DeviceIcon from '../components/DeviceIcon';
 import ZoomControls from '../components/ZoomControls';
@@ -40,8 +39,7 @@ import {
   connectSocket, 
   disconnectSocket,
   subscribeToBackupProgress,
-  subscribeToDeploymentProgress,
-  subscribeToScheduleResults
+  subscribeToDeploymentProgress
 } from '../services/socket';
 
 function Configurations() {
@@ -62,10 +60,8 @@ function Configurations() {
   const [validation, setValidation] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedConfig, setEditedConfig] = useState('');
-  const [showBackupModal, setShowBackupModal] = useState(false);
   const [showConfigProgressModal, setShowConfigProgressModal] = useState(false);
   const [generationError, setGenerationError] = useState(null);
-  const [scheduleResults, setScheduleResults] = useState(null);
   
   // YANG Models state
   const [yangModels, setYangModels] = useState([]);
@@ -273,24 +269,9 @@ ${indentedConfig}
       }
     });
     
-    // Subscribe to schedule results
-    const unsubscribeSchedule = subscribeToScheduleResults((data) => {
-      console.log('📡 Schedule results:', data);
-      
-      if (data.summary && data.summary.total_devices_backed_up > 0) {
-        setScheduleResults(data);
-        setShowBackupModal(true);
-        toast.success(
-          `Post-deployment schedules completed: ${data.summary.total_devices_backed_up} device(s) backed up`,
-          { id: 'schedule', duration: 5000 }
-        );
-      }
-    });
-    
     return () => {
       unsubscribeBackup();
       unsubscribeDeployment();
-      unsubscribeSchedule();
       disconnectSocket();
     };
   }, []);
@@ -3157,13 +3138,6 @@ ${indentedConfig}
         type={confirmationState.type}
         loading={confirmationState.loading}
         loadingText={confirmationState.loadingText}
-      />
-
-      {/* Backup Progress Modal */}
-      <BackupProgressModal
-        isOpen={showBackupModal}
-        onClose={() => setShowBackupModal(false)}
-        scheduleResults={scheduleResults}
       />
 
       {/* Config Generation Progress Modal */}
