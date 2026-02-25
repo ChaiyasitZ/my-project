@@ -613,6 +613,277 @@ Generate backup_name and description as JSON:`;
       };
     }
   }
+
+  /**
+   * Generate coordinated CLI configurations for multiple devices in a single LLM call.
+   * The LLM sees all devices and their roles so it can assign different but compatible
+   * settings (e.g., matching IPs on point-to-point links).
+   *
+   * @param {string} prompt - User's configuration request
+   * @param {Array} devices - Array of { name, type, model, location, _id }
+   * @param {Object} options - { userId } for Ollama relay
+   * @returns {Object} { success, configs: { [deviceName]: { configuration, displayConfig, ... } } }
+   */
+  async generateMultiDeviceConfiguration(prompt, devices, options = {}) {
+    const startTime = Date.now();
+    this.stats.totalRequests++;
+
+    try {
+      console.log(`🚀 Multi-device generation for ${devices.length} devices: "${prompt}"`);
+
+      if (this.provider !== 'ollama') {
+        if (!this.apiKey || this.apiKey === 'your_openrouter_api_key_here') {
+          throw new Error('OpenRouter API key not configured.');
+        }
+      }
+
+      this._checkRateLimit();
+
+      // Build device list for the prompt
+      const deviceList = devices.map((d, i) => {
+        const model = d.model || 'Generic Cisco';
+        return `${i + 1}. ${d.name} (${d.type} - ${model})`;
+      }).join('\n');
+      const deviceNames = devices.map(d => d.name);
+
+      const relevantKnowledge = this._getRelevantKnowledge(prompt);
+
+      // Pre-process prompt
+      let processedPrompt = this._preprocessCIDR(prompt);
+      processedPrompt = this._standardizeInterfaceNames(processedPrompt);
+
+      const systemMessage = `You are a Cisco IOS command generator expert. Your job is to generate coordinated CLI configurations for MULTIPLE devices that work together as a network.
+
+RELEVANT KNOWLEDGE:
+${relevantKnowledge}
+
+CRITICAL PROTOCOL-SPECIFIC RULES:
+1. OSPF: Does NOT support "no auto-summary" command (OSPF is classless by default)
+2. EIGRP: MUST include "no auto-summary" for modern VLSM networks
+3. RIP: Use "version 2" with "no auto-summary" for classless operation
+4. BGP: Does not use auto-summary command
+
+MULTI-DEVICE COORDINATION RULES:
+1. Each device MUST get its own UNIQUE configuration appropriate for its role
+2. For point-to-point links (/30 or /31), assign consecutive IPs (e.g., .1 and .2 for /30, .0 and .1 for /31)
+3. Ensure routing neighbor relationships match (OSPF areas, EIGRP AS, BGP neighbors)
+4. Interface descriptions should reference the peer device
+5. All devices must have consistent and compatible settings
+
+OUTPUT FORMAT:
+- Separate each device's config with a line: === DEVICE: <device_name> ===
+- Generate ONLY configuration commands (no "configure terminal", no "end", no "exit")
+- Use proper indentation (single space before sub-commands)
+- NO explanations, NO comments, NO markdown, NO code blocks
+- Each device section starts with === DEVICE: <name> === on its own line
+
+EXAMPLE for 2 routers connecting via GigabitEthernet0/0 on 10.0.0.0/30:
+
+=== DEVICE: R1 ===
+interface GigabitEthernet0/0
+ ip address 10.0.0.1 255.255.255.252
+ description Link to R2
+ no shutdown
+=== DEVICE: R2 ===
+interface GigabitEthernet0/0
+ ip address 10.0.0.2 255.255.255.252
+ description Link to R1
+ no shutdown`;
+
+      const userMessage = `Devices in this network:
+${deviceList}
+
+Configuration Request: ${processedPrompt}
+
+Generate coordinated Cisco IOS commands for ALL ${devices.length} devices. Use === DEVICE: <name> === to separate each device's config:`;
+
+      console.log(`📝 Multi-device system message: ${systemMessage.length} chars`);
+      console.log(`📝 Multi-device user message: ${userMessage.length} chars`);
+
+      const messages = [
+        { role: 'system', content: systemMessage },
+        { role: 'user', content: userMessage }
+      ];
+
+      // Call LLM with retry
+      let llmResponse;
+      let retryCount = 0;
+      const maxRetries = this.provider === 'ollama' ? 0 : 2;
+
+      while (retryCount <= maxRetries) {
+        try {
+          llmResponse = await this._callChatCompletion(messages, {
+            ...this.defaultParams,
+            max_tokens: Math.min((this.defaultParams.max_tokens || 4096) * devices.length, 16384)
+          }, options.userId || null);
+          break;
+        } catch (apiError) {
+          retryCount++;
+          if (retryCount > maxRetries) throw this.provider === 'ollama' ? apiError : this._handleApiError(apiError);
+          console.log(`⚠️ Retry ${retryCount}/${maxRetries}: ${apiError.message}`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+        }
+      }
+
+      // Handle async Ollama pending
+      if (llmResponse.pending) {
+        return {
+          success: true,
+          pending: true,
+          commandId: llmResponse.commandId,
+          message: 'Multi-device generation in progress via Ollama.'
+        };
+      }
+
+      const rawResponse = llmResponse?.choices?.[0]?.message?.content?.trim();
+      if (!rawResponse) throw new Error('Empty response from LLM');
+
+      console.log(`📦 Multi-device raw response: ${rawResponse.length} chars`);
+      console.log(`📄 Preview:\n${rawResponse.substring(0, 400)}...`);
+
+      // Parse per-device configs from the response
+      const configs = this._parseMultiDeviceResponse(rawResponse, deviceNames);
+
+      const executionTime = Date.now() - startTime;
+      const tokensUsed = llmResponse?.usage?.total_tokens || 0;
+      this.stats.totalTokens += tokensUsed;
+
+      console.log(`✅ Multi-device generation complete (${executionTime}ms, ${tokensUsed} tokens)`);
+
+      // Process each device's config (clean, validate, create deployment version)
+      const processedConfigs = {};
+      for (const device of devices) {
+        const rawConfig = configs[device.name];
+        if (!rawConfig) {
+          processedConfigs[device.name] = {
+            success: false,
+            error: `No configuration found for ${device.name} in LLM response`
+          };
+          continue;
+        }
+
+        const cleanConfig = this._cleanConfiguration(rawConfig);
+        if (!cleanConfig || cleanConfig.length < 5) {
+          processedConfigs[device.name] = {
+            success: false,
+            error: `Configuration too short for ${device.name}`
+          };
+          continue;
+        }
+
+        const ensuredConfig = this._ensureTrunkAllowed(cleanConfig, prompt);
+        const deploymentConfig = this._createDeploymentVersion(ensuredConfig);
+        const validation = this._validateConfiguration(ensuredConfig, device.type);
+
+        processedConfigs[device.name] = {
+          success: true,
+          configuration: deploymentConfig,
+          displayConfig: ensuredConfig,
+          deploymentConfig,
+          model: this.getActiveModel(),
+          provider: this.provider,
+          deviceType: device.type,
+          executionTime,
+          tokensUsed: Math.round(tokensUsed / devices.length),
+          validation,
+          confidenceScore: validation.score,
+          recommendations: validation.warnings.length > 0 ? validation.warnings : ['Configuration looks good'],
+          fromCache: false
+        };
+      }
+
+      return { success: true, configs: processedConfigs };
+
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+      this.stats.errors++;
+      console.error('❌ Multi-device generation failed:', error.message);
+
+      let userMessage = error.message;
+      if (error.response?.status === 401) userMessage = 'Invalid API key.';
+      else if (error.response?.status === 429) userMessage = 'Rate limit exceeded.';
+      else if (error.response?.status === 402) userMessage = 'Insufficient credits.';
+
+      return {
+        success: false,
+        error: `Multi-device generation failed: ${userMessage}`,
+        configs: {}
+      };
+    }
+  }
+
+  /**
+   * Parse a multi-device LLM response into per-device config strings.
+   * Supports delimiter: === DEVICE: <name> ===
+   */
+  _parseMultiDeviceResponse(rawResponse, deviceNames) {
+    const configs = {};
+
+    // Split on === DEVICE: <name> === pattern
+    const delimiter = /^={3,}\s*DEVICE:\s*(.+?)\s*={3,}\s*$/gmi;
+    const parts = rawResponse.split(delimiter);
+
+    // parts array: [preamble, name1, config1, name2, config2, ...]
+    if (parts.length >= 3) {
+      for (let i = 1; i < parts.length; i += 2) {
+        const name = parts[i].trim();
+        const config = (parts[i + 1] || '').trim();
+        // Match to known device name (case-insensitive)
+        const matchedDevice = deviceNames.find(d => d.toLowerCase() === name.toLowerCase());
+        if (matchedDevice) {
+          configs[matchedDevice] = config;
+        } else {
+          // Try partial match
+          const partial = deviceNames.find(d => name.toLowerCase().includes(d.toLowerCase()) || d.toLowerCase().includes(name.toLowerCase()));
+          if (partial && !configs[partial]) {
+            configs[partial] = config;
+          }
+        }
+      }
+    }
+
+    // Fallback: try --- DEVICE: name --- or similar patterns
+    if (Object.keys(configs).length < deviceNames.length) {
+      const altDelimiter = /^-{3,}\s*DEVICE:\s*(.+?)\s*-{3,}\s*$/gmi;
+      const altParts = rawResponse.split(altDelimiter);
+      if (altParts.length >= 3) {
+        for (let i = 1; i < altParts.length; i += 2) {
+          const name = altParts[i].trim();
+          const config = (altParts[i + 1] || '').trim();
+          const matchedDevice = deviceNames.find(d => d.toLowerCase() === name.toLowerCase());
+          if (matchedDevice && !configs[matchedDevice]) {
+            configs[matchedDevice] = config;
+          }
+        }
+      }
+    }
+
+    // Last fallback: try to find device names as headers in the text
+    if (Object.keys(configs).length < deviceNames.length) {
+      for (const deviceName of deviceNames) {
+        if (configs[deviceName]) continue;
+        // Look for "! R1" or "! --- R1 ---" or "hostname R1" as markers
+        const namePattern = new RegExp(`(?:^!\\s*${deviceName}\\s*$|^!\\s*---\\s*${deviceName}\\s*---\\s*$|^hostname\\s+${deviceName}\\s*$)`, 'gmi');
+        const match = namePattern.exec(rawResponse);
+        if (match) {
+          const startIdx = match.index + match[0].length;
+          // Find next device marker or end
+          const nextDevice = deviceNames.find(d => d !== deviceName);
+          let endIdx = rawResponse.length;
+          if (nextDevice) {
+            const nextPattern = new RegExp(`(?:^!\\s*${nextDevice}\\s*$|^!\\s*---\\s*${nextDevice}\\s*---\\s*$|^hostname\\s+${nextDevice}\\s*$|^={3,}\\s*DEVICE:|^-{3,}\\s*DEVICE:)`, 'gmi');
+            nextPattern.lastIndex = startIdx;
+            const nextMatch = nextPattern.exec(rawResponse);
+            if (nextMatch) endIdx = nextMatch.index;
+          }
+          configs[deviceName] = rawResponse.substring(startIdx, endIdx).trim();
+        }
+      }
+    }
+
+    console.log(`📊 Parsed configs for ${Object.keys(configs).length}/${deviceNames.length} devices: [${Object.keys(configs).join(', ')}]`);
+    return configs;
+  }
   
   /**
    * Handle API errors with specific messages

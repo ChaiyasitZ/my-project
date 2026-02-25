@@ -491,92 +491,103 @@ router.post('/generate-multi', async (req, res) => {
 
     const results = [];
 
-    // Generate configuration for each device sequentially (LLM calls)
-    for (const device of devices) {
-      const startTime = Date.now();
-      try {
-        const aiResult = await llmService.generateConfiguration(prompt, device.type, {
-          name: device.name,
-          model: device.model,
-          location: device.location
-        }, 'cisco_cli', true, { userId: req.userId });
+    // Use coordinated multi-device generation (single LLM call for all devices)
+    const startTime = Date.now();
+    const multiResult = await llmService.generateMultiDeviceConfiguration(prompt, devices, { userId: req.userId });
 
-        const executionTime = Date.now() - startTime;
-
-        if (aiResult.pending) {
-          results.push({
-            device_id: device._id,
-            device_name: device.name,
-            device_type: device.type,
-            success: true,
-            pending: true,
-            commandId: aiResult.commandId,
-            message: 'Generation in progress via Ollama'
-          });
-          continue;
-        }
-
-        if (!aiResult.success) {
-          results.push({
-            device_id: device._id,
-            device_name: device.name,
-            device_type: device.type,
-            success: false,
-            error: aiResult.error,
-            execution_time: executionTime
-          });
-          continue;
-        }
-
-        // Generate explanation
-        const explanationResult = await llmService.generateExplanation(
-          aiResult.displayConfig || aiResult.configuration,
-          device.type,
-          prompt,
-          req.userId
-        );
-
-        // Save to history
-        const currentTimestamp = Date.now();
-        const configuration = new ConfigurationHistory({
-          device_id: device._id,
-          userId: req.userId,
-          prompt,
-          generated_config: aiResult.configuration,
-          deployment_config: aiResult.deploymentConfig,
-          ai_model: 'qwen2.5-coder:7b',
-          execution_time: executionTime,
-          status: 'generated',
-          created_at: currentTimestamp
-        });
-
-        await configuration.save();
-
+    // Handle async Ollama pending
+    if (multiResult.pending) {
+      for (const device of devices) {
         results.push({
           device_id: device._id,
           device_name: device.name,
           device_type: device.type,
           success: true,
-          configuration: {
-            ...configuration.toObject(),
-            id: configuration._id,
+          pending: true,
+          commandId: multiResult.commandId,
+          message: 'Generation in progress via Ollama'
+        });
+      }
+    } else if (multiResult.success && multiResult.configs) {
+      // Process each device's result
+      for (const device of devices) {
+        const deviceConfig = multiResult.configs[device.name];
+        const executionTime = Date.now() - startTime;
+
+        if (!deviceConfig || !deviceConfig.success) {
+          results.push({
+            device_id: device._id,
             device_name: device.name,
             device_type: device.type,
-            validation: aiResult.validation,
-            confidenceScore: aiResult.confidenceScore,
-            recommendations: aiResult.recommendations,
-            explanation: explanationResult.success ? explanationResult.explanation : 'Explanation unavailable',
-            deployment_config: aiResult.deploymentConfig
-          }
-        });
-      } catch (deviceError) {
+            success: false,
+            error: deviceConfig?.error || 'No configuration generated for this device',
+            execution_time: executionTime
+          });
+          continue;
+        }
+
+        try {
+          // Generate explanation
+          const explanationResult = await llmService.generateExplanation(
+            deviceConfig.displayConfig || deviceConfig.configuration,
+            device.type,
+            prompt,
+            req.userId
+          );
+
+          // Save to history
+          const currentTimestamp = Date.now();
+          const configuration = new ConfigurationHistory({
+            device_id: device._id,
+            userId: req.userId,
+            prompt,
+            generated_config: deviceConfig.configuration,
+            deployment_config: deviceConfig.deploymentConfig,
+            ai_model: deviceConfig.model || 'qwen2.5-coder:7b',
+            execution_time: executionTime,
+            status: 'generated',
+            created_at: currentTimestamp
+          });
+
+          await configuration.save();
+
+          results.push({
+            device_id: device._id,
+            device_name: device.name,
+            device_type: device.type,
+            success: true,
+            configuration: {
+              ...configuration.toObject(),
+              id: configuration._id,
+              device_name: device.name,
+              device_type: device.type,
+              validation: deviceConfig.validation,
+              confidenceScore: deviceConfig.confidenceScore,
+              recommendations: deviceConfig.recommendations,
+              explanation: explanationResult.success ? explanationResult.explanation : 'Explanation unavailable',
+              deployment_config: deviceConfig.deploymentConfig
+            }
+          });
+        } catch (deviceError) {
+          results.push({
+            device_id: device._id,
+            device_name: device.name,
+            device_type: device.type,
+            success: false,
+            error: deviceError.message,
+            execution_time: Date.now() - startTime
+          });
+        }
+      }
+    } else {
+      // Overall failure
+      for (const device of devices) {
         results.push({
           device_id: device._id,
           device_name: device.name,
           device_type: device.type,
           success: false,
-          error: deviceError.message,
-          execution_time: Date.now() - startTime
+          error: multiResult.error || 'Multi-device generation failed'
         });
       }
     }
