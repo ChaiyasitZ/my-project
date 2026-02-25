@@ -261,9 +261,12 @@ const PORT = config.server.port || 3001;
 let isConnected = false;
 
 async function connectDB() {
-  if (isConnected) {
+  // Check ACTUAL connection state, not just cached flag
+  // Connection can drop between serverless invocations
+  if (isConnected && mongoose.connection.readyState === 1) {
     return;
   }
+  isConnected = false;
   try {
     await connectToMongoDB();
     isConnected = true;

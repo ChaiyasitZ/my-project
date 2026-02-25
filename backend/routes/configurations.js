@@ -398,19 +398,32 @@ router.post('/generate', async (req, res) => {
       });
     }
     
-    // Generate explanation for the configuration
-    console.log('📖 Generating configuration explanation...');
-    const explanationResult = await llmService.generateExplanation(
-      aiResult.displayConfig || aiResult.configuration,
-      device.type,
-      prompt,
-      req.userId
-    );
-    
-    if (explanationResult.success) {
-      console.log('✅ Explanation generated successfully');
-    } else {
-      console.warn('⚠️ Explanation generation failed:', explanationResult.error);
+    // Generate explanation WITHOUT blocking the response
+    // On Vercel serverless, two sequential LLM calls easily exceed timeout
+    let explanationText = 'Explanation unavailable';
+    try {
+      console.log('📖 Generating configuration explanation (non-blocking)...');
+      const explanationPromise = llmService.generateExplanation(
+        aiResult.displayConfig || aiResult.configuration,
+        device.type,
+        prompt,
+        req.userId
+      );
+      // Race: wait up to 8 seconds for explanation, otherwise skip
+      const timeout = new Promise((resolve) => setTimeout(() => resolve({ success: false, timedOut: true }), 8000));
+      const explanationResult = await Promise.race([explanationPromise, timeout]);
+      
+      if (explanationResult.success && !explanationResult.timedOut) {
+        explanationText = explanationResult.explanation;
+        console.log('✅ Explanation generated successfully');
+      } else if (explanationResult.pending) {
+        explanationText = 'Generating explanation...';
+        console.log('⏳ Explanation pending (Ollama async)');
+      } else {
+        console.warn('⚠️ Explanation skipped (timeout or error)');
+      }
+    } catch (explErr) {
+      console.warn('⚠️ Explanation generation failed:', explErr.message);
     }
     
     // Save to configuration history with timestamp and userId
@@ -442,7 +455,7 @@ router.post('/generate', async (req, res) => {
       validation: aiResult.validation,
       confidenceScore: aiResult.confidenceScore,
       recommendations: aiResult.recommendations,
-      explanation: explanationResult.success ? explanationResult.explanation : 'Explanation unavailable',
+      explanation: explanationText,
       deployment_config: aiResult.deploymentConfig // Clean version for deployment
     };
     
@@ -527,13 +540,25 @@ router.post('/generate-multi', async (req, res) => {
         }
 
         try {
-          // Generate explanation
-          const explanationResult = await llmService.generateExplanation(
-            deviceConfig.displayConfig || deviceConfig.configuration,
-            device.type,
-            prompt,
-            req.userId
-          );
+          // Generate explanation (non-blocking, 8s timeout to avoid Vercel 504)
+          let explanationText = 'Explanation unavailable';
+          try {
+            const explanationPromise = llmService.generateExplanation(
+              deviceConfig.displayConfig || deviceConfig.configuration,
+              device.type,
+              prompt,
+              req.userId
+            );
+            const timeout = new Promise((resolve) => setTimeout(() => resolve({ success: false, timedOut: true }), 8000));
+            const explanationResult = await Promise.race([explanationPromise, timeout]);
+            if (explanationResult.success && !explanationResult.timedOut) {
+              explanationText = explanationResult.explanation;
+            } else if (explanationResult.pending) {
+              explanationText = 'Generating explanation...';
+            }
+          } catch (explErr) {
+            console.warn('⚠️ Explanation skipped:', explErr.message);
+          }
 
           // Save to history
           const currentTimestamp = Date.now();
@@ -564,7 +589,7 @@ router.post('/generate-multi', async (req, res) => {
               validation: deviceConfig.validation,
               confidenceScore: deviceConfig.confidenceScore,
               recommendations: deviceConfig.recommendations,
-              explanation: explanationResult.success ? explanationResult.explanation : 'Explanation unavailable',
+              explanation: explanationText,
               deployment_config: deviceConfig.deploymentConfig
             }
           });
@@ -1380,13 +1405,25 @@ router.post('/netconf/generate', async (req, res) => {
       });
     }
     
-    // Generate explanation
-    const explanationResult = await llmService.generateExplanation(
-      aiResult.displayConfig,
-      device.type,
-      prompt,
-      req.userId
-    );
+    // Generate explanation (non-blocking, 8s timeout to avoid Vercel 504)
+    let explanationText = 'Explanation unavailable';
+    try {
+      const explanationPromise = llmService.generateExplanation(
+        aiResult.displayConfig,
+        device.type,
+        prompt,
+        req.userId
+      );
+      const timeout = new Promise((resolve) => setTimeout(() => resolve({ success: false, timedOut: true }), 8000));
+      const explanationResult = await Promise.race([explanationPromise, timeout]);
+      if (explanationResult.success && !explanationResult.timedOut) {
+        explanationText = explanationResult.explanation;
+      } else if (explanationResult.pending) {
+        explanationText = 'Generating explanation...';
+      }
+    } catch (explErr) {
+      console.warn('⚠️ NETCONF explanation skipped:', explErr.message);
+    }
     
     // Save to configuration history with userId
     const currentTimestamp = Date.now();
@@ -1416,7 +1453,7 @@ router.post('/netconf/generate', async (req, res) => {
         validation: aiResult.validation,
         confidenceScore: aiResult.confidenceScore,
         recommendations: aiResult.recommendations,
-        explanation: explanationResult.success ? explanationResult.explanation : 'Explanation unavailable'
+        explanation: explanationText
       }
     });
     
