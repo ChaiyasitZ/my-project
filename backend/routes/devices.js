@@ -827,10 +827,10 @@ router.post('/:id/netconf/test', async (req, res) => {
       try {
         const agentResult = await agentRelay.sendToAgent(req.userId, 'agent:netconf:connect', {
           deviceId: id,
-          ip_address: device.ip_address,
+          host: device.ip_address,
+          port: device.netconf_port || 830,
           username: device.username,
-          password: device.password,
-          netconf_port: device.netconf_port || 830
+          password: device.password
         }, 35000);
         
         if (agentResult.success) {
@@ -891,11 +891,14 @@ router.get('/:id/netconf/capabilities', async (req, res) => {
       });
     }
     
-    // Check if there's an active session with capabilities
+    // Check if there's an active session with capabilities (includes agent-proxied sessions)
     const sessionStatus = netconfService.getSessionStatus(id);
     
     if (sessionStatus && sessionStatus.isConnected) {
-      const capResult = await netconfService.getCapabilities(id);
+      // For agent sessions, capabilities are already stored; for direct, fetch from service
+      const capResult = netconfService.isAgentSession(id)
+        ? { capabilities: sessionStatus.capabilityList || [] }
+        : await netconfService.getCapabilities(id);
       return res.json({
         success: true,
         device_name: device.name,
@@ -991,10 +994,10 @@ router.post('/:id/netconf/connect', async (req, res) => {
       try {
         const agentResult = await agentRelay.sendToAgent(req.userId, 'agent:netconf:connect', {
           deviceId: id,
-          ip_address: device.ip_address,
+          host: device.ip_address,
+          port: device.netconf_port || 830,
           username: device.username,
-          password: device.password,
-          netconf_port: device.netconf_port || 830
+          password: device.password
         }, 35000);
         
         if (agentResult.success) {
@@ -1054,6 +1057,18 @@ router.post('/:id/netconf/connect', async (req, res) => {
 router.post('/netconf/disconnect-all', async (req, res) => {
   try {
     console.log('🌐 Disconnecting all NETCONF sessions');
+    
+    // Disconnect agent-proxied sessions via agent relay
+    const activeSessions = netconfService.getActiveSessions();
+    const agentSessions = activeSessions.filter(s => netconfService.isAgentSession(s.deviceId));
+    if (agentSessions.length > 0) {
+      const agentOnline = await agentRelay.isAgentOnline(req.userId);
+      if (agentOnline) {
+        for (const session of agentSessions) {
+          await agentRelay.sendToAgent(req.userId, 'agent:netconf:disconnect', { deviceId: session.deviceId }, 5000).catch(() => {});
+        }
+      }
+    }
     
     const result = netconfService.disconnectAll();
     

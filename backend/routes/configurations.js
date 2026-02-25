@@ -1652,10 +1652,10 @@ router.post('/netconf/apply', async (req, res) => {
             console.log(`🔌 NETCONF: Connecting via agent for deploy...`);
             const connectResult = await agentRelay.sendToAgent(req.userId, 'agent:netconf:connect', {
               deviceId,
-              ip_address: device.ip_address,
+              host: device.ip_address,
+              port: device.netconf_port || 830,
               username: device.username,
-              password: device.password,
-              netconf_port: device.netconf_port || 830
+              password: device.password
             }, 35000);
             
             if (!connectResult.success) {

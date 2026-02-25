@@ -26,8 +26,9 @@ export class NetconfHandler {
    * Connect to device via NETCONF
    */
   async connect(deviceConfig) {
-    const { deviceId, ip_address, username, password, netconf_port } = deviceConfig;
-    const port = netconf_port || this.defaultPort;
+    const { deviceId, host, ip_address, username, password, port, netconf_port } = deviceConfig;
+    const connectHost = host || ip_address;
+    const connectPort = port || netconf_port || this.defaultPort;
 
     this.disconnect(deviceId);
 
@@ -58,7 +59,7 @@ export class NetconfHandler {
             stream,
             messageId,
             serverCapabilities: [],
-            ip_address,
+            ip_address: connectHost,
             createdAt: Date.now(),
             lastUsed: Date.now()
           };
@@ -86,7 +87,7 @@ export class NetconfHandler {
                 resolve({
                   success: true,
                   deviceId,
-                  message: `NETCONF connected to ${ip_address}`,
+                  message: `NETCONF connected to ${connectHost}`,
                   capabilities: entry.serverCapabilities
                 });
               }, 500);
@@ -105,7 +106,7 @@ export class NetconfHandler {
               resolve({
                 success: true,
                 deviceId,
-                message: `NETCONF connected to ${ip_address} (no hello received)`,
+                message: `NETCONF connected to ${connectHost} (no hello received)`,
                 capabilities: entry.serverCapabilities
               });
             }
@@ -123,8 +124,8 @@ export class NetconfHandler {
       });
 
       conn.connect({
-        host: ip_address,
-        port,
+        host: connectHost,
+        port: connectPort,
         username,
         password,
         readyTimeout: 15000,

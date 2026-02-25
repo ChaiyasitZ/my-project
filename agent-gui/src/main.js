@@ -440,20 +440,29 @@ class NetconfHandler {
     const { deviceId, host, port = 830, username, password } = data;
     return new Promise((resolve, reject) => {
       const conn = new Client();
-      const timeout = setTimeout(() => { conn.end(); reject(new Error('NETCONF connection timeout')); }, 15000);
+      const timeout = setTimeout(() => { conn.end(); reject(new Error('NETCONF connection timeout')); }, 30000);
       conn.on('ready', () => {
         clearTimeout(timeout);
         conn.subsys('netconf', (err, stream) => {
           if (err) { conn.end(); return reject(err); }
           let helloReceived = false, buffer = '';
+          const helloTimeout = setTimeout(() => { stream.removeAllListeners('data'); conn.end(); reject(new Error('NETCONF hello exchange timeout')); }, 20000);
           stream.on('data', (d) => {
             buffer += d.toString();
             if (!helloReceived && buffer.includes(']]>]]>')) {
               helloReceived = true;
+              clearTimeout(helloTimeout);
               const hello = '<?xml version="1.0" encoding="UTF-8"?><hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><capabilities><capability>urn:ietf:params:netconf:base:1.0</capability></capabilities></hello>]]>]]>';
               stream.write(hello);
-              this.connections.set(deviceId, { conn, stream });
-              resolve({ success: true, message: `NETCONF connected to ${host}`, capabilities: buffer });
+              // Parse capabilities from server hello XML
+              const capabilities = [];
+              const capRegex = /<capability>([^<]+)<\/capability>/g;
+              let match;
+              while ((match = capRegex.exec(buffer)) !== null) {
+                capabilities.push(match[1].trim());
+              }
+              this.connections.set(deviceId, { conn, stream, capabilities });
+              resolve({ success: true, message: `NETCONF connected to ${host}`, capabilities });
             }
           });
           stream.on('close', () => { this.connections.delete(deviceId); });
@@ -461,7 +470,7 @@ class NetconfHandler {
       });
       conn.on('error', (err) => { clearTimeout(timeout); reject(err); });
       conn.connect({
-        host, port, username, password, readyTimeout: 15000,
+        host, port, username, password, readyTimeout: 30000,
         hostVerifier: () => true,
         algorithms: {
           kex: ['ecdh-sha2-nistp256','ecdh-sha2-nistp384','ecdh-sha2-nistp521','diffie-hellman-group14-sha256','diffie-hellman-group14-sha1','diffie-hellman-group1-sha1'],
@@ -495,7 +504,7 @@ class NetconfHandler {
     const rpc = `<?xml version="1.0" encoding="UTF-8"?><rpc message-id="${msgId}" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">${rpcContent}</rpc>]]>]]>`;
     return new Promise((resolve, reject) => {
       let response = '';
-      const onData = (d) => { response += d.toString(); if (response.includes(']]>]]>')) { entry.stream.removeListener('data', onData); clearTimeout(t); resolve({ output: response.replace(']]>]]>', '') }); } };
+      const onData = (d) => { response += d.toString(); if (response.includes(']]>]]>')) { entry.stream.removeListener('data', onData); clearTimeout(t); resolve({ success: true, response: response.replace(']]>]]>', ''), messageId: msgId }); } };
       const t = setTimeout(() => { entry.stream.removeListener('data', onData); reject(new Error('NETCONF RPC timeout')); }, 30000);
       entry.stream.on('data', onData);
       entry.stream.write(rpc);
