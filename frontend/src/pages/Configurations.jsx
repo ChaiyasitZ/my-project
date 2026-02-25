@@ -738,7 +738,7 @@ ${indentedConfig}
     
     // Determine if multi-device (CLI mode with multiple devices selected)
     const isMultiDevice = configMode === 'cli' && selectedDevices.length > 1;
-    const hasDevice = isMultiDevice ? selectedDevices.length > 0 : !!selectedDevice;
+    const hasDevice = configMode === 'cli' ? selectedDevices.length > 0 : !!selectedDevice;
     
     if (!hasDevice || !prompt) return;
 
