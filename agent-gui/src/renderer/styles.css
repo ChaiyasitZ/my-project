@@ -101,7 +101,8 @@ body {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 32px);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* ─── Status Bar ─── */

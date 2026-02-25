@@ -32,6 +32,8 @@ window.toggleSection = function(name) {
   if (body.classList.contains('collapsed')) {
     body.classList.remove('collapsed');
     if (chevron) chevron.classList.remove('collapsed');
+    // Auto-scroll to make the expanded section visible
+    setTimeout(() => body.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
   } else {
     body.classList.add('collapsed');
     if (chevron) chevron.classList.add('collapsed');
