@@ -665,9 +665,15 @@ CRITICAL PROTOCOL-SPECIFIC RULES:
 
 MULTI-DEVICE COORDINATION RULES:
 1. Each device MUST get its own UNIQUE configuration appropriate for its role
-2. For point-to-point links (/30 or /31), assign consecutive IPs (e.g., .1 and .2 for /30, .0 and .1 for /31)
+2. IP ADDRESSING — CRITICAL:
+   - For /30 subnets: The .0 is the NETWORK address and .3 is BROADCAST — NEVER use them as host IPs. Use .1 and .2 only.
+   - For /31 subnets (point-to-point RFC 3021): Use .1 and .0 — assign .1 to the FIRST device and .0 to the SECOND device.
+   - For /24 subnets: .0 is NETWORK, .255 is BROADCAST — start host IPs from .1
+   - NEVER assign a network address (.0 for /24, /30) or broadcast address as a host IP
+   - Example: For 192.168.1.0/30, valid host IPs are 192.168.1.1 and 192.168.1.2
+   - Example: For 10.0.0.0/31, valid host IPs are 10.0.0.0 and 10.0.0.1 (both usable per RFC 3021, but prefer .1 for first device)
 3. Ensure routing neighbor relationships match (OSPF areas, EIGRP AS, BGP neighbors)
-4. Interface descriptions should reference the peer device
+4. Interface descriptions MUST reference the peer device name (e.g., "Link to R2")
 5. All devices must have consistent and compatible settings
 
 OUTPUT FORMAT:

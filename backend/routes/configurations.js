@@ -543,7 +543,7 @@ router.post('/generate-multi', async (req, res) => {
             prompt,
             generated_config: deviceConfig.configuration,
             deployment_config: deviceConfig.deploymentConfig,
-            ai_model: deviceConfig.model || 'qwen2.5-coder:7b',
+            ai_model: 'qwen2.5-coder:7b',
             execution_time: executionTime,
             status: 'generated',
             created_at: currentTimestamp
