@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import Device from '../models/Device.js';
 import consoleService from '../services/consoleService.js';
+import agentRelay from '../services/agentRelay.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 // Helper to verify device ownership when a MongoDB ObjectId is provided
@@ -60,7 +61,14 @@ const consoleCommandSchema = Joi.object({
 router.get('/ports', async (req, res) => {
   try {
     console.log('🔌 Fetching available serial ports');
-    const result = await consoleService.getAvailablePorts();
+    let result;
+    try {
+      result = await consoleService.getAvailablePorts();
+    } catch (localErr) {
+      // Serverless mode - relay to agent
+      console.log('🔄 serialport not available locally, relaying to agent...');
+      result = await agentRelay.sendToAgent(req.userId, 'agent:console:list-ports', {});
+    }
     
     res.json({
       success: true,
@@ -71,7 +79,7 @@ router.get('/ports', async (req, res) => {
     console.error('Error fetching serial ports:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch serial ports',
+      message: error.message || 'Failed to fetch serial ports',
       error: error.message
     });
   }
@@ -102,7 +110,13 @@ router.post('/connect', async (req, res) => {
     }
 
     console.log(`🔌 Console connection request for port ${value.portPath} (Device ID: ${value.deviceId})`);
-    const result = await consoleService.connectConsole(value);
+    let result;
+    try {
+      result = await consoleService.connectConsole(value);
+    } catch (localErr) {
+      console.log('🔄 Relaying console connect to agent...');
+      result = await agentRelay.sendToAgent(req.userId, 'agent:console:connect', value);
+    }
     
     res.json({
       success: true,
@@ -144,7 +158,12 @@ router.post('/disconnect', async (req, res) => {
       return res.status(404).json({ success: false, message: ownership.error });
     }
 
-    await consoleService.disconnectConsole(finalDeviceId);
+    try {
+      await consoleService.disconnectConsole(finalDeviceId);
+    } catch (localErr) {
+      console.log('🔄 Relaying console disconnect to agent...');
+      await agentRelay.sendToAgent(req.userId, 'agent:console:disconnect', { deviceId: finalDeviceId });
+    }
     
     res.json({
       success: true,
@@ -179,7 +198,13 @@ router.post('/test', async (req, res) => {
     }
 
     console.log(`🧪 Testing console connection for port ${value.portPath} (Device ID: ${value.deviceId})`);
-    const result = await consoleService.testConsoleConnection(value);
+    let result;
+    try {
+      result = await consoleService.testConsoleConnection(value);
+    } catch (localErr) {
+      console.log('🔄 Relaying console test to agent...');
+      result = await agentRelay.sendToAgent(req.userId, 'agent:console:test', value);
+    }
     
     res.json({
       success: true,
@@ -219,7 +244,13 @@ router.post('/command', async (req, res) => {
 
     console.log(`📝 Sending console command to device ${deviceId}: ${command}`);
     
-    const result = await consoleService.sendConsoleCommand(deviceId, command, waitForPrompt);
+    let result;
+    try {
+      result = await consoleService.sendConsoleCommand(deviceId, command, waitForPrompt);
+    } catch (localErr) {
+      console.log('🔄 Relaying console command to agent...');
+      result = await agentRelay.sendToAgent(req.userId, 'agent:console:command', { deviceId, command, waitForPrompt });
+    }
     
     res.json({
       success: true,
@@ -259,7 +290,13 @@ router.post('/initial-config', async (req, res) => {
 
     console.log(`🔧 Starting initial configuration for device ${deviceId}`);
     
-    const result = await consoleService.sendInitialConfig(deviceId, configCommands, deviceInfo);
+    let result;
+    try {
+      result = await consoleService.sendInitialConfig(deviceId, configCommands, deviceInfo);
+    } catch (localErr) {
+      console.log('🔄 Relaying initial config to agent...');
+      result = await agentRelay.sendToAgent(req.userId, 'agent:console:initial-config', { deviceId, configCommands }, 30000);
+    }
     
     // Save configuration to database if successful
     if (result.success) {
@@ -389,7 +426,13 @@ router.post('/templates/apply', async (req, res) => {
     }
 
     // Send the configuration
-    const result = await consoleService.sendInitialConfig(deviceId, config, variables);
+    let result;
+    try {
+      result = await consoleService.sendInitialConfig(deviceId, config, variables);
+    } catch (localErr) {
+      console.log('🔄 Relaying template apply to agent...');
+      result = await agentRelay.sendToAgent(req.userId, 'agent:console:initial-config', { deviceId, configCommands: config }, 30000);
+    }
     
     res.json({
       success: true,

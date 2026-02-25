@@ -172,6 +172,32 @@ export class HttpPollingClient extends EventEmitter {
           result = await this.handlers.netconf.sendRPC(data.deviceId, data.rpcBody);
           break;
 
+        // ─── Console Commands ───
+        case 'agent:console:list-ports':
+          result = await this.handlers.console.listPorts();
+          break;
+
+        case 'agent:console:connect':
+          result = await this.handlers.console.connect(data);
+          break;
+
+        case 'agent:console:disconnect':
+          this.handlers.console.disconnect(data.deviceId);
+          result = { success: true };
+          break;
+
+        case 'agent:console:command':
+          result = await this.handlers.console.sendCommand(data.deviceId, data.command, data.waitForPrompt);
+          break;
+
+        case 'agent:console:test':
+          result = await this.handlers.console.testConnection(data);
+          break;
+
+        case 'agent:console:initial-config':
+          result = await this.handlers.console.sendInitialConfig(data.deviceId, data.configCommands);
+          break;
+
         // ─── Status Commands ───
         case 'agent:status': {
           const ollamaStatus = await this.handlers.ollama.getStatus().catch(() => ({ available: false }));

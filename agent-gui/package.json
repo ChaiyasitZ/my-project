@@ -41,6 +41,8 @@
     }
   },
   "dependencies": {
+    "@serialport/parser-readline": "^13.0.0",
+    "serialport": "^13.0.0",
     "ssh2": "^1.15.0"
   },
   "devDependencies": {

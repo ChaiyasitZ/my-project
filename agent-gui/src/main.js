@@ -212,6 +212,25 @@ class HttpPollingClient extends EventEmitter {
         case 'agent:netconf:rpc':
           result = await this.handlers.netconf.sendRPC(data.deviceId, data.rpcBody);
           break;
+        case 'agent:console:list-ports':
+          result = await this.handlers.console.listPorts();
+          break;
+        case 'agent:console:connect':
+          result = await this.handlers.console.connect(data);
+          break;
+        case 'agent:console:disconnect':
+          this.handlers.console.disconnect(data.deviceId);
+          result = { success: true };
+          break;
+        case 'agent:console:command':
+          result = await this.handlers.console.sendCommand(data.deviceId, data.command, data.waitForPrompt);
+          break;
+        case 'agent:console:test':
+          result = await this.handlers.console.testConnection(data);
+          break;
+        case 'agent:console:initial-config':
+          result = await this.handlers.console.sendInitialConfig(data.deviceId, data.configCommands);
+          break;
         case 'agent:status': {
           const ollamaStatus = await this.handlers.ollama.getStatus().catch(() => ({ available: false }));
           result = {
@@ -489,9 +508,72 @@ class NetconfHandler {
 
 // ─── Console Handler ───
 class ConsoleHandler {
-  constructor() { this.sessions = new Map(); }
-  getStatus() { return { activeSessions: this.sessions.size }; }
-  async disconnectAll() { for (const [, s] of this.sessions) { try { s.end(); } catch (e) {} } this.sessions.clear(); }
+  constructor() { this.connections = new Map(); }
+
+  async listPorts() {
+    const { SerialPort } = require('serialport');
+    const ports = await SerialPort.list();
+    const formatted = ports.map(port => {
+      let displayName = port.path;
+      if (port.manufacturer && !port.manufacturer.includes('Unknown')) {
+        if (port.manufacturer.toLowerCase().includes('ftdi')) displayName = `${port.path} - FTDI USB Serial`;
+        else if (port.manufacturer.toLowerCase().includes('prolific')) displayName = `${port.path} - Prolific USB Serial`;
+        else if (port.manufacturer.toLowerCase().includes('silicon')) displayName = `${port.path} - Silicon Labs USB Serial`;
+        else displayName = `${port.path} - ${port.manufacturer}`;
+      } else if (port.friendlyName && port.friendlyName !== port.path) {
+        let cleanName = port.friendlyName.replace(/\s*\([A-Z]+\d+\)\s*/g, '');
+        cleanName = cleanName.replace('Standard Serial over Bluetooth link', 'Bluetooth Serial');
+        cleanName = cleanName.replace('USB Serial Port', 'USB Serial');
+        if (cleanName && cleanName !== port.path) displayName = `${port.path} - ${cleanName}`;
+      }
+      return { path: port.path, manufacturer: port.manufacturer || 'Unknown', serialNumber: port.serialNumber || 'N/A', vendorId: port.vendorId || 'N/A', productId: port.productId || 'N/A', friendlyName: displayName, isUSB: !!(port.vendorId || port.manufacturer?.toLowerCase().includes('usb')) };
+    });
+    const valid = formatted.filter(p => { const l = (p.path + p.friendlyName).toLowerCase(); return !['bluetooth', 'virtual', 'loopback'].some(s => l.includes(s)); });
+    return { success: true, ports: valid, count: valid.length };
+  }
+
+  async connect(config) {
+    const { SerialPort } = require('serialport');
+    const { deviceId, portPath, baudRate = 9600, dataBits = 8, parity = 'none', stopBits = 1 } = config;
+    this.disconnect(deviceId);
+    return new Promise((resolve, reject) => {
+      const port = new SerialPort({ path: portPath, baudRate, dataBits, parity, stopBits, autoOpen: false });
+      port.open((err) => { if (err) return reject(new Error(`Failed to open ${portPath}: ${err.message}`)); this.connections.set(deviceId, { port, portPath, createdAt: Date.now() }); resolve({ success: true, message: `Connected to ${portPath}`, deviceId }); });
+      port.on('error', (err) => { console.error(`Serial port error (${portPath}):`, err.message); });
+    });
+  }
+
+  async sendCommand(deviceId, command, waitForPrompt = true) {
+    const entry = this.connections.get(deviceId);
+    if (!entry) throw new Error('Device not connected via console');
+    return new Promise((resolve, reject) => {
+      let output = '';
+      const timeout = setTimeout(() => { entry.port.removeListener('data', onData); resolve({ output: output || '(no response)', deviceId }); }, waitForPrompt ? 10000 : 2000);
+      const onData = (data) => { output += data.toString(); if (waitForPrompt && /[#>$]\s*$/.test(output)) { clearTimeout(timeout); entry.port.removeListener('data', onData); resolve({ output, deviceId }); } };
+      entry.port.on('data', onData);
+      entry.port.write(command + '\r\n', (err) => { if (err) { clearTimeout(timeout); entry.port.removeListener('data', onData); reject(new Error(`Write failed: ${err.message}`)); } });
+    });
+  }
+
+  async testConnection(config) {
+    try { await this.connect(config); const r = await this.sendCommand(config.deviceId || `test_${Date.now()}`, '', true); this.disconnect(config.deviceId || `test_${Date.now()}`); return { success: true, message: 'Console connection test passed', response: r.output }; }
+    catch (err) { return { success: false, message: err.message }; }
+  }
+
+  async sendInitialConfig(deviceId, configCommands) {
+    const entry = this.connections.get(deviceId);
+    if (!entry) throw new Error('Device not connected via console');
+    const commands = configCommands.split('\n').map(c => c.trim()).filter(c => c);
+    const results = [];
+    for (const cmd of commands) { try { const r = await this.sendCommand(deviceId, cmd, true); results.push({ command: cmd, output: r.output, success: true }); } catch (err) { results.push({ command: cmd, output: err.message, success: false }); } }
+    const successful = results.filter(r => r.success).length;
+    const failed = results.filter(r => !r.success).length;
+    return { success: failed === 0, results, summary: { total: commands.length, successful, failed }, fullOutput: results.map(r => `${r.command}\n${r.output}`).join('\n') };
+  }
+
+  getStatus(deviceId) { if (deviceId) { const e = this.connections.get(deviceId); return e ? { connected: true, portPath: e.portPath, connectedAt: e.createdAt } : { connected: false }; } return { activeSessions: this.connections.size }; }
+  disconnect(deviceId) { const e = this.connections.get(deviceId); if (e) { try { e.port.close(); } catch (x) {} this.connections.delete(deviceId); } }
+  async disconnectAll() { for (const [id] of this.connections) this.disconnect(id); }
 }
 
 // ─── Ollama Handler ───
