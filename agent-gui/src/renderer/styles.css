@@ -30,7 +30,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.5;
   overflow: hidden;
   height: 100vh;
@@ -53,7 +53,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -140,12 +140,12 @@ body {
 
 .status-text {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 15px;
   flex: 1;
 }
 
 .status-version {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-muted);
 }
 
@@ -171,7 +171,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -211,7 +211,7 @@ body {
 
 .form-group label {
   display: block;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: 4px;
@@ -226,7 +226,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 15px;
   font-family: inherit;
   outline: none;
   transition: border-color 0.15s;
@@ -264,7 +264,7 @@ body {
   padding: 7px 14px;
   border: none;
   border-radius: var(--radius-sm);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;
@@ -318,7 +318,7 @@ body {
 
 .btn-sm {
   padding: 5px 10px;
-  font-size: 11px;
+  font-size: 13px;
   background: var(--bg-tertiary);
   color: var(--text-secondary);
   border: none;
@@ -375,7 +375,7 @@ body {
 
 /* ─── Ollama ─── */
 .ollama-badge {
-  font-size: 11px;
+  font-size: 13px;
   padding: 2px 8px;
   border-radius: 10px;
   background: var(--bg-tertiary);
@@ -401,7 +401,7 @@ body {
   display: flex;
   align-items: center;
   padding: 3px 0;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .ollama-row .label {
@@ -450,7 +450,7 @@ body {
 
 .log-empty {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 14px;
   text-align: center;
   padding: 20px 0;
 }
@@ -459,7 +459,7 @@ body {
   display: flex;
   gap: 8px;
   padding: 3px 0;
-  font-size: 12px;
+  font-size: 14px;
   font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
   line-height: 1.6;
   animation: fadeIn 0.15s;
@@ -473,7 +473,7 @@ body {
 .log-time {
   color: var(--text-muted);
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .log-dot {
@@ -518,7 +518,7 @@ body {
 }
 
 .uninstall-info p {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-muted);
   line-height: 1.6;
 }
