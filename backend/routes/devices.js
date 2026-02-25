@@ -928,7 +928,23 @@ router.get('/:id/netconf/capabilities', async (req, res) => {
 // GET /api/devices/netconf/sessions - Get all active NETCONF sessions
 router.get('/netconf/sessions', async (req, res) => {
   try {
-    const activeSessions = netconfService.getActiveSessions();
+    let activeSessions = netconfService.getActiveSessions();
+    
+    // On Vercel serverless, in-memory sessions may be lost between invocations
+    // Fall back to querying the agent for active sessions
+    if (activeSessions.length === 0) {
+      try {
+        const agentOnline = await agentRelay.isAgentOnline(req.userId);
+        if (agentOnline) {
+          const agentResult = await agentRelay.sendToAgent(req.userId, 'agent:netconf:sessions', {}, 10000);
+          if (agentResult.success && agentResult.sessions?.length > 0) {
+            activeSessions = agentResult.sessions;
+          }
+        }
+      } catch (agentErr) {
+        console.warn('Failed to get sessions from agent:', agentErr.message);
+      }
+    }
     
     // Get user's devices
     const userDevices = await Device.find({ userId: req.userId }).select('_id name ip_address type');
@@ -1102,15 +1118,15 @@ router.post('/:id/netconf/disconnect', async (req, res) => {
     
     console.log(`🌐 Disconnecting NETCONF session from ${device.name}`);
     
-    // Check if this is an agent-proxied session
-    if (netconfService.isAgentSession(id)) {
+    // Disconnect via agent if session was agent-proxied or agent is online
+    // On Vercel serverless, isAgentSession() may be false due to lost in-memory state
+    const isAgent = netconfService.isAgentSession(id);
+    const agentOnline = !isAgent ? await agentRelay.isAgentOnline(req.userId) : true;
+    
+    if (isAgent || agentOnline) {
       netconfService.removeAgentSession(id);
-      // Also tell the agent to disconnect
       try {
-        const agentOnline = await agentRelay.isAgentOnline(req.userId);
-        if (agentOnline) {
-          await agentRelay.sendToAgent(req.userId, 'agent:netconf:disconnect', { deviceId: id }, 5000);
-        }
+        await agentRelay.sendToAgent(req.userId, 'agent:netconf:disconnect', { deviceId: id }, 5000);
       } catch (agentErr) {
         console.warn(`⚠️ Failed to disconnect agent NETCONF: ${agentErr.message}`);
       }
@@ -1150,7 +1166,12 @@ router.post('/:id/netconf/get', async (req, res) => {
     const startTime = Date.now();
     
     // Route through agent relay for agent-proxied sessions
-    if (netconfService.isAgentSession(id)) {
+    // On Vercel serverless, in-memory session state is lost between invocations,
+    // so also check if agent is online as fallback
+    const isAgentSession = netconfService.isAgentSession(id);
+    const agentOnline = !isAgentSession ? await agentRelay.isAgentOnline(req.userId) : true;
+    
+    if (isAgentSession || agentOnline) {
       // Build full RPC body for agent
       let filterXml = '';
       if (filter) {
@@ -1159,8 +1180,13 @@ router.post('/:id/netconf/get', async (req, res) => {
       const rpcBody = `<get>${filterXml}</get>`;
       result = await agentRelay.sendToAgent(req.userId, 'agent:netconf:rpc', {
         deviceId: id,
-        rpcBody
-      }, 30000);
+        rpcBody,
+        // Include credentials for auto-connect if agent session was lost
+        host: device.ip_address,
+        port: device.netconf_port || 830,
+        username: device.username,
+        password: device.password
+      }, 45000);
       const executionTime = Date.now() - startTime;
       return res.json({
         success: true,
@@ -1171,7 +1197,7 @@ router.post('/:id/netconf/get', async (req, res) => {
       });
     }
     
-    // Direct NETCONF path
+    // Direct NETCONF path (local/desktop mode only)
     // Build filter XML
     let filterXml = '';
     if (filter) {
@@ -1231,11 +1257,21 @@ router.post('/:id/netconf/get-config', async (req, res) => {
     const startTime = Date.now();
     
     // Route through agent relay for agent-proxied sessions
-    if (netconfService.isAgentSession(id)) {
+    // On Vercel serverless, in-memory session state is lost between invocations,
+    // so also check if agent is online as fallback
+    const isAgentSession = netconfService.isAgentSession(id);
+    const agentOnline = !isAgentSession ? await agentRelay.isAgentOnline(req.userId) : true;
+    
+    if (isAgentSession || agentOnline) {
       result = await agentRelay.sendToAgent(req.userId, 'agent:netconf:get-config', {
         deviceId: id,
-        filter: filter || ''
-      }, 30000);
+        filter: filter || '',
+        // Include credentials for auto-connect if agent session was lost
+        host: device.ip_address,
+        port: device.netconf_port || 830,
+        username: device.username,
+        password: device.password
+      }, 45000);
       const executionTime = Date.now() - startTime;
       return res.json({
         success: true,
@@ -1247,7 +1283,7 @@ router.post('/:id/netconf/get-config', async (req, res) => {
       });
     }
     
-    // Direct NETCONF path
+    // Direct NETCONF path (local/desktop mode only)
     // Ensure NETCONF session is active
     const sessionStatus = netconfService.getSessionStatus(id);
     if (!sessionStatus?.isConnected) {
@@ -1302,11 +1338,21 @@ router.post('/:id/netconf/rpc', async (req, res) => {
     const startTime = Date.now();
     
     // Route through agent relay for agent-proxied sessions
-    if (netconfService.isAgentSession(id)) {
+    // On Vercel serverless, in-memory session state is lost between invocations,
+    // so also check if agent is online as fallback
+    const isAgentSession = netconfService.isAgentSession(id);
+    const agentOnline = !isAgentSession ? await agentRelay.isAgentOnline(req.userId) : true;
+    
+    if (isAgentSession || agentOnline) {
       result = await agentRelay.sendToAgent(req.userId, 'agent:netconf:rpc', {
         deviceId: id,
-        rpcBody: rpc_content
-      }, 30000);
+        rpcBody: rpc_content,
+        // Include credentials for auto-connect if agent session was lost
+        host: device.ip_address,
+        port: device.netconf_port || 830,
+        username: device.username,
+        password: device.password
+      }, 45000);
       const executionTime = Date.now() - startTime;
       return res.json({
         success: true,
@@ -1317,7 +1363,7 @@ router.post('/:id/netconf/rpc', async (req, res) => {
       });
     }
     
-    // Direct NETCONF path
+    // Direct NETCONF path (local/desktop mode only)
     // Ensure NETCONF session is active
     const sessionStatus = netconfService.getSessionStatus(id);
     if (!sessionStatus?.isConnected) {

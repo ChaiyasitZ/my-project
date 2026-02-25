@@ -204,12 +204,15 @@ class HttpPollingClient extends EventEmitter {
           result = { success: true };
           break;
         case 'agent:netconf:get-config':
+          await this.handlers.netconf.ensureConnected(data);
           result = await this.handlers.netconf.getConfig(data.deviceId, data.filter);
           break;
         case 'agent:netconf:edit-config':
+          await this.handlers.netconf.ensureConnected(data);
           result = await this.handlers.netconf.editConfig(data.deviceId, data.config);
           break;
         case 'agent:netconf:rpc':
+          await this.handlers.netconf.ensureConnected(data);
           result = await this.handlers.netconf.sendRPC(data.deviceId, data.rpcBody);
           break;
         case 'agent:console:list-ports':
@@ -239,6 +242,11 @@ class HttpPollingClient extends EventEmitter {
             connections: { ssh: this.handlers.ssh.getStatus(), netconf: this.handlers.netconf.getStatus() },
             ollama: ollamaStatus
           };
+          break;
+        }
+        case 'agent:netconf:sessions': {
+          const sessions = this.handlers.netconf.getActiveSessions();
+          result = { success: true, sessions };
           break;
         }
         case 'agent:ping':
@@ -435,9 +443,27 @@ class SSHHandler {
 class NetconfHandler {
   constructor() { this.connections = new Map(); }
 
+  isConnected(deviceId) {
+    return this.connections.has(deviceId);
+  }
+
+  async ensureConnected(data) {
+    if (this.isConnected(data.deviceId)) return;
+    if (!data.host) throw new Error('Not connected via NETCONF and no credentials provided for auto-connect');
+    console.log(`🔄 Auto-connecting NETCONF to ${data.host} for device ${data.deviceId}...`);
+    await this.connect(data);
+  }
+
   async connect(data) {
     const { Client } = require('ssh2');
     const { deviceId, host, port = 830, username, password } = data;
+
+    // Already connected — return existing session
+    const existing = this.connections.get(deviceId);
+    if (existing) {
+      return { success: true, message: `Already connected to ${host}`, capabilities: existing.capabilities, alreadyConnected: true };
+    }
+
     return new Promise((resolve, reject) => {
       const conn = new Client();
       const timeout = setTimeout(() => { conn.end(); reject(new Error('NETCONF connection timeout')); }, 30000);
@@ -461,7 +487,7 @@ class NetconfHandler {
               while ((match = capRegex.exec(buffer)) !== null) {
                 capabilities.push(match[1].trim());
               }
-              this.connections.set(deviceId, { conn, stream, capabilities });
+              this.connections.set(deviceId, { conn, stream, capabilities, connectedAt: new Date().toISOString() });
               resolve({ success: true, message: `NETCONF connected to ${host}`, capabilities });
             }
           });
@@ -512,6 +538,19 @@ class NetconfHandler {
   }
 
   getStatus() { return { activeConnections: this.connections.size }; }
+  getActiveSessions() {
+    const sessions = [];
+    for (const [deviceId, entry] of this.connections) {
+      sessions.push({
+        deviceId,
+        isConnected: true,
+        agentSession: true,
+        capabilities: entry.capabilities?.length || 0,
+        connectedAt: entry.connectedAt || null
+      });
+    }
+    return sessions;
+  }
   async disconnectAll() { for (const [id] of this.connections) this.disconnect(id); }
 }
 
