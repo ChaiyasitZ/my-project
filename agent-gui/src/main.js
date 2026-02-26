@@ -149,17 +149,30 @@ class HttpPollingClient extends EventEmitter {
           const bk = data;
           try {
             await this.handlers.ssh.connect({ deviceId: bk.deviceId, host: bk.host, port: bk.port || 22, username: bk.username, password: bk.password });
-            const runResult = await this.handlers.ssh.executeCommand(bk.deviceId, 'terminal length 0\nshow running-config');
+            
+            // Use shell for backup to properly handle multi-command sequences
+            const runResult = await this.handlers.ssh.execBackupCommands(bk.deviceId, 'running-config');
             let startupResult = { output: '' };
             if (bk.configType !== 'running-config') {
-              try { startupResult = await this.handlers.ssh.executeCommand(bk.deviceId, 'show startup-config'); } catch (e) {}
+              try { startupResult = await this.handlers.ssh.execBackupCommands(bk.deviceId, 'startup-config'); } catch (e) {}
             }
             this.handlers.ssh.disconnect(bk.deviceId);
-            // Clean config output (remove command echo and trailing prompts)
+            // Clean config output (remove ANSI codes, command echo, and trailing prompts)
             const cleanConfig = (raw) => {
-              const lines = raw.split('\n');
-              const start = lines.findIndex(l => l.includes('Current configuration') || l.includes('version '));
-              return start >= 0 ? lines.slice(start).join('\n').trim() : raw.trim();
+              // Strip ANSI escape sequences
+              let cleaned = raw.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '');
+              const lines = cleaned.split('\n');
+              // Find the start of actual config (e.g., "Current configuration" or "version ")
+              const start = lines.findIndex(l => l.includes('Current configuration') || /^version\s/.test(l.trim()));
+              if (start < 0) return cleaned.trim();
+              // Find the end (last "end" line or line with device prompt like "Router#")
+              let end = lines.length;
+              for (let i = lines.length - 1; i > start; i--) {
+                const trimmed = lines[i].trim();
+                if (trimmed === 'end') { end = i + 1; break; }
+                if (trimmed && !trimmed.match(/^[A-Za-z0-9_\-\.]+[#>]\s*$/)) { end = i + 1; break; }
+              }
+              return lines.slice(start, end).join('\n').trim();
             };
             const runningConfig = cleanConfig(runResult.output || '');
             const startupConfig = startupResult.output ? cleanConfig(startupResult.output) : '';
@@ -394,6 +407,42 @@ class SSHHandler {
     });
   }
 
+  /**
+   * Execute backup commands via interactive shell.
+   * Uses shell to properly send 'terminal length 0' then 'show running/startup-config'
+   * as separate commands, since SSH exec doesn't support multi-command sequences on Cisco.
+   */
+  async execBackupCommands(deviceId, configType = 'running-config') {
+    const conn = this.connections.get(deviceId);
+    if (!conn) throw new Error('Not connected');
+    return new Promise((resolve, reject) => {
+      conn.shell((err, stream) => {
+        if (err) return reject(err);
+        let output = '';
+        let settled = false;
+        const timeout = setTimeout(() => {
+          if (!settled) { settled = true; stream.end(); resolve({ output }); }
+        }, 20000);
+        stream.on('data', (d) => {
+          output += d.toString();
+        });
+        stream.on('close', () => {
+          if (!settled) { settled = true; clearTimeout(timeout); resolve({ output }); }
+        });
+        // Wait for initial prompt, then send commands
+        setTimeout(() => {
+          stream.write('terminal length 0\n');
+          setTimeout(() => {
+            stream.write(`show ${configType}\n`);
+            // Wait for output to complete, then close
+            setTimeout(() => {
+              if (!settled) { settled = true; clearTimeout(timeout); stream.end(); resolve({ output }); }
+            }, 8000);
+          }, 1000);
+        }, 1000);
+      });
+    });
+  }
   async sendConfig(deviceId, commands, enablePassword) {
     const conn = this.connections.get(deviceId);
     if (!conn) throw new Error('Not connected');

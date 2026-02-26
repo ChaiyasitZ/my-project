@@ -26,7 +26,7 @@ async function backupViaAgent(userId, device, configType = 'both') {
       username: device.username,
       password: device.password,
       configType
-    }, 25000);
+    }, 45000);
     if (result.pending) {
       return { success: true, runningConfig: '', startupConfig: '', runningConfigSize: 0, startupConfigSize: 0, configType, pending: true, commandId: result.commandId };
     }
