@@ -496,10 +496,18 @@ ${indentedConfig}
     const file = e.target.files[0];
     if (!file) return;
     
+    // Check file size (Vercel has 4.5MB body limit)
+    const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB to be safe
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is 4MB.`);
+      e.target.value = '';
+      return;
+    }
+    
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target.result;
-      const nameFromFile = file.name.replace('.yang', '');
+      const nameFromFile = file.name.replace(/\.yang$/i, '');
       
       // Parse YANG file to extract metadata
       const parsedData = parseYangFile(content, nameFromFile);
@@ -2659,7 +2667,7 @@ ${indentedConfig}
           {/* Modal Container */}
           <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto pointer-events-auto animate-fade-in">
-            <div className="p-4 border-b sticky top-0 bg-white z-10">
+            <div className="p-4 border-b dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <UploadIcon className="h-5 w-5 text-purple-600" />
                 Upload YANG Model
@@ -2753,7 +2761,7 @@ ${indentedConfig}
                       <div>
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Namespace URI</label>
                         <input
-                          type="url"
+                          type="text"
                           value={yangFormData.namespace}
                           onChange={(e) => setYangFormData({ ...yangFormData, namespace: e.target.value })}
                           className="input font-mono text-sm"
