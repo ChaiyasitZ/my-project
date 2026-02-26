@@ -16,7 +16,7 @@ const router = express.Router();
  * Create a backup via agent relay (preferred) or direct SSH (fallback).
  * Returns { success, runningConfig, startupConfig, runningConfigSize, startupConfigSize, configType }
  */
-async function backupViaAgent(userId, device, configType = 'both') {
+async function backupViaAgent(userId, device, configType = 'both', timeoutMs = 45000) {
   const agentOnline = await agentRelay.isAgentOnline(userId);
   if (agentOnline) {
     const result = await agentRelay.sendToAgent(userId, 'agent:ssh:backup', {
@@ -26,7 +26,7 @@ async function backupViaAgent(userId, device, configType = 'both') {
       username: device.username,
       password: device.password,
       configType
-    }, 45000);
+    }, timeoutMs);
     if (result.pending) {
       return { success: true, runningConfig: '', startupConfig: '', runningConfigSize: 0, startupConfigSize: 0, configType, pending: true, commandId: result.commandId };
     }
@@ -53,7 +53,7 @@ async function deployViaAgent(userId, device, configCommands) {
       password: device.password,
       commands: configCommands,
       enablePassword: device.enable_password
-    }, 25000);
+    }, 45000);
     if (!result.success && !result.pending) {
       throw new Error(result.error || result.message || 'Agent deployment failed');
     }
@@ -800,11 +800,11 @@ router.post('/:id/restore', async (req, res) => {
     }
     
     try {
-      // Create a pre-restore checkpoint if requested
+      // Create a pre-restore checkpoint if requested (shorter timeout to leave time for deploy)
       let checkpointId = null;
       if (create_checkpoint) {
         try {
-          const checkpointResult = await backupViaAgent(req.userId, device, 'both');
+          const checkpointResult = await backupViaAgent(req.userId, device, 'both', 15000);
           if (checkpointResult.success) {
             const checkpointHash = crypto
               .createHash('sha256')
@@ -873,8 +873,28 @@ router.post('/:id/restore', async (req, res) => {
       
       const restoreResult = await deployViaAgent(req.userId, device, configToRestore);
       
-      if (!restoreResult.success) {
-        throw new Error('Failed to restore configuration');
+      if (!restoreResult.success && !restoreResult.pending) {
+        throw new Error(restoreResult.error || restoreResult.message || 'Failed to restore configuration');
+      }
+      
+      // If pending (agent still processing), wait a bit longer and check once more
+      if (restoreResult.pending && restoreResult.commandId) {
+        const { default: AgentCommand } = await import('../models/AgentCommand.js');
+        // Give the agent extra time to finish
+        for (let i = 0; i < 30; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          const cmd = await AgentCommand.findById(restoreResult.commandId);
+          if (cmd && cmd.status === 'completed') {
+            Object.assign(restoreResult, { success: true, ...(cmd.result || {}) });
+            break;
+          }
+          if (cmd && cmd.status === 'failed') {
+            throw new Error(cmd.error || 'Agent deployment failed');
+          }
+        }
+        if (!restoreResult.success) {
+          throw new Error('Restore timed out - the agent may still be applying configuration. Check device status.');
+        }
       }
       
       // Find and mark the last deployed configuration as rolled_back
