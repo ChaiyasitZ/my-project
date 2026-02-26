@@ -291,8 +291,8 @@ router.get('/:id/preview', async (req, res) => {
       backup: {
         id: backup._id,
         backup_name: backup.backup_name,
-        device_name: backup.device_name,
-        device_type: backup.device_type,
+        device_name: device.name,
+        device_type: device.type,
         backup_type: backup.backup_type,
         file_size: backup.file_size,
         created_at: backup.createdAt,
