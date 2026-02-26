@@ -1571,18 +1571,6 @@ ${indentedConfig}
             <h2 className="text-base font-medium text-gray-900 dark:text-white">Configuration Preview</h2>
             {generatedConfig && generatedConfig.status === 'generated' && (
               <div className="flex items-center space-x-4">
-                {/* NETCONF Options */}
-                {generatedConfig.config_type === 'netconf-yang' && (
-                  <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={validateBeforeApply}
-                      onChange={(e) => setValidateBeforeApply(e.target.checked)}
-                      className="h-4 w-4 text-purple-600 rounded border-gray-300 dark:border-gray-600 focus:ring-purple-500"
-                    />
-                    <span>Validate before apply</span>
-                  </label>
-                )}
                 <button
                   onClick={handleApplyConfiguration}
                   disabled={isApplying}
