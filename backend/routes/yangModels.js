@@ -36,7 +36,7 @@ const yangModelSchema = Joi.object({
 router.get('/', async (req, res) => {
   try {
     const { device_type, category, active_only = 'true' } = req.query;
-    const userId = req.user.id;
+    const userId = req.userId;
     
     let query = { userId };
     
@@ -74,7 +74,7 @@ router.get('/', async (req, res) => {
 // GET /api/yang-models/:id - Get single YANG model with full content
 router.get('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
     const yangModel = await YangModel.findOne({ _id: req.params.id, userId });
     
     if (!yangModel) {
@@ -103,7 +103,7 @@ router.post('/', async (req, res) => {
   try {
     console.log('📥 YANG model upload request received');
     console.log('📦 Request body keys:', Object.keys(req.body));
-    const userId = req.user.id;
+    const userId = req.userId;
     
     const { error, value } = yangModelSchema.validate(req.body);
     
@@ -164,7 +164,7 @@ router.post('/', async (req, res) => {
 // PUT /api/yang-models/:id - Update YANG model
 router.put('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
     const yangModel = await YangModel.findOne({ _id: req.params.id, userId });
     
     if (!yangModel) {
@@ -209,7 +209,7 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/yang-models/:id - Delete YANG model
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
     const yangModel = await YangModel.findOneAndDelete({ _id: req.params.id, userId });
     
     if (!yangModel) {
@@ -237,7 +237,7 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/templates', async (req, res) => {
   try {
     const { name, description, template } = req.body;
-    const userId = req.user.id;
+    const userId = req.userId;
     
     if (!name || !template) {
       return res.status(400).json({
@@ -278,7 +278,7 @@ router.get('/for-generation/:deviceType', async (req, res) => {
   try {
     const { deviceType } = req.params;
     const { category } = req.query;
-    const userId = req.user.id;
+    const userId = req.userId;
     
     let query = {
       userId,
@@ -323,7 +323,7 @@ router.get('/for-generation/:deviceType', async (req, res) => {
 // POST /api/yang-models/toggle/:id - Toggle active status
 router.post('/toggle/:id', async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
     const yangModel = await YangModel.findOne({ _id: req.params.id, userId });
     
     if (!yangModel) {
