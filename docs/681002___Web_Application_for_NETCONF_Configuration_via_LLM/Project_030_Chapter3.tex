@@ -44,7 +44,7 @@
     \item \textbf{Deployment:} Vercel Serverless Functions สำหรับ Deploy backend แบบ Serverless
     \item \textbf{Database:} MongoDB Atlas พร้อม Mongoose ODM สำหรับจัดการข้อมูล
     \item \textbf{Authentication:} Google OAuth 2.0 สำหรับการยืนยันตัวตนผู้ใช้
-    \item \textbf{Agent Relay:} ระบบ Command Queue ผ่าน MongoDB เพื่อสื่อสารกับ Desktop Agent แบบ HTTP Polling
+    \item \textbf{Agent Relay:} ระบบ Command Queue ผ่าน MongoDB เพื่อสื่อสารกับ Desktop Agent แบบ HTTP Polling (Long-polling สูงสุด 55 วินาที พร้อม Extended Polling สำหรับ Restore)
 \end{mycustomitem2}
 
 \subsection{Frontend Development (Client-side)}
@@ -59,10 +59,13 @@
 \subsection{Desktop Agent (Electron Application)}
 \begin{mycustomitem2}
     \item \textbf{Framework:} Electron สำหรับสร้าง Desktop Application ที่รันบนเครื่องผู้ใช้
-    \item \textbf{Communication:} HTTP Polling ทุก 2 วินาทีเพื่อรับคำสั่งจาก Backend ผ่าน Agent Relay
-    \item \textbf{Network Protocols:} SSH2 สำหรับเชื่อมต่อกับอุปกรณ์เครือข่าย, NETCONF over SSH (Port 830)
+    \item \textbf{Communication:} HTTP Polling ทุก 2 วินาทีเพื่อรับคำสั่งจาก Backend ผ่าน Agent Relay (Long-polling สูงสุด 55 วินาที)
+    \item \textbf{Network Protocols:} SSH2 สำหรับเชื่อมต่อกับอุปกรณ์เครือข่าย (รองรับ Interactive Shell สำหรับ Backup), NETCONF over SSH (Port 830) พร้อม Auto-Connect
     \item \textbf{LLM Integration:} Ollama API สำหรับเชื่อมต่อกับ LLM models ที่รันบนเครื่องผู้ใช้ (qwen2.5-coder:7b)
-    \item \textbf{Serial Console:} SerialPort สำหรับเชื่อมต่ออุปกรณ์ผ่าน Console Port
+    \item \textbf{Serial Console:} SerialPort สำหรับเชื่อมต่ออุปกรณ์ผ่าน Console Port พร้อมแสดง Port ทุกประเภท (USB-to-Serial, Bluetooth, Serial) โดยไม่กรองออก
+    \item \textbf{Console Relay:} ระบบตรวจจับ SerialPort availability (\texttt{serialPortAvailable} flag) เพื่อ Relay คำสั่ง Console ไปยัง Desktop Agent อัตโนมัติบน Vercel Serverless ที่ไม่สามารถใช้ Native Module ได้
+    \item \textbf{NETCONF Auto-Connect:} ระบบเชื่อมต่อ NETCONF อัตโนมัติเมื่อต้องการดำเนินการ (ensureConnected) เพื่อรองรับ Vercel Serverless ที่ไม่มี persistent state
+    \item \textbf{Backup Interactive Shell:} ใช้ Interactive Shell แทน Single Exec เพื่อรองรับ Multi-command Sequence บนอุปกรณ์ Cisco
 \end{mycustomitem2}
 
 \subsection{Intelligent Services}
@@ -442,7 +445,7 @@
         \hline
         \textbf{Data Flow Name:} & คำขอสำรองคอนฟิก \\
         \hline
-        \textbf{Description:} & คำขอจากผู้ใช้เพื่อสำรองคอนฟิกผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH จากอุปกรณ์เครือข่าย \\
+        \textbf{Description:} & คำขอจากผู้ใช้เพื่อสำรองคอนฟิกผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH (Interactive Shell) จากอุปกรณ์เครือข่าย โดย Agent จะเชื่อมต่อ SSH อัตโนมัติ ส่งคำสั่ง terminal length 0 และ show running-config/show startup-config ผ่าน Interactive Shell แยกคำสั่ง พร้อมทำความสะอาดผลลัพธ์ (ลบ ANSI codes, Command Echo และ Device Prompt) \\
         \hline
         \textbf{Source:} & ผู้ใช้ (User) \\
         \hline
@@ -587,10 +590,11 @@
         \hline
         \textbf{Data Structure:} & Agent Command = \{ \nonumber \\
                         & \hspace{1em} ``userId'' : ``รหัสผู้ใช้ (ObjectId)'', \nonumber \\
-                        & \hspace{1em} ``event'' : ``ssh:connect | netconf:deploy | ollama:generate | ...'', \nonumber \\
-                        & \hspace{1em} ``data'' : ``ข้อมูลคำสั่ง (Object)'', \nonumber \\
+                        & \hspace{1em} ``event'' : ``ssh:connect | ssh:backup | ssh:deploy-config | netconf:get | netconf:get-config | netconf:rpc | ollama:generate | ...'', \nonumber \\
+                        & \hspace{1em} ``data'' : ``ข้อมูลคำสั่ง (Object) รวมถึง Credentials สำหรับ Auto-Connect'', \nonumber \\
                         & \hspace{1em} ``status'' : ``pending | processing | completed | failed'', \nonumber \\
                         & \hspace{1em} ``result'' : ``ผลลัพธ์จาก Agent (Object)'', \nonumber \\
+                        & \hspace{1em} ``error'' : ``ข้อผิดพลาด (String, ถ้ามี)'', \nonumber \\
                         & \hspace{1em} ``createdAt'' : ``เวลาที่สร้าง (Auto)'' \nonumber \\
                         & \} \\
         \hline
