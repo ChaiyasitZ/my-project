@@ -73,29 +73,13 @@ export class ConsoleService {
         };
       });
 
-      // Filter out ports that are likely not real serial devices on Windows
-      const validPorts = formattedPorts.filter(port => {
-        // Skip virtual ports that might cause issues
-        const skipPatterns = [
-          'bluetooth',
-          'virtual',
-          'loopback'
-        ];
-        
-        const lowerPath = port.path.toLowerCase();
-        const lowerName = port.friendlyName.toLowerCase();
-        
-        return !skipPatterns.some(pattern => 
-          lowerPath.includes(pattern) || lowerName.includes(pattern)
-        );
-      });
-
-      console.log(`🔌 Found ${validPorts.length} valid serial ports (filtered from ${formattedPorts.length} total)`);
+      // Show all ports (no filtering) so users can see USB, serial, etc.
+      console.log(`🔌 Found ${formattedPorts.length} serial ports`);
       
       return {
         success: true,
-        ports: validPorts,
-        count: validPorts.length
+        ports: formattedPorts,
+        count: formattedPorts.length
       };
     } catch (error) {
       console.error('❌ Error listing serial ports:', error.message);

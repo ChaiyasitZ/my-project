@@ -610,6 +610,7 @@ class ConsoleHandler {
   async listPorts() {
     const { SerialPort } = require('serialport');
     const ports = await SerialPort.list();
+    console.log(`🔌 SerialPort.list() found ${ports.length} ports:`, ports.map(p => p.path));
     const formatted = ports.map(port => {
       let displayName = port.path;
       if (port.manufacturer && !port.manufacturer.includes('Unknown')) {
@@ -623,10 +624,9 @@ class ConsoleHandler {
         cleanName = cleanName.replace('USB Serial Port', 'USB Serial');
         if (cleanName && cleanName !== port.path) displayName = `${port.path} - ${cleanName}`;
       }
-      return { path: port.path, manufacturer: port.manufacturer || 'Unknown', serialNumber: port.serialNumber || 'N/A', vendorId: port.vendorId || 'N/A', productId: port.productId || 'N/A', friendlyName: displayName, isUSB: !!(port.vendorId || port.manufacturer?.toLowerCase().includes('usb')) };
+      return { path: port.path, manufacturer: port.manufacturer || 'Unknown', serialNumber: port.serialNumber || 'N/A', vendorId: port.vendorId || 'N/A', productId: port.productId || 'N/A', friendlyName: displayName, isUSB: !!(port.vendorId || port.manufacturer?.toLowerCase().includes('usb') || (port.friendlyName && port.friendlyName.toLowerCase().includes('usb'))) };
     });
-    const valid = formatted.filter(p => { const l = (p.path + p.friendlyName).toLowerCase(); return !['bluetooth', 'virtual', 'loopback'].some(s => l.includes(s)); });
-    return { success: true, ports: valid, count: valid.length };
+    return { success: true, ports: formatted, count: formatted.length };
   }
 
   async connect(config) {
