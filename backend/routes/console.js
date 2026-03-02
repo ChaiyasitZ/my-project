@@ -62,12 +62,18 @@ router.get('/ports', async (req, res) => {
   try {
     console.log('🔌 Fetching available serial ports');
     let result;
-    try {
-      result = await consoleService.getAvailablePorts();
-    } catch (localErr) {
-      // Serverless mode - relay to agent
-      console.log('🔄 serialport not available locally, relaying to agent...');
+    
+    // On serverless (Vercel), serialport is not available — go directly to agent
+    if (!consoleService.serialPortAvailable) {
+      console.log('🔄 serialport not available (serverless), relaying to agent...');
       result = await agentRelay.sendToAgent(req.userId, 'agent:console:list-ports', {});
+    } else {
+      try {
+        result = await consoleService.getAvailablePorts();
+      } catch (localErr) {
+        console.log('🔄 serialport error, relaying to agent...');
+        result = await agentRelay.sendToAgent(req.userId, 'agent:console:list-ports', {});
+      }
     }
     
     res.json({
@@ -111,11 +117,16 @@ router.post('/connect', async (req, res) => {
 
     console.log(`🔌 Console connection request for port ${value.portPath} (Device ID: ${value.deviceId})`);
     let result;
-    try {
-      result = await consoleService.connectConsole(value);
-    } catch (localErr) {
+    if (!consoleService.serialPortAvailable) {
       console.log('🔄 Relaying console connect to agent...');
       result = await agentRelay.sendToAgent(req.userId, 'agent:console:connect', value);
+    } else {
+      try {
+        result = await consoleService.connectConsole(value);
+      } catch (localErr) {
+        console.log('🔄 Relaying console connect to agent...');
+        result = await agentRelay.sendToAgent(req.userId, 'agent:console:connect', value);
+      }
     }
     
     res.json({
@@ -159,7 +170,12 @@ router.post('/disconnect', async (req, res) => {
     }
 
     try {
-      await consoleService.disconnectConsole(finalDeviceId);
+      if (!consoleService.serialPortAvailable) {
+        console.log('🔄 Relaying console disconnect to agent...');
+        await agentRelay.sendToAgent(req.userId, 'agent:console:disconnect', { deviceId: finalDeviceId });
+      } else {
+        await consoleService.disconnectConsole(finalDeviceId);
+      }
     } catch (localErr) {
       console.log('🔄 Relaying console disconnect to agent...');
       await agentRelay.sendToAgent(req.userId, 'agent:console:disconnect', { deviceId: finalDeviceId });
@@ -199,11 +215,16 @@ router.post('/test', async (req, res) => {
 
     console.log(`🧪 Testing console connection for port ${value.portPath} (Device ID: ${value.deviceId})`);
     let result;
-    try {
-      result = await consoleService.testConsoleConnection(value);
-    } catch (localErr) {
+    if (!consoleService.serialPortAvailable) {
       console.log('🔄 Relaying console test to agent...');
       result = await agentRelay.sendToAgent(req.userId, 'agent:console:test', value);
+    } else {
+      try {
+        result = await consoleService.testConsoleConnection(value);
+      } catch (localErr) {
+        console.log('🔄 Relaying console test to agent...');
+        result = await agentRelay.sendToAgent(req.userId, 'agent:console:test', value);
+      }
     }
     
     res.json({
@@ -245,11 +266,16 @@ router.post('/command', async (req, res) => {
     console.log(`📝 Sending console command to device ${deviceId}: ${command}`);
     
     let result;
-    try {
-      result = await consoleService.sendConsoleCommand(deviceId, command, waitForPrompt);
-    } catch (localErr) {
+    if (!consoleService.serialPortAvailable) {
       console.log('🔄 Relaying console command to agent...');
       result = await agentRelay.sendToAgent(req.userId, 'agent:console:command', { deviceId, command, waitForPrompt });
+    } else {
+      try {
+        result = await consoleService.sendConsoleCommand(deviceId, command, waitForPrompt);
+      } catch (localErr) {
+        console.log('🔄 Relaying console command to agent...');
+        result = await agentRelay.sendToAgent(req.userId, 'agent:console:command', { deviceId, command, waitForPrompt });
+      }
     }
     
     res.json({
@@ -291,11 +317,16 @@ router.post('/initial-config', async (req, res) => {
     console.log(`🔧 Starting initial configuration for device ${deviceId}`);
     
     let result;
-    try {
-      result = await consoleService.sendInitialConfig(deviceId, configCommands, deviceInfo);
-    } catch (localErr) {
+    if (!consoleService.serialPortAvailable) {
       console.log('🔄 Relaying initial config to agent...');
       result = await agentRelay.sendToAgent(req.userId, 'agent:console:initial-config', { deviceId, configCommands }, 30000);
+    } else {
+      try {
+        result = await consoleService.sendInitialConfig(deviceId, configCommands, deviceInfo);
+      } catch (localErr) {
+        console.log('🔄 Relaying initial config to agent...');
+        result = await agentRelay.sendToAgent(req.userId, 'agent:console:initial-config', { deviceId, configCommands }, 30000);
+      }
     }
     
     // Save configuration to database if successful

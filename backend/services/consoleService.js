@@ -12,6 +12,7 @@ try {
 export class ConsoleService {
   constructor() {
     this.connections = new Map(); // Store active console connections
+    this.serialPortAvailable = !!SerialPort;
     this.defaultSettings = {
       baudRate: 9600,
       dataBits: 8,
