@@ -653,6 +653,14 @@
         \hline
         5 & YangModel & จัดเก็บข้อมูล YANG Model ที่ใช้สำหรับ NETCONF Configuration \\
         \hline
+        6 & AgentCommand & คิวคำสั่งสำหรับ Agent Relay (HTTP Polling) ระหว่าง Backend กับ Desktop Agent \\
+        \hline
+        7 & AgentHeartbeat & ติดตามสถานะ Online/Offline ของ Desktop Agent ผ่าน Heartbeat \\
+        \hline
+        8 & Notification & เก็บ Event Notifications สำหรับ Frontend Polling (แทน Socket.IO) \\
+        \hline
+        9 & ShellSession & Buffer ข้อมูล Interactive Shell I/O สำหรับ SSH Terminal ผ่าน Polling \\
+        \hline
     \end{tabularx}
 \end{table}
 
@@ -878,29 +886,159 @@
         \hline
         \_id & ObjectId & รหัส YANG Model (Primary Key) \\
         \hline
-        userId & ObjectId & รหัสผู้ใช้ (Foreign Key $\rightarrow$ User) \\
+        userId & ObjectId & รหัสผู้ใช้ (Foreign Key $\rightarrow$ User, Required) \\
         \hline
-        name & String(255) & ชื่อ YANG Model (Required) \\
+        name & String & ชื่อ YANG Model (Required, Unique per user) \\
         \hline
-        version & String(50) & เวอร์ชันของ Model \\
+        namespace & String & Namespace ของ YANG Model \\
         \hline
-        organization & String(255) & องค์กรที่พัฒนา Model \\
+        prefix & String & Prefix ของ YANG Model \\
         \hline
-        content & String & เนื้อหา YANG Model (Required) \\
+        version & String & เวอร์ชันของ Model (default: 1.0.0) \\
         \hline
-        device\_type & Enum & ประเภทอุปกรณ์: router, switch, nexus, ios-xe \\
+        device\_type & Enum & ประเภทอุปกรณ์: nexus, ios, ios-xe, ios-xr, all \\
         \hline
-        category & String(100) & หมวดหมู่: interface, routing, switching, security, system \\
+        category & Enum & หมวดหมู่: interface, routing, switching, security, qos, system, other \\
         \hline
         description & String & คำอธิบาย Model \\
         \hline
-        file\_size & Number & ขนาดไฟล์ (bytes) \\
+        yang\_content & String & เนื้อหา YANG Model (Required) \\
+        \hline
+        xml\_templates & Array[Object] & ตัวอย่าง XML Templates (name, description, template) \\
+        \hline
+        config\_paths & Array[Object] & Key Paths สำหรับ Configuration (path, description, data\_type) \\
+        \hline
+        is\_active & Boolean & สถานะการใช้งาน (default: true) \\
         \hline
         is\_custom & Boolean & เป็น Custom Model หรือไม่ (default: false) \\
         \hline
-        createdAt & Date & วันที่สร้าง (Auto) \\
+        uploaded\_by & String & ผู้อัปโหลด (default: system) \\
         \hline
-        updatedAt & Date & วันที่แก้ไข (Auto) \\
+        created\_at & Number & เวลาที่สร้าง (Timestamp) \\
+        \hline
+        updated\_at & Number & เวลาที่อัปเดต (Timestamp) \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+% =====================================================
+% Table: AgentCommand Structure
+% =====================================================
+
+\begin{table}[H]
+    \caption{\fontSixTeen{โครงสร้างตาราง AgentCommand}}
+    \label{tab:agent-command-structure}
+    \fontSixTeen 
+    \begin{tabularx}{\textwidth}{|l|l|X|} 
+        \hline
+        \multicolumn{1}{|c|}{\textbf{ฟิลด์}} & \multicolumn{1}{c|}{\textbf{ประเภท}} & \multicolumn{1}{c|}{\textbf{คำอธิบาย}} \\
+        \hline
+        \_id & ObjectId & รหัสคำสั่ง (Primary Key) \\
+        \hline
+        userId & ObjectId & รหัสผู้ใช้ (Foreign Key $\rightarrow$ User, Required) \\
+        \hline
+        event & String & ประเภทคำสั่ง เช่น agent:ssh:connect, agent:netconf:get-config (Required) \\
+        \hline
+        data & Mixed & ข้อมูลคำสั่ง (Object) \\
+        \hline
+        status & Enum & สถานะ: pending, processing, completed, failed \\
+        \hline
+        result & Mixed & ผลลัพธ์จาก Agent \\
+        \hline
+        error & String & ข้อความผิดพลาด (ถ้ามี) \\
+        \hline
+        createdAt & Date & เวลาที่สร้าง (TTL: ลบอัตโนมัติหลัง 5 นาที) \\
+        \hline
+        processedAt & Date & เวลาที่ Agent รับคำสั่ง \\
+        \hline
+        completedAt & Date & เวลาที่ประมวลผลเสร็จ \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+% =====================================================
+% Table: AgentHeartbeat Structure
+% =====================================================
+
+\begin{table}[H]
+    \caption{\fontSixTeen{โครงสร้างตาราง AgentHeartbeat}}
+    \label{tab:agent-heartbeat-structure}
+    \fontSixTeen 
+    \begin{tabularx}{\textwidth}{|l|l|X|} 
+        \hline
+        \multicolumn{1}{|c|}{\textbf{ฟิลด์}} & \multicolumn{1}{c|}{\textbf{ประเภท}} & \multicolumn{1}{c|}{\textbf{คำอธิบาย}} \\
+        \hline
+        \_id & ObjectId & รหัส Heartbeat (Primary Key) \\
+        \hline
+        userId & ObjectId & รหัสผู้ใช้ (Foreign Key $\rightarrow$ User, Unique) \\
+        \hline
+        agentName & String & ชื่อ Agent (default: Unknown) \\
+        \hline
+        agentVersion & String & เวอร์ชัน Agent (default: 0.0.0) \\
+        \hline
+        platform & String & ระบบปฏิบัติการ \\
+        \hline
+        hostname & String & ชื่อเครื่อง \\
+        \hline
+        lastHeartbeat & Date & เวลา Heartbeat ล่าสุด (Timeout: 15 วินาที) \\
+        \hline
+        connectedAt & Date & เวลาที่เชื่อมต่อครั้งแรก \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+% =====================================================
+% Table: Notification Structure
+% =====================================================
+
+\begin{table}[H]
+    \caption{\fontSixTeen{โครงสร้างตาราง Notification}}
+    \label{tab:notification-structure}
+    \fontSixTeen 
+    \begin{tabularx}{\textwidth}{|l|l|X|} 
+        \hline
+        \multicolumn{1}{|c|}{\textbf{ฟิลด์}} & \multicolumn{1}{c|}{\textbf{ประเภท}} & \multicolumn{1}{c|}{\textbf{คำอธิบาย}} \\
+        \hline
+        \_id & ObjectId & รหัส Notification (Primary Key) \\
+        \hline
+        channel & String & ช่องทาง เช่น backup-notifications, user:<userId> (Required) \\
+        \hline
+        event & String & ประเภท Event เช่น backup:progress, deployment:progress (Required) \\
+        \hline
+        data & Mixed & ข้อมูล Event (Object) \\
+        \hline
+        createdAt & Date & เวลาที่สร้าง (TTL: ลบอัตโนมัติหลัง 5 นาที) \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+% =====================================================
+% Table: ShellSession Structure
+% =====================================================
+
+\begin{table}[H]
+    \caption{\fontSixTeen{โครงสร้างตาราง ShellSession}}
+    \label{tab:shell-session-structure}
+    \fontSixTeen 
+    \begin{tabularx}{\textwidth}{|l|l|X|} 
+        \hline
+        \multicolumn{1}{|c|}{\textbf{ฟิลด์}} & \multicolumn{1}{c|}{\textbf{ประเภท}} & \multicolumn{1}{c|}{\textbf{คำอธิบาย}} \\
+        \hline
+        \_id & ObjectId & รหัส Session (Primary Key) \\
+        \hline
+        userId & ObjectId & รหัสผู้ใช้ (Foreign Key $\rightarrow$ User, Required) \\
+        \hline
+        deviceId & String & รหัสอุปกรณ์ (Required) \\
+        \hline
+        sessionId & String & รหัส Session (Unique, Required) \\
+        \hline
+        status & Enum & สถานะ: active, closed \\
+        \hline
+        outputChunks & Array[Object] & ข้อมูล Output จากอุปกรณ์ (data, timestamp) \\
+        \hline
+        inputQueue & Array[Object] & คิว Input จาก Frontend (data, timestamp) \\
+        \hline
+        createdAt & Date & เวลาที่สร้าง (TTL: ลบอัตโนมัติหลัง 1 ชั่วโมง) \\
         \hline
     \end{tabularx}
 \end{table}
@@ -932,6 +1070,12 @@
         Device & ConfigurationBackup & One-to-Many & อุปกรณ์หนึ่งตัวมีการสำรองได้หลายรายการ \\
         \hline
         ConfigurationBackup & ConfigurationHistory & One-to-Many & Backup หนึ่งรายการสามารถอ้างอิงได้หลาย History \\
+        \hline
+        User & AgentCommand & One-to-Many & ผู้ใช้หนึ่งคนมีคำสั่ง Agent ได้หลายรายการ \\
+        \hline
+        User & AgentHeartbeat & One-to-One & ผู้ใช้หนึ่งคนมี Heartbeat หนึ่งรายการ \\
+        \hline
+        User & ShellSession & One-to-Many & ผู้ใช้หนึ่งคนมี Shell Session ได้หลายรายการ \\
         \hline
     \end{tabularx}
 \end{table}
@@ -974,13 +1118,27 @@
         \hline
         ConfigurationBackup & (userId, createdAt DESC) & เรียงสำรองตามวันที่ \\
         \hline
-        YangModel & (userId, name, version) (Compound Unique) & ป้องกัน Model ซ้ำ \\
+        YangModel & (userId, name) (Compound Unique) & ป้องกัน Model ซ้ำในผู้ใช้เดียวกัน \\
         \hline
-        YangModel & device\_type & กรองตามประเภทอุปกรณ์ \\
+        YangModel & (userId, device\_type, category) & กรองตามผู้ใช้/ประเภท/หมวดหมู่ \\
         \hline
-        YangModel & category & กรองตามหมวดหมู่ \\
+        YangModel & (userId, namespace) (Sparse) & ค้นหาตาม Namespace \\
         \hline
-        YangModel & organization & กรองตามองค์กร \\
+        AgentCommand & (userId, status, createdAt) & ดึงคำสั่งที่รอดำเนินการของแต่ละผู้ใช้ \\
+        \hline
+        AgentCommand & createdAt (TTL: 300s) & ลบคำสั่งเก่าอัตโนมัติหลัง 5 นาที \\
+        \hline
+        AgentHeartbeat & userId (Unique) & ค้นหา Heartbeat ของผู้ใช้ \\
+        \hline
+        Notification & (channel, createdAt) & ดึง Notification ตามช่องทาง \\
+        \hline
+        Notification & createdAt (TTL: 300s) & ลบ Notification เก่าอัตโนมัติหลัง 5 นาที \\
+        \hline
+        ShellSession & sessionId (Unique) & ค้นหา Session จากรหัส \\
+        \hline
+        ShellSession & userId & ค้นหา Session ของผู้ใช้ \\
+        \hline
+        ShellSession & createdAt (TTL: 3600s) & ลบ Session เก่าอัตโนมัติหลัง 1 ชั่วโมง \\
         \hline
     \end{tabularx}
 \end{table}

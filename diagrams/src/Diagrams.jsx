@@ -2136,15 +2136,36 @@ function DataDictionary() {
               <td className="px-4 py-3"><span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded font-mono text-xs font-bold">D5</span></td>
               <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">YANG Models</td>
               <td className="px-4 py-3 text-gray-600 dark:text-gray-400">NETCONF data models for device configuration</td>
-              <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, name, module, namespace, content, deviceTypes</td>
+              <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, name, namespace, prefix, yang_content, device_type, userId</td>
               <td className="px-4 py-3"><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded text-xs">yangmodels</code></td>
             </tr>
             <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <td className="px-4 py-3"><span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded font-mono text-xs font-bold">D6</span></td>
-              <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Schedules</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Automated backup schedule definitions</td>
-              <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, name, device_ids, cron_expression, enabled, userId</td>
-              <td className="px-4 py-3"><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded text-xs">backupschedules</code></td>
+              <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Agent Commands</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Command queue for Agent Relay (HTTP Polling)</td>
+              <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, userId, event, data, status, result, error, createdAt</td>
+              <td className="px-4 py-3"><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded text-xs">agentcommands</code></td>
+            </tr>
+            <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <td className="px-4 py-3"><span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded font-mono text-xs font-bold">D7</span></td>
+              <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Agent Heartbeats</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Agent online status tracking via heartbeat polling</td>
+              <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, userId, agentName, agentVersion, platform, lastHeartbeat</td>
+              <td className="px-4 py-3"><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded text-xs">agentheartbeats</code></td>
+            </tr>
+            <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <td className="px-4 py-3"><span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded font-mono text-xs font-bold">D8</span></td>
+              <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Notifications</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Event notifications for frontend polling (replaces Socket.IO)</td>
+              <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, channel, event, data, createdAt</td>
+              <td className="px-4 py-3"><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded text-xs">notifications</code></td>
+            </tr>
+            <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <td className="px-4 py-3"><span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded font-mono text-xs font-bold">D9</span></td>
+              <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Shell Sessions</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Interactive SSH shell I/O buffer for polling-based terminal</td>
+              <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, userId, deviceId, sessionId, status, outputChunks, inputQueue</td>
+              <td className="px-4 py-3"><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded text-xs">shellsessions</code></td>
             </tr>
           </tbody>
         </table>
