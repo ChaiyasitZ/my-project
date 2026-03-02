@@ -1,4 +1,4 @@
-%*************************************
+﻿%*************************************
 % บทที่ 4
 %*************************************
 \chapterTitle{4}{ผลการดำเนินงาน}
@@ -250,22 +250,22 @@
 \hspace*{1.3em}
 วิธีแก้ไข:
 \begin{mycustomitem2}
-    \item เพิ่มฟังก์ชัน \texttt{ensureConnected()} ใน NetconfHandler ของ Desktop Agent เพื่อตรวจสอบและเชื่อมต่อ NETCONF อัตโนมัติก่อนดำเนินการทุกครั้ง
-    \item เพิ่มฟังก์ชัน \texttt{isConnected()} สำหรับตรวจสอบสถานะการเชื่อมต่อ
+    \item เพิ่มฟังก์ชัน \textbf{ensureConnected()} ใน NetconfHandler ของ Desktop Agent เพื่อตรวจสอบและเชื่อมต่อ NETCONF อัตโนมัติก่อนดำเนินการทุกครั้ง
+    \item เพิ่มฟังก์ชัน \textbf{isConnected()} สำหรับตรวจสอบสถานะการเชื่อมต่อ
     \item Backend ส่ง Device Credentials (host, port, username, password) ไปพร้อมกับทุกคำสั่ง NETCONF เพื่อให้ Agent สามารถ Auto-Connect ได้
     \item เพิ่มระบบ Fallback ใน Backend ที่ตรวจสอบ Agent Online Status เมื่อ in-memory session หายไป
 \end{mycustomitem2}
 
 \subsection{การแก้ไขปัญหาการสำรองคอนฟิกด้วย Interactive Shell}
 \hspace*{1.3em}
-การสำรองข้อมูลคอนฟิกจากอุปกรณ์ Cisco ด้วยวิธี SSH exec เดิม ส่งคำสั่ง \texttt{terminal length 0} และ \texttt{show running-config} เป็นคำสั่งเดียว (\texttt{\\n} คั่น) ทำให้อุปกรณ์ Cisco ไม่สามารถประมวลผลคำสั่งได้ถูกต้องและส่งกลับข้อความผิดพลาดแทนคอนฟิกจริง
+การสำรองข้อมูลคอนฟิกจากอุปกรณ์ Cisco ด้วยวิธี SSH exec เดิม ส่งคำสั่ง \textbf{terminal length 0} และ \textbf{show running-config} เป็นคำสั่งเดียว (\textbf{\\n} คั่น) ทำให้อุปกรณ์ Cisco ไม่สามารถประมวลผลคำสั่งได้ถูกต้องและส่งกลับข้อความผิดพลาดแทนคอนฟิกจริง
 
 \hspace*{1.3em}
 วิธีแก้ไข:
 \begin{mycustomitem2}
-    \item เพิ่มฟังก์ชัน \texttt{execBackupCommands()} ใน SSHHandler ที่ใช้ Interactive Shell แทน Single Exec
-    \item ส่งคำสั่งแยกกันตามลำดับ พร้อม delay ระหว่างคำสั่ง (\texttt{terminal length 0} $\rightarrow$ delay $\rightarrow$ \texttt{show running-config})
-    \item เพิ่มฟังก์ชัน \texttt{cleanConfig()} สำหรับทำความสะอาดผลลัพธ์ ลบ ANSI escape codes, Command Echo, Device Prompt และค้นหาจุดเริ่มต้นคอนฟิก (``Current configuration'' หรือ ``version'')
+    \item เพิ่มฟังก์ชัน \textbf{execBackupCommands()} ใน SSHHandler ที่ใช้ Interactive Shell แทน Single Exec
+    \item ส่งคำสั่งแยกกันตามลำดับ พร้อม delay ระหว่างคำสั่ง (\textbf{terminal length 0} $\rightarrow$ delay $\rightarrow$ \textbf{show running-config})
+    \item เพิ่มฟังก์ชัน \textbf{cleanConfig()} สำหรับทำความสะอาดผลลัพธ์ ลบ ANSI escape codes, Command Echo, Device Prompt และค้นหาจุดเริ่มต้นคอนฟิก (``Current configuration'' หรือ ``version'')
 \end{mycustomitem2}
 
 \subsection{การแก้ไขปัญหา Agent Relay Timeout สำหรับ Restore}
@@ -287,17 +287,17 @@
 การอัปโหลด YANG Model ล้มเหลวด้วยข้อผิดพลาด 500 เนื่องจากสองสาเหตุ:
 
 \hspace*{1.3em}
-\textbf{(1) ปัญหาฝั่ง Client:} ช่อง Namespace มีการกำหนด \texttt{type="url"} ทำให้ HTML5 validation ไม่ยอมรับค่าที่ไม่ใช่ URL และไม่มีการตรวจสอบขนาดไฟล์ก่อนอัปโหลด
+\textbf{(1) ปัญหาฝั่ง Client:} ช่อง Namespace มีการกำหนด \textbf{type="url"} ทำให้ HTML5 validation ไม่ยอมรับค่าที่ไม่ใช่ URL และไม่มีการตรวจสอบขนาดไฟล์ก่อนอัปโหลด
 
 \hspace*{1.3em}
-\textbf{(2) ปัญหาฝั่ง Server:} Auth Middleware ใช้ \texttt{.lean()} ในการ query ผู้ใช้จาก MongoDB ซึ่งส่งกลับ Plain JavaScript Object ไม่มี Mongoose Virtual Getter (\texttt{.id}) ทำให้ \texttt{req.user.id} เป็น \texttt{undefined} เมื่อนำไปบันทึก YANG Model ที่กำหนด \texttt{userId} เป็น required จะเกิด Mongoose ValidationError
+\textbf{(2) ปัญหาฝั่ง Server:} Auth Middleware ใช้ \textbf{.lean()} ในการ query ผู้ใช้จาก MongoDB ซึ่งส่งกลับ Plain JavaScript Object ไม่มี Mongoose Virtual Getter (\textbf{.id}) ทำให้ \textbf{req.user.id} เป็น \textbf{undefined} เมื่อนำไปบันทึก YANG Model ที่กำหนด \textbf{userId} เป็น required จะเกิด Mongoose ValidationError
 
 \hspace*{1.3em}
 วิธีแก้ไข:
 \begin{mycustomitem2}
-    \item เปลี่ยน \texttt{type="url"} เป็น \texttt{type="text"} สำหรับช่อง Namespace
+    \item เปลี่ยน \textbf{type="url"} เป็น \textbf{type="text"} สำหรับช่อง Namespace
     \item เพิ่มการตรวจสอบขนาดไฟล์ไม่เกิน 4MB (ขีดจำกัดของ Vercel Hobby Plan)
-    \item เปลี่ยน \texttt{req.user.id} เป็น \texttt{req.userId} ในทุก Route ของ YANG Models (8 จุด) ซึ่ง \texttt{req.userId} ถูกกำหนดค่าในn Auth Middleware จาก \texttt{user.\_id} โดยตรง
+    \item เปลี่ยน \textbf{req.user.id} เป็น \textbf{req.userId} ในทุก Route ของ YANG Models (8 จุด) ซึ่ง \textbf{req.userId} ถูกกำหนดค่าในn Auth Middleware จาก \textbf{user.\_id} โดยตรง
 \end{mycustomitem2}
 
 \section{ผลการทดสอบประสิทธิภาพโมเดล LLM สำหรับการสร้างคอนฟิก}
@@ -308,11 +308,11 @@
 \hspace*{1.3em}
 \textbf{เงื่อนไขการทดสอบ:}
 \begin{mycustomitem2}
-    \item ทดสอบโมเดล 3 ตัว: \texttt{qwen2.5-coder:7b} (4.7 GB), \texttt{codellama:7b} (3.8 GB), \texttt{codegemma:7b} (5.0 GB)
+    \item ทดสอบโมเดล 3 ตัว: \textbf{qwen2.5-coder:7b} (4.7 GB), \textbf{codellama:7b} (3.8 GB), \textbf{codegemma:7b} (5.0 GB)
     \item ระบบปฏิบัติการเป้าหมาย 3 ประเภท: Cisco IOS, Cisco IOS-XE, Cisco NX-OS
     \item โหมดการสร้างคอนฟิก 2 โหมด: CLI Commands และ NETCONF XML
     \item จำนวนรอบการทดสอบ: 10 รอบต่อชุดทดสอบ (รวม 180 ครั้ง)
-    \item เรียก Ollama API โดยตรงที่ \texttt{http://localhost:11434/api/chat}
+    \item เรียก Ollama API โดยตรงที่ \textbf{http://localhost:11434/api/chat}
     \item พารามิเตอร์: temperature = 0.1, top\_p = 0.85
 \end{mycustomitem2}
 
@@ -326,19 +326,19 @@
 \hspace*{1.3em}
 \textbf{เกณฑ์การให้คะแนน CLI} (10 เกณฑ์ เกณฑ์ละ 10\%):
 \begin{mycustomitem2}
-    \item มีคำสั่ง \texttt{interface}, มี IP Address, มีคำสั่ง OSPF, มี Network Statement
+    \item มีคำสั่ง \textbf{interface}, มี IP Address, มีคำสั่ง OSPF, มี Network Statement
     \item มี Router-ID, ไม่มี Markdown formatting, ไม่มีคำอธิบาย, มี Wildcard Mask ถูกต้อง
-    \item ไม่มี \texttt{configure terminal}, มี IP ถูกต้อง (10.0.0.1)
+    \item ไม่มี \textbf{configure terminal}, มี IP ถูกต้อง (10.0.0.1)
 \end{mycustomitem2}
 
 \hspace*{1.3em}
 \textbf{เกณฑ์การให้คะแนน NETCONF} (10 เกณฑ์ เกณฑ์ละ 10\%):
 \begin{mycustomitem2}
-    \item มีโครงสร้าง XML (\texttt{<} และ \texttt{>}), มี \texttt{xmlns} namespace, ไม่มี Markdown
+    \item มีโครงสร้าง XML (\textbf{<} และ \textbf{>}), มี \textbf{xmlns} namespace, ไม่มี Markdown
     \item ไม่มีคำอธิบาย, มี IP Address ถูกต้อง
-    \item มี Root Element ตรงตามประเภทอุปกรณ์ (IOS: \texttt{interfaces}, IOS-XE: \texttt{native}, NX-OS: \texttt{System})
+    \item มี Root Element ตรงตามประเภทอุปกรณ์ (IOS: \textbf{interfaces}, IOS-XE: \textbf{native}, NX-OS: \textbf{System})
     \item มี Namespace ถูกต้องตามอุปกรณ์, มี Element เฉพาะอุปกรณ์ (GigabitEthernet, PhysIf-list ฯลฯ)
-    \item มี Element \texttt{enabled/shutdown/adminSt}, มี Subnet Mask ถูกต้อง
+    \item มี Element \textbf{enabled/shutdown/adminSt}, มี Subnet Mask ถูกต้อง
 \end{mycustomitem2}
 
 \subsection{ผลการทดสอบโหมด CLI}
@@ -374,10 +374,10 @@
 \end{table}
 
 \hspace*{1.3em}
-จากตารางที่ \ref{tab:benchmark-cli} พบว่า \texttt{codegemma:7b} ได้คะแนนสูงสุดที่ 90\% ในทุกระบบปฏิบัติการ เนื่องจากสามารถสร้างคำสั่ง \texttt{interface}, \texttt{ip address} พร้อม Subnet Mask ที่ถูกต้อง, \texttt{no shutdown} และคำสั่ง OSPF ได้ครบถ้วน อย่างไรก็ตาม \texttt{codegemma:7b} ใช้เวลาตอบสนองนานที่สุด (ค่าเฉลี่ย 10,145 ms) และใช้ RAM สูงสุด (ค่าเฉลี่ย 17,120 MB)
+จากตารางที่ \ref{tab:benchmark-cli} พบว่า \textbf{codegemma:7b} ได้คะแนนสูงสุดที่ 90\% ในทุกระบบปฏิบัติการ เนื่องจากสามารถสร้างคำสั่ง \textbf{interface}, \textbf{ip address} พร้อม Subnet Mask ที่ถูกต้อง, \textbf{no shutdown} และคำสั่ง OSPF ได้ครบถ้วน อย่างไรก็ตาม \textbf{codegemma:7b} ใช้เวลาตอบสนองนานที่สุด (ค่าเฉลี่ย 10,145 ms) และใช้ RAM สูงสุด (ค่าเฉลี่ย 17,120 MB)
 
 \hspace*{1.3em}
-\texttt{codellama:7b} ได้คะแนน 80\% โดยมีความเร็วในการสร้าง Token สูงสุดที่ 11.8 tok/s แต่ขาดความถูกต้องในบางเกณฑ์ เช่น การใส่ Wildcard Mask ที่ไม่ถูกต้อง ส่วน \texttt{qwen2.5-coder:7b} แม้จะตอบสนองเร็วที่สุด (ค่าเฉลี่ย 3,705 ms) และใช้ RAM ต่ำสุด (ค่าเฉลี่ย 15,040 MB) แต่ได้คะแนนเพียง 70\% เนื่องจากไม่สร้างคำสั่ง \texttt{interface} แยก โดยสร้างเฉพาะคำสั่ง OSPF เท่านั้น
+\textbf{codellama:7b} ได้คะแนน 80\% โดยมีความเร็วในการสร้าง Token สูงสุดที่ 11.8 tok/s แต่ขาดความถูกต้องในบางเกณฑ์ เช่น การใส่ Wildcard Mask ที่ไม่ถูกต้อง ส่วน \textbf{qwen2.5-coder:7b} แม้จะตอบสนองเร็วที่สุด (ค่าเฉลี่ย 3,705 ms) และใช้ RAM ต่ำสุด (ค่าเฉลี่ย 15,040 MB) แต่ได้คะแนนเพียง 70\% เนื่องจากไม่สร้างคำสั่ง \textbf{interface} แยก โดยสร้างเฉพาะคำสั่ง OSPF เท่านั้น
 
 \subsection{ผลการทดสอบโหมด NETCONF}
 
@@ -415,13 +415,13 @@
 จากตารางที่ \ref{tab:benchmark-netconf} พบว่าโหมด NETCONF มีความซับซ้อนสูงกว่า CLI เนื่องจากต้องสร้าง XML ที่มี Namespace, Root Element และโครงสร้างลำดับชั้นที่ถูกต้องตามประเภทอุปกรณ์
 
 \hspace*{1.3em}
-\texttt{qwen2.5-coder:7b} ได้คะแนนสูงสุดสำหรับ IOS ที่ 100\% โดยสามารถสร้าง IETF-compliant XML ได้อย่างสมบูรณ์ พร้อม \texttt{xmlns} ที่ถูกต้อง (\texttt{urn:ietf:params:xml:ns:yang:ietf-interfaces}) และมี Element ครบถ้วนทั้ง \texttt{enabled}, \texttt{netmask} และ \texttt{type}
+\textbf{qwen2.5-coder:7b} ได้คะแนนสูงสุดสำหรับ IOS ที่ 100\% โดยสามารถสร้าง IETF-compliant XML ได้อย่างสมบูรณ์ พร้อม \textbf{xmlns} ที่ถูกต้อง (\textbf{urn:ietf:params:xml:ns:yang:ietf-interfaces}) และมี Element ครบถ้วนทั้ง \textbf{enabled}, \textbf{netmask} และ \textbf{type}
 
 \hspace*{1.3em}
-\texttt{codegemma:7b} ได้คะแนนสูงสุดสำหรับ NX-OS ที่ 100\% ทั้ง 10 รอบ โดยสร้าง Cisco NX-OS Device YANG XML ได้สมบูรณ์ที่สุด พร้อม \texttt{xmlns} (\texttt{http://cisco.com/ns/yang/cisco-nx-os-device}) และโครงสร้าง \texttt{intf-items}, \texttt{PhysIf-list}, \texttt{adminSt} ที่ถูกต้อง แต่ใช้เวลาตอบสนองนานที่สุดที่ 37,178 ms
+\textbf{codegemma:7b} ได้คะแนนสูงสุดสำหรับ NX-OS ที่ 100\% ทั้ง 10 รอบ โดยสร้าง Cisco NX-OS Device YANG XML ได้สมบูรณ์ที่สุด พร้อม \textbf{xmlns} (\textbf{http://cisco.com/ns/yang/cisco-nx-os-device}) และโครงสร้าง \textbf{intf-items}, \textbf{PhysIf-list}, \textbf{adminSt} ที่ถูกต้อง แต่ใช้เวลาตอบสนองนานที่สุดที่ 37,178 ms
 
 \hspace*{1.3em}
-\texttt{codellama:7b} ได้คะแนน NX-OS ต่ำสุดที่ 89\% (ช่วง 80--90\%) เนื่องจากบางรอบขาดความถูกต้องของ Namespace หรือ Root Element
+\textbf{codellama:7b} ได้คะแนน NX-OS ต่ำสุดที่ 89\% (ช่วง 80--90\%) เนื่องจากบางรอบขาดความถูกต้องของ Namespace หรือ Root Element
 
 \subsection{การเปรียบเทียบภาพรวมระหว่างโมเดล}
 
@@ -447,16 +447,16 @@
 จากตารางที่ \ref{tab:benchmark-summary} สรุปผลภาพรวมดังนี้:
 
 \hspace*{1.3em}
-\textbf{(1) ด้านคุณภาพ:} \texttt{codegemma:7b} ได้คะแนนเฉลี่ยสูงสุดที่ 91.8\% โดยเป็นโมเดลเดียวที่ได้คะแนน CLI ถึง 90\% ในทุกระบบปฏิบัติการ และได้คะแนน NETCONF NX-OS เต็ม 100\% ทั้ง 10 รอบ รองลงมาคือ \texttt{codellama:7b} ที่ 84.8\% และ \texttt{qwen2.5-coder:7b} ที่ 81.7\%
+\textbf{(1) ด้านคุณภาพ:} \textbf{codegemma:7b} ได้คะแนนเฉลี่ยสูงสุดที่ 91.8\% โดยเป็นโมเดลเดียวที่ได้คะแนน CLI ถึง 90\% ในทุกระบบปฏิบัติการ และได้คะแนน NETCONF NX-OS เต็ม 100\% ทั้ง 10 รอบ รองลงมาคือ \textbf{codellama:7b} ที่ 84.8\% และ \textbf{qwen2.5-coder:7b} ที่ 81.7\%
 
 \hspace*{1.3em}
-\textbf{(2) ด้านความเร็ว:} \texttt{qwen2.5-coder:7b} ตอบสนองเร็วที่สุดสำหรับ CLI (เฉลี่ย 3,705 ms) เร็วกว่า \texttt{codellama:7b} (4,376 ms) ประมาณ 18\% และเร็วกว่า \texttt{codegemma:7b} (10,145 ms) ประมาณ 2.7 เท่า สำหรับอัตราการสร้าง Token \texttt{codellama:7b} เร็วที่สุดที่ 11.5 tok/s
+\textbf{(2) ด้านความเร็ว:} \textbf{qwen2.5-coder:7b} ตอบสนองเร็วที่สุดสำหรับ CLI (เฉลี่ย 3,705 ms) เร็วกว่า \textbf{codellama:7b} (4,376 ms) ประมาณ 18\% และเร็วกว่า \textbf{codegemma:7b} (10,145 ms) ประมาณ 2.7 เท่า สำหรับอัตราการสร้าง Token \textbf{codellama:7b} เร็วที่สุดที่ 11.5 tok/s
 
 \hspace*{1.3em}
-\textbf{(3) ด้านทรัพยากร:} \texttt{qwen2.5-coder:7b} ใช้ RAM ต่ำสุดเฉลี่ย 15,065 MB ขณะที่ \texttt{codegemma:7b} ใช้สูงสุดเฉลี่ย 17,128 MB (มากกว่าประมาณ 2 GB)
+\textbf{(3) ด้านทรัพยากร:} \textbf{qwen2.5-coder:7b} ใช้ RAM ต่ำสุดเฉลี่ย 15,065 MB ขณะที่ \textbf{codegemma:7b} ใช้สูงสุดเฉลี่ย 17,128 MB (มากกว่าประมาณ 2 GB)
 
 \hspace*{1.3em}
-\textbf{(4) ด้านความสม่ำเสมอ:} ทุกโมเดลมีความสม่ำเสมอสูง โดย \texttt{qwen2.5-coder:7b} และ \texttt{codegemma:7b} ได้คะแนนคงที่ในแต่ละรอบ (Standard Deviation ของคะแนน = 0) ยกเว้น \texttt{codellama:7b} NETCONF NX-OS ที่มีช่วงคะแนน 80--90\% และ \texttt{codegemma:7b} NETCONF IOS ที่มีช่วง 90--100\%
+\textbf{(4) ด้านความสม่ำเสมอ:} ทุกโมเดลมีความสม่ำเสมอสูง โดย \textbf{qwen2.5-coder:7b} และ \textbf{codegemma:7b} ได้คะแนนคงที่ในแต่ละรอบ (Standard Deviation ของคะแนน = 0) ยกเว้น \textbf{codellama:7b} NETCONF NX-OS ที่มีช่วงคะแนน 80--90\% และ \textbf{codegemma:7b} NETCONF IOS ที่มีช่วง 90--100\%
 
 \subsection{ผลการเปรียบเทียบเวลาตอบสนอง}
 
@@ -481,20 +481,20 @@
 \end{table}
 
 \hspace*{1.3em}
-จากตารางที่ \ref{tab:benchmark-time} พบว่าโหมด NETCONF ใช้เวลานานกว่า CLI อย่างมีนัยสำคัญในทุกโมเดล เนื่องจากต้องสร้าง XML ที่ซับซ้อนกว่า โดยเฉพาะ NX-OS ที่ใช้โครงสร้าง YANG แบบลำดับชั้นลึก (\texttt{System $\rightarrow$ intf-items $\rightarrow$ phys-items $\rightarrow$ PhysIf-list}) ทำให้ทุกโมเดลใช้เวลานานที่สุด สำหรับ CLI ทุกโมเดลมีเวลาตอบสนองคงที่โดยไม่ขึ้นกับประเภทระบบปฏิบัติการ เนื่องจากคำสั่ง CLI มีรูปแบบคล้ายกัน
+จากตารางที่ \ref{tab:benchmark-time} พบว่าโหมด NETCONF ใช้เวลานานกว่า CLI อย่างมีนัยสำคัญในทุกโมเดล เนื่องจากต้องสร้าง XML ที่ซับซ้อนกว่า โดยเฉพาะ NX-OS ที่ใช้โครงสร้าง YANG แบบลำดับชั้นลึก (\textbf{System $\rightarrow$ intf-items $\rightarrow$ phys-items $\rightarrow$ PhysIf-list}) ทำให้ทุกโมเดลใช้เวลานานที่สุด สำหรับ CLI ทุกโมเดลมีเวลาตอบสนองคงที่โดยไม่ขึ้นกับประเภทระบบปฏิบัติการ เนื่องจากคำสั่ง CLI มีรูปแบบคล้ายกัน
 
 \subsection{สรุปผลการทดสอบและข้อเสนอแนะ}
 \hspace*{1.3em}
 จากการทดสอบทั้ง 180 ครั้ง สรุปได้ดังนี้:
 
 \hspace*{1.3em}
-\textbf{โมเดลที่แนะนำ: \texttt{codegemma:7b}} -- มีคะแนนคุณภาพสูงสุดเฉลี่ย 91.8\% ครอบคลุมทั้ง CLI (90\%) และ NETCONF (93.7\%) แม้จะใช้เวลาและทรัพยากรมากกว่าโมเดลอื่น แต่ในบริบทการสร้างคอนฟิกเครือข่ายที่ต้องการความถูกต้องสูง ความแม่นยำมีความสำคัญมากกว่าความเร็ว
+\textbf{โมเดลที่แนะนำ: \textbf{codegemma:7b}} -- มีคะแนนคุณภาพสูงสุดเฉลี่ย 91.8\% ครอบคลุมทั้ง CLI (90\%) และ NETCONF (93.7\%) แม้จะใช้เวลาและทรัพยากรมากกว่าโมเดลอื่น แต่ในบริบทการสร้างคอนฟิกเครือข่ายที่ต้องการความถูกต้องสูง ความแม่นยำมีความสำคัญมากกว่าความเร็ว
 
 \hspace*{1.3em}
-\textbf{ทางเลือกสำหรับทรัพยากรจำกัด: \texttt{qwen2.5-coder:7b}} -- ใช้ RAM ต่ำสุดและตอบสนองเร็วที่สุด เหมาะสำหรับเครื่องที่มี RAM จำกัด โดยเฉพาะงาน NETCONF IOS ที่ได้คะแนน 100\%
+\textbf{ทางเลือกสำหรับทรัพยากรจำกัด: \textbf{qwen2.5-coder:7b}} -- ใช้ RAM ต่ำสุดและตอบสนองเร็วที่สุด เหมาะสำหรับเครื่องที่มี RAM จำกัด โดยเฉพาะงาน NETCONF IOS ที่ได้คะแนน 100\%
 
 \hspace*{1.3em}
-\textbf{\texttt{codellama:7b}} -- มีความสมดุลระหว่างคุณภาพและความเร็ว เหมาะสำหรับงาน CLI ที่ต้องการความเร็วในการสร้าง Token สูง (11.8 tok/s)
+\textbf{\textbf{codellama:7b}} -- มีความสมดุลระหว่างคุณภาพและความเร็ว เหมาะสำหรับงาน CLI ที่ต้องการความเร็วในการสร้าง Token สูง (11.8 tok/s)
 
 
 
