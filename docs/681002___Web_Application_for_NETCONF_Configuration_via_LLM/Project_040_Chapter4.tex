@@ -300,6 +300,202 @@
     \item เปลี่ยน \texttt{req.user.id} เป็น \texttt{req.userId} ในทุก Route ของ YANG Models (8 จุด) ซึ่ง \texttt{req.userId} ถูกกำหนดค่าในn Auth Middleware จาก \texttt{user.\_id} โดยตรง
 \end{mycustomitem2}
 
+\section{ผลการทดสอบประสิทธิภาพโมเดล LLM สำหรับการสร้างคอนฟิก}
+\hspace*{1.3em}
+เพื่อประเมินความสามารถของโมเดล LLM แบบ Local (Ollama) ในการสร้างคอนฟิกสำหรับอุปกรณ์เครือข่าย Cisco ได้ทำการทดสอบเปรียบเทียบโมเดล 3 ตัวที่มีขนาด 7B Parameters ทั้งในโหมด CLI และ NETCONF ครอบคลุมระบบปฏิบัติการ 3 ประเภท
+
+\subsection{วิธีการทดสอบ}
+\hspace*{1.3em}
+\textbf{เงื่อนไขการทดสอบ:}
+\begin{mycustomitem2}
+    \item ทดสอบโมเดล 3 ตัว: \texttt{qwen2.5-coder:7b} (4.7 GB), \texttt{codellama:7b} (3.8 GB), \texttt{codegemma:7b} (5.0 GB)
+    \item ระบบปฏิบัติการเป้าหมาย 3 ประเภท: Cisco IOS, Cisco IOS-XE, Cisco NX-OS
+    \item โหมดการสร้างคอนฟิก 2 โหมด: CLI Commands และ NETCONF XML
+    \item จำนวนรอบการทดสอบ: 10 รอบต่อชุดทดสอบ (รวม 180 ครั้ง)
+    \item เรียก Ollama API โดยตรงที่ \texttt{http://localhost:11434/api/chat}
+    \item พารามิเตอร์: temperature = 0.1, top\_p = 0.85
+\end{mycustomitem2}
+
+\hspace*{1.3em}
+\textbf{Prompt ที่ใช้ทดสอบ:}
+\begin{mycustomitem2}
+    \item \textbf{CLI:} ``Configure OSPF process 1 area 0 on interface GigabitEthernet0/1 with IP 10.0.0.1/30 and set router-id 1.1.1.1''
+    \item \textbf{NETCONF:} ``Configure interface GigabitEthernet0/1 with IP address 10.0.0.1/30 and enable it''
+\end{mycustomitem2}
+
+\hspace*{1.3em}
+\textbf{เกณฑ์การให้คะแนน CLI} (10 เกณฑ์ เกณฑ์ละ 10\%):
+\begin{mycustomitem2}
+    \item มีคำสั่ง \texttt{interface}, มี IP Address, มีคำสั่ง OSPF, มี Network Statement
+    \item มี Router-ID, ไม่มี Markdown formatting, ไม่มีคำอธิบาย, มี Wildcard Mask ถูกต้อง
+    \item ไม่มี \texttt{configure terminal}, มี IP ถูกต้อง (10.0.0.1)
+\end{mycustomitem2}
+
+\hspace*{1.3em}
+\textbf{เกณฑ์การให้คะแนน NETCONF} (10 เกณฑ์ เกณฑ์ละ 10\%):
+\begin{mycustomitem2}
+    \item มีโครงสร้าง XML (\texttt{<} และ \texttt{>}), มี \texttt{xmlns} namespace, ไม่มี Markdown
+    \item ไม่มีคำอธิบาย, มี IP Address ถูกต้อง
+    \item มี Root Element ตรงตามประเภทอุปกรณ์ (IOS: \texttt{interfaces}, IOS-XE: \texttt{native}, NX-OS: \texttt{System})
+    \item มี Namespace ถูกต้องตามอุปกรณ์, มี Element เฉพาะอุปกรณ์ (GigabitEthernet, PhysIf-list ฯลฯ)
+    \item มี Element \texttt{enabled/shutdown/adminSt}, มี Subnet Mask ถูกต้อง
+\end{mycustomitem2}
+
+\subsection{ผลการทดสอบโหมด CLI}
+
+\begin{table}[H]
+    \caption{\fontSixTeen{ผลการทดสอบการสร้างคอนฟิก CLI (เฉลี่ย 10 รอบ)}}
+    \label{tab:benchmark-cli}
+    \fontSixTeen
+    \centering
+    \begin{tabularx}{\textwidth}{|l|l|c|c|c|c|c|}
+        \hline
+        \textbf{โมเดล} & \textbf{OS} & \textbf{คะแนน} & \textbf{เวลา (ms)} & \textbf{Tokens} & \textbf{tok/s} & \textbf{RAM (MB)} \\
+        \hline
+        qwen2.5-coder:7b & IOS & 70\% & 3,723 & 400 & 11.2 & 15,002 \\
+        \hline
+        qwen2.5-coder:7b & IOS-XE & 70\% & 3,680 & 402 & 11.3 & 15,014 \\
+        \hline
+        qwen2.5-coder:7b & NX-OS & 70\% & 3,711 & 401 & 11.2 & 15,104 \\
+        \hline
+        codellama:7b & IOS & 80\% & 4,371 & 495 & 11.8 & 15,616 \\
+        \hline
+        codellama:7b & IOS-XE & 80\% & 4,377 & 497 & 11.8 & 15,700 \\
+        \hline
+        codellama:7b & NX-OS & 80\% & 4,381 & 496 & 11.8 & 15,518 \\
+        \hline
+        codegemma:7b & IOS & 90\% & 9,886 & 449 & 7.8 & 17,071 \\
+        \hline
+        codegemma:7b & IOS-XE & 90\% & 10,254 & 454 & 7.8 & 17,136 \\
+        \hline
+        codegemma:7b & NX-OS & 90\% & 10,294 & 452 & 7.8 & 17,153 \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+\hspace*{1.3em}
+จากตารางที่ \ref{tab:benchmark-cli} พบว่า \texttt{codegemma:7b} ได้คะแนนสูงสุดที่ 90\% ในทุกระบบปฏิบัติการ เนื่องจากสามารถสร้างคำสั่ง \texttt{interface}, \texttt{ip address} พร้อม Subnet Mask ที่ถูกต้อง, \texttt{no shutdown} และคำสั่ง OSPF ได้ครบถ้วน อย่างไรก็ตาม \texttt{codegemma:7b} ใช้เวลาตอบสนองนานที่สุด (ค่าเฉลี่ย 10,145 ms) และใช้ RAM สูงสุด (ค่าเฉลี่ย 17,120 MB)
+
+\hspace*{1.3em}
+\texttt{codellama:7b} ได้คะแนน 80\% โดยมีความเร็วในการสร้าง Token สูงสุดที่ 11.8 tok/s แต่ขาดความถูกต้องในบางเกณฑ์ เช่น การใส่ Wildcard Mask ที่ไม่ถูกต้อง ส่วน \texttt{qwen2.5-coder:7b} แม้จะตอบสนองเร็วที่สุด (ค่าเฉลี่ย 3,705 ms) และใช้ RAM ต่ำสุด (ค่าเฉลี่ย 15,040 MB) แต่ได้คะแนนเพียง 70\% เนื่องจากไม่สร้างคำสั่ง \texttt{interface} แยก โดยสร้างเฉพาะคำสั่ง OSPF เท่านั้น
+
+\subsection{ผลการทดสอบโหมด NETCONF}
+
+\begin{table}[H]
+    \caption{\fontSixTeen{ผลการทดสอบการสร้างคอนฟิก NETCONF XML (เฉลี่ย 10 รอบ)}}
+    \label{tab:benchmark-netconf}
+    \fontSixTeen
+    \centering
+    \begin{tabularx}{\textwidth}{|l|l|c|c|c|c|c|}
+        \hline
+        \textbf{โมเดล} & \textbf{OS} & \textbf{คะแนน} & \textbf{เวลา (ms)} & \textbf{Tokens} & \textbf{tok/s} & \textbf{RAM (MB)} \\
+        \hline
+        qwen2.5-coder:7b & IOS & 100\% & 14,703 & 484 & 10.9 & 15,056 \\
+        \hline
+        qwen2.5-coder:7b & IOS-XE & 90\% & 11,966 & 613 & 10.6 & 15,094 \\
+        \hline
+        qwen2.5-coder:7b & NX-OS & 90\% & 21,774 & 838 & 11.0 & 15,119 \\
+        \hline
+        codellama:7b & IOS & 90\% & 20,283 & 665 & 11.5 & 15,669 \\
+        \hline
+        codellama:7b & IOS-XE & 90\% & 13,444 & 792 & 11.3 & 15,605 \\
+        \hline
+        codellama:7b & NX-OS & 89\% & 29,496 & 1,135 & 10.8 & 15,497 \\
+        \hline
+        codegemma:7b & IOS & 91\% & 25,111 & 555 & 7.7 & 17,126 \\
+        \hline
+        codegemma:7b & IOS-XE & 90\% & 19,742 & 695 & 7.6 & 17,107 \\
+        \hline
+        codegemma:7b & NX-OS & 100\% & 37,178 & 1,001 & 7.4 & 17,177 \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+\hspace*{1.3em}
+จากตารางที่ \ref{tab:benchmark-netconf} พบว่าโหมด NETCONF มีความซับซ้อนสูงกว่า CLI เนื่องจากต้องสร้าง XML ที่มี Namespace, Root Element และโครงสร้างลำดับชั้นที่ถูกต้องตามประเภทอุปกรณ์
+
+\hspace*{1.3em}
+\texttt{qwen2.5-coder:7b} ได้คะแนนสูงสุดสำหรับ IOS ที่ 100\% โดยสามารถสร้าง IETF-compliant XML ได้อย่างสมบูรณ์ พร้อม \texttt{xmlns} ที่ถูกต้อง (\texttt{urn:ietf:params:xml:ns:yang:ietf-interfaces}) และมี Element ครบถ้วนทั้ง \texttt{enabled}, \texttt{netmask} และ \texttt{type}
+
+\hspace*{1.3em}
+\texttt{codegemma:7b} ได้คะแนนสูงสุดสำหรับ NX-OS ที่ 100\% ทั้ง 10 รอบ โดยสร้าง Cisco NX-OS Device YANG XML ได้สมบูรณ์ที่สุด พร้อม \texttt{xmlns} (\texttt{http://cisco.com/ns/yang/cisco-nx-os-device}) และโครงสร้าง \texttt{intf-items}, \texttt{PhysIf-list}, \texttt{adminSt} ที่ถูกต้อง แต่ใช้เวลาตอบสนองนานที่สุดที่ 37,178 ms
+
+\hspace*{1.3em}
+\texttt{codellama:7b} ได้คะแนน NX-OS ต่ำสุดที่ 89\% (ช่วง 80--90\%) เนื่องจากบางรอบขาดความถูกต้องของ Namespace หรือ Root Element
+
+\subsection{การเปรียบเทียบภาพรวมระหว่างโมเดล}
+
+\begin{table}[H]
+    \caption{\fontSixTeen{สรุปผลการเปรียบเทียบภาพรวม 3 โมเดล (เฉลี่ยทุกชุดทดสอบ)}}
+    \label{tab:benchmark-summary}
+    \fontSixTeen
+    \centering
+    \begin{tabularx}{\textwidth}{|l|c|c|c|c|c|c|}
+        \hline
+        \textbf{โมเดล} & \textbf{ขนาด} & \textbf{CLI เฉลี่ย} & \textbf{NETCONF เฉลี่ย} & \textbf{รวม} & \textbf{tok/s เฉลี่ย} & \textbf{RAM เฉลี่ย} \\
+        \hline
+        qwen2.5-coder:7b & 4.7 GB & 70\% & 93.3\% & 81.7\% & 11.0 & 15,065 MB \\
+        \hline
+        codellama:7b & 3.8 GB & 80\% & 89.7\% & 84.8\% & 11.5 & 15,601 MB \\
+        \hline
+        codegemma:7b & 5.0 GB & 90\% & 93.7\% & 91.8\% & 7.7 & 17,128 MB \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+\hspace*{1.3em}
+จากตารางที่ \ref{tab:benchmark-summary} สรุปผลภาพรวมดังนี้:
+
+\hspace*{1.3em}
+\textbf{(1) ด้านคุณภาพ:} \texttt{codegemma:7b} ได้คะแนนเฉลี่ยสูงสุดที่ 91.8\% โดยเป็นโมเดลเดียวที่ได้คะแนน CLI ถึง 90\% ในทุกระบบปฏิบัติการ และได้คะแนน NETCONF NX-OS เต็ม 100\% ทั้ง 10 รอบ รองลงมาคือ \texttt{codellama:7b} ที่ 84.8\% และ \texttt{qwen2.5-coder:7b} ที่ 81.7\%
+
+\hspace*{1.3em}
+\textbf{(2) ด้านความเร็ว:} \texttt{qwen2.5-coder:7b} ตอบสนองเร็วที่สุดสำหรับ CLI (เฉลี่ย 3,705 ms) เร็วกว่า \texttt{codellama:7b} (4,376 ms) ประมาณ 18\% และเร็วกว่า \texttt{codegemma:7b} (10,145 ms) ประมาณ 2.7 เท่า สำหรับอัตราการสร้าง Token \texttt{codellama:7b} เร็วที่สุดที่ 11.5 tok/s
+
+\hspace*{1.3em}
+\textbf{(3) ด้านทรัพยากร:} \texttt{qwen2.5-coder:7b} ใช้ RAM ต่ำสุดเฉลี่ย 15,065 MB ขณะที่ \texttt{codegemma:7b} ใช้สูงสุดเฉลี่ย 17,128 MB (มากกว่าประมาณ 2 GB)
+
+\hspace*{1.3em}
+\textbf{(4) ด้านความสม่ำเสมอ:} ทุกโมเดลมีความสม่ำเสมอสูง โดย \texttt{qwen2.5-coder:7b} และ \texttt{codegemma:7b} ได้คะแนนคงที่ในแต่ละรอบ (Standard Deviation ของคะแนน = 0) ยกเว้น \texttt{codellama:7b} NETCONF NX-OS ที่มีช่วงคะแนน 80--90\% และ \texttt{codegemma:7b} NETCONF IOS ที่มีช่วง 90--100\%
+
+\subsection{ผลการเปรียบเทียบเวลาตอบสนอง}
+
+\begin{table}[H]
+    \caption{\fontSixTeen{เปรียบเทียบเวลาตอบสนองเฉลี่ย (มิลลิวินาที) จำแนกตามโหมดและระบบปฏิบัติการ}}
+    \label{tab:benchmark-time}
+    \fontSixTeen
+    \centering
+    \begin{tabularx}{\textwidth}{|l|c|c|c|c|c|c|}
+        \hline
+        \textbf{โมเดล} & \multicolumn{3}{c|}{\textbf{CLI (ms)}} & \multicolumn{3}{c|}{\textbf{NETCONF (ms)}} \\
+        \cline{2-7}
+        & \textbf{IOS} & \textbf{IOS-XE} & \textbf{NX-OS} & \textbf{IOS} & \textbf{IOS-XE} & \textbf{NX-OS} \\
+        \hline
+        qwen2.5-coder:7b & 3,723 & 3,680 & 3,711 & 14,703 & 11,966 & 21,774 \\
+        \hline
+        codellama:7b & 4,371 & 4,377 & 4,381 & 20,283 & 13,444 & 29,496 \\
+        \hline
+        codegemma:7b & 9,886 & 10,254 & 10,294 & 25,111 & 19,742 & 37,178 \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+\hspace*{1.3em}
+จากตารางที่ \ref{tab:benchmark-time} พบว่าโหมด NETCONF ใช้เวลานานกว่า CLI อย่างมีนัยสำคัญในทุกโมเดล เนื่องจากต้องสร้าง XML ที่ซับซ้อนกว่า โดยเฉพาะ NX-OS ที่ใช้โครงสร้าง YANG แบบลำดับชั้นลึก (\texttt{System $\rightarrow$ intf-items $\rightarrow$ phys-items $\rightarrow$ PhysIf-list}) ทำให้ทุกโมเดลใช้เวลานานที่สุด สำหรับ CLI ทุกโมเดลมีเวลาตอบสนองคงที่โดยไม่ขึ้นกับประเภทระบบปฏิบัติการ เนื่องจากคำสั่ง CLI มีรูปแบบคล้ายกัน
+
+\subsection{สรุปผลการทดสอบและข้อเสนอแนะ}
+\hspace*{1.3em}
+จากการทดสอบทั้ง 180 ครั้ง สรุปได้ดังนี้:
+
+\hspace*{1.3em}
+\textbf{โมเดลที่แนะนำ: \texttt{codegemma:7b}} -- มีคะแนนคุณภาพสูงสุดเฉลี่ย 91.8\% ครอบคลุมทั้ง CLI (90\%) และ NETCONF (93.7\%) แม้จะใช้เวลาและทรัพยากรมากกว่าโมเดลอื่น แต่ในบริบทการสร้างคอนฟิกเครือข่ายที่ต้องการความถูกต้องสูง ความแม่นยำมีความสำคัญมากกว่าความเร็ว
+
+\hspace*{1.3em}
+\textbf{ทางเลือกสำหรับทรัพยากรจำกัด: \texttt{qwen2.5-coder:7b}} -- ใช้ RAM ต่ำสุดและตอบสนองเร็วที่สุด เหมาะสำหรับเครื่องที่มี RAM จำกัด โดยเฉพาะงาน NETCONF IOS ที่ได้คะแนน 100\%
+
+\hspace*{1.3em}
+\textbf{\texttt{codellama:7b}} -- มีความสมดุลระหว่างคุณภาพและความเร็ว เหมาะสำหรับงาน CLI ที่ต้องการความเร็วในการสร้าง Token สูง (11.8 tok/s)
+
 
 
 
