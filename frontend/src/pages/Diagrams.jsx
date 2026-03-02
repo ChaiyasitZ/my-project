@@ -285,7 +285,7 @@ function OverviewDiagram() {
           </div>
         </div>
 
-        <Arrow direction="down" className="mx-auto" label="REST API / WebSocket" />
+        <Arrow direction="down" className="mx-auto" label="REST API / HTTP Polling" />
 
         {/* Application Layer */}
         <div className="border-2 border-dashed border-green-300 dark:border-green-700 rounded-2xl p-4">
@@ -327,9 +327,15 @@ function OverviewDiagram() {
                 <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Backup Service</span>
               </div>
             </Box>
+            <Box color="green" size="sm">
+              <div className="flex flex-col items-center text-center">
+                <ZapIcon className="h-5 w-5 text-green-600 dark:text-green-400 mb-1" />
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Agent Relay</span>
+              </div>
+            </Box>
           </div>
           <div className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
-            Node.js + Express + HTTP Polling
+            Node.js + Express (Vercel Serverless)
           </div>
         </div>
 
@@ -342,19 +348,26 @@ function OverviewDiagram() {
             <Box color="purple" size="md">
               <div className="flex flex-col items-center text-center">
                 <DatabaseIcon className="h-6 w-6 text-purple-600 dark:text-purple-400 mb-1" />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">MongoDB</span>
-                <span className="text-[10px] text-gray-500 dark:text-gray-400">Devices, Configs, Users</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">MongoDB Atlas</span>
+                <span className="text-[10px] text-gray-500 dark:text-gray-400">9 Collections (D1-D9)</span>
               </div>
             </Box>
           </div>
         </div>
 
-        <Arrow direction="down" className="mx-auto" label="Network Protocols" />
+        <Arrow direction="down" className="mx-auto" label="Agent Relay / Network Protocols" />
 
         {/* External Systems */}
         <div className="border-2 border-dashed border-orange-300 dark:border-orange-700 rounded-2xl p-4">
           <h3 className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-4">External Systems</h3>
           <div className="flex flex-wrap gap-4 justify-center">
+            <Box color="red" size="sm">
+              <div className="flex flex-col items-center text-center">
+                <TerminalIcon className="h-5 w-5 text-red-600 dark:text-red-400 mb-1" />
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Desktop Agent</span>
+                <span className="text-[10px] text-gray-500 dark:text-gray-400">Electron App</span>
+              </div>
+            </Box>
             <Box color="orange" size="sm">
               <div className="flex flex-col items-center text-center">
                 <ServerIcon className="h-5 w-5 text-orange-600 dark:text-orange-400 mb-1" />
@@ -365,14 +378,14 @@ function OverviewDiagram() {
             <Box color="orange" size="sm">
               <div className="flex flex-col items-center text-center">
                 <BrainCircuitIcon className="h-5 w-5 text-orange-600 dark:text-orange-400 mb-1" />
-                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">OpenRouter</span>
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Ollama</span>
                 <span className="text-[10px] text-gray-500 dark:text-gray-400">LLM API</span>
               </div>
             </Box>
             <Box color="orange" size="sm">
               <div className="flex flex-col items-center text-center">
                 <CloudIcon className="h-5 w-5 text-orange-600 dark:text-orange-400 mb-1" />
-                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Auth0</span>
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Google OAuth</span>
                 <span className="text-[10px] text-gray-500 dark:text-gray-400">Authentication</span>
               </div>
             </Box>
@@ -411,21 +424,24 @@ function ContextDiagram() {
             <marker id="arrowhead-purple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
               <polygon points="0 0, 10 3.5, 0 7" className="fill-purple-500" />
             </marker>
+            <marker id="arrowhead-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+              <polygon points="0 0, 10 3.5, 0 7" className="fill-cyan-500" />
+            </marker>
           </defs>
           
           {/* Admin to System - Blue */}
           <line x1="18%" y1="50%" x2="35%" y2="50%" stroke="#3B82F6" strokeWidth="2" markerEnd="url(#arrowhead-blue)" />
           <line x1="35%" y1="55%" x2="18%" y2="55%" stroke="#3B82F6" strokeWidth="2" markerEnd="url(#arrowhead-blue)" />
           
-          {/* System to Network Devices - Green */}
-          <line x1="65%" y1="50%" x2="82%" y2="50%" stroke="#22C55E" strokeWidth="2" markerEnd="url(#arrowhead-green)" />
-          <line x1="82%" y1="55%" x2="65%" y2="55%" stroke="#22C55E" strokeWidth="2" markerEnd="url(#arrowhead-green)" />
+          {/* System to Desktop Agent (via Agent Relay) - Cyan */}
+          <line x1="65%" y1="50%" x2="82%" y2="50%" stroke="#06B6D4" strokeWidth="2" markerEnd="url(#arrowhead-cyan)" />
+          <line x1="82%" y1="55%" x2="65%" y2="55%" stroke="#06B6D4" strokeWidth="2" markerEnd="url(#arrowhead-cyan)" />
           
           {/* System to Database - Purple */}
           <line x1="50%" y1="70%" x2="50%" y2="85%" stroke="#A855F7" strokeWidth="2" markerEnd="url(#arrowhead-purple)" />
           <line x1="52%" y1="85%" x2="52%" y2="70%" stroke="#A855F7" strokeWidth="2" markerEnd="url(#arrowhead-purple)" />
           
-          {/* Auth0 to System - Orange */}
+          {/* Google OAuth to System - Orange */}
           <line x1="50%" y1="15%" x2="50%" y2="30%" stroke="#F97316" strokeWidth="2" markerEnd="url(#arrowhead-orange)" />
           <line x1="52%" y1="30%" x2="52%" y2="15%" stroke="#F97316" strokeWidth="2" markerEnd="url(#arrowhead-orange)" />
           
@@ -435,13 +451,13 @@ function ContextDiagram() {
         </svg>
         
         <div className="relative z-10 grid grid-cols-5 gap-4 min-h-[500px]">
-          {/* Top Row - Auth0 */}
+          {/* Top Row - Google OAuth */}
           <div className="col-span-5 flex justify-center">
             <div className="flex flex-col items-center">
               <Entity color="gray" className="w-32 h-32 shadow-lg">
                 <CloudIcon className="h-8 w-8 text-orange-500 mb-2" />
-                <span className="text-sm font-bold text-gray-800 dark:text-white">Auth0</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">OAuth Provider</span>
+                <span className="text-sm font-bold text-gray-800 dark:text-white">Google</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">OAuth 2.0</span>
               </Entity>
               <div className="mt-2 text-center">
                 <div className="text-xs font-medium text-orange-600 dark:text-orange-400">↓ JWT Token</div>
@@ -493,18 +509,30 @@ function ContextDiagram() {
                 <span className="text-sm font-bold text-gray-800 dark:text-white">Devices</span>
               </Entity>
               <div className="mt-2 text-center space-y-1">
-                <div className="text-xs text-green-600 dark:text-green-400 font-medium">← SSH Commands</div>
-                <div className="text-xs text-green-600 dark:text-green-400 font-medium">← NETCONF RPC</div>
-                <div className="text-xs text-green-600 dark:text-green-400 font-medium">→ Running Config</div>
-                <div className="text-xs text-green-600 dark:text-green-400 font-medium">→ CLI Response</div>
+                <div className="text-xs text-green-600 dark:text-green-400 font-medium">← SSH/NETCONF</div>
+                <div className="text-xs text-green-600 dark:text-green-400 font-medium">→ Config / Response</div>
+              </div>
+            </div>
+
+            {/* Desktop Agent */}
+            <div className="flex flex-col items-center mt-2">
+              <Entity color="gray" className="w-32 h-32 shadow-lg border-2 border-cyan-400">
+                <MonitorIcon className="h-8 w-8 text-cyan-500 mb-2" />
+                <span className="text-sm font-bold text-gray-800 dark:text-white">Desktop</span>
+                <span className="text-sm font-bold text-gray-800 dark:text-white">Agent</span>
+              </Entity>
+              <div className="mt-2 text-center space-y-1">
+                <div className="text-xs text-cyan-600 dark:text-cyan-400 font-medium">↕ Agent Relay (HTTP)</div>
+                <div className="text-xs text-cyan-600 dark:text-cyan-400 font-medium">↕ SSH/NETCONF Local</div>
+                <div className="text-xs text-cyan-600 dark:text-cyan-400 font-medium">↕ Console (Serial Port)</div>
               </div>
             </div>
             
             {/* AI Service */}
-            <div className="flex flex-col items-center mt-4">
+            <div className="flex flex-col items-center mt-2">
               <Entity color="gray" className="w-32 h-32 shadow-lg">
                 <BrainCircuitIcon className="h-8 w-8 text-pink-500 mb-2" />
-                <span className="text-sm font-bold text-gray-800 dark:text-white">OpenRouter</span>
+                <span className="text-sm font-bold text-gray-800 dark:text-white">Ollama</span>
                 <span className="text-sm font-bold text-gray-800 dark:text-white">LLM API</span>
               </Entity>
               <div className="mt-2 text-center space-y-1">
@@ -526,7 +554,7 @@ function ContextDiagram() {
                   <DatabaseIcon className="h-8 w-8 text-purple-500" />
                   <div>
                     <span className="text-sm font-bold text-gray-800 dark:text-white block">MongoDB Atlas</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">Users | Devices | Configs | Backups</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Users | Devices | Configs | Backups | YANG | Agent Relay (D1-D9)</span>
                   </div>
                 </div>
               </Box>
@@ -567,14 +595,14 @@ function ContextDiagram() {
                 <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-blue-500" /></td>
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Network Admin</td>
                 <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Generated configs, device status, backup reports, deployment results</td>
-                <td className="px-4 py-3"><span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded text-xs">HTTPS/WebSocket</span></td>
+                <td className="px-4 py-3"><span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded text-xs">HTTPS/REST</span></td>
               </tr>
               <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                 <td className="px-4 py-3 font-mono text-green-600 font-bold">F3</td>
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
                 <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-green-500" /></td>
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Network Devices</td>
-                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">CLI commands, NETCONF/YANG XML (NX-OS System, IOS-XE native)</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">CLI commands, NETCONF/YANG XML via Agent Relay (NX-OS, IOS-XE)</td>
                 <td className="px-4 py-3"><span className="px-2 py-1 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded text-xs">SSH/NETCONF</span></td>
               </tr>
               <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
@@ -582,20 +610,20 @@ function ContextDiagram() {
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Network Devices</td>
                 <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-green-500" /></td>
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
-                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Running configs, NETCONF responses, device capabilities</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Running configs, NETCONF responses, device capabilities (via Agent)</td>
                 <td className="px-4 py-3"><span className="px-2 py-1 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded text-xs">SSH/NETCONF</span></td>
               </tr>
               <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                 <td className="px-4 py-3 font-mono text-pink-600 font-bold">F5</td>
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
                 <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-pink-500" /></td>
-                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">OpenRouter LLM</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Ollama LLM</td>
                 <td className="px-4 py-3 text-gray-600 dark:text-gray-400">AI prompts with device type (NX-OS/IOS-XE), YANG templates</td>
                 <td className="px-4 py-3"><span className="px-2 py-1 bg-pink-100 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300 rounded text-xs">HTTPS/API</span></td>
               </tr>
               <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                 <td className="px-4 py-3 font-mono text-pink-600 font-bold">F6</td>
-                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">OpenRouter LLM</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Ollama LLM</td>
                 <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-pink-500" /></td>
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
                 <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Generated CLI/NETCONF XML (NX-OS/IOS-XE), explanations</td>
@@ -605,13 +633,13 @@ function ContextDiagram() {
                 <td className="px-4 py-3 font-mono text-orange-600 font-bold">F7</td>
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
                 <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-orange-500" /></td>
-                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Auth0</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Google OAuth</td>
                 <td className="px-4 py-3 text-gray-600 dark:text-gray-400">OAuth authorization requests, token verification</td>
                 <td className="px-4 py-3"><span className="px-2 py-1 bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 rounded text-xs">OAuth 2.0</span></td>
               </tr>
               <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                 <td className="px-4 py-3 font-mono text-orange-600 font-bold">F8</td>
-                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Auth0</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Google OAuth</td>
                 <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-orange-500" /></td>
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
                 <td className="px-4 py-3 text-gray-600 dark:text-gray-400">JWT tokens, user profiles, authentication status</td>
@@ -622,7 +650,7 @@ function ContextDiagram() {
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
                 <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-purple-500" /></td>
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">MongoDB</td>
-                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">User data, device records, configurations, backups, YANG models</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">User data, device records, configurations, backups, YANG models, agent commands (D1-D9)</td>
                 <td className="px-4 py-3"><span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded text-xs">MongoDB Wire</span></td>
               </tr>
               <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
@@ -632,6 +660,38 @@ function ContextDiagram() {
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
                 <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Query results, aggregated data, stored configurations</td>
                 <td className="px-4 py-3"><span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded text-xs">MongoDB Wire</span></td>
+              </tr>
+              <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <td className="px-4 py-3 font-mono text-cyan-600 font-bold">F11</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
+                <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-cyan-500" /></td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Desktop Agent</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">SSH/NETCONF commands via Agent Relay (HTTP polling)</td>
+                <td className="px-4 py-3"><span className="px-2 py-1 bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 rounded text-xs">HTTP/REST</span></td>
+              </tr>
+              <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <td className="px-4 py-3 font-mono text-cyan-600 font-bold">F12</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Desktop Agent</td>
+                <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-cyan-500" /></td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Command results, device responses via Agent Relay</td>
+                <td className="px-4 py-3"><span className="px-2 py-1 bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 rounded text-xs">HTTP/REST</span></td>
+              </tr>
+              <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <td className="px-4 py-3 font-mono text-cyan-600 font-bold">F13</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
+                <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-cyan-500" /></td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Desktop Agent</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Console port scan/connect relay (serial port access)</td>
+                <td className="px-4 py-3"><span className="px-2 py-1 bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 rounded text-xs">HTTP/REST</span></td>
+              </tr>
+              <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <td className="px-4 py-3 font-mono text-cyan-600 font-bold">F14</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Desktop Agent</td>
+                <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-cyan-500" /></td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Console output data, serial port list</td>
+                <td className="px-4 py-3"><span className="px-2 py-1 bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 rounded text-xs">HTTP/REST</span></td>
               </tr>
             </tbody>
           </table>
@@ -912,14 +972,24 @@ function DFDLevel0() {
             <text x="250" y="240" className="fill-blue-600 text-[11px] font-medium" textAnchor="middle">Generated Configs</text>
           </g>
           
-          {/* System to Devices */}
+          {/* System to Desktop Agent (Agent Relay) */}
+          <g className="stroke-cyan-500">
+            <line x1="550" y1="180" x2="640" y2="180" strokeWidth="2" markerEnd="url(#arrow-right)" />
+            <text x="595" y="170" className="fill-cyan-600 text-[11px] font-medium" textAnchor="middle">Agent Relay</text>
+          </g>
+          <g className="stroke-cyan-400">
+            <line x1="640" y1="220" x2="550" y2="220" strokeWidth="2" markerEnd="url(#arrow-right)" />
+            <text x="595" y="240" className="fill-cyan-600 text-[11px] font-medium" textAnchor="middle">Results</text>
+          </g>
+          
+          {/* Desktop Agent to Devices */}
           <g className="stroke-green-500">
-            <line x1="550" y1="180" x2="750" y2="180" strokeWidth="2" markerEnd="url(#arrow-right)" />
-            <text x="650" y="170" className="fill-green-600 text-[11px] font-medium" textAnchor="middle">SSH/NETCONF</text>
+            <line x1="720" y1="180" x2="800" y2="180" strokeWidth="2" markerEnd="url(#arrow-right)" />
+            <text x="760" y="170" className="fill-green-600 text-[11px] font-medium" textAnchor="middle">SSH/NETCONF</text>
           </g>
           <g className="stroke-green-400">
-            <line x1="750" y1="220" x2="550" y2="220" strokeWidth="2" markerEnd="url(#arrow-right)" />
-            <text x="650" y="240" className="fill-green-600 text-[11px] font-medium" textAnchor="middle">Running Config</text>
+            <line x1="800" y1="220" x2="720" y2="220" strokeWidth="2" markerEnd="url(#arrow-right)" />
+            <text x="760" y="240" className="fill-green-600 text-[11px] font-medium" textAnchor="middle">Config</text>
           </g>
           
           {/* System to AI */}
@@ -942,7 +1012,7 @@ function DFDLevel0() {
             <text x="500" y="320" className="fill-purple-600 text-[11px] font-medium">Read</text>
           </g>
           
-          {/* Auth0 to System */}
+          {/* Google OAuth to System */}
           <g className="stroke-orange-500">
             <line x1="300" y1="50" x2="400" y2="120" strokeWidth="2" markerEnd="url(#arrow-right)" />
             <text x="320" y="70" className="fill-orange-600 text-[11px] font-medium">JWT</text>
@@ -970,17 +1040,26 @@ function DFDLevel0() {
           </div>
         </div>
         
+        {/* Desktop Agent entity */}
+        <div className="absolute right-[190px] top-1/2 -translate-y-1/2">
+          <div className="w-20 h-20 rounded-full bg-white dark:bg-gray-800 border-3 border-cyan-500 flex flex-col items-center justify-center shadow-lg">
+            <MonitorIcon className="h-6 w-6 text-cyan-500 mb-1" />
+            <span className="text-[10px] font-bold text-gray-800 dark:text-white">Desktop</span>
+            <span className="text-[10px] font-bold text-gray-800 dark:text-white">Agent</span>
+          </div>
+        </div>
+        
         <div className="absolute left-1/4 top-0">
           <div className="w-28 h-28 rounded-full bg-white dark:bg-gray-800 border-3 border-orange-500 flex flex-col items-center justify-center shadow-lg">
             <CloudIcon className="h-7 w-7 text-orange-500 mb-1" />
-            <span className="text-xs font-bold text-gray-800 dark:text-white">Auth0</span>
+            <span className="text-xs font-bold text-gray-800 dark:text-white">Google OAuth</span>
           </div>
         </div>
         
         <div className="absolute right-1/4 top-0">
           <div className="w-28 h-28 rounded-full bg-white dark:bg-gray-800 border-3 border-pink-500 flex flex-col items-center justify-center shadow-lg">
             <BrainCircuitIcon className="h-7 w-7 text-pink-500 mb-1" />
-            <span className="text-xs font-bold text-gray-800 dark:text-white">OpenRouter</span>
+            <span className="text-xs font-bold text-gray-800 dark:text-white">Ollama</span>
           </div>
         </div>
         
@@ -989,7 +1068,7 @@ function DFDLevel0() {
             <DatabaseIcon className="h-7 w-7 text-purple-500" />
             <div>
               <span className="text-sm font-bold text-gray-800 dark:text-white block">MongoDB Atlas</span>
-              <span className="text-[10px] text-gray-500">D1-D5</span>
+              <span className="text-[10px] text-gray-500">D1-D9</span>
             </div>
           </div>
         </div>
@@ -1057,38 +1136,44 @@ function DFDLevel1() {
           <line x1="270" y1="520" x2="100" y2="520" stroke="#14B8A6" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
           <text x="185" y="538" className="text-[10px] fill-teal-600" textAnchor="middle">รายการ Backup</text>
           
-          {/* ===== Auth0 Entity Flows ===== */}
-          {/* 1.0 to Auth0 */}
+          {/* ===== Google OAuth Entity Flows ===== */}
+          {/* 1.0 to Google OAuth */}
           <line x1="370" y1="90" x2="550" y2="50" stroke="#F97316" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
           <text x="470" y="55" className="text-[10px] fill-orange-600" textAnchor="middle">OAuth Request</text>
           <line x1="550" y1="70" x2="370" y2="110" stroke="#F97316" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
           <text x="475" y="100" className="text-[10px] fill-orange-600" textAnchor="middle">JWT Token</text>
           
-          {/* ===== OpenRouter Entity Flows ===== */}
-          {/* 3.0 to OpenRouter */}
+          {/* ===== Ollama Entity Flows ===== */}
+          {/* 3.0 to Ollama */}
           <line x1="370" y1="290" x2="550" y2="250" stroke="#EC4899" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
           <text x="470" y="255" className="text-[10px] fill-pink-600" textAnchor="middle">AI Request + Context</text>
           <line x1="550" y1="270" x2="370" y2="310" stroke="#EC4899" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
           <text x="475" y="305" className="text-[10px] fill-pink-600" textAnchor="middle">Generated Config</text>
           
-          {/* ===== Network Device Entity Flows ===== */}
-          {/* 2.0 to Network Device */}
-          <line x1="370" y1="200" x2="700" y2="145" stroke="#10B981" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="530" y="160" className="text-[10px] fill-green-600" textAnchor="middle">ทดสอบ SSH</text>
-          <line x1="700" y1="165" x2="370" y2="220" stroke="#10B981" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="530" y="205" className="text-[10px] fill-green-600" textAnchor="middle">สถานะเชื่อมต่อ</text>
+          {/* ===== Desktop Agent Entity Flows ===== */}
+          {/* 2.0 to Desktop Agent (SSH test via Agent) */}
+          <line x1="370" y1="200" x2="580" y2="370" stroke="#06B6D4" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="465" y="278" className="text-[10px] fill-cyan-600" textAnchor="middle">ทดสอบ SSH (via Agent)</text>
+          <line x1="580" y1="390" x2="370" y2="220" stroke="#06B6D4" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="465" y="318" className="text-[10px] fill-cyan-600" textAnchor="middle">สถานะเชื่อมต่อ</text>
           
-          {/* 4.0 to Network Device */}
-          <line x1="370" y1="400" x2="700" y2="185" stroke="#6366F1" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="480" y="335" className="text-[10px] fill-indigo-600">SSH/NETCONF</text>
-          <line x1="700" y1="205" x2="370" y2="420" stroke="#6366F1" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="580" y="320" className="text-[10px] fill-indigo-600">Result</text>
+          {/* 4.0 to Desktop Agent (Deploy via Agent) */}
+          <line x1="370" y1="400" x2="580" y2="400" stroke="#06B6D4" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="475" y="390" className="text-[10px] fill-cyan-600" textAnchor="middle">SSH/NETCONF via Agent</text>
+          <line x1="580" y1="420" x2="370" y2="420" stroke="#06B6D4" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="475" y="438" className="text-[10px] fill-cyan-600" textAnchor="middle">Result</text>
           
-          {/* 5.0 to Network Device */}
-          <line x1="370" y1="500" x2="700" y2="225" stroke="#14B8A6" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="490" y="420" className="text-[10px] fill-teal-600">Fetch Config</text>
-          <line x1="700" y1="245" x2="370" y2="520" stroke="#14B8A6" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
-          <text x="590" y="395" className="text-[10px] fill-teal-600">Running Config</text>
+          {/* 5.0 to Desktop Agent (Backup via Agent) */}
+          <line x1="370" y1="500" x2="580" y2="430" stroke="#06B6D4" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="475" y="458" className="text-[10px] fill-cyan-600">Fetch via Agent</text>
+          <line x1="580" y1="450" x2="370" y2="520" stroke="#06B6D4" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="475" y="498" className="text-[10px] fill-cyan-600">Running Config</text>
+          
+          {/* Desktop Agent to Network Devices */}
+          <line x1="660" y1="380" x2="700" y2="180" stroke="#10B981" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="695" y="290" className="text-[10px] fill-green-600">SSH/NETCONF</text>
+          <line x1="700" y1="200" x2="660" y2="400" stroke="#10B981" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="645" y="310" className="text-[10px] fill-green-600">Response</text>
           
           {/* ===== Database Flows ===== */}
           {/* 1.0 to D1 Users */}
@@ -1110,6 +1195,14 @@ function DFDLevel1() {
           {/* 5.0 to D4 Backups */}
           <line x1="350" y1="540" x2="610" y2="565" stroke="#A855F7" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
           <text x="480" y="555" className="text-[10px] fill-purple-600">Store Backup</text>
+          
+          {/* 3.0 to D5 YANG Models */}
+          <line x1="340" y1="340" x2="700" y2="565" stroke="#A855F7" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="520" y="465" className="text-[10px] fill-purple-600">อ่าน YANG</text>
+          
+          {/* Agent Relay to D6 Agent Commands */}
+          <line x1="630" y1="450" x2="790" y2="565" stroke="#A855F7" strokeWidth="1.5" markerEnd="url(#arrowL1)" />
+          <text x="720" y="510" className="text-[10px] fill-purple-600">Agent Cmd</text>
         </svg>
         
         {/* User Entity */}
@@ -1120,19 +1213,28 @@ function DFDLevel1() {
           </div>
         </div>
         
-        {/* Auth0 Entity */}
+        {/* Google OAuth Entity */}
         <div className="absolute left-[550px] top-[25px]">
           <div className="border-2 border-orange-500 bg-white dark:bg-gray-800 px-4 py-3 text-center">
             <CloudIcon className="h-6 w-6 text-orange-500 mx-auto mb-1" />
-            <span className="text-sm font-bold text-gray-800 dark:text-white">Auth0</span>
+            <span className="text-sm font-bold text-gray-800 dark:text-white">Google OAuth</span>
           </div>
         </div>
         
-        {/* OpenRouter Entity */}
+        {/* Ollama Entity */}
         <div className="absolute left-[550px] top-[230px]">
           <div className="border-2 border-pink-500 bg-white dark:bg-gray-800 px-4 py-3 text-center">
             <BrainCircuitIcon className="h-6 w-6 text-pink-500 mx-auto mb-1" />
-            <span className="text-sm font-bold text-gray-800 dark:text-white">OpenRouter</span>
+            <span className="text-sm font-bold text-gray-800 dark:text-white">Ollama</span>
+          </div>
+        </div>
+        
+        {/* Desktop Agent Entity */}
+        <div className="absolute left-[570px] top-[360px]">
+          <div className="border-2 border-cyan-500 bg-white dark:bg-gray-800 px-4 py-3 text-center">
+            <MonitorIcon className="h-6 w-6 text-cyan-500 mx-auto mb-1" />
+            <span className="text-sm font-bold text-gray-800 dark:text-white">Desktop</span>
+            <span className="text-xs text-gray-500 block">Agent</span>
           </div>
         </div>
         
@@ -1232,6 +1334,30 @@ function DFDLevel1() {
             </div>
           </div>
         </div>
+        
+        {/* D5 Data Store - YANG Models */}
+        <div className="absolute left-[700px] bottom-[20px]">
+          <div className="flex items-stretch">
+            <div className="w-8 bg-white dark:bg-gray-800 border-t-2 border-b-2 border-l-2 border-gray-700 flex items-center justify-center">
+              <span className="font-bold text-sm">D5</span>
+            </div>
+            <div className="border-2 border-gray-700 bg-white dark:bg-gray-800 px-3 py-2">
+              <span className="text-xs font-medium">YANG</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* D6 Data Store - Agent Commands */}
+        <div className="absolute left-[790px] bottom-[20px]">
+          <div className="flex items-stretch">
+            <div className="w-8 bg-white dark:bg-gray-800 border-t-2 border-b-2 border-l-2 border-gray-700 flex items-center justify-center">
+              <span className="font-bold text-sm">D6</span>
+            </div>
+            <div className="border-2 border-gray-700 bg-white dark:bg-gray-800 px-3 py-2">
+              <span className="text-xs font-medium">Agent Cmds</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Process Table */}
@@ -1253,14 +1379,14 @@ function DFDLevel1() {
             <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <td className="px-4 py-3"><span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded font-mono text-xs font-bold">1.0</span></td>
               <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Authentication</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Validates user identity via Auth0 OAuth2.0, issues JWT tokens, manages sessions</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Validates user identity via Google OAuth 2.0, issues JWT tokens, manages sessions</td>
               <td className="px-4 py-3 text-gray-500">Login credentials, OAuth callback</td>
               <td className="px-4 py-3 text-gray-500">JWT token, User session, User profile</td>
             </tr>
             <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <td className="px-4 py-3"><span className="px-2 py-1 bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded font-mono text-xs font-bold">2.0</span></td>
               <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Device Management</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">CRUD for devices (router, switch, nexus, ios-xe), SSH/NETCONF testing</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">CRUD for devices (router, switch, nexus, ios-xe), SSH/NETCONF testing via Desktop Agent</td>
               <td className="px-4 py-3 text-gray-500">Device data (IP, credentials, type)</td>
               <td className="px-4 py-3 text-gray-500">Device records, Connection status</td>
             </tr>
@@ -1274,14 +1400,14 @@ function DFDLevel1() {
             <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <td className="px-4 py-3"><span className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded font-mono text-xs font-bold">4.0</span></td>
               <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Deployment</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Deploy via SSH (CLI) or NETCONF (NX-OS/IOS-XE YANG), track status</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Deploy via SSH (CLI) or NETCONF (NX-OS/IOS-XE YANG) through Desktop Agent, track status</td>
               <td className="px-4 py-3 text-gray-500">Configuration, Device credentials</td>
               <td className="px-4 py-3 text-gray-500">Deployment status, Device response</td>
             </tr>
             <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <td className="px-4 py-3"><span className="px-2 py-1 bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 rounded font-mono text-xs font-bold">5.0</span></td>
               <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Backup Management</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Store and restore device configurations, diff comparison</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Store and restore device configurations via Desktop Agent, diff comparison</td>
               <td className="px-4 py-3 text-gray-500">Device ID, Backup parameters</td>
               <td className="px-4 py-3 text-gray-500">Backup records, Restore results</td>
             </tr>
@@ -1459,7 +1585,7 @@ function DFDLevel2() {
             <tr><td className="px-4 py-2 font-mono text-teal-600 font-bold">1.1</td><td className="px-4 py-2">เพิ่มอุปกรณ์</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">เพิ่มอุปกรณ์ใหม่ลงในระบบ พร้อมข้อมูล IP, credentials, ประเภท</td><td className="px-4 py-2 text-gray-500">Device data</td><td className="px-4 py-2 text-gray-500">Device record</td></tr>
             <tr><td className="px-4 py-2 font-mono text-teal-600 font-bold">1.2</td><td className="px-4 py-2">แก้ไขอุปกรณ์</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">แก้ไขข้อมูลอุปกรณ์ที่มีอยู่ เช่น IP, port, credentials</td><td className="px-4 py-2 text-gray-500">Device ID, Updates</td><td className="px-4 py-2 text-gray-500">Updated record</td></tr>
             <tr><td className="px-4 py-2 font-mono text-teal-600 font-bold">1.3</td><td className="px-4 py-2">ลบอุปกรณ์</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">ลบอุปกรณ์ออกจากระบบ พร้อมลบข้อมูลที่เกี่ยวข้อง</td><td className="px-4 py-2 text-gray-500">Device ID</td><td className="px-4 py-2 text-gray-500">Delete confirm</td></tr>
-            <tr><td className="px-4 py-2 font-mono text-teal-600 font-bold">1.4</td><td className="px-4 py-2">ทดสอบการเชื่อมต่อ</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">ทดสอบการเชื่อมต่อ SSH/NETCONF ไปยังอุปกรณ์</td><td className="px-4 py-2 text-gray-500">Device credentials</td><td className="px-4 py-2 text-gray-500">Connection status</td></tr>
+            <tr><td className="px-4 py-2 font-mono text-teal-600 font-bold">1.4</td><td className="px-4 py-2">ทดสอบการเชื่อมต่อ</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">ทดสอบการเชื่อมต่อ SSH/NETCONF ผ่าน Desktop Agent ไปยังอุปกรณ์</td><td className="px-4 py-2 text-gray-500">Device credentials</td><td className="px-4 py-2 text-gray-500">Connection status</td></tr>
             <tr><td className="px-4 py-2 font-mono text-teal-600 font-bold">1.5</td><td className="px-4 py-2">รายการอุปกรณ์</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">แสดงรายการอุปกรณ์ทั้งหมดพร้อมสถานะ</td><td className="px-4 py-2 text-gray-500">Filter options</td><td className="px-4 py-2 text-gray-500">Device list</td></tr>
           </tbody>
         </table>
@@ -1602,7 +1728,7 @@ function DFDLevel3() {
         <div className="absolute right-[30px] top-[235px]">
           <div className="border-2 border-pink-500 bg-white dark:bg-gray-800 px-6 py-4 text-center">
             <BrainCircuitIcon className="h-8 w-8 text-pink-500 mx-auto mb-2" />
-            <span className="text-base font-bold text-gray-800 dark:text-white">OpenRouter</span>
+            <span className="text-base font-bold text-gray-800 dark:text-white">Ollama</span>
             <div className="text-[10px] text-gray-500 mt-1">(LLM API)</div>
           </div>
         </div>
@@ -1638,7 +1764,7 @@ function DFDLevel3() {
           <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
             <tr><td className="px-4 py-2 font-mono text-pink-600 font-bold">2.1</td><td className="px-4 py-2">รับ prompts</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">รับข้อความ prompts จากผู้ใช้และตรวจสอบความถูกต้อง พร้อมตรวจจับประเภทคอนฟิก</td><td className="px-4 py-2 text-gray-500">User prompt</td><td className="px-4 py-2 text-gray-500">Validated prompt</td></tr>
             <tr><td className="px-4 py-2 font-mono text-pink-600 font-bold">2.2</td><td className="px-4 py-2">เตรียมบริบท</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">โหลดข้อมูลอุปกรณ์ ตรวจจับประเภท (NX-OS/IOS-XE) และ YANG models เพื่อสร้าง context</td><td className="px-4 py-2 text-gray-500">Device ID, Prompt</td><td className="px-4 py-2 text-gray-500">Full context + Type</td></tr>
-            <tr><td className="px-4 py-2 font-mono text-pink-600 font-bold">2.3</td><td className="px-4 py-2">เรียกใช้ LLM</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">ส่ง prompt ไปยัง OpenRouter เพื่อสร้าง CLI หรือ NETCONF/YANG XML (NX-OS/IOS-XE)</td><td className="px-4 py-2 text-gray-500">Context + Prompt</td><td className="px-4 py-2 text-gray-500">CLI/YANG config</td></tr>
+            <tr><td className="px-4 py-2 font-mono text-pink-600 font-bold">2.3</td><td className="px-4 py-2">เรียกใช้ LLM</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">ส่ง prompt ไปยัง Ollama เพื่อสร้าง CLI หรือ NETCONF/YANG XML (NX-OS/IOS-XE)</td><td className="px-4 py-2 text-gray-500">Context + Prompt</td><td className="px-4 py-2 text-gray-500">CLI/YANG config</td></tr>
             <tr><td className="px-4 py-2 font-mono text-pink-600 font-bold">2.4</td><td className="px-4 py-2">ตรวจสอบคอนฟิก</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">ตรวจสอบ syntax และ namespace (NX-OS: System, IOS-XE: native)</td><td className="px-4 py-2 text-gray-500">Raw config</td><td className="px-4 py-2 text-gray-500">Valid config</td></tr>
             <tr><td className="px-4 py-2 font-mono text-pink-600 font-bold">2.5</td><td className="px-4 py-2">บันทึกคอนฟิก</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">บันทึก configuration (CLI/NETCONF) และ explanation ลงฐานข้อมูล</td><td className="px-4 py-2 text-gray-500">Config + Explanation</td><td className="px-4 py-2 text-gray-500">Saved record</td></tr>
           </tbody>
@@ -1981,7 +2107,7 @@ function DFDLevel5() {
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
             <tr><td className="px-4 py-2 font-mono text-teal-600 font-bold">4.1</td><td className="px-4 py-2">เริ่ม Backup</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">เริ่มกระบวนการ backup โหลดข้อมูลอุปกรณ์</td><td className="px-4 py-2 text-gray-500">Device ID</td><td className="px-4 py-2 text-gray-500">Device info</td></tr>
-            <tr><td className="px-4 py-2 font-mono text-teal-600 font-bold">4.2</td><td className="px-4 py-2">ดึงคอนฟิก</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">เชื่อมต่อ SSH และดึง running-config จากอุปกรณ์</td><td className="px-4 py-2 text-gray-500">SSH credentials</td><td className="px-4 py-2 text-gray-500">Running config</td></tr>
+            <tr><td className="px-4 py-2 font-mono text-teal-600 font-bold">4.2</td><td className="px-4 py-2">ดึงคอนฟิก</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">เชื่อมต่อ SSH ผ่าน Agent Relay → Desktop Agent และดึง running-config</td><td className="px-4 py-2 text-gray-500">SSH credentials</td><td className="px-4 py-2 text-gray-500">Running config</td></tr>
             <tr><td className="px-4 py-2 font-mono text-teal-600 font-bold">4.3</td><td className="px-4 py-2">ตรวจสอบซ้ำ</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">คำนวณ hash และตรวจสอบว่าซ้ำกับ backup ก่อนหน้าหรือไม่</td><td className="px-4 py-2 text-gray-500">Config content</td><td className="px-4 py-2 text-gray-500">Is duplicate</td></tr>
             <tr><td className="px-4 py-2 font-mono text-teal-600 font-bold">4.4</td><td className="px-4 py-2">บันทึก Backup</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">บันทึก backup พร้อม metadata, tags และ timestamp</td><td className="px-4 py-2 text-gray-500">Backup data</td><td className="px-4 py-2 text-gray-500">Backup record</td></tr>
           </tbody>
@@ -2017,7 +2143,7 @@ function DataDictionary() {
               <td className="px-4 py-3"><span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded font-mono text-xs font-bold">D1</span></td>
               <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Users</td>
               <td className="px-4 py-3 text-gray-600 dark:text-gray-400">User accounts with OAuth integration</td>
-              <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, email, name, auth0Id, avatar, role</td>
+              <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, email, name, googleId, agentToken, avatar, role</td>
               <td className="px-4 py-3"><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded text-xs">users</code></td>
             </tr>
             <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
@@ -2045,8 +2171,36 @@ function DataDictionary() {
               <td className="px-4 py-3"><span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded font-mono text-xs font-bold">D5</span></td>
               <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">YANG Models</td>
               <td className="px-4 py-3 text-gray-600 dark:text-gray-400">NETCONF data models for device configuration</td>
-              <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, name, module, namespace, content, deviceTypes</td>
+              <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, name, namespace, prefix, yang_content, device_type, userId</td>
               <td className="px-4 py-3"><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded text-xs">yangmodels</code></td>
+            </tr>
+            <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <td className="px-4 py-3"><span className="px-2 py-1 bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 rounded font-mono text-xs font-bold">D6</span></td>
+              <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Agent Commands</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">SSH/NETCONF commands relayed to Desktop Agent</td>
+              <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, agentId, type, payload, status, result, userId</td>
+              <td className="px-4 py-3"><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded text-xs">agentcommands</code></td>
+            </tr>
+            <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <td className="px-4 py-3"><span className="px-2 py-1 bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 rounded font-mono text-xs font-bold">D7</span></td>
+              <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Agent Heartbeats</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Desktop Agent online/offline heartbeat status</td>
+              <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, agentId, timestamp, status, userId</td>
+              <td className="px-4 py-3"><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded text-xs">agentheartbeats</code></td>
+            </tr>
+            <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <td className="px-4 py-3"><span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 rounded font-mono text-xs font-bold">D8</span></td>
+              <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Notifications</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">System notifications for deploy/backup events</td>
+              <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, userId, type, message, read, relatedId</td>
+              <td className="px-4 py-3"><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded text-xs">notifications</code></td>
+            </tr>
+            <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <td className="px-4 py-3"><span className="px-2 py-1 bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 rounded font-mono text-xs font-bold">D9</span></td>
+              <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Shell Sessions</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Console / SSH interactive shell sessions via Agent</td>
+              <td className="px-4 py-3 text-gray-500 font-mono text-xs">_id, agentId, deviceId, sessionType, status, userId</td>
+              <td className="px-4 py-3"><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded text-xs">shellsessions</code></td>
             </tr>
           </tbody>
         </table>
