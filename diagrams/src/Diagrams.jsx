@@ -378,8 +378,8 @@ function OverviewDiagram() {
             <Box color="purple" size="md">
               <div className="flex flex-col items-center text-center">
                 <DatabaseIcon className="h-6 w-6 text-purple-600 dark:text-purple-400 mb-1" />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">MongoDB</span>
-                <span className="text-[10px] text-gray-500 dark:text-gray-400">Devices, Configs, Users</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">MongoDB Atlas</span>
+                <span className="text-[10px] text-gray-500 dark:text-gray-400">9 Collections (D1-D9)</span>
               </div>
             </Box>
           </div>
@@ -554,6 +554,7 @@ function ContextDiagram() {
               <div className="mt-2 text-center space-y-1">
                 <div className="text-xs text-cyan-600 dark:text-cyan-400 font-medium">↕ Agent Relay (HTTP)</div>
                 <div className="text-xs text-cyan-600 dark:text-cyan-400 font-medium">↕ SSH/NETCONF Local</div>
+                <div className="text-xs text-cyan-600 dark:text-cyan-400 font-medium">↕ Console (Serial Port)</div>
               </div>
             </div>
             
@@ -583,7 +584,7 @@ function ContextDiagram() {
                   <DatabaseIcon className="h-8 w-8 text-purple-500" />
                   <div>
                     <span className="text-sm font-bold text-gray-800 dark:text-white block">MongoDB Atlas</span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">Users | Devices | Configs | Backups</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Users | Devices | Configs | Backups | YANG | Agent Relay (D1-D9)</span>
                   </div>
                 </div>
               </Box>
@@ -679,7 +680,7 @@ function ContextDiagram() {
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
                 <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-purple-500" /></td>
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">MongoDB</td>
-                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">User data, device records, configurations, backups, YANG models</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">User data, device records, configurations, backups, YANG models, agent commands (D1-D9)</td>
                 <td className="px-4 py-3"><span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded text-xs">MongoDB Wire</span></td>
               </tr>
               <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
@@ -695,7 +696,7 @@ function ContextDiagram() {
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
                 <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-cyan-500" /></td>
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Desktop Agent</td>
-                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">SSH/NETCONF commands, backup requests via Agent Relay command queue (MongoDB)</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">SSH/NETCONF commands, backup requests, console port scan via Agent Relay command queue (MongoDB)</td>
                 <td className="px-4 py-3"><span className="px-2 py-1 bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 rounded text-xs">HTTP Polling</span></td>
               </tr>
               <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
@@ -705,6 +706,22 @@ function ContextDiagram() {
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
                 <td className="px-4 py-3 text-gray-600 dark:text-gray-400">SSH execution results, device configs, connection status, backup data</td>
                 <td className="px-4 py-3"><span className="px-2 py-1 bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 rounded text-xs">HTTP Polling</span></td>
+              </tr>
+              <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <td className="px-4 py-3 font-mono text-teal-600 font-bold">F13</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
+                <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-teal-500" /></td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Desktop Agent</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Console port scan requests, serial port open/write commands (serialPortAvailable flag relay)</td>
+                <td className="px-4 py-3"><span className="px-2 py-1 bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 rounded text-xs">HTTP Polling</span></td>
+              </tr>
+              <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <td className="px-4 py-3 font-mono text-teal-600 font-bold">F14</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Desktop Agent</td>
+                <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-teal-500" /></td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Available COM/serial port list, console session data, serial port I/O</td>
+                <td className="px-4 py-3"><span className="px-2 py-1 bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300 rounded text-xs">HTTP Polling</span></td>
               </tr>
             </tbody>
           </table>
@@ -1072,7 +1089,7 @@ function DFDLevel0() {
             <DatabaseIcon className="h-7 w-7 text-purple-500" />
             <div>
               <span className="text-sm font-bold text-gray-800 dark:text-white block">MongoDB Atlas</span>
-              <span className="text-[10px] text-gray-500 dark:text-gray-400">D1-D5</span>
+              <span className="text-[10px] text-gray-500 dark:text-gray-400">D1-D9</span>
             </div>
           </div>
         </div>
@@ -1182,6 +1199,12 @@ function DFDLevel1() {
           
           <line x1="310" y1="580" x2="655" y2="665" stroke="#A855F7" strokeWidth="1" strokeDasharray="4,3" markerEnd="url(#arrowL1)" />
           <text x="495" y="625" className="text-[9px] fill-purple-500 dark:fill-purple-400" transform="rotate(-15, 495, 625)">Store Backup</text>
+          
+          <line x1="310" y1="320" x2="780" y2="665" stroke="#A855F7" strokeWidth="1" strokeDasharray="4,3" markerEnd="url(#arrowL1)" />
+          <text x="560" y="500" className="text-[9px] fill-purple-500 dark:fill-purple-400" transform="rotate(-40, 560, 500)">อ่าน YANG</text>
+          
+          <line x1="760" y1="400" x2="900" y2="665" stroke="#A855F7" strokeWidth="1" strokeDasharray="4,3" markerEnd="url(#arrowL1)" />
+          <text x="850" y="540" className="text-[9px] fill-purple-500 dark:fill-purple-400" transform="rotate(-70, 850, 540)">Command Queue</text>
         </svg>
         
         {/* User Entity */}
@@ -1310,6 +1333,28 @@ function DFDLevel1() {
             </div>
             <div className="border-2 border-purple-600 dark:border-purple-500 bg-white dark:bg-gray-800 px-3 py-2">
               <span className="text-xs font-medium text-gray-800 dark:text-white">Backups</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="absolute left-[740px] bottom-[20px]">
+          <div className="flex items-stretch">
+            <div className="w-8 bg-white dark:bg-gray-800 border-t-2 border-b-2 border-l-2 border-purple-600 dark:border-purple-500 flex items-center justify-center">
+              <span className="font-bold text-xs text-purple-600 dark:text-purple-400">D5</span>
+            </div>
+            <div className="border-2 border-purple-600 dark:border-purple-500 bg-white dark:bg-gray-800 px-3 py-2">
+              <span className="text-xs font-medium text-gray-800 dark:text-white">YANG</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="absolute left-[860px] bottom-[20px]">
+          <div className="flex items-stretch">
+            <div className="w-8 bg-white dark:bg-gray-800 border-t-2 border-b-2 border-l-2 border-purple-600 dark:border-purple-500 flex items-center justify-center">
+              <span className="font-bold text-xs text-purple-600 dark:text-purple-400">D6</span>
+            </div>
+            <div className="border-2 border-purple-600 dark:border-purple-500 bg-white dark:bg-gray-800 px-3 py-2">
+              <span className="text-xs font-medium text-gray-800 dark:text-white">Agent Cmds</span>
             </div>
           </div>
         </div>
