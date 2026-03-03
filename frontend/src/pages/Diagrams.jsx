@@ -884,11 +884,12 @@ function DataFlowDiagram() {
   const levels = [
     { id: 0, label: 'Level 0 - Context', desc: 'System Boundary' },
     { id: 1, label: 'Level 1 - Main Processes', desc: 'Main Processes' },
-    { id: 2, label: 'Level 2 - Device Mgmt', desc: 'Process 2.0' },
-    { id: 3, label: 'Level 3 - Config Gen', desc: 'Process 3.0' },
-    { id: 4, label: 'Level 4 - Deployment', desc: 'Process 4.0' },
-    { id: 5, label: 'Level 5 - Backup', desc: 'Process 5.0' },
-    { id: 6, label: 'Level 6 - Console', desc: 'Process 6.0' },
+    { id: 2, label: 'Level 2 - Auth', desc: 'Process 1.0' },
+    { id: 3, label: 'Level 3 - Device Mgmt', desc: 'Process 2.0' },
+    { id: 4, label: 'Level 4 - Config Gen', desc: 'Process 3.0' },
+    { id: 5, label: 'Level 5 - Deployment', desc: 'Process 4.0' },
+    { id: 6, label: 'Level 6 - Backup', desc: 'Process 5.0' },
+    { id: 7, label: 'Level 7 - Console', desc: 'Process 6.0' },
   ];
 
   return (
@@ -903,7 +904,7 @@ function DataFlowDiagram() {
       </div>
 
       {/* Level Selector - Card Style */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         {levels.map((level) => (
           <button
             key={level.id}
@@ -929,19 +930,22 @@ function DataFlowDiagram() {
       {activeLevel === 1 && <DFDLevel1 />}
 
       {/* Level 2 - Authentication */}
-      {activeLevel === 2 && <DFDLevel2 />}
+      {activeLevel === 2 && <DFDLevelAuth />}
 
       {/* Level 3 - Device Management */}
-      {activeLevel === 3 && <DFDLevel3 />}
+      {activeLevel === 3 && <DFDLevel2 />}
 
       {/* Level 4 - Configuration Generation */}
-      {activeLevel === 4 && <DFDLevel4 />}
+      {activeLevel === 4 && <DFDLevel3 />}
 
-      {/* Level 5 - Backup Management */}
-      {activeLevel === 5 && <DFDLevel5 />}
+      {/* Level 5 - Deployment */}
+      {activeLevel === 5 && <DFDLevel4 />}
 
-      {/* Level 6 - Console Management */}
-      {activeLevel === 6 && <DFDLevel6 />}
+      {/* Level 6 - Backup Management */}
+      {activeLevel === 6 && <DFDLevel5 />}
+
+      {/* Level 7 - Console Management */}
+      {activeLevel === 7 && <DFDLevel6 />}
 
       {/* Data Dictionary */}
       <DataDictionary />
@@ -1377,7 +1381,88 @@ function SubProcessRow({ id, name, color, userLabel, userOut, rightType, rightLa
   );
 }
 
-// DFD Level 2 - Device Management Detail (Process 2.0)
+// DFD Level 2 - Authentication Detail (Process 1.0)
+function DFDLevelAuth() {
+  return (
+    <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-2xl p-6">
+      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 text-center flex items-center justify-center gap-2">
+        <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold">1</div>
+        Process 1.0 - Authentication Decomposition
+      </h3>
+
+      {/* User entity at top */}
+      <div className="flex justify-center mb-4">
+        <div className="border-2 border-gray-500 dark:border-gray-400 bg-white dark:bg-gray-800 rounded px-4 py-2 text-center">
+          <UsersIcon className="h-5 w-5 text-gray-600 dark:text-gray-300 mx-auto" />
+          <span className="text-xs font-bold text-gray-700 dark:text-gray-300">User</span>
+        </div>
+      </div>
+
+      {/* Sub-process flow rows */}
+      <div className="space-y-3 max-w-4xl mx-auto">
+        {/* 1.1 Google OAuth Login */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-300 dark:border-blue-800">
+          <SubProcessRow id="1.1" name="Google OAuth Login" color="blue" userLabel="Login Request" rightType="entity" rightLabel="OAuth Redirect" rightLabelOut="Auth Code" rightName="Google OAuth" rightIcon={CloudIcon} rightColor="text-orange-600" />
+        </div>
+
+        <div className="flex justify-center"><div className="w-[2px] h-6 bg-gray-400"></div></div>
+
+        {/* 1.2 OAuth Callback */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-300 dark:border-blue-800">
+          <SubProcessRow id="1.2" name="OAuth Callback" color="blue" userLabel="Auth Code" rightType="store" rightLabel="Find/Create User" rightLabelOut="User Record" rightName="D1 Users" />
+        </div>
+
+        <div className="flex justify-center"><div className="w-[2px] h-6 bg-gray-400"></div></div>
+
+        {/* 1.3 Issue JWT Token */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-300 dark:border-blue-800">
+          <SubProcessRow id="1.3" name="Issue JWT Token" color="blue" userLabel="User Data" userOut="JWT + Refresh Token" rightType="store" rightLabel="Update Login" rightName="D1 Users" />
+        </div>
+
+        <div className="flex justify-center"><div className="w-[2px] h-6 bg-gray-400"></div></div>
+
+        {/* 1.4 Verify Token */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-300 dark:border-blue-800">
+          <SubProcessRow id="1.4" name="Verify Token" color="blue" userLabel="JWT Token" userOut="User Profile" rightType="store" rightLabel="Lookup User" rightLabelOut="User Data" rightName="D1 Users" />
+        </div>
+
+        <div className="flex justify-center"><div className="w-[2px] h-6 bg-gray-400"></div></div>
+
+        {/* 1.5 Refresh Token */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-300 dark:border-blue-800">
+          <SubProcessRow id="1.5" name="Refresh Token" color="blue" userLabel="Refresh Token" userOut="New JWT Token" rightType="store" rightLabel="Validate User" rightLabelOut="User Record" rightName="D1 Users" />
+        </div>
+      </div>
+
+      {/* Sub-process Table */}
+      <div className="mt-8 bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-lg">
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-3">
+          <h4 className="text-base font-bold text-white">Sub-Process Specifications (1.x)</h4>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-100 dark:bg-gray-700">
+              <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 w-20">ID</th>
+              <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 w-40">Sub-Process</th>
+              <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300">Description</th>
+              <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 w-40">Input</th>
+              <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 w-40">Output</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
+            <tr><td className="px-4 py-2 font-mono text-blue-600 font-bold">1.1</td><td className="px-4 py-2">Google OAuth Login</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Redirect user to Google OAuth 2.0 consent screen with profile and email scopes</td><td className="px-4 py-2 text-gray-500">Login request</td><td className="px-4 py-2 text-gray-500">OAuth redirect</td></tr>
+            <tr><td className="px-4 py-2 font-mono text-blue-600 font-bold">1.2</td><td className="px-4 py-2">OAuth Callback</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Receive authorization code from Google, find or create user record in database</td><td className="px-4 py-2 text-gray-500">Auth code</td><td className="px-4 py-2 text-gray-500">User record</td></tr>
+            <tr><td className="px-4 py-2 font-mono text-blue-600 font-bold">1.3</td><td className="px-4 py-2">Issue JWT Token</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Generate JWT access token and refresh token, redirect to frontend with tokens</td><td className="px-4 py-2 text-gray-500">User data</td><td className="px-4 py-2 text-gray-500">JWT + Refresh token</td></tr>
+            <tr><td className="px-4 py-2 font-mono text-blue-600 font-bold">1.4</td><td className="px-4 py-2">Verify Token</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Validate JWT token on each API request, return user profile (/auth/me)</td><td className="px-4 py-2 text-gray-500">JWT token</td><td className="px-4 py-2 text-gray-500">User profile</td></tr>
+            <tr><td className="px-4 py-2 font-mono text-blue-600 font-bold">1.5</td><td className="px-4 py-2">Refresh Token</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Issue new JWT access token using valid refresh token when current token expires</td><td className="px-4 py-2 text-gray-500">Refresh token</td><td className="px-4 py-2 text-gray-500">New JWT token</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// DFD Level 3 - Device Management Detail (Process 2.0)
 function DFDLevel2() {
   return (
     <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-2xl p-6">
