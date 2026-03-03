@@ -1,4 +1,4 @@
-%*************************************
+﻿%*************************************
 % บทที่ 3
 %*************************************
 \chapterTitle{3}{วิธีการดำเนินงาน}
@@ -63,7 +63,7 @@
     \item \textbf{Network Protocols:} SSH2 สำหรับเชื่อมต่อกับอุปกรณ์เครือข่าย (รองรับ Interactive Shell สำหรับ Backup), NETCONF over SSH (Port 830) พร้อม Auto-Connect
     \item \textbf{LLM Integration:} Ollama API สำหรับเชื่อมต่อกับ LLM models ที่รันบนเครื่องผู้ใช้ (qwen2.5-coder:7b)
     \item \textbf{Serial Console:} SerialPort สำหรับเชื่อมต่ออุปกรณ์ผ่าน Console Port พร้อมแสดง Port ทุกประเภท (USB-to-Serial, Bluetooth, Serial) โดยไม่กรองออก
-    \item \textbf{Console Relay:} ระบบตรวจจับ SerialPort availability (\texttt{serialPortAvailable} flag) เพื่อ Relay คำสั่ง Console ไปยัง Desktop Agent อัตโนมัติบน Vercel Serverless ที่ไม่สามารถใช้ Native Module ได้
+    \item \textbf{Console Relay:} ระบบตรวจจับ SerialPort availability (\textbf{serialPortAvailable} flag) เพื่อ Relay คำสั่ง Console ไปยัง Desktop Agent อัตโนมัติบน Vercel Serverless ที่ไม่สามารถใช้ Native Module ได้
     \item \textbf{NETCONF Auto-Connect:} ระบบเชื่อมต่อ NETCONF อัตโนมัติเมื่อต้องการดำเนินการ (ensureConnected) เพื่อรองรับ Vercel Serverless ที่ไม่มี persistent state
     \item \textbf{Backup Interactive Shell:} ใช้ Interactive Shell แทน Single Exec เพื่อรองรับ Multi-command Sequence บนอุปกรณ์ Cisco
 \end{mycustomitem2}
@@ -98,47 +98,76 @@
 \end{figure}
 
 \hspace*{1.3em} %ย่อหน้า
-จากภาพที่ \ref{fig3:ContextDiagram} เว็บแอปพลิเคชันเพื่อการคอนฟิกด้วยวิธี NETCONF ผ่าน LLM ได้ครอบคลุม โดยเริ่มจากการตั้งค่าการใช้งานเริ่มต้นกำหนดค่า SSH ให้กับอุปกรณ์เครือข่ายที่ยังไม่มีการกำหนดค่าผ่านสาย Serial จากนั้นผู้ใช้สามารถเพิ่มอุปกรณ์เครือข่ายที่มีอยู่แล้วเข้าสู่ระบบได้โดยการป้อนรายละเอียด เช่น IP Address, Username, Password เพื่อให้สามารถเชื่อมต่อและจัดการอุปกรณ์ผ่านเว็บแอปพลิเคชันได้และให้ผู้ใช้สามารถป้อนคำสั่งเป็นภาษาธรรมชาติ (Natural Language) เพื่อให้ LLM สร้างคำสั่งการกำหนดค่าอุปกรณ์เครือข่ายและผู้ใช้
-สามารถตรวจสอบคำสั่งที่สร้างขึ้นก่อนที่จะส่งไปยังอุปกรณ์ผ่านโปรโตคอล SSH และยังสามารถคืนค่าอุปกรณ์เครือข่ายกลับไปยังการตั้งค่าก่อนหน้าได้หากจำเป็น
+จากภาพที่ \ref{fig3:ContextDiagram} แสดง Context Diagram ของระบบเว็บแอปพลิเคชันเพื่อการคอนฟิกด้วยวิธี NETCONF ผ่าน LLM ซึ่งแสดง External Entities ทั้งหมดที่มีปฏิสัมพันธ์กับระบบ ดังนี้
+
+\begin{mycustomitem2}
+    \item \textbf{Network Admin (ผู้ดูแลระบบเครือข่าย):} ผู้ใช้งานหลักของระบบ สามารถป้อนคำสั่ง Configuration Requests เป็นภาษาธรรมชาติ จัดการอุปกรณ์ (CRUD) สำรองและกู้คืนคอนฟิก เชื่อมต่อ Console ผ่าน SSH และรับผลลัพธ์ต่าง ๆ กลับมา (F1, F2)
+    \item \textbf{Google OAuth 2.0:} ระบบยืนยันตัวตนภายนอก ใช้สำหรับ Login ผ่าน OAuth Authorization Request และรับ JWT Token กลับมาเพื่อใช้งานระบบ (F7, F8)
+    \item \textbf{Ollama LLM API:} ระบบ AI สำหรับสร้าง Configuration โดยรับ AI Prompt พร้อมประเภทอุปกรณ์ (NX-OS/IOS-XE) และ YANG Templates แล้วส่งคืน Generated CLI/NETCONF XML Configuration (F5, F6)
+    \item \textbf{Desktop Agent (Electron App):} แอปพลิเคชันที่รันบนเครื่องผู้ใช้ ทำหน้าที่เป็นตัวกลาง (Agent Relay) ระหว่าง Backend กับอุปกรณ์เครือข่าย โดยรับคำสั่ง SSH/NETCONF, Backup Requests และ Console Port Scan ผ่าน HTTP Polling แล้วส่งผลลัพธ์กลับ ได้แก่ การเชื่อมต่อ SSH, การ Deploy Config, การสำรองข้อมูล รวมถึงการเชื่อมต่อ Serial Console (F11-F14)
+    \item \textbf{Network Devices (อุปกรณ์เครือข่าย):} อุปกรณ์ Cisco NX-OS และ IOS-XE ที่ระบบสื่อสารผ่าน SSH/NETCONF โดยผ่าน Desktop Agent เพื่อส่ง CLI Commands และ NETCONF/YANG XML แล้วรับ Running Config และ Device Capabilities กลับมา (F3, F4)
+    \item \textbf{MongoDB Atlas:} ฐานข้อมูลกลางของระบบ (9 Collections: D1-D9) สำหรับจัดเก็บข้อมูลผู้ใช้ อุปกรณ์ ประวัติคอนฟิก สำรองข้อมูล YANG Models คำสั่ง Agent Heartbeat Notifications และ Shell Sessions (F9, F10)
+\end{mycustomitem2}
 
 \section{Dataflow Diagram (DFD)}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{Image/Level-0.png}
-    \caption{\fontSixTeen{DFD ระดับที่ 1 ของระบบ}}
+    \caption{\fontSixTeen{DFD ระดับที่ 1 กระบวนการหลักของระบบ (Main Process Decomposition)}}
 \label{fig3:DataflowDiagram}
 \end{figure}
 
-\begin{figure}[H]
-    \centerline{\includegraphics[width=\textwidth]{Image/Level-1.png}}
-    \caption{\fontSixTeen{DFD ระดับที่ 2 ของ Process 1.0 (Device Management)}}
-    \label{fig3:DataflowDiagram_Level2_Process1.0}
-\end{figure}
+\hspace*{1.3em} %ย่อหน้า
+จากภาพที่ \ref{fig3:DataflowDiagram} แสดง DFD ระดับที่ 1 ซึ่งแบ่งระบบออกเป็น 6 กระบวนการหลัก ดังนี้
+
+\begin{mycustomitem2}
+    \item \textbf{Process 1.0 Authentication:} ตรวจสอบตัวตนผู้ใช้ผ่าน Google OAuth 2.0 ออก JWT Token และจัดการ Session
+    \item \textbf{Process 2.0 Device Management:} จัดการอุปกรณ์เครือข่าย (เพิ่ม แก้ไข ลบ) รองรับประเภท Router, Switch, Nexus (NX-OS) และ IOS-XE พร้อมทดสอบการเชื่อมต่อ SSH/NETCONF ผ่าน Desktop Agent
+    \item \textbf{Process 3.0 Configuration Generation:} สร้าง Configuration อัตโนมัติด้วย AI (Ollama LLM) โดยรับ Prompt ภาษาธรรมชาติ แล้วสร้าง CLI หรือ NETCONF/YANG XML สำหรับอุปกรณ์ NX-OS System และ IOS-XE native
+    \item \textbf{Process 4.0 Deployment:} ติดตั้ง Configuration ไปยังอุปกรณ์เครือข่ายผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH (CLI) หรือ NETCONF/YANG พร้อมติดตามสถานะการ Deploy
+    \item \textbf{Process 5.0 Backup Management:} สำรองและกู้คืน Configuration ผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH (Interactive Shell) พร้อมตรวจสอบความซ้ำด้วย SHA-256 Hash
+    \item \textbf{Process 6.0 Console Management:} จัดการ Interactive SSH Shell ผ่าน Agent Relay $\rightarrow$ Desktop Agent แบบ Polling-based I/O Buffer สำหรับเชื่อมต่อ Terminal กับอุปกรณ์
+\end{mycustomitem2}
+
+\hspace*{1.3em} %ย่อหน้า
+ระบบมี Data Store ทั้งหมด 7 ตาราง ได้แก่ D1 Users, D2 Devices, D3 Configs, D4 Backups, D5 YANG Models, D6 Agent Commands และ D7 Shell Sessions โดยมี External Entities ได้แก่ ผู้ใช้ (Network Admin), Google OAuth, Ollama LLM, Desktop Agent และอุปกรณ์เครือข่าย
 
 \begin{figure}[H]
-    \centerline{\includegraphics[width=1.0\textwidth]{Image/Level-2.png}}
-    \caption{\fontSixTeen{DFD ระดับที่ 2 ของ Process 2.0 (LLM Configuration Generator)}}
+    \centerline{\includegraphics[width=\textwidth]{Image/Level-1.png}}
+    \caption{\fontSixTeen{DFD ระดับที่ 2 ของ Process 2.0 (Device Management)}}
     \label{fig3:DataflowDiagram_Level2_Process2.0}
 \end{figure}
 
+\hspace*{1.3em} %ย่อหน้า
+จากภาพที่ \ref{fig3:DataflowDiagram_Level2_Process2.0} แสดงการแยกย่อย Process 2.0 Device Management ออกเป็น 5 กระบวนการย่อย ได้แก่ 2.1 เพิ่มอุปกรณ์ 2.2 แก้ไขอุปกรณ์ 2.3 ลบอุปกรณ์ 2.4 ทดสอบการเชื่อมต่อ (SSH/NETCONF ผ่าน Desktop Agent) และ 2.5 แสดงรายการอุปกรณ์ทั้งหมด โดยเชื่อมต่อกับ D1 ฐานข้อมูลอุปกรณ์ และอุปกรณ์เครือข่ายจริง
+
 \begin{figure}[H]
-    \centerline{\includegraphics[width=1.0\textwidth]{Image/Level-3.png}}
-    \caption{\fontSixTeen{DFD ระดับที่ 2 ของ Process 3.0 (Configuration Deployment)}}
+    \centerline{\includegraphics[width=1.0\textwidth]{Image/Level-2.png}}
+    \caption{\fontSixTeen{DFD ระดับที่ 2 ของ Process 3.0 (Configuration Generation)}}
     \label{fig3:DataflowDiagram_Level2_Process3.0}
 \end{figure}
 
+\hspace*{1.3em} %ย่อหน้า
+จากภาพที่ \ref{fig3:DataflowDiagram_Level2_Process3.0} แสดงการแยกย่อย Process 3.0 Configuration Generation ออกเป็น 5 กระบวนการย่อย ได้แก่ 3.1 รับ Prompt จากผู้ใช้ 3.2 เตรียมบริบท (โหลดข้อมูลอุปกรณ์และตรวจจับประเภท NX-OS/IOS-XE) 3.3 เรียกใช้ Ollama LLM เพื่อสร้าง CLI หรือ NETCONF/YANG XML 3.4 ตรวจสอบ Syntax และ Namespace ของคอนฟิกที่สร้าง และ 3.5 บันทึกคอนฟิกและ Explanation ลงฐานข้อมูลประวัติ
+
 \begin{figure}[H]
-    \centerline{\includegraphics[width=1.0\textwidth]{Image/Level-4.png}}
-    \caption{\fontSixTeen{DFD ระดับที่ 2 ของ Process 4.0 (Backup Management)}}
+    \centerline{\includegraphics[width=1.0\textwidth]{Image/Level-3.png}}
+    \caption{\fontSixTeen{DFD ระดับที่ 2 ของ Process 4.0 (Configuration Deployment)}}
     \label{fig3:DataflowDiagram_Level2_Process4.0}
 \end{figure}
 
+\hspace*{1.3em} %ย่อหน้า
+จากภาพที่ \ref{fig3:DataflowDiagram_Level2_Process4.0} แสดงการแยกย่อย Process 4.0 Configuration Deployment ออกเป็น 4 กระบวนการย่อย ได้แก่ 4.1 เลือกคอนฟิก (CLI/NETCONF) ที่ต้องการ Deploy 4.2 โหลดข้อมูลอุปกรณ์และตรวจจับประเภท 4.3 Deploy คอนฟิกผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH (CLI) หรือ NETCONF/YANG และ 4.4 อัปเดตสถานะการ Deploy และบันทึกประวัติ
+
 \begin{figure}[H]
-    \centerline{\includegraphics[width=1.0\textwidth]{Image/Level-5.png}}
-    \caption{\fontSixTeen{DFD ระดับที่ 2 ของ Process 5.0 (Configuration History)}}
+    \centerline{\includegraphics[width=1.0\textwidth]{Image/Level-4.png}}
+    \caption{\fontSixTeen{DFD ระดับที่ 2 ของ Process 5.0 (Backup Management)}}
     \label{fig3:DataflowDiagram_Level2_Process5.0}
 \end{figure}
+
+\hspace*{1.3em} %ย่อหน้า
+จากภาพที่ \ref{fig3:DataflowDiagram_Level2_Process5.0} แสดงการแยกย่อย Process 5.0 Backup Management ออกเป็น 4 กระบวนการย่อย ได้แก่ 5.1 เริ่ม Backup (โหลดข้อมูลอุปกรณ์) 5.2 ดึงคอนฟิกจากอุปกรณ์ผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH (show running-config) 5.3 ตรวจสอบความซ้ำด้วย SHA-256 Hash และ 5.4 บันทึก Backup พร้อม Metadata, Tags และ Timestamp นอกจากนี้ยังรองรับ Auto Trigger จาก Scheduler สำหรับ Backup อัตโนมัติ
 
 \section{พจนานุกรมข้อมูล (Data Flow Description)}
 

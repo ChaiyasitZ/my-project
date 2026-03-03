@@ -1,4 +1,4 @@
-%*************************************
+﻿%*************************************
 % บทที่ 5
 %*************************************
 \chapterTitle{5}{สรุปผลการดำเนินงาน}
@@ -16,10 +16,10 @@
     \item การจัดการ Configuration ในการสร้างการคำสั่งคอนฟิกที่ถูกต้องและเหมาะสมกับอุปกรณ์แต่ละประเภท (router, switch, nexus, ios-xe) เป็นเรื่องที่ต้องอาศัยความรู้เฉพาะทางและการทดสอบอย่างละเอียด
     \item การแก้ไขข้อผิดพลาดของ LLM ที่รันบน Ollama สร้างคำสั่งคอนฟิกที่ไม่ถูกต้อง การวิเคราะห์และแก้ไขข้อผิดพลาดเหล่านั้นอาจเป็นเรื่องที่ท้าทาย
     \item ปัญหา NETCONF Connection Stateless บน Vercel Serverless ที่ทำให้ NETCONF sessions หายไปเมื่อ Serverless Function instance เปลี่ยน ส่งผลให้การดำเนินการ NETCONF ล้มเหลวด้วยข้อผิดพลาด ``Not connected via NETCONF''
-    \item ปัญหาการสำรองคอนฟิกด้วย SSH Single Exec ที่ส่งหลายคำสั่งพร้อมกัน (\texttt{terminal length 0\textbackslash nshow running-config}) ซึ่งอุปกรณ์ Cisco ไม่รองรับ ทำให้ได้ข้อความผิดพลาดแทนคอนฟิกจริง
+    \item ปัญหาการสำรองคอนฟิกด้วย SSH Single Exec ที่ส่งหลายคำสั่งพร้อมกัน (\textbf{terminal length 0\textbackslash nshow running-config}) ซึ่งอุปกรณ์ Cisco ไม่รองรับ ทำให้ได้ข้อความผิดพลาดแทนคอนฟิกจริง
     \item ปัญหา Agent Relay Timeout (เดิม 25 วินาที) ไม่เพียงพอสำหรับการ Restore คอนฟิกที่ต้องสร้าง Checkpoint + Deploy คอนฟิก ส่งผลให้ Restore ล้มเหลวด้วยข้อผิดพลาด 500
-    \item ปัญหา YANG Model Upload ล้มเหลวเนื่องจาก Auth Middleware ใช้ \texttt{.lean()} ที่ทำให้ \texttt{req.user.id} เป็น undefined (ไม่มี Mongoose Virtual Getter) และ HTML5 Validation ปิดกั้นค่า Namespace ที่ไม่ใช่ URL
-    \item ปัญหา Console Port Scan ไม่แสดง Port ใด ๆ บน Vercel Serverless เนื่องจาก \texttt{consoleService.getAvailablePorts()} จัดการ Error ภายในตัวเอง (ส่งคืน \texttt{\{ success: false, ports: [] \}} แทนที่จะ throw) ทำให้ Route ไม่ Fallback ไปยัง Agent Relay เมื่อ SerialPort (Native Module) ไม่พร้อมใช้งานบน Serverless
+    \item ปัญหา YANG Model Upload ล้มเหลวเนื่องจาก Auth Middleware ใช้ \textbf{.lean()} ที่ทำให้ \textbf{req.user.id} เป็น undefined (ไม่มี Mongoose Virtual Getter) และ HTML5 Validation ปิดกั้นค่า Namespace ที่ไม่ใช่ URL
+    \item ปัญหา Console Port Scan ไม่แสดง Port ใด ๆ บน Vercel Serverless เนื่องจาก \textbf{consoleService.getAvailablePorts()} จัดการ Error ภายในตัวเอง (ส่งคืน \textbf{\{ success: false, ports: [] \}} แทนที่จะ throw) ทำให้ Route ไม่ Fallback ไปยัง Agent Relay เมื่อ SerialPort (Native Module) ไม่พร้อมใช้งานบน Serverless
 \end{mycustomenum}
 
 \section{การแก้ปัญหา}
@@ -30,7 +30,7 @@
     \item พัฒนาระบบ NETCONF Auto-Connect โดยเพิ่มฟังก์ชัน ensureConnected() ใน Desktop Agent ที่ตรวจสอบและเชื่อมต่อ NETCONF อัตโนมัติก่อนดำเนินการทุกครั้ง พร้อมส่ง Device Credentials จาก Backend เพื่อรองรับ Vercel Serverless ที่ไม่มี persistent state
     \item แก้ไข Agent Relay Timeout โดยเพิ่ม maxWait จาก 25 เป็น 55 วินาที เพิ่ม Deploy timeout เป็น 45 วินาที และเพิ่มระบบ Extended Polling สำหรับ Restore ที่รอผลลัพธ์เพิ่มเติมหลัง Relay timeout
     \item แก้ไข YANG Model Upload โดยเปลี่ยน req.user.id เป็น req.userId ในทุก Route (8 จุด) และแก้ไข HTML5 Validation บน Frontend
-    \item แก้ไข Console Port Scan โดยเพิ่ม \texttt{serialPortAvailable} flag ใน ConsoleService Constructor ที่ตรวจสอบว่า SerialPort (Native Module) พร้อมใช้งานหรือไม่ แล้วแก้ไข Console Routes ทั้ง 6 เส้นทาง (ports, connect, disconnect, test, command, initial-config) ให้ตรวจสอบ flag นี้ก่อน --- หาก false จะข้ามไปใช้ Agent Relay โดยตรง นอกจากนี้ยังลบ Port Filtering ออก (เดิมกรอง Bluetooth/Virtual/Loopback ออก) เพื่อให้แสดง Port ทุกประเภทรวมถึง USB-to-Serial Adapter
+    \item แก้ไข Console Port Scan โดยเพิ่ม \textbf{serialPortAvailable} flag ใน ConsoleService Constructor ที่ตรวจสอบว่า SerialPort (Native Module) พร้อมใช้งานหรือไม่ แล้วแก้ไข Console Routes ทั้ง 6 เส้นทาง (ports, connect, disconnect, test, command, initial-config) ให้ตรวจสอบ flag นี้ก่อน --- หาก false จะข้ามไปใช้ Agent Relay โดยตรง นอกจากนี้ยังลบ Port Filtering ออก (เดิมกรอง Bluetooth/Virtual/Loopback ออก) เพื่อให้แสดง Port ทุกประเภทรวมถึง USB-to-Serial Adapter
 \end{mycustomenum}
 
 \section{ข้อเสนอแนะ}
