@@ -124,14 +124,14 @@
 \begin{mycustomitem2}
     \item \textbf{Process 1.0 Authentication:} ตรวจสอบตัวตนผู้ใช้ผ่าน Google OAuth 2.0 ออก JWT Token และจัดการ Session
     \item \textbf{Process 2.0 Device Management:} จัดการอุปกรณ์เครือข่าย (เพิ่ม แก้ไข ลบ) รองรับประเภท Router, Switch, Nexus (NX-OS) และ IOS-XE พร้อมทดสอบการเชื่อมต่อ SSH/NETCONF ผ่าน Desktop Agent
-    \item \textbf{Process 3.0 Configuration Generation:} สร้าง Configuration อัตโนมัติด้วย AI (Ollama LLM) โดยรับ Prompt ภาษาธรรมชาติ แล้วสร้าง CLI หรือ NETCONF/YANG XML สำหรับอุปกรณ์ NX-OS System และ IOS-XE native
+    \item \textbf{Process 3.0 Configuration Generation:} สร้าง Configuration อัตโนมัติด้วย AI (Ollama LLM) ที่รันบนเครื่องผู้ใช้ โดยเชื่อมต่อผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ Ollama (Local) รับ Prompt ภาษาธรรมชาติ แล้วสร้าง CLI หรือ NETCONF/YANG XML สำหรับอุปกรณ์ NX-OS System และ IOS-XE native
     \item \textbf{Process 4.0 Deployment:} ติดตั้ง Configuration ไปยังอุปกรณ์เครือข่ายผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH (CLI) หรือ NETCONF/YANG พร้อมติดตามสถานะการ Deploy
     \item \textbf{Process 5.0 Backup Management:} สำรองและกู้คืน Configuration ผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH (Interactive Shell) พร้อมตรวจสอบความซ้ำด้วย SHA-256 Hash
     \item \textbf{Process 6.0 Console Management:} จัดการ Interactive SSH Shell ผ่าน Agent Relay $\rightarrow$ Desktop Agent แบบ Polling-based I/O Buffer สำหรับเชื่อมต่อ Terminal กับอุปกรณ์
 \end{mycustomitem2}
 
 \hspace*{1.3em} %ย่อหน้า
-ระบบมี Data Store ทั้งหมด 7 ตาราง ได้แก่ D1 Users, D2 Devices, D3 Configs, D4 Backups, D5 YANG Models, D6 Agent Commands และ D7 Shell Sessions โดยมี External Entities ได้แก่ ผู้ใช้ (Network Admin), Google OAuth, Ollama LLM, Desktop Agent และอุปกรณ์เครือข่าย
+ระบบมี Data Store ทั้งหมด 7 ตาราง ได้แก่ D1 Users, D2 Devices, D3 Configs, D4 Backups, D5 YANG Models, D6 Agent Commands และ D7 Shell Sessions โดยมี External Entities ได้แก่ ผู้ใช้ (Network Admin), Google OAuth, Desktop Agent, Ollama LLM (Local, เข้าถึงผ่าน Desktop Agent) และอุปกรณ์เครือข่าย
 
 \begin{figure}[H]
     \centerline{\includegraphics[width=\textwidth]{Image/Level-1.png}}
@@ -149,7 +149,7 @@
 \end{figure}
 
 \hspace*{1.3em} %ย่อหน้า
-จากภาพที่ \ref{fig3:DataflowDiagram_Level2_Process3.0} แสดงการแยกย่อย Process 3.0 Configuration Generation ออกเป็น 5 กระบวนการย่อย ได้แก่ 3.1 รับ Prompt จากผู้ใช้ 3.2 เตรียมบริบท (โหลดข้อมูลอุปกรณ์และตรวจจับประเภท NX-OS/IOS-XE) 3.3 เรียกใช้ Ollama LLM เพื่อสร้าง CLI หรือ NETCONF/YANG XML 3.4 ตรวจสอบ Syntax และ Namespace ของคอนฟิกที่สร้าง และ 3.5 บันทึกคอนฟิกและ Explanation ลงฐานข้อมูลประวัติ
+จากภาพที่ \ref{fig3:DataflowDiagram_Level2_Process3.0} แสดงการแยกย่อย Process 3.0 Configuration Generation ออกเป็น 5 กระบวนการย่อย ได้แก่ 3.1 รับ Prompt จากผู้ใช้ 3.2 เตรียมบริบท (โหลดข้อมูลอุปกรณ์และตรวจจับประเภท NX-OS/IOS-XE) 3.3 เรียกใช้ Ollama LLM ผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ Ollama (Local) เพื่อสร้าง CLI หรือ NETCONF/YANG XML 3.4 ตรวจสอบ Syntax และ Namespace ของคอนฟิกที่สร้าง และ 3.5 บันทึกคอนฟิกและ Explanation ลงฐานข้อมูลประวัติ
 
 \begin{figure}[H]
     \centerline{\includegraphics[width=1.0\textwidth]{Image/Level-3.png}}
@@ -168,6 +168,15 @@
 
 \hspace*{1.3em} %ย่อหน้า
 จากภาพที่ \ref{fig3:DataflowDiagram_Level2_Process5.0} แสดงการแยกย่อย Process 5.0 Backup Management ออกเป็น 4 กระบวนการย่อย ได้แก่ 5.1 เริ่ม Backup (โหลดข้อมูลอุปกรณ์) 5.2 ดึงคอนฟิกจากอุปกรณ์ผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH (show running-config) 5.3 ตรวจสอบความซ้ำด้วย SHA-256 Hash และ 5.4 บันทึก Backup พร้อม Metadata, Tags และ Timestamp นอกจากนี้ยังรองรับ Auto Trigger จาก Scheduler สำหรับ Backup อัตโนมัติ
+
+\begin{figure}[H]
+    \centerline{\includegraphics[width=1.0\textwidth]{Image/Level-5.png}}
+    \caption{\fontSixTeen{DFD ระดับที่ 2 ของ Process 6.0 (Console Management)}}
+    \label{fig3:DataflowDiagram_Level2_Process6.0}
+\end{figure}
+
+\hspace*{1.3em} %ย่อหน้า
+จากภาพที่ \ref{fig3:DataflowDiagram_Level2_Process6.0} แสดงการแยกย่อย Process 6.0 Console Management ออกเป็น 5 กระบวนการย่อย ได้แก่ 6.1 สแกน Serial Port ที่พร้อมใช้งาน (COM/USB) ผ่าน Desktop Agent 6.2 เชื่อมต่อ Console ด้วยการตั้งค่า Baud Rate, Data Bits และ Parity ผ่าน Agent Relay $\rightarrow$ Desktop Agent 6.3 ส่งคำสั่ง CLI ไปยังอุปกรณ์ผ่าน Serial Console 6.4 Push Initial Configuration (Hostname, IP, Credentials) ไปยังอุปกรณ์ใหม่ และ 6.5 ปิดการเชื่อมต่อ Serial Port และอัปเดตสถานะ Session
 
 \section{พจนานุกรมข้อมูล (Data Flow Description)}
 
