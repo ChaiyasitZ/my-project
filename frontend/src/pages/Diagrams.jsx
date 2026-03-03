@@ -888,6 +888,7 @@ function DataFlowDiagram() {
     { id: 3, label: 'Level 3 - Config Gen', desc: 'Process 3.0' },
     { id: 4, label: 'Level 4 - Deployment', desc: 'Process 4.0' },
     { id: 5, label: 'Level 5 - Backup', desc: 'Process 5.0' },
+    { id: 6, label: 'Level 6 - Console', desc: 'Process 6.0' },
   ];
 
   return (
@@ -902,7 +903,7 @@ function DataFlowDiagram() {
       </div>
 
       {/* Level Selector - Card Style */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         {levels.map((level) => (
           <button
             key={level.id}
@@ -938,6 +939,9 @@ function DataFlowDiagram() {
 
       {/* Level 5 - Backup Management */}
       {activeLevel === 5 && <DFDLevel5 />}
+
+      {/* Level 6 - Console Management */}
+      {activeLevel === 6 && <DFDLevel6 />}
 
       {/* Data Dictionary */}
       <DataDictionary />
@@ -1670,6 +1674,85 @@ function DFDLevel5() {
             <tr><td className="px-4 py-2 font-mono text-teal-600 font-bold">5.2</td><td className="px-4 py-2">Fetch Config</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Connect via SSH through Agent Relay and fetch running-config</td><td className="px-4 py-2 text-gray-500">SSH credentials</td><td className="px-4 py-2 text-gray-500">Running config</td></tr>
             <tr><td className="px-4 py-2 font-mono text-teal-600 font-bold">5.3</td><td className="px-4 py-2">Check Duplicate</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Calculate hash and check for duplicate with previous backups</td><td className="px-4 py-2 text-gray-500">Config content</td><td className="px-4 py-2 text-gray-500">Is duplicate</td></tr>
             <tr><td className="px-4 py-2 font-mono text-teal-600 font-bold">5.4</td><td className="px-4 py-2">Save Backup</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Save backup with metadata, tags, and timestamp</td><td className="px-4 py-2 text-gray-500">Backup data</td><td className="px-4 py-2 text-gray-500">Backup record</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// DFD Level 6 - Console Management Detail (Process 6.0)
+function DFDLevel6() {
+  return (
+    <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-2xl p-6">
+      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 text-center flex items-center justify-center gap-2">
+        <div className="w-8 h-8 rounded-full bg-violet-500 text-white flex items-center justify-center text-sm font-bold">6</div>
+        Process 6.0 - Console Management Decomposition
+      </h3>
+
+      <div className="flex justify-center mb-4">
+        <div className="border-2 border-gray-500 dark:border-gray-400 bg-white dark:bg-gray-800 rounded px-4 py-2 text-center">
+          <UsersIcon className="h-5 w-5 text-gray-600 dark:text-gray-300 mx-auto" />
+          <span className="text-xs font-bold text-gray-700 dark:text-gray-300">User</span>
+        </div>
+      </div>
+
+      <div className="space-y-3 max-w-4xl mx-auto">
+        {/* 6.1 List Ports */}
+        <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-4 border border-violet-300 dark:border-violet-800">
+          <SubProcessRow id="6.1" name="List Ports" color="violet" userLabel="Scan Request" userOut="Port List" rightType="entity" rightLabel="List Serial Ports" rightLabelOut="Available Ports" rightName="Desktop Agent" rightIcon={MonitorIcon} rightColor="text-cyan-600" />
+        </div>
+
+        <div className="flex justify-center"><div className="w-[2px] h-6 bg-gray-400"></div></div>
+
+        {/* 6.2 Connect Console */}
+        <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-4 border border-violet-300 dark:border-violet-800">
+          <SubProcessRow id="6.2" name="Connect Console" color="violet" userLabel="Port + Settings" userOut="Connection Status" rightType="entity" rightLabel="Open Serial Port" rightLabelOut="Connected" rightName="Desktop Agent" rightIcon={MonitorIcon} rightColor="text-cyan-600" />
+        </div>
+
+        <div className="flex justify-center"><div className="w-[2px] h-6 bg-gray-400"></div></div>
+
+        {/* 6.3 Send Command */}
+        <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-4 border border-violet-300 dark:border-violet-800">
+          <SubProcessRow id="6.3" name="Send Command" color="violet" userLabel="CLI Command" userOut="Command Output" rightType="entity" rightLabel="Write to Serial" rightLabelOut="Device Response" rightName="Desktop Agent" rightIcon={MonitorIcon} rightColor="text-cyan-600" />
+        </div>
+
+        <div className="flex justify-center"><div className="w-[2px] h-6 bg-gray-400"></div></div>
+
+        {/* 6.4 Initial Config */}
+        <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-4 border border-violet-300 dark:border-violet-800">
+          <SubProcessRow id="6.4" name="Initial Config" color="violet" userLabel="Config Commands" rightType="store" rightLabel="Save History" rightName="D7 Sessions" />
+        </div>
+
+        <div className="flex justify-center"><div className="w-[2px] h-6 bg-gray-400"></div></div>
+
+        {/* 6.5 Disconnect */}
+        <div className="bg-violet-50 dark:bg-violet-900/20 rounded-xl p-4 border border-violet-300 dark:border-violet-800">
+          <SubProcessRow id="6.5" name="Disconnect" color="violet" userLabel="Close Request" userOut="Disconnected" rightType="store" rightLabel="Update Status" rightName="D7 Sessions" />
+        </div>
+      </div>
+
+      {/* Sub-process Table */}
+      <div className="mt-8 bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-lg">
+        <div className="bg-gradient-to-r from-violet-600 to-violet-700 px-6 py-3">
+          <h4 className="text-base font-bold text-white">Sub-Process Specifications (6.x)</h4>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-100 dark:bg-gray-700">
+              <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 w-20">ID</th>
+              <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 w-40">Sub-Process</th>
+              <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300">Description</th>
+              <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 w-40">Input</th>
+              <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 w-40">Output</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
+            <tr><td className="px-4 py-2 font-mono text-violet-600 font-bold">6.1</td><td className="px-4 py-2">List Ports</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Scan available serial ports (COM/USB) via Desktop Agent</td><td className="px-4 py-2 text-gray-500">Scan request</td><td className="px-4 py-2 text-gray-500">Port list</td></tr>
+            <tr><td className="px-4 py-2 font-mono text-violet-600 font-bold">6.2</td><td className="px-4 py-2">Connect Console</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Open serial port connection with baud rate, data bits, parity settings</td><td className="px-4 py-2 text-gray-500">Port path + Settings</td><td className="px-4 py-2 text-gray-500">Connection status</td></tr>
+            <tr><td className="px-4 py-2 font-mono text-violet-600 font-bold">6.3</td><td className="px-4 py-2">Send Command</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Send CLI command to device via serial console, receive response</td><td className="px-4 py-2 text-gray-500">CLI command</td><td className="px-4 py-2 text-gray-500">Device output</td></tr>
+            <tr><td className="px-4 py-2 font-mono text-violet-600 font-bold">6.4</td><td className="px-4 py-2">Initial Config</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Push initial configuration (hostname, IP, credentials) to new device</td><td className="px-4 py-2 text-gray-500">Config commands</td><td className="px-4 py-2 text-gray-500">Config result</td></tr>
+            <tr><td className="px-4 py-2 font-mono text-violet-600 font-bold">6.5</td><td className="px-4 py-2">Disconnect</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Close serial port connection and update session status</td><td className="px-4 py-2 text-gray-500">Close request</td><td className="px-4 py-2 text-gray-500">Disconnected</td></tr>
           </tbody>
         </table>
       </div>
