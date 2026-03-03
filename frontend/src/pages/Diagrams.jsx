@@ -379,7 +379,7 @@ function OverviewDiagram() {
               <div className="flex flex-col items-center text-center">
                 <BrainCircuitIcon className="h-5 w-5 text-orange-600 dark:text-orange-400 mb-1" />
                 <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Ollama</span>
-                <span className="text-[10px] text-gray-500 dark:text-gray-400">LLM API</span>
+                <span className="text-[10px] text-gray-500 dark:text-gray-400">Local LLM (via Agent)</span>
               </div>
             </Box>
             <Box color="orange" size="sm">
@@ -525,18 +525,19 @@ function ContextDiagram() {
                 <div className="text-xs text-cyan-600 dark:text-cyan-400 font-medium">↕ Agent Relay (HTTP)</div>
                 <div className="text-xs text-cyan-600 dark:text-cyan-400 font-medium">↕ SSH/NETCONF Local</div>
                 <div className="text-xs text-cyan-600 dark:text-cyan-400 font-medium">↕ Console (Serial Port)</div>
+                <div className="text-xs text-pink-600 dark:text-pink-400 font-medium">↕ Ollama (Local LLM)</div>
               </div>
             </div>
             
-            {/* AI Service */}
+            {/* AI Service - accessed via Desktop Agent */}
             <div className="flex flex-col items-center mt-2">
-              <Entity color="gray" className="w-32 h-32 shadow-lg">
+              <Entity color="gray" className="w-32 h-32 shadow-lg border-2 border-pink-400">
                 <BrainCircuitIcon className="h-8 w-8 text-pink-500 mb-2" />
                 <span className="text-sm font-bold text-gray-800 dark:text-white">Ollama</span>
-                <span className="text-sm font-bold text-gray-800 dark:text-white">LLM API</span>
+                <span className="text-sm font-bold text-gray-800 dark:text-white">(Local)</span>
               </Entity>
               <div className="mt-2 text-center space-y-1">
-                <div className="text-xs text-pink-600 dark:text-pink-400 font-medium">← AI Prompt</div>
+                <div className="text-xs text-pink-600 dark:text-pink-400 font-medium">← AI Prompt (via Agent)</div>
                 <div className="text-xs text-pink-600 dark:text-pink-400 font-medium">→ Generated Config</div>
               </div>
             </div>
@@ -617,17 +618,17 @@ function ContextDiagram() {
                 <td className="px-4 py-3 font-mono text-pink-600 font-bold">F5</td>
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
                 <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-pink-500" /></td>
-                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Ollama LLM</td>
-                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">AI prompts with device type (NX-OS/IOS-XE), YANG templates</td>
-                <td className="px-4 py-3"><span className="px-2 py-1 bg-pink-100 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300 rounded text-xs">HTTPS/API</span></td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Ollama (via Agent)</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">AI prompts relayed through Agent Relay → Desktop Agent → local Ollama</td>
+                <td className="px-4 py-3"><span className="px-2 py-1 bg-pink-100 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300 rounded text-xs">Agent Relay</span></td>
               </tr>
               <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                 <td className="px-4 py-3 font-mono text-pink-600 font-bold">F6</td>
-                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Ollama LLM</td>
+                <td className="px-4 py-3 text-gray-700 dark:text-gray-300">Ollama (via Agent)</td>
                 <td className="px-4 py-3 text-center"><ArrowRightIcon className="h-4 w-4 inline text-pink-500" /></td>
                 <td className="px-4 py-3 text-gray-700 dark:text-gray-300">System</td>
-                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Generated CLI/NETCONF XML (NX-OS/IOS-XE), explanations</td>
-                <td className="px-4 py-3"><span className="px-2 py-1 bg-pink-100 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300 rounded text-xs">HTTPS/API</span></td>
+                <td className="px-4 py-3 text-gray-600 dark:text-gray-400">Generated CLI/NETCONF XML returned through Desktop Agent → Agent Relay</td>
+                <td className="px-4 py-3"><span className="px-2 py-1 bg-pink-100 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300 rounded text-xs">Agent Relay</span></td>
               </tr>
               <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                 <td className="px-4 py-3 font-mono text-orange-600 font-bold">F7</td>
@@ -992,14 +993,14 @@ function DFDLevel0() {
             <text x="760" y="240" className="fill-green-600 text-[11px] font-medium" textAnchor="middle">Config</text>
           </g>
           
-          {/* System to AI */}
+          {/* Desktop Agent to Ollama (Local) - via Agent Relay */}
           <g className="stroke-pink-500">
-            <line x1="500" y1="120" x2="650" y2="50" strokeWidth="2" markerEnd="url(#arrow-right)" />
-            <text x="580" y="70" className="fill-pink-600 text-[11px] font-medium" textAnchor="middle">AI Prompt</text>
+            <line x1="660" y1="155" x2="640" y2="95" strokeWidth="2" markerEnd="url(#arrow-right)" />
+            <text x="620" y="130" className="fill-pink-600 text-[11px] font-medium" textAnchor="middle">Ollama API</text>
           </g>
           <g className="stroke-pink-400">
-            <line x1="680" y1="70" x2="520" y2="120" strokeWidth="2" markerEnd="url(#arrow-right)" />
-            <text x="620" y="110" className="fill-pink-600 text-[11px] font-medium" textAnchor="middle">Config</text>
+            <line x1="650" y1="95" x2="670" y2="155" strokeWidth="2" markerEnd="url(#arrow-right)" />
+            <text x="695" y="130" className="fill-pink-600 text-[11px] font-medium" textAnchor="middle">LLM Result</text>
           </g>
           
           {/* System to DB */}
@@ -1060,6 +1061,7 @@ function DFDLevel0() {
           <div className="w-28 h-28 rounded-full bg-white dark:bg-gray-800 border-3 border-pink-500 flex flex-col items-center justify-center shadow-lg">
             <BrainCircuitIcon className="h-7 w-7 text-pink-500 mb-1" />
             <span className="text-xs font-bold text-gray-800 dark:text-white">Ollama</span>
+            <span className="text-[9px] text-gray-500">(Local)</span>
           </div>
         </div>
         
@@ -1104,15 +1106,16 @@ function DFDLevel1() {
       userIn: 'Manage Devices', userOut: 'Device List',
       external: { name: 'Desktop Agent', icon: MonitorIcon, color: 'cyan' },
       extIn: 'SSH Test via Agent', extOut: 'Connection Status',
-      external2: { name: 'Network Devices', icon: ServerIcon, color: 'emerald' },
+      external2: { name: 'Network Devices', icon: ServerIcon, color: 'emerald', flowIn: 'SSH/NETCONF', flowOut: 'Response' },
       dataStores: ['D2 Devices'],
     },
     {
       id: '3.0', name: 'Config Generation', color: 'pink',
       icon: BrainCircuitIcon,
       userIn: 'NL Prompt', userOut: 'Generated Config',
-      external: { name: 'Ollama (LLM)', icon: BrainCircuitIcon, color: 'pink' },
-      extIn: 'AI Request + Context', extOut: 'Generated Config',
+      external: { name: 'Desktop Agent', icon: MonitorIcon, color: 'cyan' },
+      extIn: 'AI via Agent Relay', extOut: 'Generated Config',
+      external2: { name: 'Ollama (Local)', icon: BrainCircuitIcon, color: 'pink', flowIn: 'Ollama API', flowOut: 'LLM Result' },
       dataStores: ['D3 Configs', 'D5 YANG Models'],
     },
     {
@@ -1121,7 +1124,7 @@ function DFDLevel1() {
       userIn: 'Deploy Config', userOut: 'Deploy Status',
       external: { name: 'Desktop Agent', icon: MonitorIcon, color: 'cyan' },
       extIn: 'SSH/NETCONF via Agent', extOut: 'Result',
-      external2: { name: 'Network Devices', icon: ServerIcon, color: 'emerald' },
+      external2: { name: 'Network Devices', icon: ServerIcon, color: 'emerald', flowIn: 'SSH/NETCONF', flowOut: 'Response' },
       dataStores: ['D3 Configs', 'D6 Agent Cmds'],
     },
     {
@@ -1130,7 +1133,7 @@ function DFDLevel1() {
       userIn: 'Create/Restore Backup', userOut: 'Backup List',
       external: { name: 'Desktop Agent', icon: MonitorIcon, color: 'cyan' },
       extIn: 'Fetch via Agent', extOut: 'Running Config',
-      external2: { name: 'Network Devices', icon: ServerIcon, color: 'emerald' },
+      external2: { name: 'Network Devices', icon: ServerIcon, color: 'emerald', flowIn: 'SSH/NETCONF', flowOut: 'Response' },
       dataStores: ['D4 Backups', 'D2 Devices'],
     },
     {
@@ -1139,7 +1142,7 @@ function DFDLevel1() {
       userIn: 'Open Console', userOut: 'Shell Output',
       external: { name: 'Desktop Agent', icon: MonitorIcon, color: 'cyan' },
       extIn: 'SSH Session via Agent', extOut: 'Shell Stream',
-      external2: { name: 'Network Devices', icon: ServerIcon, color: 'emerald' },
+      external2: { name: 'Network Devices', icon: ServerIcon, color: 'emerald', flowIn: 'SSH/NETCONF', flowOut: 'Response' },
       dataStores: ['D7 Sessions', 'D6 Agent Cmds'],
     },
   ];
@@ -1210,20 +1213,23 @@ function DFDLevel1() {
                 </div>
 
                 {/* Optional second external entity (Network Devices) */}
-                {p.external2 && (
-                  <>
-                    <div className="flex flex-col items-center min-w-[60px]">
-                      <span className="text-[10px] font-medium text-emerald-600 whitespace-nowrap">SSH/NETCONF →</span>
-                      <div className="h-[2px] w-10 bg-emerald-400 my-1"></div>
-                      <span className="text-[10px] font-medium text-emerald-600 whitespace-nowrap">← Response</span>
-                    </div>
-                    <div className="border-2 border-emerald-500 bg-white dark:bg-gray-800 rounded px-3 py-2 text-center min-w-[80px] flex-shrink-0">
-                      <ServerIcon className="h-5 w-5 mx-auto mb-1 text-emerald-600" />
-                      <span className="text-xs font-bold text-gray-800 dark:text-white block">Network</span>
-                      <span className="text-[9px] text-gray-500 block">Devices</span>
-                    </div>
-                  </>
-                )}
+                {p.external2 && (() => {
+                  const Ext2Icon = p.external2.icon;
+                  const ext2c = colorMap[p.external2.color];
+                  return (
+                    <>
+                      <div className="flex flex-col items-center min-w-[60px]">
+                        <span className={`text-[10px] font-medium ${ext2c?.text || 'text-emerald-600'} whitespace-nowrap`}>{p.external2.flowIn || 'SSH/NETCONF'} →</span>
+                        <div className={`h-[2px] w-10 ${ext2c?.line || 'bg-emerald-400'} my-1`}></div>
+                        <span className={`text-[10px] font-medium ${ext2c?.text || 'text-emerald-600'} whitespace-nowrap`}>← {p.external2.flowOut || 'Response'}</span>
+                      </div>
+                      <div className={`border-2 ${ext2c?.border || 'border-emerald-500'} bg-white dark:bg-gray-800 rounded px-3 py-2 text-center min-w-[80px] flex-shrink-0`}>
+                        <Ext2Icon className={`h-5 w-5 mx-auto mb-1 ${ext2c?.text || 'text-emerald-600'}`} />
+                        <span className="text-xs font-bold text-gray-800 dark:text-white block">{p.external2.name}</span>
+                      </div>
+                    </>
+                  );
+                })()}
 
                 {/* Data Stores */}
                 <div className="flex items-center gap-1 ml-auto">
@@ -1292,7 +1298,7 @@ function DFDLevel1() {
             <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <td className="px-4 py-3"><span className="px-2 py-1 bg-pink-100 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300 rounded font-mono text-xs font-bold">3.0</span></td>
               <td className="px-4 py-3 font-medium text-gray-800 dark:text-white">Config Generation</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">AI-powered CLI/NETCONF XML generation (NX-OS System / IOS-XE native)</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-gray-400">AI-powered CLI/NETCONF XML generation via Agent Relay → Desktop Agent → local Ollama</td>
               <td className="px-4 py-3 text-gray-500">Prompt, Device type, YANG models</td>
               <td className="px-4 py-3 text-gray-500">CLI/YANG config, Validation</td>
             </tr>
@@ -1483,7 +1489,7 @@ function DFDLevel3() {
 
         {/* 3.3 Call LLM */}
         <div className="bg-pink-50 dark:bg-pink-900/20 rounded-xl p-4 border border-pink-300 dark:border-pink-800">
-          <SubProcessRow id="3.3" name="Call LLM" color="pink" userLabel="Prompt + Context" rightType="entity" rightLabel="AI Request" rightLabelOut="Generated Config" rightName="Ollama (LLM)" rightIcon={BrainCircuitIcon} rightColor="text-pink-600" />
+          <SubProcessRow id="3.3" name="Call LLM" color="pink" userLabel="Prompt + Context" rightType="entity" rightLabel="AI via Agent Relay" rightLabelOut="LLM Result" rightName="Desktop Agent" rightIcon={MonitorIcon} rightColor="text-cyan-600" />
         </div>
 
         <div className="flex justify-center"><div className="w-[2px] h-6 bg-gray-400"></div></div>
@@ -1519,7 +1525,7 @@ function DFDLevel3() {
           <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
             <tr><td className="px-4 py-2 font-mono text-pink-600 font-bold">3.1</td><td className="px-4 py-2">Receive Prompt</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Receive NL prompt from user, validate and detect config type</td><td className="px-4 py-2 text-gray-500">User prompt</td><td className="px-4 py-2 text-gray-500">Validated prompt</td></tr>
             <tr><td className="px-4 py-2 font-mono text-pink-600 font-bold">3.2</td><td className="px-4 py-2">Prepare Context</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Load device info, detect type (NX-OS/IOS-XE), load YANG models for context</td><td className="px-4 py-2 text-gray-500">Device ID, Prompt</td><td className="px-4 py-2 text-gray-500">Full context + Type</td></tr>
-            <tr><td className="px-4 py-2 font-mono text-pink-600 font-bold">3.3</td><td className="px-4 py-2">Call LLM</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Send prompt to Ollama to generate CLI or NETCONF/YANG XML (NX-OS/IOS-XE)</td><td className="px-4 py-2 text-gray-500">Context + Prompt</td><td className="px-4 py-2 text-gray-500">CLI/YANG config</td></tr>
+            <tr><td className="px-4 py-2 font-mono text-pink-600 font-bold">3.3</td><td className="px-4 py-2">Call LLM</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Send prompt via Agent Relay → Desktop Agent → local Ollama to generate CLI or NETCONF/YANG XML (NX-OS/IOS-XE)</td><td className="px-4 py-2 text-gray-500">Context + Prompt</td><td className="px-4 py-2 text-gray-500">CLI/YANG config</td></tr>
             <tr><td className="px-4 py-2 font-mono text-pink-600 font-bold">3.4</td><td className="px-4 py-2">Validate Config</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Validate syntax and namespace (NX-OS: System, IOS-XE: native)</td><td className="px-4 py-2 text-gray-500">Raw config</td><td className="px-4 py-2 text-gray-500">Valid config</td></tr>
             <tr><td className="px-4 py-2 font-mono text-pink-600 font-bold">3.5</td><td className="px-4 py-2">Save Config</td><td className="px-4 py-2 text-gray-600 dark:text-gray-400">Save configuration (CLI/NETCONF) and explanation to database</td><td className="px-4 py-2 text-gray-500">Config + Explanation</td><td className="px-4 py-2 text-gray-500">Saved record</td></tr>
           </tbody>
