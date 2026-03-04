@@ -251,7 +251,6 @@ function Dashboard() {
             <div>
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Configurations</p>
               <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.totalConfigurations}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400"><TrendingUpIcon className="h-3 w-3 inline text-green-500" /> {analytics.successRate}% success rate</p>
             </div>
             <div className="stat-icon-purple">
               <CogIcon className="h-5 w-5" />
