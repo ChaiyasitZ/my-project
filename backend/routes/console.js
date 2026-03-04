@@ -75,10 +75,20 @@ router.get('/ports', async (req, res) => {
         result = await agentRelay.sendToAgent(req.userId, 'agent:console:list-ports', {});
       }
     }
+
+    // Handle pending / timeout responses from agent relay
+    if (result && result.pending) {
+      return res.status(504).json({
+        success: false,
+        message: 'Agent did not respond in time. Please ensure the NetConfig Agent is running.',
+        ports: []
+      });
+    }
     
     res.json({
       success: true,
-      ...result,
+      ports: result?.ports || [],
+      count: result?.count || 0,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -86,7 +96,8 @@ router.get('/ports', async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to fetch serial ports',
-      error: error.message
+      error: error.message,
+      ports: []
     });
   }
 });
@@ -127,6 +138,13 @@ router.post('/connect', async (req, res) => {
         console.log('🔄 Relaying console connect to agent...');
         result = await agentRelay.sendToAgent(req.userId, 'agent:console:connect', value);
       }
+    }
+
+    if (result && result.pending) {
+      return res.status(504).json({
+        success: false,
+        message: 'Agent did not respond in time. Please ensure the NetConfig Agent is running.'
+      });
     }
     
     res.json({
@@ -226,6 +244,13 @@ router.post('/test', async (req, res) => {
         result = await agentRelay.sendToAgent(req.userId, 'agent:console:test', value);
       }
     }
+
+    if (result && result.pending) {
+      return res.status(504).json({
+        success: false,
+        message: 'Agent did not respond in time. Please ensure the NetConfig Agent is running.'
+      });
+    }
     
     res.json({
       success: true,
@@ -277,6 +302,13 @@ router.post('/command', async (req, res) => {
         result = await agentRelay.sendToAgent(req.userId, 'agent:console:command', { deviceId, command, waitForPrompt });
       }
     }
+
+    if (result && result.pending) {
+      return res.status(504).json({
+        success: false,
+        message: 'Agent did not respond in time. Please ensure the NetConfig Agent is running.'
+      });
+    }
     
     res.json({
       success: true,
@@ -327,6 +359,13 @@ router.post('/initial-config', async (req, res) => {
         console.log('🔄 Relaying initial config to agent...');
         result = await agentRelay.sendToAgent(req.userId, 'agent:console:initial-config', { deviceId, configCommands }, 30000);
       }
+    }
+
+    if (result && result.pending) {
+      return res.status(504).json({
+        success: false,
+        message: 'Agent did not respond in time. Initial configuration may still be in progress.'
+      });
     }
     
     // Save configuration to database if successful
