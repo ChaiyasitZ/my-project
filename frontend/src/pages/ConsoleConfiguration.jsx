@@ -20,6 +20,7 @@ function ConsoleConfiguration() {
   const [availablePorts, setAvailablePorts] = useState([]);
   const [selectedPort, setSelectedPort] = useState('');
   const [isPortDropdownOpen, setIsPortDropdownOpen] = useState(false);
+  const [isScanningPorts, setIsScanningPorts] = useState(false);
   const portDropdownRef = useRef(null);
   const [connectionSettings, setConnectionSettings] = useState({
     baudRate: 9600,
@@ -138,12 +139,24 @@ function ConsoleConfiguration() {
   }, []);
 
   const fetchAvailablePorts = async () => {
+    setIsScanningPorts(true);
     try {
-      const response = await axios.get('/console/ports');
-      setAvailablePorts(response.data.ports || []);
+      const response = await axios.get('/console/ports', { timeout: 20000 });
+      const ports = response.data.ports || [];
+      setAvailablePorts(ports);
+      if (ports.length === 0) {
+        toast('No serial ports detected. Make sure the agent is running and a USB-serial cable is connected.', { icon: '⚠️' });
+      }
     } catch (error) {
-      console.error('❌ Error fetching serial ports:', error.response?.data?.message || error.message);
-      toast.error('Failed to fetch serial ports: ' + (error.response?.data?.message || error.message));
+      const msg = error.response?.data?.message || error.message;
+      console.error('❌ Error fetching serial ports:', msg);
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        toast.error('Port scan timed out. Agent may be slow to respond — try clicking Refresh.');
+      } else {
+        toast.error('Failed to fetch serial ports: ' + msg);
+      }
+    } finally {
+      setIsScanningPorts(false);
     }
   };
 
@@ -404,11 +417,11 @@ function ConsoleConfiguration() {
           <ZoomControls />
           <button
             onClick={fetchAvailablePorts}
-            disabled={isLoading}
+            disabled={isLoading || isScanningPorts}
             className="btn btn-secondary btn-md"
           >
-            <RefreshCwIcon className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCwIcon className={`h-4 w-4 mr-2 ${(isLoading || isScanningPorts) ? 'animate-spin' : ''}`} />
+            {isScanningPorts ? 'Scanning...' : 'Refresh'}
           </button>
         </div>
       </div>
@@ -481,7 +494,12 @@ function ConsoleConfiguration() {
                   ))}
                   {availablePorts.length === 0 && (
                     <div className="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm italic">
-                      No ports available
+                      {isScanningPorts ? (
+                        <span className="flex items-center gap-2">
+                          <RefreshCwIcon className="h-3 w-3 animate-spin" />
+                          Scanning ports via agent...
+                        </span>
+                      ) : 'No ports available — check agent connection'}
                     </div>
                   )}
                 </div>

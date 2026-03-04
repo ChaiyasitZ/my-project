@@ -605,9 +605,21 @@ class NetconfHandler {
 
 // ─── Console Handler ───
 class ConsoleHandler {
-  constructor() { this.connections = new Map(); }
+  constructor() {
+    this.connections = new Map();
+    this.serialPortAvailable = false;
+    // Verify serialport at construction
+    try {
+      const { SerialPort } = require('serialport');
+      this.serialPortAvailable = !!SerialPort;
+      console.log('✅ serialport module loaded successfully');
+    } catch (e) {
+      console.error('❌ serialport module failed to load:', e.message);
+    }
+  }
 
   async listPorts() {
+    console.log('🔌 listPorts() called, serialPortAvailable:', this.serialPortAvailable);
     const { SerialPort } = require('serialport');
     const ports = await SerialPort.list();
     console.log(`🔌 SerialPort.list() found ${ports.length} ports:`, ports.map(p => p.path));
@@ -797,6 +809,14 @@ async function connectAgent() {
   netconfHandler = new NetconfHandler();
   consoleHandler = new ConsoleHandler();
   ollamaHandler = new OllamaHandler();
+
+  // Startup self-test: verify serialport works
+  try {
+    const testPorts = await consoleHandler.listPorts();
+    addLog('info', `Serial ports detected: ${testPorts.count} (${testPorts.ports.map(p => p.path).join(', ') || 'none'})`);
+  } catch (e) {
+    addLog('error', `Serial port check failed: ${e.message}`);
+  }
 
   const savedModel = config.get('ollamaModel');
   if (savedModel) ollamaHandler.setModel(savedModel);

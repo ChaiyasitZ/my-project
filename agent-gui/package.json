@@ -22,6 +22,12 @@
       "src/**/*",
       "assets/**/*"
     ],
+    "asarUnpack": [
+      "node_modules/serialport/**",
+      "node_modules/@serialport/**",
+      "node_modules/ssh2/**",
+      "node_modules/cpu-features/**"
+    ],
     "win": {
       "target": "dir",
       "sign": false,
