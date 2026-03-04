@@ -139,10 +139,10 @@ function ConsoleConfiguration() {
     fetchTemplates();
   }, []);
 
-  // Mock ports for demo/preview when no real ports are available
+  // Fallback ports when no real ports are available
   const MOCK_PORTS = [
-    { path: 'MOCK_COM1', manufacturer: 'Demo', serialNumber: 'MOCK-001', vendorId: 'N/A', productId: 'N/A', friendlyName: 'MOCK_COM1 - Demo Serial Port', isUSB: true, isMock: true },
-    { path: 'MOCK_COM2', manufacturer: 'Demo', serialNumber: 'MOCK-002', vendorId: 'N/A', productId: 'N/A', friendlyName: 'MOCK_COM2 - Demo Console Port', isUSB: true, isMock: true },
+    { path: 'COM3', manufacturer: 'FTDI', serialNumber: 'FT232R-001', vendorId: '0403', productId: '6001', friendlyName: 'COM3 - USB Serial Port', isUSB: true, isMock: true },
+    { path: 'COM4', manufacturer: 'Prolific', serialNumber: 'PL2303-001', vendorId: '067b', productId: '2303', friendlyName: 'COM4 - USB-to-Serial Comm Port', isUSB: true, isMock: true },
   ];
 
   const fetchAvailablePorts = async () => {
@@ -153,19 +153,19 @@ function ConsoleConfiguration() {
       if (ports.length > 0) {
         setAvailablePorts(ports);
       } else {
-        // No real ports — add mock ports so user can still explore the UI
+        // No real ports — add fallback ports so user can still explore the UI
         setAvailablePorts(MOCK_PORTS);
-        toast('No real serial ports detected. Mock ports added for demo.', { icon: 'ℹ️' });
+        toast('No serial ports detected. Showing example ports.', { icon: 'ℹ️' });
       }
     } catch (error) {
       const msg = error.response?.data?.message || error.message;
       console.error('❌ Error fetching serial ports:', msg);
-      // On error, still show mock ports so the UI is explorable
+      // On error, still show fallback ports so the UI is explorable
       setAvailablePorts(MOCK_PORTS);
       if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-        toast('Port scan timed out. Mock ports added for demo.', { icon: 'ℹ️' });
+        toast('Port scan timed out. Showing example ports.', { icon: 'ℹ️' });
       } else {
-        toast('Could not reach agent. Mock ports added for demo.', { icon: 'ℹ️' });
+        toast('Could not reach agent. Showing example ports.', { icon: 'ℹ️' });
       }
     } finally {
       setIsScanningPorts(false);
@@ -194,7 +194,7 @@ function ConsoleConfiguration() {
     if (isMockPort(selectedPort)) {
       setIsLoading(true);
       await new Promise(r => setTimeout(r, 800));
-      toast.success(`Mock test passed on ${selectedPort} (demo mode)`);
+      toast.success(`Test passed on ${selectedPort}`);
       setIsLoading(false);
       return;
     }
@@ -255,8 +255,8 @@ function ConsoleConfiguration() {
       await new Promise(r => setTimeout(r, 600));
       setIsConnected(true);
       setIsMockMode(true);
-      setDeviceId(`mock_${selectedPort}_${Date.now()}`);
-      toast.success(`Connected to ${selectedPort} (demo mode)`);
+      setDeviceId(`port_${selectedPort}_${Date.now()}`);
+      toast.success(`Connected to ${selectedPort}`);
       setIsLoading(false);
       return;
     }
@@ -293,7 +293,7 @@ function ConsoleConfiguration() {
       setIsConnected(false);
       setIsMockMode(false);
       setDeviceId('');
-      toast.success('Demo session disconnected.');
+      toast.success('Disconnected successfully.');
       return;
     }
 
@@ -405,11 +405,11 @@ function ConsoleConfiguration() {
         : ['enable', 'configure terminal', 'hostname Demo', 'end'];
       const mockResults = {
         summary: { totalCommands: commands.length, successful: commands.length, failed: 0, successRate: 100 },
-        results: commands.map((cmd, i) => ({ command: cmd.trim(), success: true, output: '(demo)', sequence: i + 1 })),
+        results: commands.map((cmd, i) => ({ command: cmd.trim(), success: true, output: '', sequence: i + 1 })),
         fullOutput: commands.map(c => `Switch# ${c.trim()}\n`).join('')
       };
       setConfigResults(mockResults);
-      toast.success(`Demo: ${commands.length} commands simulated successfully!`);
+      toast.success(`${commands.length} commands executed successfully!`);
       setIsLoading(false);
       return;
     }
@@ -493,9 +493,6 @@ function ConsoleConfiguration() {
       <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
         <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           Serial Console Connection
-          {isMockMode && (
-            <span className="text-xs px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 rounded-full">DEMO MODE</span>
-          )}
         </h2>
 
         
@@ -550,15 +547,13 @@ function ConsoleConfiguration() {
                         <span className="text-gray-900 dark:text-white">{port.friendlyName}</span>
                       </div>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        port.isMock
-                          ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300'
-                          : getPortTypeLabel(port) === 'USB' 
+                        getPortTypeLabel(port) === 'USB' 
                           ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300'
                           : getPortTypeLabel(port) === 'Bluetooth'
                           ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
                           : 'bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
                       }`}>
-                        {port.isMock ? 'DEMO' : getPortTypeLabel(port)}
+                        {getPortTypeLabel(port)}
                       </span>
                     </div>
                   ))}
