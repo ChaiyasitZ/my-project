@@ -37,6 +37,10 @@ const agentHeartbeatSchema = new mongoose.Schema({
   connectedAt: {
     type: Date,
     default: Date.now
+  },
+  capabilities: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   }
 });
 
@@ -57,7 +61,8 @@ agentHeartbeatSchema.statics.getOnlineAgent = async function (userId) {
     platform: heartbeat.platform,
     hostname: heartbeat.hostname,
     connectedAt: heartbeat.connectedAt,
-    lastHeartbeat: heartbeat.lastHeartbeat
+    lastHeartbeat: heartbeat.lastHeartbeat,
+    capabilities: heartbeat.capabilities || {}
   };
 };
 

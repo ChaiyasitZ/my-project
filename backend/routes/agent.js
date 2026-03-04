@@ -365,7 +365,7 @@ async function authenticateAgent(req, res, next) {
  */
 router.post('/poll/heartbeat', authenticateAgent, async (req, res) => {
   try {
-    const { agentName, agentVersion, platform, hostname } = req.body;
+    const { agentName, agentVersion, platform, hostname, capabilities } = req.body;
     
     await AgentHeartbeat.findOneAndUpdate(
       { userId: req.userId },
@@ -375,7 +375,8 @@ router.post('/poll/heartbeat', authenticateAgent, async (req, res) => {
         agentVersion: agentVersion || '0.0.0',
         platform: platform || 'unknown',
         hostname: hostname || 'unknown',
-        lastHeartbeat: new Date()
+        lastHeartbeat: new Date(),
+        ...(capabilities ? { capabilities } : {})
       },
       { upsert: true, new: true }
     );

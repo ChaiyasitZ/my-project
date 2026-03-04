@@ -5,6 +5,7 @@ import ConfigurationHistory from '../models/ConfigurationHistory.js';
 import Device from '../models/Device.js';
 import consoleService from '../services/consoleService.js';
 import agentRelay from '../services/agentRelay.js';
+import AgentHeartbeat from '../models/AgentHeartbeat.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 // Helper to verify device ownership when a MongoDB ObjectId is provided
@@ -65,8 +66,37 @@ router.get('/ports', async (req, res) => {
     
     // On serverless (Vercel), serialport is not available — go directly to agent
     if (!consoleService.serialPortAvailable) {
-      console.log('🔄 serialport not available (serverless), relaying to agent...');
-      result = await agentRelay.sendToAgent(req.userId, 'agent:console:list-ports', {}, 15000);
+      console.log('🔄 serialport not available (serverless), trying agent...');
+      
+      // Strategy 1: Check agent heartbeat for cached ports (instant, no relay needed)
+      try {
+        const agentInfo = await AgentHeartbeat.findOne({ userId: req.userId });
+        if (agentInfo && agentInfo.isOnline() && agentInfo.capabilities?.serialPorts?.length > 0) {
+          console.log('✅ Got ports from agent heartbeat cache:', agentInfo.capabilities.serialPorts.length);
+          return res.json({
+            success: true,
+            ports: agentInfo.capabilities.serialPorts,
+            count: agentInfo.capabilities.serialPorts.length,
+            source: 'heartbeat-cache',
+            timestamp: new Date().toISOString()
+          });
+        }
+      } catch (hbErr) {
+        console.log('⚠️ Heartbeat cache check failed:', hbErr.message);
+      }
+      
+      // Strategy 2: Relay command to agent (slower, requires round-trip)
+      console.log('🔄 No cached ports, relaying command to agent...');
+      try {
+        result = await agentRelay.sendToAgent(req.userId, 'agent:console:list-ports', {}, 15000);
+      } catch (relayErr) {
+        console.error('❌ Agent relay failed:', relayErr.message);
+        return res.status(503).json({
+          success: false,
+          message: relayErr.message,
+          ports: []
+        });
+      }
     } else {
       try {
         result = await consoleService.getAvailablePorts();
@@ -80,11 +110,12 @@ router.get('/ports', async (req, res) => {
     if (result && result.pending) {
       return res.status(504).json({
         success: false,
-        message: 'Agent did not respond in time. Please ensure the NetConfig Agent is running.',
+        message: 'Agent did not respond in time. Please ensure the NetConfig Agent is running and try clicking Refresh.',
         ports: []
       });
     }
     
+    console.log('🔌 Returning ports:', result?.ports?.length || 0);
     res.json({
       success: true,
       ports: result?.ports || [],

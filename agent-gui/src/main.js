@@ -70,6 +70,7 @@ class HttpPollingClient extends EventEmitter {
     this.heartbeatInterval = null;
     this.shellPollIntervals = new Map();
     this.shellStreams = new Map();
+    this.cachedPorts = [];  // Cache detected serial ports for heartbeat
   }
 
   async connect() {
@@ -85,6 +86,14 @@ class HttpPollingClient extends EventEmitter {
     this.pollInterval = setInterval(() => {
       this._pollCommands().catch(() => {});
     }, 2000);
+
+    // Refresh cached serial ports every 30s
+    this.portRefreshInterval = setInterval(async () => {
+      try {
+        const result = await this.handlers.console.listPorts();
+        if (result && result.ports) this.cachedPorts = result.ports;
+      } catch (e) {}
+    }, 30000);
   }
 
   async _sendHeartbeat() {
@@ -94,7 +103,10 @@ class HttpPollingClient extends EventEmitter {
         agentName: this.agentName,
         agentVersion: this.version,
         platform: os.platform(),
-        hostname: os.hostname()
+        hostname: os.hostname(),
+        capabilities: {
+          serialPorts: this.cachedPorts
+        }
       })
     });
     if (!response.ok) {
@@ -230,6 +242,8 @@ class HttpPollingClient extends EventEmitter {
           break;
         case 'agent:console:list-ports':
           result = await this.handlers.console.listPorts();
+          // Cache ports for heartbeat
+          if (result && result.ports) this.cachedPorts = result.ports;
           break;
         case 'agent:console:connect':
           result = await this.handlers.console.connect(data);
@@ -342,7 +356,14 @@ class HttpPollingClient extends EventEmitter {
   }
 
   async _postResult(commandId, result) {
-    try { await this._fetch(`/api/agent/poll/result/${commandId}`, { method: 'POST', body: JSON.stringify(result) }); } catch (e) {}
+    try {
+      const resp = await this._fetch(`/api/agent/poll/result/${commandId}`, { method: 'POST', body: JSON.stringify(result) });
+      if (!resp.ok) {
+        console.error(`❌ _postResult failed: HTTP ${resp.status} for command ${commandId}`);
+      }
+    } catch (e) {
+      console.error(`❌ _postResult error for command ${commandId}:`, e.message);
+    }
   }
 
   async _fetch(urlPath, options = {}) {
@@ -354,6 +375,7 @@ class HttpPollingClient extends EventEmitter {
     this.connected = false;
     if (this.pollInterval) { clearInterval(this.pollInterval); this.pollInterval = null; }
     if (this.heartbeatInterval) { clearInterval(this.heartbeatInterval); this.heartbeatInterval = null; }
+    if (this.portRefreshInterval) { clearInterval(this.portRefreshInterval); this.portRefreshInterval = null; }
     for (const [, intervalId] of this.shellPollIntervals) clearInterval(intervalId);
     this.shellPollIntervals.clear();
   }
@@ -810,9 +832,11 @@ async function connectAgent() {
   consoleHandler = new ConsoleHandler();
   ollamaHandler = new OllamaHandler();
 
-  // Startup self-test: verify serialport works
+  // Startup self-test: verify serialport works and cache ports for heartbeat
+  let startupPorts = [];
   try {
     const testPorts = await consoleHandler.listPorts();
+    startupPorts = testPorts.ports || [];
     addLog('info', `Serial ports detected: ${testPorts.count} (${testPorts.ports.map(p => p.path).join(', ') || 'none'})`);
   } catch (e) {
     addLog('error', `Serial port check failed: ${e.message}`);
@@ -828,6 +852,9 @@ async function connectAgent() {
     version: VERSION,
     handlers: { ssh: sshHandler, netconf: netconfHandler, console: consoleHandler, ollama: ollamaHandler }
   });
+
+  // Pre-populate cached ports from startup scan for heartbeat
+  client.cachedPorts = startupPorts;
 
   client.on('connected', () => {
     isConnected = true;
