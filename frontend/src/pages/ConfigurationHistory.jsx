@@ -381,9 +381,6 @@ function ConfigurationHistory() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`badge ${getStatusBadge(item.status)}`}>{item.status}</span>
-                    {item.deployment_time && (
-                      <span className="text-xs text-green-600 dark:text-green-400 font-medium">⚡ {(item.deployment_time / 1000).toFixed(2)}s</span>
-                    )}
                   </div>
                 </div>
                 
@@ -397,11 +394,6 @@ function ConfigurationHistory() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {item.status === 'deployed' && (
-                      <button onClick={() => openRollbackModal(item)} className="btn btn-warning btn-sm" title="Rollback" aria-label="Rollback configuration">
-                        <RotateCcwIcon className="h-4 w-4" />
-                      </button>
-                    )}
                     <button onClick={() => viewDetails(item)} className="btn btn-secondary btn-sm" title="View Details" aria-label="View configuration details">
                       <EyeIcon className="h-4 w-4" />
                     </button>
