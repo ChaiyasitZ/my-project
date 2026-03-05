@@ -18,18 +18,6 @@ NETCONF (Network Configuration Protocol) เป็นโปรโตคอลม
     \item \textbf{Content Layer:} ข้อมูลคอนฟิกที่จัดการผ่าน NETCONF จะถูกกำหนดโครงสร้างด้วย YANG Data Model
 \end{mycustomenum2}
 
-% ──────────────────────────────────────────────────────
-% รูปภาพ: NETCONF Protocol Stack / Architecture
-% ──────────────────────────────────────────────────────
-\begin{figure}[H]
-\centering
-\adjustbox{frame, width=1.0\textwidth}{
-    \includegraphics[width=1.0\textwidth]{Image/netconf-architecture.png}
-}
-\caption{\fontSixTeen{สถาปัตยกรรมของโปรโตคอล NETCONF แบบ 4 ชั้น}}
-\label{figD:NetconfArchitecture}
-\end{figure}
-
 \section{YANG Data Model}
 \hspace*{1.3em}
 YANG (Yet Another Next Generation) เป็นภาษามาตรฐานตาม RFC 7950 สำหรับกำหนดโครงสร้างข้อมูล (Data Model) ของอุปกรณ์เครือข่าย YANG กำหนดว่าข้อมูลคอนฟิกที่จะส่งผ่าน NETCONF ต้องมีรูปแบบอย่างไร ประกอบด้วยฟิลด์อะไรบ้าง แต่ละฟิลด์มีชนิดข้อมูลอะไร และมีข้อจำกัดอย่างไร
@@ -64,18 +52,6 @@ Cisco IOS-XE & \textbf{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \textbf{n
     \item \textbf{leaf:} โหนดปลายสุดที่เก็บค่าข้อมูลจริง เช่น ชื่ออินเทอร์เฟซ, IP Address
     \item \textbf{leaf-list:} โหนดปลายสุดที่เก็บค่าได้หลายค่า (เช่น รายการ VLAN ที่อนุญาต)
 \end{mycustomenum2}
-
-% ──────────────────────────────────────────────────────
-% รูปภาพ: YANG Model Structure / Tree
-% ──────────────────────────────────────────────────────
-\begin{figure}[H]
-\centering
-\adjustbox{frame, width=1.0\textwidth}{
-    \includegraphics[width=1.0\textwidth]{Image/yang-model-structure.png}
-}
-\caption{\fontSixTeen{โครงสร้าง YANG Data Model แสดงความสัมพันธ์ระหว่าง Module, Container, List และ Leaf}}
-\label{figD:YangModelStructure}
-\end{figure}
 
 \hspace*{1.3em}
 ในระบบนี้ผู้ใช้สามารถอัปโหลด YANG Model เองได้ โดยระบบจะ Parse ข้อมูลจาก YANG Content อัตโนมัติ ดึงค่า \textbf{module}, \textbf{namespace}, \textbf{prefix} และ \textbf{revision} มาจัดเก็บในฐานข้อมูล นอกจากนี้แต่ละ YANG Model สามารถมี XML Templates เพื่อใช้เป็น Template สำหรับ LLM ในการสร้าง Configuration ได้
@@ -133,18 +109,6 @@ Cisco IOS-XE & \textbf{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \textbf{n
 
 \hspace*{1.3em}
 เมื่อทั้งสองฝ่ายแลกเปลี่ยน Hello Message สำเร็จ NETCONF Session จะถูกสร้างขึ้นและพร้อมสำหรับการดำเนินการ RPC ระบบจะจัดเก็บ Session ไว้ใน \textbf{connections Map} พร้อมข้อมูล Capabilities, Stream และ Timestamp เพื่อใช้ในการดำเนินการต่อไป
-
-% ──────────────────────────────────────────────────────
-% รูปภาพ: NETCONF Hello Exchange Sequence Diagram
-% ──────────────────────────────────────────────────────
-\begin{figure}[H]
-\centering
-\adjustbox{frame, width=1.0\textwidth}{
-    \includegraphics[width=1.0\textwidth]{Image/netconf-hello-exchange.png}
-}
-\caption{\fontSixTeen{Sequence Diagram แสดงกระบวนการ Hello Exchange ระหว่าง Client และ Server}}
-\label{figD:HelloExchange}
-\end{figure}
 
 \section{NETCONF RPC Operations ที่ใช้ในระบบ}
 \hspace*{1.3em}
@@ -253,18 +217,6 @@ Cisco IOS-XE & \textbf{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \textbf{n
   </edit-config>
 </rpc>]]>]]>
 \end{verbatim}
-
-% ──────────────────────────────────────────────────────
-% รูปภาพ: ตัวอย่างหน้าจอระบบแสดง NETCONF XML Configuration
-% ──────────────────────────────────────────────────────
-\begin{figure}[H]
-\centering
-\adjustbox{frame, width=1.0\textwidth}{
-    \includegraphics[width=1.0\textwidth]{Image/netconf-edit-config-example.png}
-}
-\caption{\fontSixTeen{ตัวอย่างหน้าจอระบบแสดงการสร้าง NETCONF XML Configuration ด้วย LLM}}
-\label{figD:EditConfigExample}
-\end{figure}
 
 \subsection{lock / unlock (ล็อกและปลดล็อก Datastore)}
 \hspace*{1.3em}
@@ -391,18 +343,6 @@ Cisco IOS-XE & \textbf{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \textbf{n
 \hspace*{1.3em}
 หากขั้นตอนใดเกิดข้อผิดพลาด ระบบจะทำ Cleanup อัตโนมัติ ได้แก่ Discard Changes เพื่อยกเลิกการเปลี่ยนแปลงใน Candidate และ Unlock เพื่อปลดล็อก Datastore
 
-% ──────────────────────────────────────────────────────
-% รูปภาพ: Candidate Datastore Workflow
-% ──────────────────────────────────────────────────────
-\begin{figure}[H]
-\centering
-\adjustbox{frame, width=1.0\textwidth}{
-    \includegraphics[width=1.0\textwidth]{Image/netconf-candidate-workflow.png}
-}
-\caption{\fontSixTeen{Flowchart แสดงกระบวนการ Deploy ผ่าน Candidate Datastore พร้อม Error Handling}}
-\label{figD:CandidateWorkflow}
-\end{figure}
-
 \subsection{รูปแบบที่ 2: ใช้ Writable-Running (Fallback)}
 \hspace*{1.3em}
 สำหรับอุปกรณ์ที่ไม่รองรับ Candidate Datastore ระบบจะใช้ \textbf{writable-running} เป็นทางเลือก โดยการเปลี่ยนแปลงจะมีผลทันทีเมื่อ edit-config สำเร็จ ขั้นตอนมีดังนี้
@@ -471,18 +411,6 @@ BGP & \textbf{native/router/bgp} & Routing Protocol BGP \\
 \end{tabularx}
 \end{table}
 
-% ──────────────────────────────────────────────────────
-% รูปภาพ: ตัวอย่างหน้าจอระบบแสดงข้อมูล NETCONF ที่อ่านได้
-% ──────────────────────────────────────────────────────
-\begin{figure}[H]
-\centering
-\adjustbox{frame, width=1.0\textwidth}{
-    \includegraphics[width=1.0\textwidth]{Image/netconf-device-details.png}
-}
-\caption{\fontSixTeen{ตัวอย่างหน้าจอระบบแสดงข้อมูลอุปกรณ์ที่อ่านผ่าน NETCONF}}
-\label{figD:DeviceDetails}
-\end{figure}
-
 \section{การ Deploy ผ่าน Agent Relay}
 \hspace*{1.3em}
 เนื่องจากระบบ Backend ทำงานเป็น Vercel Serverless Functions ซึ่งไม่สามารถเชื่อมต่อ SSH/NETCONF ไปยังอุปกรณ์ในเครือข่ายภายในได้โดยตรง ระบบจึงใช้ Desktop Agent เป็นตัวกลาง (Relay) ในการส่งคำสั่ง NETCONF ไปยังอุปกรณ์ กระบวนการมีดังนี้
@@ -494,18 +422,6 @@ BGP & \textbf{native/router/bgp} & Routing Protocol BGP \\
     \item \textbf{Agent รายงานผล:} Agent ส่งผลลัพธ์กลับมายัง Backend ผ่าน HTTP POST
     \item \textbf{Backend ส่งผลให้ผู้ใช้:} Backend อัปเดตสถานะ Command และแจ้งผลลัพธ์ให้ผู้ใช้ทราบ
 \end{mycustomenum2}
-
-% ──────────────────────────────────────────────────────
-% รูปภาพ: Agent Relay NETCONF Workflow
-% ──────────────────────────────────────────────────────
-\begin{figure}[H]
-\centering
-\adjustbox{frame, width=1.0\textwidth}{
-    \includegraphics[width=1.0\textwidth]{Image/netconf-agent-relay-workflow.png}
-}
-\caption{\fontSixTeen{Sequence Diagram แสดงกระบวนการ Deploy NETCONF Configuration ผ่าน Agent Relay}}
-\label{figD:AgentRelayWorkflow}
-\end{figure}
 
 \section{การจัดการ YANG Model ในระบบ}
 \hspace*{1.3em}
@@ -535,18 +451,6 @@ BGP & \textbf{native/router/bgp} & Routing Protocol BGP \\
     \item จัดรูปแบบข้อมูล YANG Model เป็นข้อความบริบท (Context) ประกอบด้วย Namespace, Config Paths และ XML Templates
     \item ส่งข้อมูลบริบทพร้อม Prompt ของผู้ใช้ไปให้ LLM เพื่อสร้าง Configuration ที่ถูกต้องตาม YANG Schema
 \end{mycustomenum2}
-
-% ──────────────────────────────────────────────────────
-% รูปภาพ: หน้าจอจัดการ YANG Model
-% ──────────────────────────────────────────────────────
-\begin{figure}[H]
-\centering
-\adjustbox{frame, width=1.0\textwidth}{
-    \includegraphics[width=1.0\textwidth]{Image/yang-model-management.png}
-}
-\caption{\fontSixTeen{ตัวอย่างหน้าจอระบบจัดการ YANG Model}}
-\label{figD:YangModelManagement}
-\end{figure}
 
 \section{การจัดการ Error ใน NETCONF}
 \hspace*{1.3em}
@@ -579,14 +483,4 @@ BGP & \textbf{native/router/bgp} & Routing Protocol BGP \\
 \hspace*{1.3em}
 ในกระบวนการ Deploy ผ่าน Candidate Datastore หากเกิดข้อผิดพลาดตรงขั้นตอนใดก็ตาม ระบบจะทำ Cleanup อัตโนมัติ ประกอบด้วย Discard Changes เพื่อยกเลิกการเปลี่ยนแปลงใน Candidate, Unlock เพื่อปลดล็อก Datastore และแจ้ง Error กลับให้ผู้ใช้ทราบพร้อมรายละเอียด เพื่อให้สามารถแก้ไข Configuration และลองใหม่ได้
 
-% ──────────────────────────────────────────────────────
-% รูปภาพ: ตัวอย่างหน้าจอแสดง Error จาก NETCONF
-% ──────────────────────────────────────────────────────
-\begin{figure}[H]
-\centering
-\adjustbox{frame, width=1.0\textwidth}{
-    \includegraphics[width=1.0\textwidth]{Image/netconf-error-handling.png}
-}
-\caption{\fontSixTeen{ตัวอย่างหน้าจอแสดงข้อผิดพลาดจากการ Deploy ผ่าน NETCONF}}
-\label{figD:ErrorHandling}
-\end{figure}
+
