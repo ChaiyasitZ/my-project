@@ -12,9 +12,9 @@ NETCONF (Network Configuration Protocol) เป็นโปรโตคอลม
 โปรโตคอล NETCONF มีสถาปัตยกรรมแบบ 4 ชั้น (Layer) ดังนี้
 
 \begin{mycustomenum2}
-    \item \textbf{Transport Layer:} ใช้ SSH (Secure Shell) เป็นช่องทางการสื่อสาร โดยเชื่อมต่อผ่าน SSH Subsystem ชื่อ \texttt{netconf} ที่พอร์ต 830 (ค่าเริ่มต้นมาตรฐาน)
-    \item \textbf{Messages Layer:} ใช้ XML-based RPC (Remote Procedure Call) ในการส่งคำสั่งและรับผลลัพธ์ โดยข้อความทุกข้อความสิ้นสุดด้วย Delimiter \texttt{]]>]]>} เพื่อระบุจุดสิ้นสุดของข้อความ
-    \item \textbf{Operations Layer:} กำหนดชุดคำสั่ง (Operations) ที่สามารถดำเนินการได้ เช่น \texttt{get-config}, \texttt{edit-config}, \texttt{lock}, \texttt{unlock}, \texttt{commit}, \texttt{validate} และ \texttt{close-session}
+    \item \textbf{Transport Layer:} ใช้ SSH (Secure Shell) เป็นช่องทางการสื่อสาร โดยเชื่อมต่อผ่าน SSH Subsystem ชื่อ \textbf{netconf} ที่พอร์ต 830 (ค่าเริ่มต้นมาตรฐาน)
+    \item \textbf{Messages Layer:} ใช้ XML-based RPC (Remote Procedure Call) ในการส่งคำสั่งและรับผลลัพธ์ โดยข้อความทุกข้อความสิ้นสุดด้วย Delimiter \textbf{]]>]]>} เพื่อระบุจุดสิ้นสุดของข้อความ
+    \item \textbf{Operations Layer:} กำหนดชุดคำสั่ง (Operations) ที่สามารถดำเนินการได้ เช่น \textbf{get-config}, \textbf{edit-config}, \textbf{lock}, \textbf{unlock}, \textbf{commit}, \textbf{validate} และ \textbf{close-session}
     \item \textbf{Content Layer:} ข้อมูลคอนฟิกที่จัดการผ่าน NETCONF จะถูกกำหนดโครงสร้างด้วย YANG Data Model
 \end{mycustomenum2}
 
@@ -45,9 +45,9 @@ YANG (Yet Another Next Generation) เป็นภาษามาตรฐาน
 \hline
 \textbf{ประเภทอุปกรณ์} & \textbf{YANG Namespace} & \textbf{Root Element} \\
 \hline
-Cisco NX-OS (Nexus) & \texttt{http://cisco.com/ns/yang/cisco-nx-os-device} & \texttt{System} \\
+Cisco NX-OS (Nexus) & \textbf{http://cisco.com/ns/yang/cisco-nx-os-device} & \textbf{System} \\
 \hline
-Cisco IOS-XE & \texttt{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \texttt{native} \\
+Cisco IOS-XE & \textbf{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \textbf{native} \\
 \hline
 \end{tabularx}
 \end{table}
@@ -60,7 +60,7 @@ Cisco IOS-XE & \texttt{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \texttt{n
     \item \textbf{namespace:} URI ที่ระบุตัวตนของโมดูล ใช้ใน XML เพื่อระบุว่าข้อมูลเป็นของโมดูลใด
     \item \textbf{prefix:} ชื่อย่อสำหรับอ้างอิง Namespace ในเอกสาร XML
     \item \textbf{container:} โหนดที่ใช้จัดกลุ่มข้อมูลย่อย (เปรียบเสมือนโฟลเดอร์)
-    \item \textbf{list:} โหนดที่มีข้อมูลหลายรายการ โดยแต่ละรายการใช้ \texttt{key} ในการระบุตัวตน
+    \item \textbf{list:} โหนดที่มีข้อมูลหลายรายการ โดยแต่ละรายการใช้ \textbf{key} ในการระบุตัวตน
     \item \textbf{leaf:} โหนดปลายสุดที่เก็บค่าข้อมูลจริง เช่น ชื่ออินเทอร์เฟซ, IP Address
     \item \textbf{leaf-list:} โหนดปลายสุดที่เก็บค่าได้หลายค่า (เช่น รายการ VLAN ที่อนุญาต)
 \end{mycustomenum2}
@@ -78,7 +78,7 @@ Cisco IOS-XE & \texttt{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \texttt{n
 \end{figure}
 
 \hspace*{1.3em}
-ในระบบนี้ผู้ใช้สามารถอัปโหลด YANG Model เองได้ โดยระบบจะ Parse ข้อมูลจาก YANG Content อัตโนมัติ ดึงค่า \texttt{module}, \texttt{namespace}, \texttt{prefix} และ \texttt{revision} มาจัดเก็บในฐานข้อมูล นอกจากนี้แต่ละ YANG Model สามารถมี XML Templates เพื่อใช้เป็น Template สำหรับ LLM ในการสร้าง Configuration ได้
+ในระบบนี้ผู้ใช้สามารถอัปโหลด YANG Model เองได้ โดยระบบจะ Parse ข้อมูลจาก YANG Content อัตโนมัติ ดึงค่า \textbf{module}, \textbf{namespace}, \textbf{prefix} และ \textbf{revision} มาจัดเก็บในฐานข้อมูล นอกจากนี้แต่ละ YANG Model สามารถมี XML Templates เพื่อใช้เป็น Template สำหรับ LLM ในการสร้าง Configuration ได้
 
 \section{กระบวนการเชื่อมต่อ NETCONF Session}
 \hspace*{1.3em}
@@ -89,21 +89,21 @@ Cisco IOS-XE & \texttt{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \texttt{n
 ระบบเริ่มต้นด้วยการสร้าง SSH Connection ไปยังอุปกรณ์เครือข่ายที่พอร์ต NETCONF (ค่าเริ่มต้นคือ 830) โดยใช้ SSH2 Library ใน Node.js พร้อมกำหนด Algorithms ที่เข้ากันได้กับอุปกรณ์ Cisco ดังนี้
 
 \begin{mycustomenum2}
-    \item \textbf{Key Exchange:} \texttt{diffie-hellman-group14-sha256}, \texttt{ecdh-sha2-nistp256}
-    \item \textbf{Cipher:} \texttt{aes256-ctr}, \texttt{aes128-ctr}
+    \item \textbf{Key Exchange:} \textbf{diffie-hellman-group14-sha256}, \textbf{ecdh-sha2-nistp256}
+    \item \textbf{Cipher:} \textbf{aes256-ctr}, \textbf{aes128-ctr}
     \item \textbf{Connection Timeout:} 30 วินาที
 \end{mycustomenum2}
 
 \subsection{ขั้นตอนที่ 2: NETCONF Subsystem}
 \hspace*{1.3em}
-เมื่อ SSH Connection สำเร็จ ระบบจะเปิด NETCONF Subsystem ผ่านคำสั่ง \texttt{conn.subsys('netconf')} เพื่อเข้าสู่โหมดการสื่อสาร NETCONF โดยเฉพาะ ซึ่งจะได้ Stream สำหรับรับ-ส่งข้อความ XML
+เมื่อ SSH Connection สำเร็จ ระบบจะเปิด NETCONF Subsystem ผ่านคำสั่ง \textbf{conn.subsys('netconf')} เพื่อเข้าสู่โหมดการสื่อสาร NETCONF โดยเฉพาะ ซึ่งจะได้ Stream สำหรับรับ-ส่งข้อความ XML
 
 \subsection{ขั้นตอนที่ 3: Hello Exchange}
 \hspace*{1.3em}
 ขั้นตอนแรกของโปรโตคอล NETCONF คือการแลกเปลี่ยน Hello Message ระหว่าง Client กับ Server เพื่อตกลง Capabilities ที่ทั้งสองฝ่ายรองรับ
 
 \hspace*{1.3em}
-\textbf{Server Hello:} อุปกรณ์เครือข่ายจะส่ง Hello Message มาก่อน ระบบจะ Parse เพื่อดึง Capabilities ที่อุปกรณ์รองรับ เช่น \texttt{base:1.0}, \texttt{writable-running}, \texttt{candidate} เป็นต้น
+\textbf{Server Hello:} อุปกรณ์เครือข่ายจะส่ง Hello Message มาก่อน ระบบจะ Parse เพื่อดึง Capabilities ที่อุปกรณ์รองรับ เช่น \textbf{base:1.0}, \textbf{writable-running}, \textbf{candidate} เป็นต้น
 
 \hspace*{1.3em}
 \textbf{Client Hello:} ระบบตอบกลับด้วย Hello Message ที่ประกาศ Capabilities ที่ Client รองรับ ตัวอย่าง Hello Message ที่ระบบส่งไปมีดังนี้
@@ -132,7 +132,7 @@ Cisco IOS-XE & \texttt{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \texttt{n
 \end{verbatim}
 
 \hspace*{1.3em}
-เมื่อทั้งสองฝ่ายแลกเปลี่ยน Hello Message สำเร็จ NETCONF Session จะถูกสร้างขึ้นและพร้อมสำหรับการดำเนินการ RPC ระบบจะจัดเก็บ Session ไว้ใน \texttt{connections Map} พร้อมข้อมูล Capabilities, Stream และ Timestamp เพื่อใช้ในการดำเนินการต่อไป
+เมื่อทั้งสองฝ่ายแลกเปลี่ยน Hello Message สำเร็จ NETCONF Session จะถูกสร้างขึ้นและพร้อมสำหรับการดำเนินการ RPC ระบบจะจัดเก็บ Session ไว้ใน \textbf{connections Map} พร้อมข้อมูล Capabilities, Stream และ Timestamp เพื่อใช้ในการดำเนินการต่อไป
 
 % ──────────────────────────────────────────────────────
 % รูปภาพ: NETCONF Hello Exchange Sequence Diagram
@@ -148,7 +148,7 @@ Cisco IOS-XE & \texttt{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \texttt{n
 
 \section{NETCONF RPC Operations ที่ใช้ในระบบ}
 \hspace*{1.3em}
-ระบบใช้ NETCONF RPC Operations หลายชนิดในการจัดการคอนฟิกอุปกรณ์เครือข่าย ทุก RPC Message จะถูกห่อด้วย \texttt{<rpc>} Envelope พร้อมระบุ \texttt{message-id} ที่ไม่ซ้ำกัน และสิ้นสุดด้วย Delimiter \texttt{]]>]]>} โดยรูปแบบทั่วไปของ RPC Message มีดังนี้
+ระบบใช้ NETCONF RPC Operations หลายชนิดในการจัดการคอนฟิกอุปกรณ์เครือข่าย ทุก RPC Message จะถูกห่อด้วย \textbf{<rpc>} Envelope พร้อมระบุ \textbf{message-id} ที่ไม่ซ้ำกัน และสิ้นสุดด้วย Delimiter \textbf{]]>]]>} โดยรูปแบบทั่วไปของ RPC Message มีดังนี้
 
 \begin{verbatim}
 <?xml version="1.0" encoding="UTF-8"?>
@@ -198,7 +198,7 @@ Cisco IOS-XE & \texttt{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \texttt{n
 
 \subsection{edit-config (แก้ไขคอนฟิก)}
 \hspace*{1.3em}
-ใช้สำหรับแก้ไขค่า Configuration ของอุปกรณ์ สามารถเลือก Target Datastore เป็น \texttt{running} (แก้ไขทันที) หรือ \texttt{candidate} (แก้ไขเป็นร่างก่อน) และกำหนด Default Operation เป็น \texttt{merge} (รวมกับค่าเดิม) หรือ \texttt{replace} (แทนที่ค่าเดิม)
+ใช้สำหรับแก้ไขค่า Configuration ของอุปกรณ์ สามารถเลือก Target Datastore เป็น \textbf{running} (แก้ไขทันที) หรือ \textbf{candidate} (แก้ไขเป็นร่างก่อน) และกำหนด Default Operation เป็น \textbf{merge} (รวมกับค่าเดิม) หรือ \textbf{replace} (แทนที่ค่าเดิม)
 
 \hspace*{1.3em}
 ตัวอย่างการตั้งค่า Hostname ของอุปกรณ์ NX-OS ผ่าน edit-config มีดังนี้
@@ -353,21 +353,21 @@ Cisco IOS-XE & \texttt{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \texttt{n
 \hline
 เชื่อมต่อ & Hello Exchange & 30 วินาที & สร้าง SSH + NETCONF Session \\
 \hline
-อ่านคอนฟิก & \texttt{get-config} & 180 วินาที & อ่าน Running Configuration \\
+อ่านคอนฟิก & \textbf{get-config} & 180 วินาที & อ่าน Running Configuration \\
 \hline
-อ่านข้อมูล & \texttt{get} & 120 วินาที & อ่าน Operational Data \\
+อ่านข้อมูล & \textbf{get} & 120 วินาที & อ่าน Operational Data \\
 \hline
-แก้ไขคอนฟิก & \texttt{edit-config} & 90 วินาที & แก้ไข Running/Candidate \\
+แก้ไขคอนฟิก & \textbf{edit-config} & 90 วินาที & แก้ไข Running/Candidate \\
 \hline
-ยืนยัน & \texttt{commit} & 120 วินาที & ยืนยัน Candidate $\rightarrow$ Running \\
+ยืนยัน & \textbf{commit} & 120 วินาที & ยืนยัน Candidate $\rightarrow$ Running \\
 \hline
-ตรวจสอบ & \texttt{validate} & 60 วินาที & ตรวจสอบ Candidate \\
+ตรวจสอบ & \textbf{validate} & 60 วินาที & ตรวจสอบ Candidate \\
 \hline
-ยกเลิก & \texttt{discard-changes} & 15 วินาที & ยกเลิก Candidate \\
+ยกเลิก & \textbf{discard-changes} & 15 วินาที & ยกเลิก Candidate \\
 \hline
-ล็อก/ปลดล็อก & \texttt{lock/unlock} & 30 วินาที & ล็อก Datastore \\
+ล็อก/ปลดล็อก & \textbf{lock/unlock} & 30 วินาที & ล็อก Datastore \\
 \hline
-ปิด Session & \texttt{close-session} & 10 วินาที & ปิด NETCONF Session \\
+ปิด Session & \textbf{close-session} & 10 วินาที & ปิด NETCONF Session \\
 \hline
 \end{tabularx}
 \end{table}
@@ -382,9 +382,9 @@ Cisco IOS-XE & \texttt{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \texttt{n
 
 \begin{mycustomenum2}
     \item \textbf{Lock Candidate:} ล็อก Candidate Datastore เพื่อป้องกัน Session อื่นแก้ไข
-    \item \textbf{Edit-Config:} ส่ง Configuration XML ไปยัง Candidate Datastore ด้วย \texttt{edit-config}
-    \item \textbf{Validate (ถ้ารองรับ):} ตรวจสอบความถูกต้องของ Candidate ด้วย \texttt{validate}
-    \item \textbf{Commit:} ยืนยันการเปลี่ยนแปลงจาก Candidate ไปยัง Running ด้วย \texttt{commit}
+    \item \textbf{Edit-Config:} ส่ง Configuration XML ไปยัง Candidate Datastore ด้วย \textbf{edit-config}
+    \item \textbf{Validate (ถ้ารองรับ):} ตรวจสอบความถูกต้องของ Candidate ด้วย \textbf{validate}
+    \item \textbf{Commit:} ยืนยันการเปลี่ยนแปลงจาก Candidate ไปยัง Running ด้วย \textbf{commit}
     \item \textbf{Unlock Candidate:} ปลดล็อก Candidate Datastore
 \end{mycustomenum2}
 
@@ -405,7 +405,7 @@ Cisco IOS-XE & \texttt{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \texttt{n
 
 \subsection{รูปแบบที่ 2: ใช้ Writable-Running (Fallback)}
 \hspace*{1.3em}
-สำหรับอุปกรณ์ที่ไม่รองรับ Candidate Datastore ระบบจะใช้ \texttt{writable-running} เป็นทางเลือก โดยการเปลี่ยนแปลงจะมีผลทันทีเมื่อ edit-config สำเร็จ ขั้นตอนมีดังนี้
+สำหรับอุปกรณ์ที่ไม่รองรับ Candidate Datastore ระบบจะใช้ \textbf{writable-running} เป็นทางเลือก โดยการเปลี่ยนแปลงจะมีผลทันทีเมื่อ edit-config สำเร็จ ขั้นตอนมีดังนี้
 
 \begin{mycustomenum2}
     \item \textbf{Edit-Config:} ส่ง Configuration XML ไปยัง Running Datastore โดยตรง
@@ -417,11 +417,11 @@ Cisco IOS-XE & \texttt{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \texttt{n
 
 \section{Subtree Filter สำหรับอ่านข้อมูลอุปกรณ์}
 \hspace*{1.3em}
-ระบบใช้ Subtree Filter ใน \texttt{<get>} RPC เพื่ออ่านข้อมูลเฉพาะส่วนที่ต้องการจากอุปกรณ์ โดยไม่ต้องอ่านข้อมูลทั้งหมด ซึ่งช่วยลดปริมาณข้อมูลที่รับ-ส่งและเพิ่มประสิทธิภาพ ระบบรองรับ Filter หลายประเภทตามชนิดของอุปกรณ์ ดังนี้
+ระบบใช้ Subtree Filter ใน \textbf{<get>} RPC เพื่ออ่านข้อมูลเฉพาะส่วนที่ต้องการจากอุปกรณ์ โดยไม่ต้องอ่านข้อมูลทั้งหมด ซึ่งช่วยลดปริมาณข้อมูลที่รับ-ส่งและเพิ่มประสิทธิภาพ ระบบรองรับ Filter หลายประเภทตามชนิดของอุปกรณ์ ดังนี้
 
 \subsection{Subtree Filter สำหรับ NX-OS (Nexus)}
 \hspace*{1.3em}
-YANG Model ของ Cisco NX-OS ใช้ Root Element \texttt{System} ภายใต้ Namespace \texttt{cisco-nx-os-device} ตัวอย่าง Filter ที่ใช้ในระบบมีดังนี้
+YANG Model ของ Cisco NX-OS ใช้ Root Element \textbf{System} ภายใต้ Namespace \textbf{cisco-nx-os-device} ตัวอย่าง Filter ที่ใช้ในระบบมีดังนี้
 
 \begin{table}[H]
 \centering
@@ -431,24 +431,24 @@ YANG Model ของ Cisco NX-OS ใช้ Root Element \texttt{System} ภา�
 \hline
 \textbf{ประเภทข้อมูล} & \textbf{YANG Path} & \textbf{คำอธิบาย} \\
 \hline
-System Info & \texttt{System/name} & ชื่ออุปกรณ์ (Hostname) \\
+System Info & \textbf{System/name} & ชื่ออุปกรณ์ (Hostname) \\
 \hline
-Interfaces & \texttt{System/intf-items} & อินเทอร์เฟซทั้งหมด (Physical, SVI, Port-channel) \\
+Interfaces & \textbf{System/intf-items} & อินเทอร์เฟซทั้งหมด (Physical, SVI, Port-channel) \\
 \hline
-VLANs & \texttt{System/bd-items} & Bridge Domain / VLAN \\
+VLANs & \textbf{System/bd-items} & Bridge Domain / VLAN \\
 \hline
-OSPF & \texttt{System/ospf-items} & Routing Protocol OSPF \\
+OSPF & \textbf{System/ospf-items} & Routing Protocol OSPF \\
 \hline
-BGP & \texttt{System/bgp-items} & Routing Protocol BGP \\
+BGP & \textbf{System/bgp-items} & Routing Protocol BGP \\
 \hline
-Features & \texttt{System/fm-items} & Feature Manager (เปิด/ปิดฟีเจอร์) \\
+Features & \textbf{System/fm-items} & Feature Manager (เปิด/ปิดฟีเจอร์) \\
 \hline
 \end{tabularx}
 \end{table}
 
 \subsection{Subtree Filter สำหรับ IOS-XE}
 \hspace*{1.3em}
-YANG Model ของ Cisco IOS-XE ใช้ Root Element \texttt{native} ภายใต้ Namespace \texttt{Cisco-IOS-XE-native} ตัวอย่าง Filter ที่ใช้ในระบบมีดังนี้
+YANG Model ของ Cisco IOS-XE ใช้ Root Element \textbf{native} ภายใต้ Namespace \textbf{Cisco-IOS-XE-native} ตัวอย่าง Filter ที่ใช้ในระบบมีดังนี้
 
 \begin{table}[H]
 \centering
@@ -458,15 +458,15 @@ YANG Model ของ Cisco IOS-XE ใช้ Root Element \texttt{native} ภา�
 \hline
 \textbf{ประเภทข้อมูล} & \textbf{YANG Path} & \textbf{คำอธิบาย} \\
 \hline
-Hostname & \texttt{native/hostname} & ชื่ออุปกรณ์ \\
+Hostname & \textbf{native/hostname} & ชื่ออุปกรณ์ \\
 \hline
-Interfaces & \texttt{native/interface} & อินเทอร์เฟซ GigabitEthernet/Loopback \\
+Interfaces & \textbf{native/interface} & อินเทอร์เฟซ GigabitEthernet/Loopback \\
 \hline
-VLANs & \texttt{native/vlan} & VLAN Configuration \\
+VLANs & \textbf{native/vlan} & VLAN Configuration \\
 \hline
-OSPF & \texttt{native/router/ospf} & Routing Protocol OSPF \\
+OSPF & \textbf{native/router/ospf} & Routing Protocol OSPF \\
 \hline
-BGP & \texttt{native/router/bgp} & Routing Protocol BGP \\
+BGP & \textbf{native/router/bgp} & Routing Protocol BGP \\
 \hline
 \end{tabularx}
 \end{table}
@@ -516,10 +516,10 @@ BGP & \texttt{native/router/bgp} & Routing Protocol BGP \\
 เมื่อผู้ใช้อัปโหลด YANG Model ระบบจะ Parse เนื้อหาอัตโนมัติเพื่อดึงข้อมูลสำคัญ ได้แก่
 
 \begin{mycustomenum2}
-    \item \textbf{module name:} ชื่อโมดูล YANG เช่น \texttt{cisco-nx-os-device}
-    \item \textbf{namespace:} URI ของโมดูล เช่น \texttt{http://cisco.com/ns/yang/cisco-nx-os-device}
-    \item \textbf{prefix:} ชื่อย่อสำหรับอ้างอิง เช่น \texttt{nxos}
-    \item \textbf{revision:} เวอร์ชันของ YANG Model เช่น \texttt{2024-01-01}
+    \item \textbf{module name:} ชื่อโมดูล YANG เช่น \textbf{cisco-nx-os-device}
+    \item \textbf{namespace:} URI ของโมดูล เช่น \textbf{http://cisco.com/ns/yang/cisco-nx-os-device}
+    \item \textbf{prefix:} ชื่อย่อสำหรับอ้างอิง เช่น \textbf{nxos}
+    \item \textbf{revision:} เวอร์ชันของ YANG Model เช่น \textbf{2024-01-01}
 \end{mycustomenum2}
 
 \subsection{XML Templates}
@@ -550,12 +550,12 @@ BGP & \texttt{native/router/bgp} & Routing Protocol BGP \\
 
 \section{การจัดการ Error ใน NETCONF}
 \hspace*{1.3em}
-เมื่ออุปกรณ์พบข้อผิดพลาดในการดำเนินการ NETCONF จะตอบกลับด้วย \texttt{<rpc-error>} ระบบจะ Parse ข้อมูลใน Error Message เพื่อแสดงรายละเอียดให้ผู้ใช้ทราบ โดย Error Message ประกอบด้วย
+เมื่ออุปกรณ์พบข้อผิดพลาดในการดำเนินการ NETCONF จะตอบกลับด้วย \textbf{<rpc-error>} ระบบจะ Parse ข้อมูลใน Error Message เพื่อแสดงรายละเอียดให้ผู้ใช้ทราบ โดย Error Message ประกอบด้วย
 
 \begin{mycustomenum2}
-    \item \textbf{error-tag:} ประเภทของข้อผิดพลาด เช่น \texttt{invalid-value}, \texttt{data-missing}, \texttt{operation-failed}
+    \item \textbf{error-tag:} ประเภทของข้อผิดพลาด เช่น \textbf{invalid-value}, \textbf{data-missing}, \textbf{operation-failed}
     \item \textbf{error-message:} คำอธิบายข้อผิดพลาดเป็นข้อความภาษาอังกฤษ
-    \item \textbf{error-path:} ตำแหน่งใน YANG Model ที่เกิดข้อผิดพลาด เช่น \texttt{/System/intf-items}
+    \item \textbf{error-path:} ตำแหน่งใน YANG Model ที่เกิดข้อผิดพลาด เช่น \textbf{/System/intf-items}
 \end{mycustomenum2}
 
 \hspace*{1.3em}
