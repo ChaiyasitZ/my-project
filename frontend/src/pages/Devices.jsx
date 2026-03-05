@@ -298,13 +298,19 @@ function Devices() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Clean form data - remove layer for non-switch types
+      const cleanData = { ...formData };
+      if (cleanData.type !== 'switch') {
+        delete cleanData.layer;
+      }
+      
       if (editingDevice) {
         const deviceId = editingDevice.id || editingDevice._id;
-        await axios.put(`/devices/${deviceId}`, formData);
+        await axios.put(`/devices/${deviceId}`, cleanData);
         console.log('✅ Device updated successfully:', formData.name);
         toast.success(`Device "${formData.name}" updated successfully!`);
       } else {
-        await axios.post('/devices', formData);
+        await axios.post('/devices', cleanData);
         console.log('✅ Device created successfully:', formData.name);
         toast.success(`Device "${formData.name}" created successfully!`);
       }

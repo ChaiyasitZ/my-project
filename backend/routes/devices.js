@@ -16,7 +16,7 @@ router.use(authenticateToken);
 // Validation schemas
 const deviceSchema = Joi.object({
   name: Joi.string().required().max(255),
-  type: Joi.string().valid('router', 'switch', 'nexus').required(),
+  type: Joi.string().valid('router', 'switch', 'nexus', 'ios-xe').required(),
   layer: Joi.string().valid('layer-2', 'layer-3').optional().allow('', null), // Optional for all types, only used for switches
   ip_address: Joi.string().ip().required(),
   ssh_port: Joi.number().integer().min(1).max(65535).default(22),
@@ -33,7 +33,7 @@ const deviceSchema = Joi.object({
 
 const deviceUpdateSchema = Joi.object({
   name: Joi.string().max(255),
-  type: Joi.string().valid('router', 'switch', 'nexus'),
+  type: Joi.string().valid('router', 'switch', 'nexus', 'ios-xe'),
   layer: Joi.string().valid('layer-2', 'layer-3').optional().allow('', null), // Optional for all types
   ip_address: Joi.string().ip(),
   ssh_port: Joi.number().integer().min(1).max(65535),
@@ -284,6 +284,11 @@ router.put('/:id', async (req, res) => {
       delete value.password;
     }
     
+    // Clean layer field: only switches should have a layer value
+    if (value.type && value.type !== 'switch') {
+      delete value.layer;
+    }
+    
     // Check for duplicate IP address (excluding current device, within user's devices)
     if (value.ip_address) {
       const existingDevice = await Device.findOne({ 
@@ -317,7 +322,7 @@ router.put('/:id', async (req, res) => {
     const device = await Device.findOneAndUpdate(
       { _id: id, userId: req.userId }, 
       { ...value, updatedAt: new Date() }, 
-      { new: true, runValidators: true }
+      { new: true }
     );
     
     if (!device) {
@@ -347,7 +352,8 @@ router.put('/:id', async (req, res) => {
     console.error('Error updating device:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to update device'
+      message: 'Failed to update device',
+      details: error.message
     });
   }
 });
