@@ -242,25 +242,4 @@ const style = document.createElement('style');
 style.textContent = `.spin { animation: spin 1s linear infinite; } @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`;
 document.head.appendChild(style);
 
-// ─── Uninstall Agent ───
-const btnUninstall = $('btn-uninstall');
-if (btnUninstall) {
-  btnUninstall.addEventListener('click', async () => {
-    btnUninstall.disabled = true;
-    btnUninstall.innerHTML = `
-      <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6"/><path d="M2 11.5a10 10 0 0 1 18.8-4.3"/></svg>
-      Uninstalling...`;
-    const result = await window.agent.uninstallAgent();
-    if (result && result.cancelled) {
-      btnUninstall.disabled = false;
-      btnUninstall.innerHTML = `
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        Uninstall Agent`;
-    }
-  });
-}
 
-// Listen for tray-triggered uninstall
-window.agent.onTriggerUninstall(() => {
-  if (btnUninstall) btnUninstall.click();
-});
