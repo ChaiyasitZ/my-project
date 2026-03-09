@@ -589,7 +589,39 @@ class NetconfHandler {
   }
 
   async editConfig(deviceId, config) {
-    return this._sendRpc(deviceId, `<edit-config><target><running/></target><config>${config}</config></edit-config>`);
+    const entry = this.connections.get(deviceId);
+    if (!entry) throw new Error('Not connected via NETCONF');
+
+    const supportCandidate = (entry.capabilities || []).some(c => c.includes('candidate'));
+
+    if (!supportCandidate) {
+      return this._sendRpc(deviceId, `<edit-config><target><running/></target><config>${config}</config></edit-config>`);
+    }
+
+    // Candidate datastore workflow: discard → lock → edit → commit → unlock
+    try { await this._sendRpc(deviceId, `<discard-changes/>`); } catch (e) { /* ignore */ }
+    await this._sendRpc(deviceId, `<lock><target><candidate/></target></lock>`);
+
+    try {
+      const editResult = await this._sendRpc(deviceId, `<edit-config><target><candidate/></target><default-operation>merge</default-operation><config>${config}</config></edit-config>`);
+      if (editResult.response && editResult.response.includes('<rpc-error>')) {
+        const errMsg = editResult.response.match(/<error-message[^>]*>([^<]+)<\/error-message>/);
+        throw new Error(`edit-config failed: ${errMsg ? errMsg[1] : 'unknown error'}`);
+      }
+
+      const commitResult = await this._sendRpc(deviceId, `<commit/>`);
+      if (commitResult.response && commitResult.response.includes('<rpc-error>')) {
+        const errMsg = commitResult.response.match(/<error-message[^>]*>([^<]+)<\/error-message>/);
+        throw new Error(`commit failed: ${errMsg ? errMsg[1] : 'unknown error'}`);
+      }
+
+      await this._sendRpc(deviceId, `<unlock><target><candidate/></target></unlock>`);
+      return { success: true, response: commitResult.response, message: 'Configuration committed successfully' };
+    } catch (error) {
+      try { await this._sendRpc(deviceId, `<discard-changes/>`); } catch (e) { /* ignore */ }
+      try { await this._sendRpc(deviceId, `<unlock><target><candidate/></target></unlock>`); } catch (e) { /* ignore */ }
+      throw error;
+    }
   }
 
   async sendRPC(deviceId, rpcBody) { return this._sendRpc(deviceId, rpcBody); }

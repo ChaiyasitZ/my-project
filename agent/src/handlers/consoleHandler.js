@@ -4,13 +4,19 @@
  */
 
 let SerialPort, ReadlineParser;
-try {
-  const sp = await import('serialport');
-  SerialPort = sp.SerialPort;
-  const rp = await import('@serialport/parser-readline');
-  ReadlineParser = rp.ReadlineParser;
-} catch (e) {
-  console.warn('⚠️ serialport not available - console features require serialport module');
+let serialportLoaded = false;
+
+async function loadSerialport() {
+  if (serialportLoaded) return;
+  try {
+    const sp = await import('serialport');
+    SerialPort = sp.SerialPort;
+    const rp = await import('@serialport/parser-readline');
+    ReadlineParser = rp.ReadlineParser;
+  } catch (e) {
+    console.warn('⚠️ serialport not available - console features require serialport module');
+  }
+  serialportLoaded = true;
 }
 
 export class ConsoleHandler {
@@ -22,6 +28,7 @@ export class ConsoleHandler {
    * List available serial ports
    */
   async listPorts() {
+    await loadSerialport();
     if (!SerialPort) {
       throw new Error('serialport module not available');
     }
@@ -71,6 +78,7 @@ export class ConsoleHandler {
    * Connect to a device via serial console
    */
   async connect(config) {
+    await loadSerialport();
     if (!SerialPort) throw new Error('serialport module not available');
     const { deviceId, portPath, baudRate = 9600, dataBits = 8, parity = 'none', stopBits = 1 } = config;
     this.disconnect(deviceId);
