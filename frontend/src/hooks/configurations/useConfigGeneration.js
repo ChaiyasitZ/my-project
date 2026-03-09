@@ -6,7 +6,7 @@ import { useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { generateNetconfWorkflowXml } from '../../utils/yangParser';
-import { translateToEnglish, detectLanguage } from '../../utils/translationUtils';
+import { detectLanguage } from '../../utils/translationUtils';
 import { validateConfigPrompt, getValidationErrorMessage } from '../../utils/promptValidator';
 
 /**
@@ -46,23 +46,33 @@ export const useConfigGeneration = (showConfirmation) => {
   }, []);
 
   /**
-   * Handle prompt translation between languages
+   * Handle prompt translation between languages using backend LLM
    */
-  const handleTranslatePrompt = useCallback(() => {
+  const handleTranslatePrompt = useCallback(async () => {
     if (!prompt.trim() || isTranslating) return;
     
     setIsTranslating(true);
-    const targetLang = promptLanguage === 'en' ? 'th' : 'en';
+    const from = promptLanguage;
+    const to = promptLanguage === 'en' ? 'th' : 'en';
     const langNames = { en: 'English', th: 'ไทย' };
     
     try {
-      const translatedText = translateToEnglish(prompt);
-      setPrompt(translatedText);
-      setPromptLanguage(targetLang);
-      toast.success(`Translated to ${langNames[targetLang]}`);
+      const response = await axios.post('/configurations/translate', {
+        text: prompt,
+        from,
+        to
+      });
+      
+      if (response.data.success && response.data.translatedText) {
+        setPrompt(response.data.translatedText);
+        setPromptLanguage(to);
+        toast.success(`Translated to ${langNames[to]}`);
+      } else {
+        toast.error('Translation failed');
+      }
     } catch (error) {
       console.error('Translation error:', error);
-      toast.error('Translation failed');
+      toast.error(error.response?.data?.message || 'Translation failed');
     } finally {
       setIsTranslating(false);
     }

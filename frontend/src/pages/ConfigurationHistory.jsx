@@ -666,7 +666,7 @@ function ConfigurationHistory() {
       <ConfirmationModal
         isOpen={confirmationState.isOpen}
         onConfirm={confirmationState.onConfirm}
-        onCancel={confirmationState.onCancel}
+        onClose={confirmationState.onCancel}
         title={confirmationState.title}
         message={confirmationState.message}
         confirmText={confirmationState.confirmText}
