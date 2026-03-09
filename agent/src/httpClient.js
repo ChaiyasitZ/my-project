@@ -60,16 +60,32 @@ export class HttpPollingClient extends EventEmitter {
   }
 
   /**
-   * Send heartbeat to server
+   * Send heartbeat to server (includes serial port list for caching)
    */
   async _sendHeartbeat() {
+    // Scan serial ports so the server can cache them for instant web access
+    let serialPorts = [];
+    try {
+      if (this.handlers.console) {
+        const portsResult = await this.handlers.console.listPorts();
+        if (portsResult.success) {
+          serialPorts = portsResult.ports;
+        }
+      }
+    } catch (e) {
+      // Serial port scan failed — send heartbeat without ports
+    }
+
     const response = await this._fetch('/api/agent/poll/heartbeat', {
       method: 'POST',
       body: JSON.stringify({
         agentName: this.agentName,
         agentVersion: this.version,
         platform: os.platform(),
-        hostname: os.hostname()
+        hostname: os.hostname(),
+        capabilities: {
+          serialPorts
+        }
       })
     });
 

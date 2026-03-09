@@ -214,7 +214,7 @@ export const useConfigGeneration = (showConfirmation) => {
       const requestPayload = {
         configuration_id: String(configId),
         validate_before_apply: isNetconf ? validateBeforeApply : false,
-        mock_deploy: isNetconf
+        mock_deploy: false
       };
 
       const response = await axios.post(endpoint, requestPayload);
