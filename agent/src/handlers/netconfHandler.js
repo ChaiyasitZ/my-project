@@ -205,10 +205,66 @@ ${rpcBody}
   }
 
   /**
-   * Edit configuration
+   * Edit configuration using proper candidate datastore workflow
+   * Both CSR1000v (IOS-XE) and Nexus 9000v (NX-OS) require:
+   * lock candidate → edit-config candidate → commit → unlock candidate
    */
   async editConfig(deviceId, configXml) {
-    return this.sendRPC(deviceId, `<edit-config><target><running/></target><config>${configXml}</config></edit-config>`);
+    const entry = this.connections.get(deviceId);
+    if (!entry) throw new Error('Device not connected via NETCONF');
+
+    const supportCandidate = entry.serverCapabilities.some(c =>
+      c.includes('candidate')
+    );
+
+    if (!supportCandidate) {
+      // Fallback: direct edit to running (legacy devices)
+      return this.sendRPC(deviceId, `<edit-config><target><running/></target><config>${configXml}</config></edit-config>`);
+    }
+
+    // Step 1: Discard any leftover candidate changes
+    try {
+      await this.sendRPC(deviceId, `<discard-changes/>`);
+    } catch (e) { /* ignore */ }
+
+    // Step 2: Lock candidate datastore
+    await this.sendRPC(deviceId, `<lock><target><candidate/></target></lock>`);
+
+    try {
+      // Step 3: Edit candidate config
+      const editResult = await this.sendRPC(deviceId,
+        `<edit-config><target><candidate/></target><default-operation>merge</default-operation><config>${configXml}</config></edit-config>`
+      );
+
+      // Check for rpc-error in edit-config response
+      if (editResult.response && editResult.response.includes('<rpc-error>')) {
+        const errMsg = editResult.response.match(/<error-message[^>]*>([^<]+)<\/error-message>/);
+        throw new Error(`edit-config failed: ${errMsg ? errMsg[1] : 'unknown error'}`);
+      }
+
+      // Step 4: Commit
+      const commitResult = await this.sendRPC(deviceId, `<commit/>`);
+
+      if (commitResult.response && commitResult.response.includes('<rpc-error>')) {
+        const errMsg = commitResult.response.match(/<error-message[^>]*>([^<]+)<\/error-message>/);
+        throw new Error(`commit failed: ${errMsg ? errMsg[1] : 'unknown error'}`);
+      }
+
+      // Step 5: Unlock candidate
+      await this.sendRPC(deviceId, `<unlock><target><candidate/></target></unlock>`);
+
+      return {
+        success: true,
+        response: commitResult.response,
+        message: 'Configuration committed successfully'
+      };
+
+    } catch (error) {
+      // Cleanup on failure: discard + unlock
+      try { await this.sendRPC(deviceId, `<discard-changes/>`); } catch (e) { /* ignore */ }
+      try { await this.sendRPC(deviceId, `<unlock><target><candidate/></target></unlock>`); } catch (e) { /* ignore */ }
+      throw error;
+    }
   }
 
   /**
