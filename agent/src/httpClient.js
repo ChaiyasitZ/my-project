@@ -177,14 +177,23 @@ export class HttpPollingClient extends EventEmitter {
           break;
 
         case 'agent:netconf:get-config':
+          if (!this.handlers.netconf.isConnected(data.deviceId) && data.host) {
+            await this.handlers.netconf.connect(data);
+          }
           result = await this.handlers.netconf.getConfig(data.deviceId, data.filter);
           break;
 
         case 'agent:netconf:edit-config':
+          if (!this.handlers.netconf.isConnected(data.deviceId) && data.host) {
+            await this.handlers.netconf.connect(data);
+          }
           result = await this.handlers.netconf.editConfig(data.deviceId, data.config);
           break;
 
         case 'agent:netconf:rpc':
+          if (!this.handlers.netconf.isConnected(data.deviceId) && data.host) {
+            await this.handlers.netconf.connect(data);
+          }
           result = await this.handlers.netconf.sendRPC(data.deviceId, data.rpcBody);
           break;
 
