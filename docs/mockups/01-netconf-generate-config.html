@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NETCONF/YANG Configuration Generation</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f3f4f6; color: #111827; }
+
+  .layout { display: flex; min-height: 100vh; }
+
+  /* Sidebar */
+  .sidebar { width: 240px; background: #1e293b; color: white; padding: 16px 0; flex-shrink: 0; }
+  .sidebar-logo { padding: 0 20px 20px; font-size: 18px; font-weight: 700; color: #818cf8; border-bottom: 1px solid #334155; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+  .sidebar-logo svg { width: 28px; height: 28px; }
+  .sidebar-nav a { display: flex; align-items: center; gap: 12px; padding: 10px 20px; color: #94a3b8; text-decoration: none; font-size: 14px; transition: all 0.2s; border-left: 3px solid transparent; }
+  .sidebar-nav a:hover { background: #334155; color: white; }
+  .sidebar-nav a.active { background: #334155; color: white; border-left-color: #818cf8; }
+  .sidebar-nav a svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+  /* Status indicator */
+  .status-section { padding: 16px 20px; border-top: 1px solid #334155; margin-top: auto; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .status-dot.green { background: #22c55e; box-shadow: 0 0 6px #22c55e80; }
+  .status-text { font-size: 11px; color: #94a3b8; }
+
+  /* Main Content */
+  .main { flex: 1; padding: 24px 32px; overflow-y: auto; }
+
+  /* Header */
+  .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .page-title { font-size: 24px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .page-title svg { color: #7c3aed; }
+
+  /* Mode Toggle */
+  .mode-toggle { display: flex; background: #e5e7eb; border-radius: 12px; padding: 4px; gap: 2px; }
+  .mode-btn { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 10px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; background: transparent; color: #6b7280; }
+  .mode-btn.active-cli { background: white; color: #2563eb; box-shadow: 0 1px 3px rgba(0,0,0,0.1); ring: 1px solid #dbeafe; }
+  .mode-btn.active-netconf { background: white; color: #7c3aed; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .mode-btn svg { width: 16px; height: 16px; }
+
+  .header-actions { display: flex; align-items: center; gap: 12px; }
+
+  /* Sub Tabs */
+  .sub-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e5e7eb; padding-bottom: 0; margin-bottom: 24px; }
+  .sub-tab { display: flex; align-items: center; gap: 6px; padding: 10px 16px; font-size: 13px; font-weight: 500; color: #6b7280; border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s; }
+  .sub-tab:hover { color: #374151; }
+  .sub-tab.active { color: #7c3aed; border-bottom-color: #7c3aed; }
+  .sub-tab svg { width: 16px; height: 16px; }
+  .tab-badge { font-size: 11px; padding: 1px 8px; border-radius: 10px; font-weight: 600; margin-left: 4px; }
+  .tab-badge.green { background: #dcfce7; color: #15803d; }
+  .tab-badge.purple { background: #f3e8ff; color: #7c3aed; }
+
+  /* Card */
+  .card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+
+  /* Two Column Layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+  /* Form Card */
+  .form-card { padding: 24px; }
+  .form-card h2 { font-size: 18px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .form-card h2 svg { color: #7c3aed; width: 22px; height: 22px; }
+  .form-subtitle { font-size: 13px; color: #6b7280; margin-bottom: 20px; }
+
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 6px; }
+  .form-label .optional { font-weight: 400; color: #9ca3af; font-size: 11px; margin-left: 4px; }
+
+  .form-input, .form-select, .form-textarea { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; outline: none; background: white; }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: #7c3aed; box-shadow: 0 0 0 3px #7c3aed20; }
+  .form-textarea { resize: vertical; font-family: inherit; }
+
+  /* Device Selector */
+  .device-selector { position: relative; }
+  .device-selector-btn { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; background: white; cursor: pointer; }
+  .device-info { display: flex; align-items: center; gap: 10px; }
+  .device-icon { width: 32px; height: 32px; background: #f3e8ff; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+  .device-icon svg { width: 18px; height: 18px; color: #7c3aed; }
+  .device-name { font-weight: 500; font-size: 14px; }
+  .device-meta { font-size: 12px; color: #6b7280; }
+  .device-meta .netconf-badge { color: #7c3aed; font-weight: 500; }
+
+  /* YANG Model Selector */
+  .yang-selector { border: 1px solid #d1d5db; border-radius: 8px; max-height: 130px; overflow-y: auto; }
+  .yang-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #f3f4f6; cursor: pointer; }
+  .yang-item:last-child { border-bottom: none; }
+  .yang-item:hover { background: #f9fafb; }
+  .yang-item input[type="checkbox"] { accent-color: #7c3aed; }
+  .yang-name { font-size: 13px; font-weight: 500; }
+  .yang-badges { display: flex; gap: 4px; }
+  .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+  .badge-nexus { background: #f3e8ff; color: #7c3aed; }
+  .badge-iosxe { background: #dbeafe; color: #2563eb; }
+  .badge-cat { background: #fef3c7; color: #92400e; }
+  .badge-selected { font-size: 11px; color: #7c3aed; margin-top: 4px; }
+
+  /* Prompt Input */
+  .prompt-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .translate-btn { display: flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 8px; border: none; font-size: 11px; font-weight: 600; background: linear-gradient(135deg, #3b82f6, #7c3aed); color: white; cursor: pointer; }
+
+  /* Generate Button */
+  .btn-generate { width: 100%; padding: 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
+  .btn-generate.netconf { background: #7c3aed; color: white; }
+  .btn-generate.netconf:hover { background: #6d28d9; }
+  .btn-generate svg { width: 16px; height: 16px; }
+
+  /* Example Prompts */
+  .example-section { margin-top: 16px; }
+  .example-section h3 { font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 8px; }
+  .example-btn { display: block; width: 100%; text-align: left; padding: 6px 8px; border: none; background: none; cursor: pointer; font-size: 12px; color: #7c3aed; border-radius: 6px; transition: background 0.2s; }
+  .example-btn:hover { background: #f3e8ff; }
+
+  /* Result Card */
+  .result-card { padding: 24px; }
+  .result-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+  .result-title { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .result-title svg { color: #7c3aed; width: 22px; height: 22px; }
+  .status-badge { font-size: 11px; padding: 3px 10px; border-radius: 10px; font-weight: 600; }
+  .status-badge.generated { background: #dbeafe; color: #2563eb; }
+
+  .result-meta { display: flex; align-items: center; gap: 12px; font-size: 12px; color: #6b7280; margin-bottom: 16px; }
+  .result-meta svg { width: 14px; height: 14px; }
+  .result-meta .time { color: #16a34a; font-weight: 500; }
+
+  /* Validation Box */
+  .validation-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; display: flex; align-items: flex-start; gap: 10px; }
+  .validation-box svg { width: 20px; height: 20px; color: #2563eb; flex-shrink: 0; margin-top: 2px; }
+  .validation-title { font-size: 13px; font-weight: 600; color: #1d4ed8; margin-bottom: 4px; }
+  .validation-text { font-size: 13px; color: #374151; line-height: 1.5; }
+
+  /* Code Block */
+  .code-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .code-header h3 { font-size: 13px; font-weight: 500; color: #374151; }
+  .code-actions { display: flex; gap: 6px; }
+
+  .code-block { background: #111827; border-radius: 10px; padding: 16px; overflow-x: auto; }
+  .code-block pre { color: #4ade80; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; line-height: 1.6; white-space: pre-wrap; }
+  .code-block .comment { color: #6b7280; }
+  .code-block .tag { color: #60a5fa; }
+  .code-block .attr { color: #f472b6; }
+  .code-block .value { color: #fbbf24; }
+
+  /* Action Buttons */
+  .action-bar { display: flex; justify-content: space-between; margin-top: 16px; }
+  .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; border: 1px solid transparent; transition: all 0.2s; }
+  .btn svg { width: 16px; height: 16px; }
+  .btn-secondary { background: #f3f4f6; color: #374151; border-color: #d1d5db; }
+  .btn-secondary:hover { background: #e5e7eb; }
+  .btn-primary { background: #7c3aed; color: white; }
+  .btn-primary:hover { background: #6d28d9; }
+  .btn-success { background: #16a34a; color: white; }
+  .btn-success:hover { background: #15803d; }
+
+  /* Validate Toggle */
+  .validate-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6b7280; }
+  .toggle-switch { width: 36px; height: 20px; background: #d1d5db; border-radius: 10px; position: relative; cursor: pointer; transition: background 0.2s; }
+  .toggle-switch.active { background: #7c3aed; }
+  .toggle-switch::after { content: ''; width: 16px; height: 16px; background: white; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: transform 0.2s; }
+  .toggle-switch.active::after { transform: translateX(16px); }
+</style>
+</head>
+<body>
+<div class="layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+      NetConfig LLM
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </a>
+      <a href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg>
+        Devices
+      </a>
+      <a href="#" class="active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4c0 2-2 3-2 5h-4c0-2-2-3-2-5a4 4 0 0 1 4-4z"/><path d="M10 17v1a2 2 0 0 0 4 0v-1"/><circle cx="12" cy="6" r="1"/></svg>
+        Configurations
+      </a>
+      <a href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        Console Setup
+      </a>
+      <a href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        History
+      </a>
+      <a href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Backups
+      </a>
+      <a href="#">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>
+        Agent Settings
+      </a>
+    </nav>
+    <div class="status-section">
+      <div><span class="status-dot green"></span><span class="status-text">Backend: Connected</span></div>
+      <div style="margin-top:4px"><span class="status-dot green"></span><span class="status-text">Database: Connected</span></div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main">
+    <!-- Page Header -->
+    <div class="page-header">
+      <h1 class="page-title">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4c0 2-2 3-2 5h-4c0-2-2-3-2-5a4 4 0 0 1 4-4z"/><path d="M10 17v1a2 2 0 0 0 4 0v-1"/></svg>
+        AI Configuration
+      </h1>
+      <div class="header-actions">
+        <!-- Mode Toggle -->
+        <div class="mode-toggle">
+          <button class="mode-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            CLI
+          </button>
+          <button class="mode-btn active-netconf">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v5l-7 7M12 12l7 7"/></svg>
+            NETCONF/YANG
+          </button>
+        </div>
+        <button class="btn btn-secondary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          Refresh
+        </button>
+      </div>
+    </div>
+
+    <!-- NETCONF Sub-Tabs -->
+    <div class="sub-tabs">
+      <button class="sub-tab active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Generate Config
+      </button>
+      <button class="sub-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Active Sessions
+        <span class="tab-badge green">2</span>
+      </button>
+      <button class="sub-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        YANG Models
+        <span class="tab-badge purple">3</span>
+      </button>
+      <button class="sub-tab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        Operations
+      </button>
+    </div>
+
+    <!-- Two Column Layout: Form + Result -->
+    <div class="two-col">
+      <!-- Left: Generation Form -->
+      <div class="card form-card">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v5l-7 7M12 12l7 7"/></svg>
+          NETCONF/YANG Configuration
+        </h2>
+        <p class="form-subtitle">Generate XML configuration using AI with YANG model context</p>
+
+        <!-- Device Selector -->
+        <div class="form-group">
+          <label class="form-label">Select Device</label>
+          <div class="device-selector">
+            <div class="device-selector-btn">
+              <div class="device-info">
+                <div class="device-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/></svg>
+                </div>
+                <div>
+                  <div class="device-name">Nexus-9000v-Core</div>
+                  <div class="device-meta">nexus • 192.168.1.10 <span class="netconf-badge">• NETCONF</span></div>
+                </div>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- YANG Model Selector -->
+        <div class="form-group">
+          <label class="form-label">YANG Models for Generation <span class="optional">(optional - for accurate XML)</span></label>
+          <div class="yang-selector">
+            <label class="yang-item">
+              <input type="checkbox" checked>
+              <div>
+                <div class="yang-name">cisco-nx-os-device</div>
+                <div class="yang-badges">
+                  <span class="badge badge-nexus">NEXUS</span>
+                  <span class="badge badge-cat">interface</span>
+                </div>
+              </div>
+            </label>
+            <label class="yang-item">
+              <input type="checkbox" checked>
+              <div>
+                <div class="yang-name">cisco-nx-os-vlan</div>
+                <div class="yang-badges">
+                  <span class="badge badge-nexus">NEXUS</span>
+                  <span class="badge badge-cat">vlan</span>
+                </div>
+              </div>
+            </label>
+            <label class="yang-item">
+              <input type="checkbox">
+              <div>
+                <div class="yang-name">Cisco-IOS-XE-native</div>
+                <div class="yang-badges">
+                  <span class="badge badge-iosxe">IOS-XE</span>
+                  <span class="badge badge-cat">system</span>
+                </div>
+              </div>
+            </label>
+          </div>
+          <div class="badge-selected">2 model(s) selected</div>
+        </div>
+
+        <!-- Prompt Input -->
+        <div class="form-group">
+          <div class="prompt-header">
+            <label class="form-label" style="margin-bottom:0">Configuration Prompt</label>
+            <button class="translate-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h12M9 3v2m1 10A18 18 0 0 1 6 9m6 9h7M11 21l5-10 5 10"/></svg>
+              &#x1F1FA;&#x1F1F8; → &#x1F1F9;&#x1F1ED;
+            </button>
+          </div>
+          <textarea class="form-textarea" rows="3" placeholder="Enter configuration request. Example: 'Configure VLAN 100 with name Production and assign to interface Ethernet1/1'">Configure VLAN 100 with name Production and assign interface Ethernet1/1 as access port</textarea>
+        </div>
+
+        <!-- Generate Button -->
+        <button class="btn-generate netconf">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Generate Configuration
+        </button>
+
+        <!-- Example Prompts -->
+        <div class="example-section">
+          <h3>Example Prompts:</h3>
+          <button class="example-btn">• Set hostname to Core-Switch-01</button>
+          <button class="example-btn">• Configure interface Ethernet1/1 with IP 10.0.0.1/30</button>
+          <button class="example-btn">• Create VLAN 200 name Guest-Network</button>
+          <button class="example-btn">• Enable OSPF process 1 with router-id 1.1.1.1</button>
+        </div>
+      </div>
+
+      <!-- Right: Generated Config Result -->
+      <div class="card result-card">
+        <!-- Result Header -->
+        <div class="result-header">
+          <div>
+            <div class="result-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4c0 2-2 3-2 5h-4c0-2-2-3-2-5a4 4 0 0 1 4-4z"/><path d="M10 17v1a2 2 0 0 0 4 0v-1"/></svg>
+              Generated Configuration
+            </div>
+            <div class="result-meta">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/></svg>
+              <span>Nexus-9000v-Core</span>
+              <span class="status-badge generated">generated</span>
+            </div>
+            <div class="result-meta">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4c0 2-2 3-2 5"/></svg>
+              <span>Model: <code style="font-size:12px;background:#f3f4f6;padding:2px 6px;border-radius:4px">llama3.2</code></span>
+              <span class="time">• Generation: 2.45s</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Validation -->
+        <div class="validation-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <div>
+            <div class="validation-title">Configuration Valid</div>
+            <div class="validation-text">สร้าง NETCONF XML สำหรับตั้งค่า VLAN 100 ชื่อ Production พร้อมกำหนด Interface Ethernet1/1 เป็น Access Port ใน VLAN 100 สำหรับอุปกรณ์ NX-OS</div>
+          </div>
+        </div>
+
+        <!-- Code Block -->
+        <div>
+          <div class="code-header">
+            <h3>Configuration</h3>
+            <div class="code-actions">
+              <button class="btn btn-secondary" style="padding:6px 10px;font-size:12px">Edit</button>
+            </div>
+          </div>
+          <div class="code-block">
+<pre><span class="comment">&lt;?xml version="1.0" encoding="UTF-8"?&gt;</span>
+<span class="comment">&lt;!-- NETCONF Workflow: Validate Before Apply --&gt;</span>
+<span class="comment">&lt;!-- Step 1: Lock candidate datastore --&gt;</span>
+<span class="tag">&lt;rpc</span> <span class="attr">message-id</span>=<span class="value">"1"</span>
+     <span class="attr">xmlns</span>=<span class="value">"urn:ietf:params:xml:ns:netconf:base:1.0"</span><span class="tag">&gt;</span>
+  <span class="tag">&lt;lock&gt;</span>
+    <span class="tag">&lt;target&gt;&lt;candidate/&gt;&lt;/target&gt;</span>
+  <span class="tag">&lt;/lock&gt;</span>
+<span class="tag">&lt;/rpc&gt;</span>
+
+<span class="comment">&lt;!-- Step 2: Edit candidate configuration --&gt;</span>
+<span class="tag">&lt;rpc</span> <span class="attr">message-id</span>=<span class="value">"2"</span>
+     <span class="attr">xmlns</span>=<span class="value">"urn:ietf:params:xml:ns:netconf:base:1.0"</span><span class="tag">&gt;</span>
+  <span class="tag">&lt;edit-config&gt;</span>
+    <span class="tag">&lt;target&gt;&lt;candidate/&gt;&lt;/target&gt;</span>
+    <span class="tag">&lt;config&gt;</span>
+      <span class="tag">&lt;System</span> <span class="attr">xmlns</span>=<span class="value">"http://cisco.com/ns/yang/
+               cisco-nx-os-device"</span><span class="tag">&gt;</span>
+        <span class="tag">&lt;bd-items&gt;</span>
+          <span class="tag">&lt;BD-list&gt;</span>
+            <span class="tag">&lt;fabEncap&gt;</span>vlan-100<span class="tag">&lt;/fabEncap&gt;</span>
+            <span class="tag">&lt;name&gt;</span>Production<span class="tag">&lt;/name&gt;</span>
+          <span class="tag">&lt;/BD-list&gt;</span>
+        <span class="tag">&lt;/bd-items&gt;</span>
+      <span class="tag">&lt;/System&gt;</span>
+    <span class="tag">&lt;/config&gt;</span>
+  <span class="tag">&lt;/edit-config&gt;</span>
+<span class="tag">&lt;/rpc&gt;</span>
+
+<span class="comment">&lt;!-- Step 3: Validate --&gt;</span>
+<span class="tag">&lt;rpc</span> <span class="attr">message-id</span>=<span class="value">"3"</span> ...&gt;
+  <span class="tag">&lt;validate&gt;&lt;source&gt;&lt;candidate/&gt;&lt;/source&gt;&lt;/validate&gt;</span>
+<span class="tag">&lt;/rpc&gt;</span>
+
+<span class="comment">&lt;!-- Step 4: Commit --&gt;</span>
+<span class="tag">&lt;rpc</span> <span class="attr">message-id</span>=<span class="value">"4"</span> ...&gt;<span class="tag">&lt;commit/&gt;&lt;/rpc&gt;</span>
+
+<span class="comment">&lt;!-- Step 5: Unlock --&gt;</span>
+<span class="tag">&lt;rpc</span> <span class="attr">message-id</span>=<span class="value">"5"</span> ...&gt;
+  <span class="tag">&lt;unlock&gt;&lt;target&gt;&lt;candidate/&gt;&lt;/target&gt;&lt;/unlock&gt;</span>
+<span class="tag">&lt;/rpc&gt;</span></pre>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="action-bar">
+          <button class="btn btn-secondary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/></svg>
+            Generate New
+          </button>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div class="validate-toggle">
+              <div class="toggle-switch active"></div>
+              <span>Validate before apply</span>
+            </div>
+            <button class="btn btn-success">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Deploy to Device
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

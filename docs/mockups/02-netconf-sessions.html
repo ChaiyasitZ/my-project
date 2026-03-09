@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NETCONF Active Sessions</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f3f4f6; color: #111827; }
+  .layout { display: flex; min-height: 100vh; }
+
+  /* Sidebar - minimal */
+  .sidebar { width: 240px; background: #1e293b; color: white; padding: 16px 0; flex-shrink: 0; }
+  .sidebar-logo { padding: 0 20px 20px; font-size: 18px; font-weight: 700; color: #818cf8; border-bottom: 1px solid #334155; margin-bottom: 8px; }
+  .sidebar-nav a { display: flex; align-items: center; gap: 12px; padding: 10px 20px; color: #94a3b8; text-decoration: none; font-size: 14px; border-left: 3px solid transparent; }
+  .sidebar-nav a.active { background: #334155; color: white; border-left-color: #818cf8; }
+
+  .main { flex: 1; padding: 24px 32px; }
+
+  .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .page-title { font-size: 24px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+
+  /* Mode Toggle */
+  .mode-toggle { display: flex; background: #e5e7eb; border-radius: 12px; padding: 4px; }
+  .mode-btn { padding: 8px 16px; border-radius: 10px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; background: transparent; color: #6b7280; display: flex; align-items: center; gap: 6px; }
+  .mode-btn.active { background: white; color: #7c3aed; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .mode-btn svg { width: 16px; height: 16px; }
+
+  /* Sub Tabs */
+  .sub-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e5e7eb; margin-bottom: 24px; }
+  .sub-tab { display: flex; align-items: center; gap: 6px; padding: 10px 16px; font-size: 13px; font-weight: 500; color: #6b7280; border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+  .sub-tab.active { color: #7c3aed; border-bottom-color: #7c3aed; }
+  .sub-tab svg { width: 16px; height: 16px; }
+  .tab-badge { font-size: 11px; padding: 1px 8px; border-radius: 10px; font-weight: 600; }
+  .tab-badge.green { background: #dcfce7; color: #15803d; }
+  .tab-badge.purple { background: #f3e8ff; color: #7c3aed; }
+
+  .card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+  /* Section Header */
+  .section-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px 16px; }
+  .section-title { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .section-title svg { width: 22px; height: 22px; }
+  .section-title .count { font-size: 12px; color: #6b7280; font-weight: 400; margin-left: 4px; }
+
+  .btn { padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; border: 1px solid #d1d5db; background: #f3f4f6; color: #374151; }
+  .btn:hover { background: #e5e7eb; }
+  .btn svg { width: 14px; height: 14px; }
+  .btn-primary { background: #7c3aed; color: white; border-color: transparent; }
+  .btn-primary:hover { background: #6d28d9; }
+  .btn-danger { background: #ef4444; color: white; border-color: transparent; }
+  .btn-danger:hover { background: #dc2626; }
+
+  /* Device List */
+  .device-list { padding: 0 24px 24px; }
+  .device-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 10px; margin-bottom: 8px; transition: all 0.2s; }
+  .device-row.connected { border-color: #86efac; background: #f0fdf4; }
+  .device-row.mock { border-color: #fdba74; background: #fff7ed; }
+
+  .device-left { display: flex; align-items: center; gap: 12px; }
+  .device-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+  .device-icon.nexus { background: #f3e8ff; }
+  .device-icon.router { background: #dbeafe; }
+  .device-icon.switch { background: #dcfce7; }
+  .device-icon svg { width: 20px; height: 20px; }
+
+  .device-name { font-weight: 500; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+  .device-detail { font-size: 12px; color: #6b7280; }
+  .device-detail .netconf { color: #7c3aed; font-weight: 500; }
+  .mock-badge { font-size: 9px; font-weight: 700; background: #f97316; color: white; padding: 2px 6px; border-radius: 4px; }
+
+  .device-right { display: flex; align-items: center; gap: 8px; }
+  .mock-toggle { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; }
+  .mock-toggle.off { background: #f3f4f6; color: #6b7280; }
+  .mock-toggle.on { background: #f97316; color: white; }
+  .mock-toggle svg { width: 14px; height: 14px; }
+
+  .connected-badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; background: #dcfce7; color: #15803d; }
+  .connected-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  /* Active Sessions */
+  .session-list { padding: 0 24px 24px; }
+  .session-empty { text-align: center; padding: 40px; color: #9ca3af; }
+  .session-empty svg { width: 48px; height: 48px; margin: 0 auto 12px; color: #d1d5db; }
+  .session-empty p { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
+  .session-empty span { font-size: 13px; }
+
+  .session-card { border: 1px solid #86efac; border-radius: 10px; background: #f0fdf4; overflow: hidden; margin-bottom: 12px; }
+  .session-header { display: flex; align-items: center; justify-content: space-between; padding: 16px; cursor: pointer; }
+  .session-header:hover { background: #dcfce7; }
+  .session-left { display: flex; align-items: center; gap: 12px; }
+  .session-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; position: relative; }
+  .session-icon.nexus { background: #f3e8ff; }
+  .session-icon svg { width: 20px; height: 20px; color: #7c3aed; }
+  .session-icon .pulse { position: absolute; top: -3px; right: -3px; width: 10px; height: 10px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+  .session-name { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+  .session-name .tag { font-size: 9px; font-weight: 700; background: #22c55e; color: white; padding: 2px 6px; border-radius: 4px; }
+  .session-ip { font-size: 13px; color: #6b7280; }
+  .session-caps { font-size: 11px; color: #16a34a; display: flex; align-items: center; gap: 4px; margin-top: 2px; }
+
+  /* Capabilities Expanded */
+  .caps-panel { border-top: 1px solid #86efac; background: white; padding: 16px; }
+  .caps-title { font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 12px; }
+  .caps-list { max-height: 200px; overflow-y: auto; }
+  .cap-item { padding: 6px 10px; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 11px; margin-bottom: 4px; display: flex; flex-direction: column; }
+  .cap-item.netconf { background: #eff6ff; border-left: 2px solid #3b82f6; }
+  .cap-item.cisco { background: #f0fdf4; border-left: 2px solid #22c55e; }
+  .cap-item.openconfig { background: #faf5ff; border-left: 2px solid #a855f7; }
+  .cap-label { font-size: 9px; padding: 1px 4px; border-radius: 3px; font-family: 'Segoe UI', sans-serif; font-weight: 600; display: inline-block; margin-right: 6px; }
+  .cap-label.netconf { background: #bfdbfe; color: #1e40af; }
+  .cap-label.cisco { background: #bbf7d0; color: #166534; }
+  .cap-module { font-weight: 600; color: #1f2937; }
+  .cap-revision { color: #6b7280; }
+  .cap-url { font-size: 10px; color: #9ca3af; margin-top: 2px; word-break: break-all; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-logo">NetConfig LLM</div>
+    <nav class="sidebar-nav">
+      <a href="#">Dashboard</a>
+      <a href="#">Devices</a>
+      <a href="#" class="active">Configurations</a>
+      <a href="#">Console Setup</a>
+      <a href="#">History</a>
+      <a href="#">Backups</a>
+      <a href="#">Agent Settings</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <h1 class="page-title">AI Configuration</h1>
+      <div style="display:flex;gap:12px;align-items:center">
+        <div class="mode-toggle">
+          <button class="mode-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>CLI</button>
+          <button class="mode-btn active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v5l-7 7M12 12l7 7"/></svg>NETCONF/YANG</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sub-tabs">
+      <button class="sub-tab">Generate Config</button>
+      <button class="sub-tab active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Active Sessions <span class="tab-badge green">2</span>
+      </button>
+      <button class="sub-tab">YANG Models <span class="tab-badge purple">3</span></button>
+      <button class="sub-tab">Operations</button>
+    </div>
+
+    <div class="two-col">
+      <!-- Left: Connect to Devices -->
+      <div class="card">
+        <div class="section-header">
+          <div class="section-title" style="color:#7c3aed">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg>
+            Connect to Devices
+            <span class="count">(4 devices)</span>
+          </div>
+          <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/></svg>Refresh</button>
+        </div>
+        <div class="device-list">
+          <!-- Device 1: Connected -->
+          <div class="device-row connected">
+            <div class="device-left">
+              <div class="device-icon nexus"><svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/></svg></div>
+              <div>
+                <div class="device-name">Nexus-9000v-Core</div>
+                <div class="device-detail">192.168.1.10 • NEXUS <span class="netconf">• NETCONF</span></div>
+              </div>
+            </div>
+            <div class="device-right">
+              <button class="mock-toggle off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></button>
+              <span class="connected-badge"><span class="dot"></span>Connected</span>
+            </div>
+          </div>
+
+          <!-- Device 2: Mock Connected -->
+          <div class="device-row mock">
+            <div class="device-left">
+              <div class="device-icon nexus"><svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/></svg></div>
+              <div>
+                <div class="device-name">Nexus-9000v-Dist <span class="mock-badge">MOCK</span></div>
+                <div class="device-detail">192.168.1.11 • NEXUS <span class="netconf">• NETCONF</span></div>
+              </div>
+            </div>
+            <div class="device-right">
+              <button class="mock-toggle on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></button>
+              <span class="connected-badge"><span class="dot"></span>Connected</span>
+            </div>
+          </div>
+
+          <!-- Device 3: Not connected -->
+          <div class="device-row">
+            <div class="device-left">
+              <div class="device-icon router"><svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg></div>
+              <div>
+                <div class="device-name">IOS-XE-Router-01</div>
+                <div class="device-detail">192.168.1.20 • IOS-XE <span class="netconf">• NETCONF</span></div>
+              </div>
+            </div>
+            <div class="device-right">
+              <button class="mock-toggle off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></button>
+              <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12" y2="20"/></svg>Connect</button>
+            </div>
+          </div>
+
+          <!-- Device 4: No NETCONF -->
+          <div class="device-row">
+            <div class="device-left">
+              <div class="device-icon switch"><svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg></div>
+              <div>
+                <div class="device-name">Switch-Access-01</div>
+                <div class="device-detail">192.168.1.30 • SWITCH (L2)</div>
+              </div>
+            </div>
+            <div class="device-right">
+              <button class="btn" style="opacity:0.5;cursor:not-allowed" disabled>Connect</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Active Sessions -->
+      <div class="card">
+        <div class="section-header">
+          <div class="section-title" style="color:#16a34a">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Active Sessions
+            <span style="font-size:11px;padding:2px 8px;border-radius:10px;background:#dcfce7;color:#15803d;font-weight:600;margin-left:4px">2</span>
+          </div>
+          <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/></svg>Refresh</button>
+        </div>
+        <div class="session-list">
+          <!-- Session 1: Expanded with capabilities -->
+          <div class="session-card">
+            <div class="session-header">
+              <div class="session-left">
+                <div class="session-icon nexus">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/></svg>
+                  <span class="pulse"></span>
+                </div>
+                <div>
+                  <div class="session-name">Nexus-9000v-Core <span class="tag">CONNECTED</span></div>
+                  <div class="session-ip">192.168.1.10 • Port 830</div>
+                  <div class="session-caps">
+                    <span>142 capabilities</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><polyline points="18 15 12 9 6 15"/></svg>
+                  </div>
+                </div>
+              </div>
+              <button class="btn btn-danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>Disconnect</button>
+            </div>
+            <!-- Capabilities Panel -->
+            <div class="caps-panel">
+              <div class="caps-title">Device Capabilities (142)</div>
+              <div class="caps-list">
+                <div class="cap-item netconf">
+                  <div><span class="cap-label netconf">NETCONF</span><span class="cap-module">urn:ietf:params:netconf:base:1.0</span></div>
+                </div>
+                <div class="cap-item netconf">
+                  <div><span class="cap-label netconf">NETCONF</span><span class="cap-module">urn:ietf:params:netconf:capability:candidate:1.0</span></div>
+                </div>
+                <div class="cap-item netconf">
+                  <div><span class="cap-label netconf">NETCONF</span><span class="cap-module">urn:ietf:params:netconf:capability:writable-running:1.0</span></div>
+                </div>
+                <div class="cap-item cisco">
+                  <div>
+                    <span class="cap-label cisco">Cisco</span>
+                    <span class="cap-module">cisco-nx-os-device</span>
+                    <span class="cap-revision">@2024-03-01</span>
+                  </div>
+                  <div class="cap-url">http://cisco.com/ns/yang/cisco-nx-os-device?module=cisco-nx-os-device&amp;revision=2024-03-01</div>
+                </div>
+                <div class="cap-item cisco">
+                  <div>
+                    <span class="cap-label cisco">Cisco</span>
+                    <span class="cap-module">Cisco-NX-OS-Syslog</span>
+                    <span class="cap-revision">@2019-08-15</span>
+                  </div>
+                  <div class="cap-url">http://cisco.com/ns/yang/Cisco-NX-OS-Syslog?module=Cisco-NX-OS-Syslog</div>
+                </div>
+                <div class="cap-item openconfig">
+                  <div>
+                    <span class="cap-label" style="background:#e9d5ff;color:#6b21a8">OpenConfig</span>
+                    <span class="cap-module">openconfig-interfaces</span>
+                    <span class="cap-revision">@2022-10-25</span>
+                  </div>
+                  <div class="cap-url">http://openconfig.net/yang/interfaces?module=openconfig-interfaces</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Session 2: Mock session (collapsed) -->
+          <div class="session-card" style="border-color:#fdba74;background:#fff7ed">
+            <div class="session-header">
+              <div class="session-left">
+                <div class="session-icon" style="background:#fff7ed">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/></svg>
+                  <span class="pulse" style="background:#f97316"></span>
+                </div>
+                <div>
+                  <div class="session-name">Nexus-9000v-Dist <span class="tag" style="background:#f97316">MOCK</span></div>
+                  <div class="session-ip">192.168.1.11 • Port 830</div>
+                  <div class="session-caps" style="color:#ea580c">5 capabilities ▼</div>
+                </div>
+              </div>
+              <button class="btn btn-danger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>Disconnect</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

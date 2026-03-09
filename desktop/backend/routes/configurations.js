@@ -1383,23 +1383,75 @@ router.post('/netconf/apply', async (req, res) => {
       });
     }
     
-    console.log(`🌐 NETCONF: Applying configuration to ${device.name} (${device.ip_address})`);
-    if (validate_before_apply) {
-      console.log(`🔍 NETCONF: Validation enabled before apply`);
-    }
+    console.log(`🌐 NETCONF Apply: Deploying to ${device.name} (${device.ip_address})`);
     
     const deploymentStart = Date.now();
     const deviceId = device._id.toString();
     
     try {
-      // Get the raw config (without workflow display additions)
+      // Get the deployment config (CLI commands generated from XML)
       let configToApply = configuration.deployment_config || configuration.generated_config;
       
-      // Clean the config - remove any XML declarations, comments, and wrappers
+      // Check if deployment_config is CLI (not XML) - dual-mode
+      const isCliConfig = !configToApply.includes('<') || !configToApply.includes('xmlns=');
+      
+      if (isCliConfig) {
+        // Dual-mode: deployment_config is CLI commands, deploy via SSH
+        console.log(`📡 NETCONF Apply: Using CLI deployment via SSH (${configToApply.split('\n').length} lines)`);
+        
+        if (mock_deploy) {
+          const mockDeployTime = 1000 + Math.random() * 2000;
+          await new Promise(resolve => setTimeout(resolve, mockDeployTime));
+          const deploymentTime = Date.now() - deploymentStart;
+          
+          configuration.status = 'deployed';
+          configuration.deployed_at = Date.now();
+          configuration.deployment_time = deploymentTime;
+          configuration.mock_deployed = true;
+          await configuration.save();
+          
+          return res.json({
+            success: true,
+            message: 'Configuration deployed successfully (mock mode)',
+            deployment_time: deploymentTime,
+            deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
+            netconf: true,
+            deploy_method: 'ssh-cli',
+            mock: true
+          });
+        }
+        
+        // Deploy CLI commands via SSH directly
+        const sshResult = await sshService.sendConfigCommands(device, configToApply);
+        const deploymentTime = Date.now() - deploymentStart;
+        
+        console.log(`✅ NETCONF Apply: CLI deployed via SSH in ${deploymentTime}ms`);
+        
+        configuration.status = 'deployed';
+        configuration.deployed_config = configToApply;
+        configuration.deployed_at = Date.now();
+        configuration.deployment_time = deploymentTime;
+        await configuration.save();
+        
+        return res.json({
+          success: true,
+          message: 'Configuration deployed successfully via SSH',
+          deployment_time: deploymentTime,
+          deployment_time_seconds: (deploymentTime / 1000).toFixed(2),
+          netconf: true,
+          deploy_method: 'ssh-cli',
+          output: sshResult.output
+        });
+      }
+      
+      // Fallback: deployment_config is still XML, use NETCONF edit-config
+      console.log(`🔧 NETCONF Apply: Fallback to NETCONF edit-config (XML deployment)`);
+      
+      // Clean the XML config
       configToApply = configToApply
-        .replace(/<\?xml[^?]*\?>\s*/g, '')  // Remove XML declaration
-        .replace(/<!--[\s\S]*?-->/g, '')     // Remove XML comments
-        .replace(/^\s+|\s+$/g, '');           // Trim whitespace
+        .replace(/<\?xml[^?]*\?>\s*/g, '')
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/^\s+|\s+$/g, '');
       
       // If the config contains <rpc> wrapper (from workflow display), extract just the <config> content
       if (configToApply.includes('<rpc') && configToApply.includes('<config>')) {

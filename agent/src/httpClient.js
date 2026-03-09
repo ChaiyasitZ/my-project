@@ -141,6 +141,22 @@ export class HttpPollingClient extends EventEmitter {
           result = await this.handlers.ssh.sendConfig(data.deviceId, data.commands, data.enablePassword);
           break;
 
+        case 'agent:ssh:deploy-config': {
+          // All-in-one: auto-connect SSH + send config commands
+          const deployDeviceId = data.deviceId;
+          if (!this.handlers.ssh.isConnected(deployDeviceId) && data.host) {
+            await this.handlers.ssh.connect({
+              deviceId: deployDeviceId,
+              host: data.host,
+              port: data.port || 22,
+              username: data.username,
+              password: data.password
+            });
+          }
+          result = await this.handlers.ssh.sendConfig(deployDeviceId, data.commands, data.enablePassword);
+          break;
+        }
+
         case 'agent:ssh:open-shell': {
           const shellResult = await this._openShell(data);
           result = shellResult;

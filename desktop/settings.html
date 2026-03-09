@@ -203,34 +203,5 @@
     loadSettings();
   </script>
 
-  <!-- Uninstall / Danger Zone -->
-  <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #334155;">
-    <h2 style="font-size: 16px; color: #ef4444; margin-bottom: 12px;">⚠️ Danger Zone</h2>
-    <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">Uninstalling will stop the server, delete all saved settings, tokens, and application data, then close the app.</p>
-    <button type="button" id="btn-uninstall" style="width: 100%; padding: 12px 20px; background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(239,68,68,0.3)'" onmouseout="this.style.background='rgba(239,68,68,0.15)'">
-      🗑️ Uninstall NetConfig Desktop
-    </button>
-  </div>
-
-  <script>
-    // Uninstall handler
-    document.getElementById('btn-uninstall').addEventListener('click', async () => {
-      const btn = document.getElementById('btn-uninstall');
-      btn.disabled = true;
-      btn.textContent = '⏳ Uninstalling...';
-      const result = await window.electronAPI.uninstallAgent();
-      if (result && result.cancelled) {
-        btn.disabled = false;
-        btn.textContent = '🗑️ Uninstall NetConfig Desktop';
-      }
-    });
-
-    // Listen for tray-triggered uninstall
-    if (window.electronAPI.onTriggerUninstall) {
-      window.electronAPI.onTriggerUninstall(() => {
-        document.getElementById('btn-uninstall').click();
-      });
-    }
-  </script>
 </body>
 </html>

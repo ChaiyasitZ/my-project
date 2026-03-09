@@ -2978,17 +2978,28 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
       }
       
       const validation = this._validateNetconfConfiguration(cleanConfig, deviceType);
-      const executionTime = Date.now() - startTime;
       const tokensUsed = llmResponse?.usage?.total_tokens || 0;
       
-      console.log(`✅ NETCONF config generated successfully (${executionTime}ms, ${tokensUsed} tokens)`);
+      console.log(`✅ NETCONF XML generated successfully. Converting to CLI for deployment...`);
+      
+      // Convert NETCONF XML to CLI commands for SSH deployment
+      let cliConfig = '';
+      try {
+        cliConfig = await this._convertNetconfToCli(cleanConfig, deviceType, prompt, options.userId || null);
+        console.log(`✅ CLI deployment config generated (${cliConfig.split('\n').length} lines)`);
+      } catch (cliErr) {
+        console.warn(`⚠️ CLI conversion failed, will store XML as deployment config: ${cliErr.message}`);
+        cliConfig = cleanConfig; // Fallback to XML if conversion fails
+      }
+
+      const executionTime = Date.now() - startTime;
       
       const activeModel = this.getActiveModel();
       const result = {
         success: true,
         configuration: cleanConfig,
         displayConfig: cleanConfig,
-        deploymentConfig: cleanConfig,
+        deploymentConfig: cliConfig,
         model: activeModel,
         provider: this.provider,
         deviceType,
@@ -3488,6 +3499,67 @@ IMPORTANT IOS-XE NOTES:
 - Use nc:operation="remove" to delete/disable features
 
 Output ONLY the XML configuration now:`;
+  }
+
+  /**
+   * Convert NETCONF XML configuration to equivalent CLI commands
+   * Used for dual-mode: show XML to user, deploy CLI via SSH
+   */
+  async _convertNetconfToCli(xmlConfig, deviceType, originalPrompt, userId = null) {
+    const normalizedType = this._normalizeDeviceType(deviceType);
+    const platform = normalizedType === 'ios-xe' ? 'Cisco IOS-XE' : 'Cisco NX-OS';
+    
+    const systemMessage = `You are a ${platform} CLI expert. Convert NETCONF XML configuration to equivalent CLI commands.
+
+RULES:
+1. Output ONLY the CLI commands, one per line
+2. Do NOT include "configure terminal" or "end" - those are added automatically
+3. Do NOT include any explanations, comments, or markdown
+4. Commands must be in the correct order (interfaces before sub-interface config, etc.)
+5. Use the exact ${platform} CLI syntax`;
+
+    const userMessage = `Convert this NETCONF XML to ${platform} CLI commands:
+
+${xmlConfig}
+
+Original request: ${originalPrompt}
+
+Output ONLY the CLI commands:`;
+
+    const messages = [
+      { role: 'system', content: systemMessage },
+      { role: 'user', content: userMessage }
+    ];
+    const params = { temperature: 0.1, max_tokens: 2000, stop: [] };
+
+    const llmResponse = await this._callChatCompletion(messages, params, userId);
+
+    if (llmResponse.pending) {
+      throw new Error('CLI conversion timed out (Ollama pending)');
+    }
+
+    const rawCli = llmResponse?.choices?.[0]?.message?.content?.trim();
+    if (!rawCli) {
+      throw new Error('Empty CLI conversion response');
+    }
+
+    // Clean: remove markdown code blocks, explanations
+    let cleaned = rawCli
+      .replace(/```[\w]*\n?/g, '')
+      .replace(/```/g, '')
+      .trim();
+
+    // Remove leading text before first CLI command
+    const lines = cleaned.split('\n').filter(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return false;
+      // Skip lines that look like explanations (start with #, //, or are sentences)
+      if (trimmed.startsWith('#') || trimmed.startsWith('//')) return false;
+      if (trimmed.startsWith('Here') || trimmed.startsWith('The ') || trimmed.startsWith('Note')) return false;
+      return true;
+    });
+
+    return lines.join('\n');
   }
 
   /**
