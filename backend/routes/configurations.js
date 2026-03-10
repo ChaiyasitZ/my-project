@@ -29,7 +29,7 @@ async function deployViaAgent(userId, device, configCommands) {
       password: device.password,
       commands: configCommands,
       enablePassword: device.enable_password
-    }, 25000);
+    }, 45000);
     if (result.pending) {
       return { success: true, output: 'Configuration sent to agent (processing...)', pending: true, commandId: result.commandId };
     }

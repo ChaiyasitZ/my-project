@@ -985,7 +985,7 @@ ${indentedConfig}
       const requestPayload = {
         configuration_id: String(configId), // Ensure it's a string
         validate_before_apply: isNetconf ? validateBeforeApply : false,
-        mock_deploy: isNetconf // Always mock for NETCONF
+        mock_deploy: false
       };
       
       console.log('📦 Request payload:', requestPayload);
