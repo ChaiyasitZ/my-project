@@ -16,7 +16,9 @@ export class SSHHandler {
    * Connect to a device via SSH
    */
   async connect(deviceConfig) {
-    const { deviceId, ip_address, ssh_port = 22, username, password } = deviceConfig;
+    const { deviceId, ip_address, host, ssh_port, port, username, password } = deviceConfig;
+    const connectHost = ip_address || host;
+    const connectPort = ssh_port || port || 22;
 
     // Clean up existing connection
     this.disconnect(deviceId);
@@ -35,9 +37,9 @@ export class SSHHandler {
           connection: conn,
           createdAt: Date.now(),
           lastUsed: Date.now(),
-          ip_address
+          ip_address: connectHost
         });
-        resolve({ success: true, deviceId, message: `Connected to ${ip_address}` });
+        resolve({ success: true, deviceId, message: `Connected to ${connectHost}` });
       });
 
       conn.on('error', (err) => {
@@ -51,8 +53,8 @@ export class SSHHandler {
       });
 
       conn.connect({
-        host: ip_address,
-        port: ssh_port,
+        host: connectHost,
+        port: connectPort,
         username,
         password,
         readyTimeout: 10000,
@@ -241,6 +243,39 @@ export class SSHHandler {
           clearTimeout(timeout);
           resolve({ success: true, output });
         });
+      });
+    });
+  }
+
+  /**
+   * Execute backup commands via interactive shell.
+   * Uses shell to send 'terminal length 0' then 'show running/startup-config'.
+   */
+  async execBackupCommands(deviceId, configType = 'running-config') {
+    const entry = this.connections.get(deviceId);
+    if (!entry) throw new Error('Device not connected');
+    entry.lastUsed = Date.now();
+    return new Promise((resolve, reject) => {
+      entry.connection.shell((err, stream) => {
+        if (err) return reject(err);
+        let output = '';
+        let settled = false;
+        const timeout = setTimeout(() => {
+          if (!settled) { settled = true; stream.end(); resolve({ output }); }
+        }, 20000);
+        stream.on('data', (d) => { output += d.toString(); });
+        stream.on('close', () => {
+          if (!settled) { settled = true; clearTimeout(timeout); resolve({ output }); }
+        });
+        setTimeout(() => {
+          stream.write('terminal length 0\n');
+          setTimeout(() => {
+            stream.write(`show ${configType}\n`);
+            setTimeout(() => {
+              if (!settled) { settled = true; clearTimeout(timeout); stream.end(); resolve({ output }); }
+            }, 8000);
+          }, 1000);
+        }, 1000);
       });
     });
   }

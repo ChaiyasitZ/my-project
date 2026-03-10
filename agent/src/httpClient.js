@@ -157,6 +157,47 @@ export class HttpPollingClient extends EventEmitter {
           break;
         }
 
+        case 'agent:ssh:backup': {
+          // All-in-one: connect → show running/startup config → disconnect
+          const bk = data;
+          try {
+            await this.handlers.ssh.connect({ deviceId: bk.deviceId, host: bk.host, port: bk.port || 22, username: bk.username, password: bk.password });
+            const runResult = await this.handlers.ssh.execBackupCommands(bk.deviceId, 'running-config');
+            let startupResult = { output: '' };
+            if (bk.configType !== 'running-config') {
+              try { startupResult = await this.handlers.ssh.execBackupCommands(bk.deviceId, 'startup-config'); } catch (e) {}
+            }
+            this.handlers.ssh.disconnect(bk.deviceId);
+            const cleanConfig = (raw) => {
+              let cleaned = raw.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '');
+              const lines = cleaned.split('\n');
+              const start = lines.findIndex(l => l.includes('Current configuration') || /^version\s/.test(l.trim()));
+              if (start < 0) return cleaned.trim();
+              let end = lines.length;
+              for (let i = lines.length - 1; i > start; i--) {
+                const trimmed = lines[i].trim();
+                if (trimmed === 'end') { end = i + 1; break; }
+                if (trimmed && !trimmed.match(/^[A-Za-z0-9_\-\.]+[#>]\s*$/)) { end = i + 1; break; }
+              }
+              return lines.slice(start, end).join('\n').trim();
+            };
+            const runningConfig = cleanConfig(runResult.output || '');
+            const startupConfig = startupResult.output ? cleanConfig(startupResult.output) : '';
+            result = {
+              success: true,
+              runningConfig,
+              startupConfig,
+              runningConfigSize: Buffer.byteLength(runningConfig),
+              startupConfigSize: Buffer.byteLength(startupConfig),
+              configType: bk.configType || 'both'
+            };
+          } catch (bkErr) {
+            try { this.handlers.ssh.disconnect(bk.deviceId); } catch (e) {}
+            throw bkErr;
+          }
+          break;
+        }
+
         case 'agent:ssh:open-shell': {
           const shellResult = await this._openShell(data);
           result = shellResult;

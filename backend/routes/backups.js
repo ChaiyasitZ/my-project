@@ -800,11 +800,11 @@ router.post('/:id/restore', async (req, res) => {
     }
     
     try {
-      // Create a pre-restore checkpoint if requested (shorter timeout to leave time for deploy)
+      // Create a pre-restore checkpoint if requested (short timeout to leave time for deploy)
       let checkpointId = null;
       if (create_checkpoint) {
         try {
-          const checkpointResult = await backupViaAgent(req.userId, device, 'both', 15000);
+          const checkpointResult = await backupViaAgent(req.userId, device, 'running-config', 10000);
           if (checkpointResult.success) {
             const checkpointHash = crypto
               .createHash('sha256')
@@ -877,11 +877,10 @@ router.post('/:id/restore', async (req, res) => {
         throw new Error(restoreResult.error || restoreResult.message || 'Failed to restore configuration');
       }
       
-      // If pending (agent still processing), wait a bit longer and check once more
+      // If pending (agent still processing), poll briefly
       if (restoreResult.pending && restoreResult.commandId) {
         const { default: AgentCommand } = await import('../models/AgentCommand.js');
-        // Give the agent extra time to finish
-        for (let i = 0; i < 30; i++) {
+        for (let i = 0; i < 20; i++) {
           await new Promise(r => setTimeout(r, 500));
           const cmd = await AgentCommand.findById(restoreResult.commandId);
           if (cmd && cmd.status === 'completed') {
