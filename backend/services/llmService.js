@@ -2970,8 +2970,11 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
       
       console.log(`📦 Raw NETCONF response: ${rawConfig.length} chars`);
       
-      // Clean and validate NETCONF configuration
-      const cleanConfig = this._cleanNetconfConfiguration(rawConfig);
+      // Parse dual XML+CLI response BEFORE cleaning (cleaning strips CLI section)
+      const { xmlConfig: parsedXml, cliConfig } = this._parseDualNetconfResponse(rawConfig);
+      
+      // Clean and validate the XML part
+      const cleanConfig = parsedXml.includes('<') ? this._cleanNetconfConfiguration(parsedXml) : parsedXml;
       
       if (!cleanConfig || cleanConfig.length < 50) {
         throw new Error('Generated NETCONF configuration is too short or invalid');
@@ -2980,16 +2983,10 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
       const validation = this._validateNetconfConfiguration(cleanConfig, deviceType);
       const tokensUsed = llmResponse?.usage?.total_tokens || 0;
       
-      console.log(`✅ NETCONF XML generated successfully. Converting to CLI for deployment...`);
-      
-      // Convert NETCONF XML to CLI commands for SSH deployment
-      let cliConfig = '';
-      try {
-        cliConfig = await this._convertNetconfToCli(cleanConfig, deviceType, prompt, options.userId || null);
-        console.log(`✅ CLI deployment config generated (${cliConfig.split('\n').length} lines)`);
-      } catch (cliErr) {
-        console.warn(`⚠️ CLI conversion failed, will store XML as deployment config: ${cliErr.message}`);
-        cliConfig = cleanConfig; // Fallback to XML if conversion fails
+      if (cliConfig) {
+        console.log(`✅ NETCONF XML + CLI generated (${cliConfig.split('\n').length} CLI lines)`);
+      } else {
+        console.log(`✅ NETCONF XML generated (CLI section not found, XML will be used for display)`);
       }
 
       const executionTime = Date.now() - startTime;
@@ -2999,7 +2996,7 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
         success: true,
         configuration: cleanConfig,
         displayConfig: cleanConfig,
-        deploymentConfig: cliConfig,
+        deploymentConfig: cliConfig || cleanConfig,
         model: activeModel,
         provider: this.provider,
         deviceType,
@@ -3563,6 +3560,55 @@ Output ONLY the CLI commands:`;
   }
 
   /**
+   * Parse a dual XML+CLI response from the LLM.
+   * Expected format: ===XML=== ... ===CLI=== ...
+   * Falls back to treating entire response as XML if markers not found.
+   */
+  _parseDualNetconfResponse(rawConfig) {
+    // Try to split by ===CLI=== marker
+    const cliMarkerIdx = rawConfig.indexOf('===CLI===');
+    const xmlMarkerIdx = rawConfig.indexOf('===XML===');
+    
+    if (cliMarkerIdx > 0) {
+      // Extract XML part (between ===XML=== and ===CLI===, or from start to ===CLI===)
+      let xmlPart;
+      if (xmlMarkerIdx >= 0 && xmlMarkerIdx < cliMarkerIdx) {
+        xmlPart = rawConfig.substring(xmlMarkerIdx + '===XML==='.length, cliMarkerIdx).trim();
+      } else {
+        xmlPart = rawConfig.substring(0, cliMarkerIdx).trim();
+      }
+      
+      // Extract CLI part (after ===CLI===)
+      let cliPart = rawConfig.substring(cliMarkerIdx + '===CLI==='.length).trim();
+      
+      // Clean CLI: remove code blocks, explanations
+      cliPart = cliPart
+        .replace(/```[\w]*\n?/g, '')
+        .replace(/```/g, '')
+        .trim();
+      
+      const cliLines = cliPart.split('\n').filter(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return false;
+        if (trimmed.startsWith('#') || trimmed.startsWith('//')) return false;
+        if (trimmed.startsWith('Here') || trimmed.startsWith('The ') || trimmed.startsWith('Note')) return false;
+        if (trimmed.startsWith('===')) return false;
+        return true;
+      });
+
+      // Clean XML part through normal cleaning
+      const cleanXml = this._cleanNetconfConfiguration(xmlPart);
+      
+      if (cliLines.length > 0 && cleanXml && cleanXml.length > 50) {
+        return { xmlConfig: cleanXml, cliConfig: cliLines.join('\n') };
+      }
+    }
+    
+    // No CLI section found — return XML only
+    return { xmlConfig: rawConfig, cliConfig: null };
+  }
+
+  /**
    * Build user message for NETCONF/YANG generation
    * Supports both NX-OS and IOS-XE devices
    */
@@ -3572,12 +3618,19 @@ Output ONLY the CLI commands:`;
     const deviceModel = deviceContext.model || (normalizedType === 'ios-xe' ? 'Cisco Router/Catalyst' : 'Cisco Nexus');
     
     const rootElement = normalizedType === 'ios-xe' ? '<native xmlns="...">' : '<System xmlns="...">';
+    const platform = normalizedType === 'ios-xe' ? 'Cisco IOS-XE' : 'Cisco NX-OS';
     
     return `Target: ${deviceName} (${deviceModel})
-Device Type: ${normalizedType === 'ios-xe' ? 'Cisco IOS-XE' : 'Cisco NX-OS'}
+Device Type: ${platform}
 Request: ${prompt}
 
-Generate the NETCONF XML configuration. Output only XML, starting with ${rootElement}`;
+Generate the NETCONF XML configuration starting with ${rootElement}, then provide the equivalent CLI commands.
+
+Use this EXACT format:
+===XML===
+(your NETCONF XML here)
+===CLI===
+(equivalent CLI commands, one per line, no "configure terminal" or "end")`;
   }
 
   /**

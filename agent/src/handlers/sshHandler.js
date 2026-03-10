@@ -190,6 +190,7 @@ export class SSHHandler {
 
         let output = '';
         let commandIndex = 0;
+        let lastSentTime = 0;
         const allCommands = [];
 
         // Build command sequence
@@ -200,21 +201,40 @@ export class SSHHandler {
         allCommands.push('configure terminal');
         allCommands.push(...(Array.isArray(commands) ? commands : commands.split('\n').filter(c => c.trim())));
         allCommands.push('end');
+        allCommands.push('write memory');
 
         const timeout = setTimeout(() => {
           stream.end();
           resolve({ success: true, output, partial: true });
         }, 60000);
 
+        const trySendNext = () => {
+          if (commandIndex >= allCommands.length) return;
+          const now = Date.now();
+          if (now - lastSentTime < 200) return; // Debounce
+
+          // Check for prompt indicators in the last chunk of output
+          const lastChunk = output.slice(-200);
+          const hasPrompt = /[#>]\s*$/.test(lastChunk) || lastChunk.includes('Password:');
+          
+          if (hasPrompt) {
+            const cmd = allCommands[commandIndex++];
+            lastSentTime = now;
+            stream.write(cmd + '\n');
+            
+            // If all commands sent, wait a bit then close
+            if (commandIndex >= allCommands.length) {
+              setTimeout(() => {
+                stream.end();
+              }, 2000);
+            }
+          }
+        };
+
         stream.on('data', (data) => {
           output += data.toString();
-
-          // Send next command when we see a prompt
-          if (commandIndex < allCommands.length && 
-              (output.includes('#') || output.includes('>') || output.includes('Password:'))) {
-            const cmd = allCommands[commandIndex++];
-            setTimeout(() => stream.write(cmd + '\n'), 100);
-          }
+          // Small delay to let the prompt fully arrive before checking
+          setTimeout(trySendNext, 150);
         });
 
         stream.on('close', () => {

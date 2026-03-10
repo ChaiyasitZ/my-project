@@ -472,16 +472,46 @@ class SSHHandler {
       conn.shell({ term: 'xterm' }, (err, stream) => {
         if (err) return reject(err);
         let output = '';
-        stream.on('data', (d) => { output += d.toString(); });
-        stream.on('close', () => resolve({ output, success: true }));
-        const allCommands = Array.isArray(commands) ? commands : commands.split('\n');
+        let commandIndex = 0;
+        let lastSentTime = 0;
+        const allCommands = [];
+
         if (enablePassword) {
-          stream.write('enable\n');
-          setTimeout(() => { stream.write(enablePassword + '\n'); setTimeout(() => { stream.write('configure terminal\n'); setTimeout(() => { allCommands.forEach(cmd => { const trimmed = cmd.trim(); if (trimmed) stream.write(trimmed + '\n'); }); setTimeout(() => { stream.write('end\n'); setTimeout(() => stream.end(), 500); }, 500); }, 500); }, 500); }, 500);
-        } else {
-          stream.write('configure terminal\n');
-          setTimeout(() => { allCommands.forEach(cmd => { const trimmed = cmd.trim(); if (trimmed) stream.write(trimmed + '\n'); }); setTimeout(() => { stream.write('end\n'); setTimeout(() => stream.end(), 500); }, 500); }, 500);
+          allCommands.push('enable');
+          allCommands.push(enablePassword);
         }
+        allCommands.push('configure terminal');
+        const cmds = Array.isArray(commands) ? commands : commands.split('\n');
+        allCommands.push(...cmds.filter(c => c.trim()));
+        allCommands.push('end');
+        allCommands.push('write memory');
+
+        const timeout = setTimeout(() => {
+          stream.end();
+          resolve({ success: true, output, partial: true });
+        }, 60000);
+
+        const trySendNext = () => {
+          if (commandIndex >= allCommands.length) return;
+          const now = Date.now();
+          if (now - lastSentTime < 200) return;
+          const lastChunk = output.slice(-200);
+          const hasPrompt = /[#>]\s*$/.test(lastChunk) || lastChunk.includes('Password:');
+          if (hasPrompt) {
+            const cmd = allCommands[commandIndex++];
+            lastSentTime = now;
+            stream.write(cmd + '\n');
+            if (commandIndex >= allCommands.length) {
+              setTimeout(() => stream.end(), 2000);
+            }
+          }
+        };
+
+        stream.on('data', (d) => {
+          output += d.toString();
+          setTimeout(trySendNext, 150);
+        });
+        stream.on('close', () => { clearTimeout(timeout); resolve({ output, success: true }); });
       });
     });
   }
