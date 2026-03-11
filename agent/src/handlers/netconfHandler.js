@@ -179,7 +179,7 @@ ${rpcBody}
       let buffer = '';
       const timeout = setTimeout(() => {
         reject(new Error('NETCONF RPC timeout'));
-      }, 30000);
+      }, 60000);
 
       const onData = (data) => {
         buffer += data.toString();

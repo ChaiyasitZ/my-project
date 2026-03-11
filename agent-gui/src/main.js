@@ -631,11 +631,13 @@ class NetconfHandler {
           if (err) { conn.end(); return reject(err); }
           let helloReceived = false, buffer = '';
           const helloTimeout = setTimeout(() => { stream.removeAllListeners('data'); conn.end(); reject(new Error('NETCONF hello exchange timeout')); }, 20000);
-          stream.on('data', (d) => {
+          const helloHandler = (d) => {
             buffer += d.toString();
             if (!helloReceived && buffer.includes(']]>]]>')) {
               helloReceived = true;
               clearTimeout(helloTimeout);
+              // Remove hello handler so it doesn't interfere with RPC handlers
+              stream.removeListener('data', helloHandler);
               const hello = '<?xml version="1.0" encoding="UTF-8"?><hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><capabilities><capability>urn:ietf:params:netconf:base:1.0</capability></capabilities></hello>]]>]]>';
               stream.write(hello);
               // Parse capabilities from server hello XML
@@ -645,10 +647,14 @@ class NetconfHandler {
               while ((match = capRegex.exec(buffer)) !== null) {
                 capabilities.push(match[1].trim());
               }
-              this.connections.set(deviceId, { conn, stream, capabilities, connectedAt: new Date().toISOString() });
-              resolve({ success: true, message: `NETCONF connected to ${host}`, capabilities });
+              // Delay to let the NETCONF session stabilize before sending RPCs
+              setTimeout(() => {
+                this.connections.set(deviceId, { conn, stream, capabilities, connectedAt: new Date().toISOString() });
+                resolve({ success: true, message: `NETCONF connected to ${host}`, capabilities });
+              }, 500);
             }
-          });
+          };
+          stream.on('data', helloHandler);
           stream.on('close', () => { this.connections.delete(deviceId); });
         });
       });
@@ -672,7 +678,8 @@ class NetconfHandler {
   }
 
   async getConfig(deviceId, filter) {
-    return this._sendRpc(deviceId, `<get-config><source><running/></source>${filter ? `<filter>${filter}</filter>` : ''}</get-config>`);
+    const filterXml = filter ? `<filter type="subtree">${filter}</filter>` : '';
+    return this._sendRpc(deviceId, `<get-config><source><running/></source>${filterXml}</get-config>`);
   }
 
   async editConfig(deviceId, config) {
@@ -721,7 +728,7 @@ class NetconfHandler {
     return new Promise((resolve, reject) => {
       let response = '';
       const onData = (d) => { response += d.toString(); if (response.includes(']]>]]>')) { entry.stream.removeListener('data', onData); clearTimeout(t); resolve({ success: true, response: response.replace(']]>]]>', ''), messageId: msgId }); } };
-      const t = setTimeout(() => { entry.stream.removeListener('data', onData); reject(new Error('NETCONF RPC timeout')); }, 30000);
+      const t = setTimeout(() => { entry.stream.removeListener('data', onData); reject(new Error('NETCONF RPC timeout')); }, 60000);
       entry.stream.on('data', onData);
       entry.stream.write(rpc);
     });
