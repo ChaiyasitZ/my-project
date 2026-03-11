@@ -374,6 +374,55 @@ function ConsoleConfiguration() {
         });
       }
 
+      // Handle async response — poll for result
+      if (response.data.async && response.data.commandId) {
+        toast.loading('Configuration sent to agent. Waiting for device response...', { id: toastId });
+        const commandId = response.data.commandId;
+        const maxPollTime = 5 * 60 * 1000; // 5 minutes
+        const pollInterval = 3000; // 3 seconds
+        const startTime = Date.now();
+
+        const pollResult = await new Promise((resolve, reject) => {
+          const poll = async () => {
+            if (Date.now() - startTime > maxPollTime) {
+              reject(new Error('Configuration timed out after 5 minutes. The device may still be processing.'));
+              return;
+            }
+            try {
+              const pollRes = await axios.get(`/agent/command/${commandId}`);
+              if (pollRes.data.status === 'completed') {
+                resolve(pollRes.data.result);
+              } else if (pollRes.data.status === 'failed') {
+                reject(new Error(pollRes.data.error || 'Agent reported failure'));
+              } else {
+                // still pending
+                const elapsed = Math.round((Date.now() - startTime) / 1000);
+                toast.loading(`Configuring device... (${elapsed}s)`, { id: toastId });
+                setTimeout(poll, pollInterval);
+              }
+            } catch (pollErr) {
+              reject(pollErr);
+            }
+          };
+          setTimeout(poll, pollInterval);
+        });
+
+        setConfigResults(pollResult);
+        const summary = pollResult?.summary || {};
+        const totalCmds = summary.totalCommands || summary.total || 0;
+        const successfulCmds = summary.successful || 0;
+        const failedCmds = summary.failed || 0;
+        const rate = summary.successRate ?? (totalCmds > 0 ? Math.round((successfulCmds / totalCmds) * 100) : 0);
+        
+        if (rate === 100) {
+          toast.success(`Configuration deployed successfully! ${successfulCmds}/${totalCmds} commands executed.`, { id: toastId });
+        } else {
+          toast.error(`Configuration partially deployed: ${successfulCmds}/${totalCmds} commands successful (${rate}%)`, { id: toastId });
+        }
+        return;
+      }
+
+      // Synchronous result (local serial port)
       setConfigResults(response.data.configuration);
       const summary = response.data.configuration?.summary || {};
       const totalCmds = summary.totalCommands || summary.total || 0;

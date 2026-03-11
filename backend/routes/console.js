@@ -399,25 +399,20 @@ router.post('/initial-config', async (req, res) => {
     
     let result;
     if (!consoleService.serialPortAvailable) {
-      console.log('🔄 Relaying initial config to agent...');
-      result = await agentRelay.sendToAgent(req.userId, 'agent:console:initial-config', { deviceId, configCommands }, 55000);
+      console.log('🔄 Relaying initial config to agent (async)...');
+      const commandId = await agentRelay.sendToAgentAsync(req.userId, 'agent:console:initial-config', { deviceId, configCommands });
+      return res.json({ success: true, async: true, commandId, configCommands });
     } else {
       try {
         result = await consoleService.sendInitialConfig(deviceId, configCommands, deviceInfo);
       } catch (localErr) {
-        console.log('🔄 Relaying initial config to agent...');
-        result = await agentRelay.sendToAgent(req.userId, 'agent:console:initial-config', { deviceId, configCommands }, 55000);
+        console.log('🔄 Relaying initial config to agent (async)...');
+        const commandId = await agentRelay.sendToAgentAsync(req.userId, 'agent:console:initial-config', { deviceId, configCommands });
+        return res.json({ success: true, async: true, commandId, configCommands });
       }
     }
-
-    if (result && result.pending) {
-      return res.status(504).json({
-        success: false,
-        message: 'Agent did not respond in time. Initial configuration may still be in progress.'
-      });
-    }
     
-    // Save configuration to database if successful
+    // Save configuration to database if successful (local execution only)
     if (result.success) {
       try {
         const configHistory = new ConfigurationHistory({
@@ -547,22 +542,17 @@ router.post('/templates/apply', async (req, res) => {
     // Send the configuration
     let result;
     if (!consoleService.serialPortAvailable) {
-      console.log('🔄 Relaying template apply to agent...');
-      result = await agentRelay.sendToAgent(req.userId, 'agent:console:initial-config', { deviceId, configCommands: config }, 55000);
+      console.log('🔄 Relaying template apply to agent (async)...');
+      const commandId = await agentRelay.sendToAgentAsync(req.userId, 'agent:console:initial-config', { deviceId, configCommands: config });
+      return res.json({ success: true, async: true, commandId, template: { name: template.name, key: templateKey } });
     } else {
       try {
         result = await consoleService.sendInitialConfig(deviceId, config, variables);
       } catch (localErr) {
-        console.log('🔄 Relaying template apply to agent...');
-        result = await agentRelay.sendToAgent(req.userId, 'agent:console:initial-config', { deviceId, configCommands: config }, 55000);
+        console.log('🔄 Relaying template apply to agent (async)...');
+        const commandId = await agentRelay.sendToAgentAsync(req.userId, 'agent:console:initial-config', { deviceId, configCommands: config });
+        return res.json({ success: true, async: true, commandId, template: { name: template.name, key: templateKey } });
       }
-    }
-
-    if (result && result.pending) {
-      return res.status(504).json({
-        success: false,
-        message: 'Agent did not respond in time. Configuration may still be in progress on the device.'
-      });
     }
     
     res.json({
