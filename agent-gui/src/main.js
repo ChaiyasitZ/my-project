@@ -791,9 +791,11 @@ class ConsoleHandler {
   async sendCommand(deviceId, command, waitForPrompt = true) {
     const entry = this.connections.get(deviceId);
     if (!entry) throw new Error('Device not connected via console');
+    // Longer timeout for commands that take time (e.g., crypto key generate rsa)
+    const isSlowCommand = /crypto key|write mem|copy run/i.test(command);
     return new Promise((resolve, reject) => {
       let output = '';
-      const timeout = setTimeout(() => { entry.port.removeListener('data', onData); resolve({ output: output || '(no response)', deviceId }); }, waitForPrompt ? 10000 : 2000);
+      const timeout = setTimeout(() => { entry.port.removeListener('data', onData); resolve({ output: output || '(no response)', deviceId }); }, isSlowCommand ? 45000 : (waitForPrompt ? 10000 : 2000));
       const onData = (data) => { output += data.toString(); if (waitForPrompt && /[#>$]\s*$/.test(output)) { clearTimeout(timeout); entry.port.removeListener('data', onData); resolve({ output, deviceId }); } };
       entry.port.on('data', onData);
       entry.port.write(command + '\r\n', (err) => { if (err) { clearTimeout(timeout); entry.port.removeListener('data', onData); reject(new Error(`Write failed: ${err.message}`)); } });
@@ -808,9 +810,18 @@ class ConsoleHandler {
   async sendInitialConfig(deviceId, configCommands) {
     const entry = this.connections.get(deviceId);
     if (!entry) throw new Error('Device not connected via console');
-    const commands = configCommands.split('\n').map(c => c.trim()).filter(c => c);
+    const commands = configCommands.split('\n').map(c => c.trim()).filter(c => c && !c.startsWith('#'));
     const results = [];
-    for (const cmd of commands) { try { const r = await this.sendCommand(deviceId, cmd, true); results.push({ command: cmd, output: r.output, success: true }); } catch (err) { results.push({ command: cmd, output: err.message, success: false }); } }
+    for (const cmd of commands) {
+      try {
+        const r = await this.sendCommand(deviceId, cmd, true);
+        results.push({ command: cmd, output: r.output, success: true, sequence: results.length + 1 });
+      } catch (err) {
+        results.push({ command: cmd, output: err.message, success: false, sequence: results.length + 1 });
+      }
+      // Small delay between commands
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
     const successful = results.filter(r => r.success).length;
     const failed = results.filter(r => !r.success).length;
     const successRate = commands.length > 0 ? Math.round((successful / commands.length) * 100) : 0;

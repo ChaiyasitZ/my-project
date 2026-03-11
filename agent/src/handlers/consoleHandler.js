@@ -112,12 +112,14 @@ export class ConsoleHandler {
     const entry = this.connections.get(deviceId);
     if (!entry) throw new Error('Device not connected via console');
 
+    // Longer timeout for commands that take time (e.g., crypto key generate rsa)
+    const isSlowCommand = /crypto key|write mem|copy run/i.test(command);
     return new Promise((resolve, reject) => {
       let output = '';
       const timeout = setTimeout(() => {
         entry.port.removeListener('data', onData);
         resolve({ output: output || '(no response)', deviceId });
-      }, waitForPrompt ? 10000 : 2000);
+      }, isSlowCommand ? 45000 : (waitForPrompt ? 10000 : 2000));
 
       const onData = (data) => {
         output += data.toString();
@@ -162,16 +164,18 @@ export class ConsoleHandler {
     const entry = this.connections.get(deviceId);
     if (!entry) throw new Error('Device not connected via console');
 
-    const commands = configCommands.split('\n').map(c => c.trim()).filter(c => c);
+    const commands = configCommands.split('\n').map(c => c.trim()).filter(c => c && !c.startsWith('#'));
     const results = [];
 
     for (const cmd of commands) {
       try {
         const result = await this.sendCommand(deviceId, cmd, true);
-        results.push({ command: cmd, output: result.output, success: true });
+        results.push({ command: cmd, output: result.output, success: true, sequence: results.length + 1 });
       } catch (err) {
-        results.push({ command: cmd, output: err.message, success: false });
+        results.push({ command: cmd, output: err.message, success: false, sequence: results.length + 1 });
       }
+      // Small delay between commands
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
 
     const successful = results.filter(r => r.success).length;
