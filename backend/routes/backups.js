@@ -1024,13 +1024,6 @@ router.delete('/:id', async (req, res) => {
       });
     }
     
-    if (backup.is_restore_point) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot delete restore point backups'
-      });
-    }
-    
     await ConfigurationBackup.findByIdAndDelete(id);
     
     // Invalidate backup cache for this user
