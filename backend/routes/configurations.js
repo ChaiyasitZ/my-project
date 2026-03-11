@@ -2359,4 +2359,29 @@ router.get('/:id/rollback-info', async (req, res) => {
   }
 });
 
+// POST /api/configurations/netconf/mock/:deviceId - Toggle mock mode for a device
+router.post('/netconf/mock/:deviceId', async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const { enabled } = req.body;
+
+    const device = await Device.findOne({ _id: deviceId, userId: req.userId });
+    if (!device) {
+      return res.status(404).json({ success: false, message: 'Device not found' });
+    }
+
+    device.netconf_mock_mode = !!enabled;
+    await device.save();
+
+    res.json({
+      success: true,
+      message: `Mock mode ${enabled ? 'enabled' : 'disabled'} for ${device.name}`,
+      mock_mode: device.netconf_mock_mode
+    });
+  } catch (error) {
+    console.error('Error toggling mock mode:', error);
+    res.status(500).json({ success: false, message: 'Failed to toggle mock mode' });
+  }
+});
+
 export default router;

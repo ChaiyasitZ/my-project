@@ -2553,12 +2553,12 @@ ${indentedConfig}
                 ];
                 
                 const iosXeFilters = [
-                  { name: 'Interfaces', filter: '<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces"/>' },
-                  { name: 'Native Config', filter: '<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native"/>' },
-                  { name: 'Routing', filter: '<routing xmlns="urn:ietf:params:xml:ns:yang:ietf-routing"/>' },
-                  { name: 'OSPF', filter: '<ospf xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-ospf"/>' },
-                  { name: 'BGP', filter: '<bgp xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-bgp"/>' },
-                  { name: 'Platform', filter: '<device-hardware-data xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-device-hardware-oper"/>' },
+                  { name: 'Interfaces', filter: '<interfaces xmlns="urn:ietf:params:xml:ns:yang:ietf-interfaces"/>', opType: 'get' },
+                  { name: 'Native Config', filter: '<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native"/>', opType: 'get-config' },
+                  { name: 'Routing', filter: '<routing xmlns="urn:ietf:params:xml:ns:yang:ietf-routing"/>', opType: 'get' },
+                  { name: 'OSPF', filter: '<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native"><router><ospf xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-ospf"/></router></native>', opType: 'get-config' },
+                  { name: 'BGP', filter: '<native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native"><router><bgp xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-bgp"/></router></native>', opType: 'get-config' },
+                  { name: 'Platform', filter: '<device-hardware-data xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-device-hardware-oper"/>', opType: 'get' },
                 ];
                 
                 const filters = isIosXe ? iosXeFilters : nxosFilters;
@@ -2573,7 +2573,7 @@ ${indentedConfig}
                           key={item.name}
                           onClick={() => {
                             setOperationFilter(item.filter);
-                            setOperationType('get');
+                            setOperationType(item.opType || 'get');
                           }}
                           className="text-left text-sm p-2 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-300 transition-colors text-gray-700 dark:text-gray-300"
                         >

@@ -111,6 +111,10 @@ const deviceSchema = new mongoose.Schema({
   },
   ssh_session_id: {
     type: String
+  },
+  netconf_mock_mode: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true // Automatically adds createdAt and updatedAt

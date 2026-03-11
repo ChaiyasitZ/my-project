@@ -810,6 +810,266 @@ router.get('/:id/ssh/status', async (req, res) => {
   }
 });
 
+// ─── NETCONF Mock Data Generator ───
+
+// Mock NETCONF capabilities for Nexus 9000v
+const MOCK_NEXUS_CAPABILITIES = [
+  'urn:ietf:params:netconf:base:1.0',
+  'urn:ietf:params:netconf:base:1.1',
+  'urn:ietf:params:netconf:capability:writable-running:1.0',
+  'urn:ietf:params:netconf:capability:candidate:1.0',
+  'urn:ietf:params:netconf:capability:confirmed-commit:1.0',
+  'urn:ietf:params:netconf:capability:rollback-on-error:1.0',
+  'urn:ietf:params:netconf:capability:validate:1.0',
+  'urn:ietf:params:netconf:capability:url:1.0',
+  'http://cisco.com/ns/yang/cisco-nx-os-device'
+];
+
+// Generate mock NETCONF response data for Nexus 9000v devices
+function generateMockNetconfResponse(device, operation, filter) {
+  const deviceName = device.name || 'NEXUS9000v';
+  const ip = device.ip_address || '192.168.1.1';
+  const filterStr = (filter || '').toLowerCase();
+
+  if (operation === 'get-config' && !filter) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="1">
+  <data>
+    <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+      <name>${deviceName}</name>
+      <intf-items>
+        <phys-items>
+          <PhysIf-list>
+            <id>eth1/1</id>
+            <adminSt>up</adminSt>
+            <descr>Uplink</descr>
+            <mode>access</mode>
+            <layer>Layer3</layer>
+          </PhysIf-list>
+        </phys-items>
+        <svi-items>
+          <SviIf-list>
+            <id>vlan1</id>
+            <adminSt>up</adminSt>
+          </SviIf-list>
+        </svi-items>
+        <mgmt-items>
+          <MgmtIf-list>
+            <id>mgmt0</id>
+            <adminSt>up</adminSt>
+          </MgmtIf-list>
+        </mgmt-items>
+      </intf-items>
+      <ipv4-items>
+        <inst-items>
+          <Inst-list>
+            <name>default</name>
+            <dom-items>
+              <Dom-list>
+                <name>default</name>
+                <if-items>
+                  <If-list>
+                    <id>eth1/1</id>
+                    <addr-items>
+                      <Addr-list>
+                        <addr>${ip}/24</addr>
+                      </Addr-list>
+                    </addr-items>
+                  </If-list>
+                </if-items>
+              </Dom-list>
+            </dom-items>
+          </Inst-list>
+        </inst-items>
+      </ipv4-items>
+      <bd-items>
+        <bd-items>
+          <BD-list>
+            <fabEncap>vlan-1</fabEncap>
+            <name>default</name>
+            <adminSt>active</adminSt>
+          </BD-list>
+        </bd-items>
+      </bd-items>
+    </System>
+  </data>
+</rpc-reply>`;
+  }
+
+  if (filterStr.includes('intf-items')) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="1">
+  <data>
+    <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+      <intf-items>
+        <phys-items>
+          <PhysIf-list>
+            <id>eth1/1</id>
+            <adminSt>up</adminSt>
+            <operSt>up</operSt>
+            <descr>Uplink</descr>
+            <speed>1G</speed>
+            <mode>access</mode>
+            <layer>Layer3</layer>
+            <mtu>1500</mtu>
+          </PhysIf-list>
+          <PhysIf-list>
+            <id>eth1/2</id>
+            <adminSt>down</adminSt>
+            <operSt>down</operSt>
+            <speed>1G</speed>
+            <mtu>1500</mtu>
+          </PhysIf-list>
+        </phys-items>
+        <mgmt-items>
+          <MgmtIf-list>
+            <id>mgmt0</id>
+            <adminSt>up</adminSt>
+            <operSt>up</operSt>
+          </MgmtIf-list>
+        </mgmt-items>
+      </intf-items>
+    </System>
+  </data>
+</rpc-reply>`;
+  }
+
+  if (filterStr.includes('bd-items')) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="1">
+  <data>
+    <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+      <bd-items>
+        <bd-items>
+          <BD-list>
+            <fabEncap>vlan-1</fabEncap>
+            <name>default</name>
+            <adminSt>active</adminSt>
+          </BD-list>
+        </bd-items>
+      </bd-items>
+    </System>
+  </data>
+</rpc-reply>`;
+  }
+
+  if (filterStr.includes('ipv4-items')) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="1">
+  <data>
+    <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+      <ipv4-items>
+        <inst-items>
+          <Inst-list>
+            <name>default</name>
+            <dom-items>
+              <Dom-list>
+                <name>default</name>
+                <if-items>
+                  <If-list>
+                    <id>eth1/1</id>
+                    <addr-items>
+                      <Addr-list>
+                        <addr>${ip}/24</addr>
+                      </Addr-list>
+                    </addr-items>
+                  </If-list>
+                  <If-list>
+                    <id>mgmt0</id>
+                    <addr-items>
+                      <Addr-list>
+                        <addr>192.168.92.132/24</addr>
+                      </Addr-list>
+                    </addr-items>
+                  </If-list>
+                </if-items>
+              </Dom-list>
+            </dom-items>
+          </Inst-list>
+        </inst-items>
+      </ipv4-items>
+    </System>
+  </data>
+</rpc-reply>`;
+  }
+
+  if (filterStr.includes('ospf-items')) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="1">
+  <data>
+    <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+      <ospf-items>
+        <inst-items>
+          <Inst-list>
+            <name>1</name>
+            <adminSt>enabled</adminSt>
+            <dom-items>
+              <Dom-list>
+                <name>default</name>
+                <rtrId>1.1.1.1</rtrId>
+                <area-items>
+                  <Area-list>
+                    <id>0.0.0.0</id>
+                    <type>regular</type>
+                  </Area-list>
+                </area-items>
+              </Dom-list>
+            </dom-items>
+          </Inst-list>
+        </inst-items>
+      </ospf-items>
+    </System>
+  </data>
+</rpc-reply>`;
+  }
+
+  if (filterStr.includes('bgp-items')) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="1">
+  <data>
+    <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+      <bgp-items>
+        <inst-items>
+          <Inst-list>
+            <adminSt>enabled</adminSt>
+            <asn>65001</asn>
+            <dom-items>
+              <Dom-list>
+                <name>default</name>
+                <rtrId>1.1.1.1</rtrId>
+              </Dom-list>
+            </dom-items>
+          </Inst-list>
+        </inst-items>
+      </bgp-items>
+    </System>
+  </data>
+</rpc-reply>`;
+  }
+
+  if (filterStr.includes('name') || filterStr.includes('serial')) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="1">
+  <data>
+    <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+      <name>${deviceName}</name>
+      <serial>9XDO269DU9F</serial>
+    </System>
+  </data>
+</rpc-reply>`;
+  }
+
+  // Default: return basic system info
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="1">
+  <data>
+    <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
+      <name>${deviceName}</name>
+    </System>
+  </data>
+</rpc-reply>`;
+}
+
 // POST /api/devices/:id/netconf/test - Test NETCONF connection to device
 router.post('/:id/netconf/test', async (req, res) => {
   try {
@@ -824,6 +1084,22 @@ router.post('/:id/netconf/test', async (req, res) => {
     }
     
     console.log(`🌐 Testing NETCONF connection to ${device.name} (${device.ip_address}:${device.netconf_port || 830})`);
+
+    // Mock mode: return mock test success
+    if (device.netconf_mock_mode) {
+      console.log(`🎭 NETCONF Mock: Test connection to ${device.name} (mock mode)`);
+      return res.json({
+        success: true,
+        message: `NETCONF connection to ${device.name} successful (mock mode)`,
+        connectionTest: {
+          success: true,
+          message: 'Mock connection successful',
+          capabilities: MOCK_NEXUS_CAPABILITIES,
+          response_time: Math.floor(50 + Math.random() * 100)
+        },
+        mock: true
+      });
+    }
     
     // Try agent relay first (Vercel serverless mode)
     const agentOnline = await agentRelay.isAgentOnline(req.userId);
@@ -994,6 +1270,19 @@ router.post('/:id/netconf/connect', async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Device not found'
+      });
+    }
+
+    // Mock mode: return mock connection success
+    if (device.netconf_mock_mode) {
+      console.log(`🎭 NETCONF Mock: Connecting to ${device.name} (mock mode)`);
+      netconfService.storeAgentSession(id, MOCK_NEXUS_CAPABILITIES, device.ip_address);
+      return res.json({
+        success: true,
+        message: `NETCONF connected to ${device.name} (mock mode)`,
+        capabilities: MOCK_NEXUS_CAPABILITIES,
+        deviceId: id,
+        mock: true
       });
     }
     
@@ -1167,6 +1456,20 @@ router.post('/:id/netconf/get', async (req, res) => {
         message: 'Device not found'
       });
     }
+
+    // Mock mode: return mock operational data
+    if (device.netconf_mock_mode) {
+      console.log(`🎭 NETCONF Mock: GET operation on ${device.name}`);
+      const mockResponse = generateMockNetconfResponse(device, 'get', filter);
+      return res.json({
+        success: true,
+        device_name: device.name,
+        operation: 'get',
+        execution_time_ms: Math.floor(50 + Math.random() * 200),
+        response: mockResponse,
+        mock: true
+      });
+    }
     
     let result;
     const startTime = Date.now();
@@ -1258,6 +1561,21 @@ router.post('/:id/netconf/get-config', async (req, res) => {
         message: 'Device not found'
       });
     }
+
+    // Mock mode: return mock config data
+    if (device.netconf_mock_mode) {
+      console.log(`🎭 NETCONF Mock: GET-CONFIG operation on ${device.name}`);
+      const mockResponse = generateMockNetconfResponse(device, 'get-config', filter);
+      return res.json({
+        success: true,
+        device_name: device.name,
+        operation: 'get-config',
+        source,
+        execution_time_ms: Math.floor(50 + Math.random() * 200),
+        response: mockResponse,
+        mock: true
+      });
+    }
     
     let result;
     const startTime = Date.now();
@@ -1337,6 +1655,21 @@ router.post('/:id/netconf/rpc', async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Device not found'
+      });
+    }
+
+    // Mock mode: return mock RPC response
+    if (device.netconf_mock_mode) {
+      console.log(`🎭 NETCONF Mock: Custom RPC on ${device.name}`);
+      // Extract filter from the RPC content for mock data generation
+      const mockResponse = generateMockNetconfResponse(device, 'rpc', rpc_content);
+      return res.json({
+        success: true,
+        device_name: device.name,
+        operation: 'custom-rpc',
+        execution_time_ms: Math.floor(50 + Math.random() * 200),
+        response: mockResponse,
+        mock: true
       });
     }
     
