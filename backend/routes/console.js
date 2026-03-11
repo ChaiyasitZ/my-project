@@ -98,11 +98,29 @@ router.get('/ports', async (req, res) => {
         });
       }
     } else {
+      // serialport available (local/desktop mode) — try local first
       try {
         result = await consoleService.getAvailablePorts();
       } catch (localErr) {
         console.log('🔄 serialport error, relaying to agent...');
         result = await agentRelay.sendToAgent(req.userId, 'agent:console:list-ports', {}, 15000);
+      }
+
+      // If local serialport returned 0 ports, also check agent (it may have ports on a different machine)
+      if (result && result.ports && result.ports.length === 0) {
+        console.log('🔄 No local ports found, checking agent...');
+        try {
+          const agentInfo = await AgentHeartbeat.findOne({ userId: req.userId });
+          if (agentInfo && agentInfo.isOnline() && agentInfo.capabilities?.serialPorts?.length > 0) {
+            result = {
+              success: true,
+              ports: agentInfo.capabilities.serialPorts,
+              count: agentInfo.capabilities.serialPorts.length
+            };
+          }
+        } catch (hbErr) {
+          // Ignore — use empty local result
+        }
       }
     }
 
