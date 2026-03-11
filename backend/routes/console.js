@@ -183,6 +183,11 @@ router.post('/connect', async (req, res) => {
     } else {
       try {
         result = await consoleService.connectConsole(value);
+        // If local connect returned { success: false }, try relay as fallback
+        if (result && !result.success) {
+          console.log('🔄 Local connect failed, relaying to agent...');
+          result = await agentRelay.sendToAgent(req.userId, 'agent:console:connect', value, 15000);
+        }
       } catch (localErr) {
         console.log('🔄 Relaying console connect to agent...');
         result = await agentRelay.sendToAgent(req.userId, 'agent:console:connect', value, 15000);
@@ -288,6 +293,11 @@ router.post('/test', async (req, res) => {
     } else {
       try {
         result = await consoleService.testConsoleConnection(value);
+        // If local test returned { success: false }, try relay as fallback
+        if (result && !result.success) {
+          console.log('🔄 Local test failed, relaying console test to agent...');
+          result = await agentRelay.sendToAgent(req.userId, 'agent:console:test', value, 15000);
+        }
       } catch (localErr) {
         console.log('🔄 Relaying console test to agent...');
         result = await agentRelay.sendToAgent(req.userId, 'agent:console:test', value, 15000);
