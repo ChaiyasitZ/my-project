@@ -37,18 +37,15 @@ export const useNetconfSessions = (fetchDevices) => {
   const handleConnectNetconf = useCallback(async (device) => {
     const deviceId = device.id || device._id;
     const deviceName = device.name;
-    const isMockMode = device.netconf_mock_mode === true;
-    
     setConnectingDeviceId(deviceId);
-    const toastId = toast.loading(`${isMockMode ? '[MOCK] ' : ''}Connecting NETCONF to ${deviceName}...`);
+    const toastId = toast.loading(`Connecting NETCONF to ${deviceName}...`);
     
     try {
       const response = await axios.post(`/devices/${deviceId}/netconf/connect`);
       
       if (response.data.success) {
-        const mockLabel = response.data.mock ? ' (Mock Mode)' : '';
         toast.success(
-          `NETCONF connected to ${deviceName}${mockLabel}! (${response.data.capabilities?.length || 0} capabilities)`, 
+          `NETCONF connected to ${deviceName}! (${response.data.capabilities?.length || 0} capabilities)`, 
           { id: toastId }
         );
         fetchNetconfSessions();

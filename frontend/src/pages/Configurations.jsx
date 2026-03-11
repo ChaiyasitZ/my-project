@@ -337,17 +337,14 @@ ${indentedConfig}
   const handleConnectNetconf = async (device) => {
     const deviceId = device.id || device._id;
     const deviceName = device.name;
-    const isMockMode = device.netconf_mock_mode === true;
-    
     setConnectingDeviceId(deviceId);
-    const toastId = toast.loading(`${isMockMode ? '[MOCK] ' : ''}Connecting NETCONF to ${deviceName}...`);
+    const toastId = toast.loading(`Connecting NETCONF to ${deviceName}...`);
     
     try {
       const response = await axios.post(`/devices/${deviceId}/netconf/connect`);
       
       if (response.data.success) {
-        const mockLabel = response.data.mock ? ' (Mock Mode)' : '';
-        toast.success(`NETCONF connected to ${deviceName}${mockLabel}! (${response.data.capabilities?.length || 0} capabilities)`, { id: toastId });
+        toast.success(`NETCONF connected to ${deviceName}! (${response.data.capabilities?.length || 0} capabilities)`, { id: toastId });
         fetchNetconfSessions();
       } else {
         toast.error(`NETCONF connection failed: ${response.data.message}`, { id: toastId });
@@ -1835,17 +1832,13 @@ ${indentedConfig}
                   const isConnected = netconfSessions.some(s => s.deviceId === deviceId);
                   const isConnecting = connectingDeviceId === deviceId;
                   const supportsNetconf = device.type === 'nexus' || device.netconf_enabled;
-                  const isMockMode = device.type === 'nexus' || device.netconf_mock_mode === true;
-                  
                   return (
                     <div 
                       key={deviceId}
                       className={`flex items-center justify-between p-3 border rounded-lg ${
-                        isMockMode
-                          ? 'border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-900/20'
-                          : isConnected 
-                            ? 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-900/20' 
-                            : 'border-gray-200 dark:border-gray-700'
+                        isConnected 
+                          ? 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-900/20' 
+                          : 'border-gray-200 dark:border-gray-700'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -1859,11 +1852,6 @@ ${indentedConfig}
                         <div>
                           <div className="font-medium text-gray-900 dark:text-white text-sm flex items-center gap-2">
                             {device.name}
-                            {isMockMode && (
-                              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-orange-500 text-white rounded">
-                                MOCK
-                              </span>
-                            )}
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
                             {device.ip_address} • {device.type.toUpperCase()}
@@ -1872,13 +1860,6 @@ ${indentedConfig}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {/* Mock Mode indicator for Nexus */}
-                        {device.type === 'nexus' && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-bold bg-orange-500 text-white rounded" title="Nexus devices use mock NETCONF data">
-                            MOCK
-                          </span>
-                        )}
-                        
                         {isConnected ? (
                           <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded-full">
                             <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1 animate-pulse"></span>
@@ -1889,7 +1870,7 @@ ${indentedConfig}
                             onClick={() => handleConnectNetconf(device)}
                             disabled={isConnecting || !supportsNetconf}
                             className={`btn btn-sm ${supportsNetconf ? 'btn-primary' : 'btn-secondary opacity-50 cursor-not-allowed'}`}
-                            title={supportsNetconf ? (isMockMode ? 'Connect (Mock Mode)' : 'Connect via NETCONF') : 'NETCONF not enabled for this device'}
+                            title={supportsNetconf ? 'Connect via NETCONF' : 'NETCONF not enabled for this device'}
                           >
                             {isConnecting ? (
                               <>
@@ -1899,7 +1880,7 @@ ${indentedConfig}
                             ) : (
                               <>
                                 <WifiIcon className="h-3 w-3 mr-1" />
-                                {isMockMode ? 'Mock Connect' : 'Connect'}
+                                Connect
                               </>
                             )}
                           </button>
