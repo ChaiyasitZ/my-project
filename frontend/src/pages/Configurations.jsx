@@ -1835,7 +1835,7 @@ ${indentedConfig}
                   const isConnected = netconfSessions.some(s => s.deviceId === deviceId);
                   const isConnecting = connectingDeviceId === deviceId;
                   const supportsNetconf = device.type === 'nexus' || device.netconf_enabled;
-                  const isMockMode = device.netconf_mock_mode === true;
+                  const isMockMode = device.type === 'nexus' || device.netconf_mock_mode === true;
                   
                   return (
                     <div 
@@ -1872,18 +1872,12 @@ ${indentedConfig}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {/* Mock Mode Toggle */}
-                        <button
-                          onClick={() => handleToggleMockMode(device)}
-                          className={`p-1.5 rounded-lg transition-colors ${
-                            isMockMode
-                              ? 'bg-orange-500 text-white hover:bg-orange-600'
-                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
-                          }`}
-                          title={isMockMode ? 'Disable Mock Mode' : 'Enable Mock Mode (Simulate NETCONF)'}
-                        >
-                          <TerminalIcon className="h-3.5 w-3.5" />
-                        </button>
+                        {/* Mock Mode indicator for Nexus */}
+                        {device.type === 'nexus' && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-bold bg-orange-500 text-white rounded" title="Nexus devices use mock NETCONF data">
+                            MOCK
+                          </span>
+                        )}
                         
                         {isConnected ? (
                           <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded-full">

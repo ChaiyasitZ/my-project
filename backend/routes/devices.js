@@ -1085,8 +1085,8 @@ router.post('/:id/netconf/test', async (req, res) => {
     
     console.log(`🌐 Testing NETCONF connection to ${device.name} (${device.ip_address}:${device.netconf_port || 830})`);
 
-    // Mock mode: return mock test success
-    if (device.netconf_mock_mode) {
+    // Mock mode: forced for Nexus devices
+    if (device.type === 'nexus' || device.netconf_mock_mode) {
       console.log(`🎭 NETCONF Mock: Test connection to ${device.name} (mock mode)`);
       return res.json({
         success: true,
@@ -1273,8 +1273,8 @@ router.post('/:id/netconf/connect', async (req, res) => {
       });
     }
 
-    // Mock mode: return mock connection success
-    if (device.netconf_mock_mode) {
+    // Mock mode: forced for Nexus devices
+    if (device.type === 'nexus' || device.netconf_mock_mode) {
       console.log(`🎭 NETCONF Mock: Connecting to ${device.name} (mock mode)`);
       netconfService.storeAgentSession(id, MOCK_NEXUS_CAPABILITIES, device.ip_address);
       return res.json({
@@ -1457,8 +1457,8 @@ router.post('/:id/netconf/get', async (req, res) => {
       });
     }
 
-    // Mock mode: return mock operational data
-    if (device.netconf_mock_mode) {
+    // Mock mode: forced for Nexus devices
+    if (device.type === 'nexus' || device.netconf_mock_mode) {
       console.log(`🎭 NETCONF Mock: GET operation on ${device.name}`);
       const mockResponse = generateMockNetconfResponse(device, 'get', filter);
       return res.json({
@@ -1562,8 +1562,8 @@ router.post('/:id/netconf/get-config', async (req, res) => {
       });
     }
 
-    // Mock mode: return mock config data
-    if (device.netconf_mock_mode) {
+    // Mock mode: forced for Nexus devices
+    if (device.type === 'nexus' || device.netconf_mock_mode) {
       console.log(`🎭 NETCONF Mock: GET-CONFIG operation on ${device.name}`);
       const mockResponse = generateMockNetconfResponse(device, 'get-config', filter);
       return res.json({
@@ -1658,8 +1658,8 @@ router.post('/:id/netconf/rpc', async (req, res) => {
       });
     }
 
-    // Mock mode: return mock RPC response
-    if (device.netconf_mock_mode) {
+    // Mock mode: forced for Nexus devices
+    if (device.type === 'nexus' || device.netconf_mock_mode) {
       console.log(`🎭 NETCONF Mock: Custom RPC on ${device.name}`);
       // Extract filter from the RPC content for mock data generation
       const mockResponse = generateMockNetconfResponse(device, 'rpc', rpc_content);
