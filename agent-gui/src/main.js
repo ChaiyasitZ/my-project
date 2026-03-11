@@ -465,27 +465,27 @@ class SSHHandler {
         if (err) return reject(err);
         let output = '';
         let settled = false;
-        const totalTimeout = isBoth ? 45000 : 25000;
+        const totalTimeout = isBoth ? 60000 : 30000;
         const timeout = setTimeout(() => {
           if (!settled) { settled = true; stream.end(); finish(); }
         }, totalTimeout);
+        const stripAnsi = (str) => str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '');
         const finish = () => {
+          const clean = stripAnsi(output);
           if (isBoth) {
-            // Use marker-based split: find the 'show startup-config' command echo
             const marker = 'show startup-config';
-            const splitIdx = output.lastIndexOf(marker);
+            const splitIdx = clean.lastIndexOf(marker);
             if (splitIdx > 0) {
-              // Find start of the line containing the marker (prompt + command)
-              const lineStart = output.lastIndexOf('\n', splitIdx - 1);
-              const runningOutput = output.substring(0, lineStart >= 0 ? lineStart : splitIdx);
-              const startupOutput = output.substring(lineStart >= 0 ? lineStart + 1 : splitIdx);
+              const lineStart = clean.lastIndexOf('\n', splitIdx - 1);
+              const runningOutput = clean.substring(0, lineStart >= 0 ? lineStart : splitIdx);
+              const startupOutput = clean.substring(lineStart >= 0 ? lineStart + 1 : splitIdx);
               resolve({ runningOutput, startupOutput });
             } else {
               // Fallback: all output as running, empty startup
-              resolve({ runningOutput: output, startupOutput: '' });
+              resolve({ runningOutput: clean, startupOutput: '' });
             }
           } else {
-            resolve({ output });
+            resolve({ output: clean });
           }
         };
         stream.on('data', (d) => {
@@ -494,26 +494,39 @@ class SSHHandler {
         stream.on('close', () => {
           if (!settled) { settled = true; clearTimeout(timeout); finish(); }
         });
-        // Wait for initial prompt, then send commands
-        setTimeout(() => {
-          stream.write('terminal length 0\n');
-          setTimeout(() => {
+        // Wait for prompt after each command before sending next
+        const waitForPrompt = (minLen = 0) => {
+          return new Promise((res) => {
+            const start = output.length;
+            const check = setInterval(() => {
+              const newData = stripAnsi(output.substring(start));
+              if (newData.length > minLen && /[#>]\s*$/.test(newData)) {
+                clearInterval(check);
+                res();
+              }
+            }, 300);
+            setTimeout(() => { clearInterval(check); res(); }, 15000);
+          });
+        };
+        (async () => {
+          try {
+            await waitForPrompt(); // wait for initial prompt
+            stream.write('terminal length 0\n');
+            await waitForPrompt();
             if (isBoth) {
               stream.write('show running-config\n');
-              setTimeout(() => {
-                stream.write('show startup-config\n');
-                setTimeout(() => {
-                  if (!settled) { settled = true; clearTimeout(timeout); stream.end(); finish(); }
-                }, 10000);
-              }, 10000);
+              await waitForPrompt(100);
+              stream.write('show startup-config\n');
+              await waitForPrompt(100);
             } else {
               stream.write(`show ${configType}\n`);
-              setTimeout(() => {
-                if (!settled) { settled = true; clearTimeout(timeout); stream.end(); finish(); }
-              }, 10000);
+              await waitForPrompt(100);
             }
-          }, 1000);
-        }, 1000);
+            if (!settled) { settled = true; clearTimeout(timeout); stream.end(); finish(); }
+          } catch (e) {
+            if (!settled) { settled = true; clearTimeout(timeout); stream.end(); reject(e); }
+          }
+        })();
       });
     });
   }
