@@ -158,11 +158,62 @@ export class ConsoleHandler {
   }
 
   /**
+   * Dismiss Cisco initial configuration dialog if present.
+   * Sends Enter, checks for "Would you like to enter the initial configuration dialog? [yes/no]:",
+   * sends "no", and waits for the normal CLI prompt before returning.
+   */
+  async _dismissSetupWizard(deviceId, entry) {
+    return new Promise((resolve) => {
+      let output = '';
+      const timeout = setTimeout(() => {
+        entry.port.removeListener('data', onData);
+        resolve();
+      }, 5000);
+      const onData = (data) => {
+        output += data.toString();
+        if (/would you like to enter the initial configuration dialog|\[yes\/no\]/i.test(output)) {
+          clearTimeout(timeout);
+          entry.port.removeListener('data', onData);
+          console.log('📋 Detected initial configuration dialog, sending "no"...');
+          entry.port.write('no\r\n', () => {
+            let afterOutput = '';
+            const afterTimeout = setTimeout(() => {
+              entry.port.removeListener('data', afterOnData);
+              entry.port.write('\r\n', () => {
+                setTimeout(resolve, 2000);
+              });
+            }, 5000);
+            const afterOnData = (d) => {
+              afterOutput += d.toString();
+              if (/[#>]\s*$/.test(afterOutput)) {
+                clearTimeout(afterTimeout);
+                entry.port.removeListener('data', afterOnData);
+                resolve();
+              }
+            };
+            entry.port.on('data', afterOnData);
+          });
+        }
+        if (/[#>]\s*$/.test(output)) {
+          clearTimeout(timeout);
+          entry.port.removeListener('data', onData);
+          resolve();
+        }
+      };
+      entry.port.on('data', onData);
+      entry.port.write('\r\n');
+    });
+  }
+
+  /**
    * Send initial configuration commands
    */
   async sendInitialConfig(deviceId, configCommands) {
     const entry = this.connections.get(deviceId);
     if (!entry) throw new Error('Device not connected via console');
+
+    // Dismiss Cisco initial configuration dialog if present
+    await this._dismissSetupWizard(deviceId, entry);
 
     const commands = configCommands.split('\n').map(c => c.trim()).filter(c => c && !c.startsWith('#'));
     const results = [];

@@ -810,6 +810,10 @@ class ConsoleHandler {
   async sendInitialConfig(deviceId, configCommands) {
     const entry = this.connections.get(deviceId);
     if (!entry) throw new Error('Device not connected via console');
+
+    // Dismiss Cisco initial configuration dialog if present
+    await this._dismissSetupWizard(deviceId, entry);
+
     const commands = configCommands.split('\n').map(c => c.trim()).filter(c => c && !c.startsWith('#'));
     const results = [];
     for (const cmd of commands) {
@@ -826,6 +830,54 @@ class ConsoleHandler {
     const failed = results.filter(r => !r.success).length;
     const successRate = commands.length > 0 ? Math.round((successful / commands.length) * 100) : 0;
     return { success: failed === 0, results, summary: { total: commands.length, totalCommands: commands.length, successful, failed, successRate }, fullOutput: results.map(r => `${r.command}\n${r.output}`).join('\n') };
+  }
+
+  async _dismissSetupWizard(deviceId, entry) {
+    // Send empty line to see what the device shows
+    return new Promise((resolve) => {
+      let output = '';
+      const timeout = setTimeout(() => {
+        entry.port.removeListener('data', onData);
+        resolve();
+      }, 5000);
+      const onData = (data) => {
+        output += data.toString();
+        // Check for Cisco initial config dialog
+        if (/would you like to enter the initial configuration dialog|\[yes\/no\]/i.test(output)) {
+          clearTimeout(timeout);
+          entry.port.removeListener('data', onData);
+          console.log('📋 Detected initial configuration dialog, sending "no"...');
+          // Send "no" and wait for normal prompt
+          entry.port.write('no\r\n', () => {
+            let afterOutput = '';
+            const afterTimeout = setTimeout(() => {
+              entry.port.removeListener('data', afterOnData);
+              // Send extra Enter to get to prompt
+              entry.port.write('\r\n', () => {
+                setTimeout(resolve, 2000);
+              });
+            }, 5000);
+            const afterOnData = (d) => {
+              afterOutput += d.toString();
+              if (/[#>]\s*$/.test(afterOutput)) {
+                clearTimeout(afterTimeout);
+                entry.port.removeListener('data', afterOnData);
+                resolve();
+              }
+            };
+            entry.port.on('data', afterOnData);
+          });
+        }
+        // Already at normal prompt — no wizard
+        if (/[#>]\s*$/.test(output)) {
+          clearTimeout(timeout);
+          entry.port.removeListener('data', onData);
+          resolve();
+        }
+      };
+      entry.port.on('data', onData);
+      entry.port.write('\r\n');
+    });
   }
 
   getStatus(deviceId) { if (deviceId) { const e = this.connections.get(deviceId); return e ? { connected: true, portPath: e.portPath, connectedAt: e.createdAt } : { connected: false }; } return { activeSessions: this.connections.size }; }
