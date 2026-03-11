@@ -798,7 +798,8 @@ class ConsoleHandler {
     for (const cmd of commands) { try { const r = await this.sendCommand(deviceId, cmd, true); results.push({ command: cmd, output: r.output, success: true }); } catch (err) { results.push({ command: cmd, output: err.message, success: false }); } }
     const successful = results.filter(r => r.success).length;
     const failed = results.filter(r => !r.success).length;
-    return { success: failed === 0, results, summary: { total: commands.length, successful, failed }, fullOutput: results.map(r => `${r.command}\n${r.output}`).join('\n') };
+    const successRate = commands.length > 0 ? Math.round((successful / commands.length) * 100) : 0;
+    return { success: failed === 0, results, summary: { total: commands.length, totalCommands: commands.length, successful, failed, successRate }, fullOutput: results.map(r => `${r.command}\n${r.output}`).join('\n') };
   }
 
   getStatus(deviceId) { if (deviceId) { const e = this.connections.get(deviceId); return e ? { connected: true, portPath: e.portPath, connectedAt: e.createdAt } : { connected: false }; } return { activeSessions: this.connections.size }; }

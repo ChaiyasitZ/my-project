@@ -176,11 +176,12 @@ export class ConsoleHandler {
 
     const successful = results.filter(r => r.success).length;
     const failed = results.filter(r => !r.success).length;
+    const successRate = commands.length > 0 ? Math.round((successful / commands.length) * 100) : 0;
 
     return {
       success: failed === 0,
       results,
-      summary: { total: commands.length, successful, failed },
+      summary: { total: commands.length, totalCommands: commands.length, successful, failed, successRate },
       fullOutput: results.map(r => `${r.command}\n${r.output}`).join('\n')
     };
   }

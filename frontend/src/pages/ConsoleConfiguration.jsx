@@ -375,18 +375,22 @@ function ConsoleConfiguration() {
       }
 
       setConfigResults(response.data.configuration);
-      const summary = response.data.configuration.summary;
+      const summary = response.data.configuration?.summary || {};
+      const totalCmds = summary.totalCommands || summary.total || 0;
+      const successfulCmds = summary.successful || 0;
+      const failedCmds = summary.failed || 0;
+      const rate = summary.successRate ?? (totalCmds > 0 ? Math.round((successfulCmds / totalCmds) * 100) : 0);
       
       console.log('✅ Configuration completed!');
       console.log('Summary:\n' +
-            `✅ Successful: ${summary.successful}/${summary.totalCommands} commands\n` +
-            `❌ Failed: ${summary.failed} commands\n` +
-            `📊 Success rate: ${summary.successRate}%`);
+            `✅ Successful: ${successfulCmds}/${totalCmds} commands\n` +
+            `❌ Failed: ${failedCmds} commands\n` +
+            `📊 Success rate: ${rate}%`);
       
-      if (summary.successRate === 100) {
-        toast.success(`Configuration deployed successfully! ${summary.successful}/${summary.totalCommands} commands executed.`, { id: toastId });
+      if (rate === 100) {
+        toast.success(`Configuration deployed successfully! ${successfulCmds}/${totalCmds} commands executed.`, { id: toastId });
       } else {
-        toast.error(`Configuration partially deployed: ${summary.successful}/${summary.totalCommands} commands successful (${summary.successRate}%)`, { id: toastId });
+        toast.error(`Configuration partially deployed: ${successfulCmds}/${totalCmds} commands successful (${rate}%)`, { id: toastId });
       }
       
     } catch (error) {
@@ -904,15 +908,15 @@ function ConsoleConfiguration() {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{configResults.summary.successful}</div>
+              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{configResults.summary?.successful || 0}</div>
               <div className="text-sm text-green-700 dark:text-green-300">Successful Commands</div>
             </div>
             <div className="bg-red-50 dark:bg-red-900/30 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-red-600 dark:text-red-400">{configResults.summary.failed}</div>
+              <div className="text-2xl font-bold text-red-600 dark:text-red-400">{configResults.summary?.failed || 0}</div>
               <div className="text-sm text-red-700 dark:text-red-300">Failed Commands</div>
             </div>
             <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{configResults.summary.successRate}%</div>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{configResults.summary?.successRate ?? 0}%</div>
               <div className="text-sm text-blue-700 dark:text-blue-300">Success Rate</div>
             </div>
           </div>
