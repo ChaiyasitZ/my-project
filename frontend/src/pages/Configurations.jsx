@@ -106,11 +106,9 @@ function Configurations() {
   
   // NETCONF Operations state
   const [operationDevice, setOperationDevice] = useState('');
-  const [operationMethod, setOperationMethod] = useState('ssh'); // 'ssh' or 'netconf'
   const [operationType, setOperationType] = useState('get');
   const [operationFilter, setOperationFilter] = useState('');
   const [customRpc, setCustomRpc] = useState('');
-  const [sshCommand, setSshCommand] = useState('');
   const [operationResult, setOperationResult] = useState(null);
   const [isExecutingOperation, setIsExecutingOperation] = useState(false);
 
@@ -2367,44 +2365,13 @@ ${indentedConfig}
           <div className="card p-6">
             <div className="flex items-center mb-4">
               <TerminalIcon className="h-6 w-6 text-blue-600 mr-2" />
-              <h2 className="text-lg font-medium text-gray-900">Device Operations</h2>
+              <h2 className="text-lg font-medium text-gray-900">NETCONF Operations</h2>
             </div>
 
-            {/* Method Toggle: SSH vs NETCONF */}
-            <div className="mb-4 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setOperationMethod('ssh')}
-                className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
-                  operationMethod === 'ssh'
-                    ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-500 text-emerald-700 dark:text-emerald-300'
-                    : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                <TerminalIcon className="h-4 w-4 inline mr-1" />
-                SSH (CLI)
-              </button>
-              <button
-                type="button"
-                onClick={() => setOperationMethod('netconf')}
-                className={`flex-1 py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
-                  operationMethod === 'netconf'
-                    ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-300'
-                    : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                <CodeIcon className="h-4 w-4 inline mr-1" />
-                NETCONF (XML)
-              </button>
-            </div>
-
-            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <p className="text-sm text-blue-800 dark:text-blue-300">
-                {operationMethod === 'ssh' ? (
-                  <><strong>SSH Mode:</strong> Execute CLI show commands directly via SSH. Works on all devices without NETCONF enabled.</>
-                ) : (
-                  <><strong>NETCONF Mode:</strong> Execute NETCONF operations to query device state and configuration. Requires NETCONF enabled on device (port 830).</>
-                )}
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Monitor Mode:</strong> Execute NETCONF operations to query device state and configuration.
+                Use &lt;get&gt; for operational data and &lt;get-config&gt; for configuration data.
               </p>
             </div>
 
@@ -2420,7 +2387,7 @@ ${indentedConfig}
                   className="input"
                 >
                   <option value="">Choose a device...</option>
-                  {(operationMethod === 'ssh' ? devices : devices.filter(d => d.netconf_enabled || d.type === 'nexus')).map((device) => (
+                  {devices.filter(d => d.netconf_enabled || d.type === 'nexus').map((device) => (
                     <option key={device.id} value={device.id}>
                       {device.name} ({device.type}) - {device.ip_address}
                     </option>
@@ -2428,30 +2395,7 @@ ${indentedConfig}
                 </select>
               </div>
 
-              {/* SSH Command Input */}
-              {operationMethod === 'ssh' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    CLI Command
-                  </label>
-                  <input
-                    type="text"
-                    value={sshCommand}
-                    onChange={(e) => setSshCommand(e.target.value)}
-                    placeholder="e.g. show ip interface brief"
-                    className="input font-mono text-sm"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && sshCommand && operationDevice && !isExecutingOperation) {
-                        e.preventDefault();
-                        document.getElementById('exec-operation-btn')?.click();
-                      }
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* NETCONF Operation Type */}
-              {operationMethod === 'netconf' && (
+              {/* Operation Type */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Operation Type
@@ -2495,10 +2439,9 @@ ${indentedConfig}
                   </button>
                 </div>
               </div>
-              )}
 
-              {/* Filter (for NETCONF get/get-config) */}
-              {operationMethod === 'netconf' && operationType !== 'custom' && (
+              {/* Filter (for get/get-config) */}
+              {operationType !== 'custom' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     XML Filter <span className="text-amber-600 dark:text-amber-400 font-normal">(recommended to avoid timeout)</span>
@@ -2514,7 +2457,7 @@ ${indentedConfig}
               )}
 
               {/* Custom RPC Content */}
-              {operationMethod === 'netconf' && operationType === 'custom' && (
+              {operationType === 'custom' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     RPC Content (without &lt;rpc&gt; wrapper)
@@ -2531,7 +2474,6 @@ ${indentedConfig}
 
               {/* Execute Button */}
               <button
-                id="exec-operation-btn"
                 onClick={async () => {
                   if (!operationDevice) {
                     toast.error('Please select a device');
@@ -2540,16 +2482,13 @@ ${indentedConfig}
                   
                   setIsExecutingOperation(true);
                   setOperationResult(null);
-                  const toastId = toast.loading(operationMethod === 'ssh' ? 'Executing SSH command...' : 'Executing NETCONF operation...');
+                  const toastId = toast.loading('Executing NETCONF operation...');
                   
                   try {
                     let endpoint = '';
                     let payload = {};
                     
-                    if (operationMethod === 'ssh') {
-                      endpoint = `/devices/${operationDevice}/ssh/exec`;
-                      payload = { command: sshCommand };
-                    } else if (operationType === 'get') {
+                    if (operationType === 'get') {
                       endpoint = `/devices/${operationDevice}/netconf/get`;
                       payload = { filter: operationFilter || undefined };
                     } else if (operationType === 'get-config') {
@@ -2565,7 +2504,7 @@ ${indentedConfig}
                     setOperationResult({
                       success: true,
                       device_name: response.data.device_name,
-                      operation: operationMethod === 'ssh' ? `SSH: ${sshCommand}` : operationType,
+                      operation: operationType,
                       execution_time: response.data.execution_time_ms,
                       response: response.data.response
                     });
@@ -2581,7 +2520,7 @@ ${indentedConfig}
                     setIsExecutingOperation(false);
                   }
                 }}
-                disabled={isExecutingOperation || !operationDevice || (operationMethod === 'ssh' && !sshCommand) || (operationMethod === 'netconf' && operationType === 'custom' && !customRpc)}
+                disabled={isExecutingOperation || !operationDevice || (operationType === 'custom' && !customRpc)}
                 className="btn btn-primary btn-md w-full"
               >
                 {isExecutingOperation ? (
@@ -2598,46 +2537,12 @@ ${indentedConfig}
               </button>
             </div>
 
-            {/* Quick Filters / Commands - Dynamic based on selected device type and method */}
+            {/* Quick Filters - Dynamic based on selected device type */}
             <div className="mt-6">
               {(() => {
                 const selectedDeviceData = devices.find(d => d.id === operationDevice);
                 const isIosXe = selectedDeviceData?.type === 'router' || selectedDeviceData?.type === 'ios-xe';
                 
-                if (operationMethod === 'ssh') {
-                  // SSH Quick Commands
-                  const sshCommands = [
-                    { name: 'Interfaces Brief', cmd: 'show ip interface brief' },
-                    { name: 'Running Config', cmd: 'show running-config' },
-                    { name: 'Interfaces', cmd: 'show interfaces' },
-                    { name: 'IP Route', cmd: 'show ip route' },
-                    { name: 'Version', cmd: 'show version' },
-                    { name: 'VLANs', cmd: 'show vlan brief' },
-                    { name: 'OSPF Neighbors', cmd: 'show ip ospf neighbor' },
-                    { name: 'BGP Summary', cmd: 'show ip bgp summary' },
-                    { name: 'ARP Table', cmd: 'show arp' },
-                    { name: 'CDP Neighbors', cmd: 'show cdp neighbors' },
-                  ];
-                  
-                  return (
-                    <>
-                      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Quick Commands:</h3>
-                      <div className="grid grid-cols-2 gap-2">
-                        {sshCommands.map((item) => (
-                          <button
-                            key={item.name}
-                            onClick={() => setSshCommand(item.cmd)}
-                            className="text-left text-sm p-2 rounded-lg bg-gray-50 dark:bg-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors text-gray-700 dark:text-gray-300"
-                          >
-                            • {item.name}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  );
-                }
-                
-                // NETCONF Quick Filters
                 const nxosFilters = [
                   { name: 'Interfaces', filter: '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><intf-items/></System>' },
                   { name: 'VLANs', filter: '<System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><bd-items/></System>' },

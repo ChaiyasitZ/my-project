@@ -221,19 +221,6 @@ class HttpPollingClient extends EventEmitter {
           }
           break;
         }
-        case 'agent:ssh:exec-show': {
-          // All-in-one: connect → exec show command via shell → disconnect
-          const { deviceId, host, port, username, password, command } = data;
-          try {
-            await this.handlers.ssh.connect({ deviceId, host, port: port || 22, username, password });
-            result = await this.handlers.ssh.execShowCommand(deviceId, command);
-            this.handlers.ssh.disconnect(deviceId);
-          } catch (execErr) {
-            try { this.handlers.ssh.disconnect(deviceId); } catch (e) {}
-            throw execErr;
-          }
-          break;
-        }
         case 'agent:ssh:open-shell': {
           result = await this._openShell(data);
           break;
@@ -535,61 +522,6 @@ class SSHHandler {
       });
     });
   }
-  /**
-   * Execute a show command via interactive shell (works on Cisco IOS/NX-OS).
-   * Connects shell, sends 'terminal length 0', then the command, waits for prompt.
-   */
-  async execShowCommand(deviceId, command) {
-    const conn = this.connections.get(deviceId);
-    if (!conn) throw new Error('Not connected');
-    return new Promise((resolve, reject) => {
-      conn.shell((err, stream) => {
-        if (err) return reject(err);
-        let output = '';
-        let settled = false;
-        const timeout = setTimeout(() => {
-          if (!settled) { settled = true; stream.end(); reject(new Error('Command execution timeout')); }
-        }, 30000);
-        const stripAnsi = (str) => str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '');
-        stream.on('data', (d) => { output += d.toString(); });
-        stream.on('close', () => {
-          if (!settled) { settled = true; clearTimeout(timeout); reject(new Error('Shell closed unexpectedly')); }
-        });
-        const waitForPrompt = (minLen = 0) => {
-          return new Promise((res) => {
-            const start = output.length;
-            const check = setInterval(() => {
-              const newData = stripAnsi(output.substring(start));
-              if (newData.length > minLen && /[A-Za-z0-9_\-]+[#>]\s*$/.test(newData)) {
-                clearInterval(check);
-                res();
-              }
-            }, 300);
-            setTimeout(() => { clearInterval(check); res(); }, 15000);
-          });
-        };
-        (async () => {
-          try {
-            await waitForPrompt();
-            stream.write('terminal length 0\n');
-            await waitForPrompt();
-            const beforeCmd = output.length;
-            stream.write(command + '\n');
-            await waitForPrompt(10);
-            const cmdOutput = stripAnsi(output.substring(beforeCmd));
-            if (!settled) { settled = true; clearTimeout(timeout); stream.end(); }
-            // Clean: remove the command echo (first line) and trailing prompt
-            const lines = cmdOutput.split('\n');
-            const cleaned = lines.slice(1, -1).join('\n').trim();
-            resolve({ success: true, output: cleaned });
-          } catch (e) {
-            if (!settled) { settled = true; clearTimeout(timeout); stream.end(); reject(e); }
-          }
-        })();
-      });
-    });
-  }
-
   async sendConfig(deviceId, commands, enablePassword) {
     const conn = this.connections.get(deviceId);
     if (!conn) throw new Error('Not connected');
