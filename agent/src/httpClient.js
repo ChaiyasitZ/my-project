@@ -212,6 +212,20 @@ export class HttpPollingClient extends EventEmitter {
           break;
         }
 
+        case 'agent:ssh:exec-show': {
+          // All-in-one: connect → exec show command via shell → disconnect
+          const { deviceId, host, port, username, password, command } = data;
+          try {
+            await this.handlers.ssh.connect({ deviceId, host, port: port || 22, username, password });
+            result = await this.handlers.ssh.execShowCommand(deviceId, command);
+            this.handlers.ssh.disconnect(deviceId);
+          } catch (execErr) {
+            try { this.handlers.ssh.disconnect(deviceId); } catch (e) {}
+            throw execErr;
+          }
+          break;
+        }
+
         case 'agent:ssh:open-shell': {
           const shellResult = await this._openShell(data);
           result = shellResult;
