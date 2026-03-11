@@ -1084,22 +1084,6 @@ router.post('/:id/netconf/test', async (req, res) => {
     }
     
     console.log(`🌐 Testing NETCONF connection to ${device.name} (${device.ip_address}:${device.netconf_port || 830})`);
-
-    // Mock mode: forced for Nexus devices
-    if (device.type === 'nexus' || device.netconf_mock_mode) {
-      console.log(`🎭 NETCONF Mock: Test connection to ${device.name} (mock mode)`);
-      return res.json({
-        success: true,
-        message: `NETCONF connection to ${device.name} successful (mock mode)`,
-        connectionTest: {
-          success: true,
-          message: 'Mock connection successful',
-          capabilities: MOCK_NEXUS_CAPABILITIES,
-          response_time: Math.floor(50 + Math.random() * 100)
-        },
-        mock: true
-      });
-    }
     
     // Try agent relay first (Vercel serverless mode)
     const agentOnline = await agentRelay.isAgentOnline(req.userId);
@@ -1273,19 +1257,6 @@ router.post('/:id/netconf/connect', async (req, res) => {
       });
     }
 
-    // Mock mode: forced for Nexus devices
-    if (device.type === 'nexus' || device.netconf_mock_mode) {
-      console.log(`🎭 NETCONF Mock: Connecting to ${device.name} (mock mode)`);
-      netconfService.storeAgentSession(id, MOCK_NEXUS_CAPABILITIES, device.ip_address);
-      return res.json({
-        success: true,
-        message: `NETCONF connected to ${device.name} (mock mode)`,
-        capabilities: MOCK_NEXUS_CAPABILITIES,
-        deviceId: id,
-        mock: true
-      });
-    }
-    
     console.log(`🌐 Connecting NETCONF to ${device.name} (${device.ip_address})`);
     
     // Check if already connected
