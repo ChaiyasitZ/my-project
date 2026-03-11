@@ -74,6 +74,12 @@ class HttpPollingClient extends EventEmitter {
   }
 
   async connect() {
+    // Scan serial ports BEFORE first heartbeat so they are cached immediately
+    try {
+      const result = await this.handlers.console.listPorts();
+      if (result && result.ports) this.cachedPorts = result.ports;
+    } catch (e) {}
+
     await this._sendHeartbeat();
     this.connected = true;
     this.sessionId = `poll-${Date.now()}`;
