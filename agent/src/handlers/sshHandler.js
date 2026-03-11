@@ -264,15 +264,24 @@ export class SSHHandler {
       entry.connection.shell((err, stream) => {
         if (err) return reject(err);
         let output = '';
-        let runningSplitIdx = 0;
         let settled = false;
-        const totalTimeout = isBoth ? 30000 : 20000;
+        const totalTimeout = isBoth ? 45000 : 25000;
         const timeout = setTimeout(() => {
           if (!settled) { settled = true; stream.end(); finish(); }
         }, totalTimeout);
         const finish = () => {
           if (isBoth) {
-            resolve({ runningOutput: output.substring(0, runningSplitIdx), startupOutput: output.substring(runningSplitIdx) });
+            // Use marker-based split: find the 'show startup-config' command echo
+            const marker = 'show startup-config';
+            const splitIdx = output.lastIndexOf(marker);
+            if (splitIdx > 0) {
+              const lineStart = output.lastIndexOf('\n', splitIdx - 1);
+              const runningOutput = output.substring(0, lineStart >= 0 ? lineStart : splitIdx);
+              const startupOutput = output.substring(lineStart >= 0 ? lineStart + 1 : splitIdx);
+              resolve({ runningOutput, startupOutput });
+            } else {
+              resolve({ runningOutput: output, startupOutput: '' });
+            }
           } else {
             resolve({ output });
           }
@@ -287,17 +296,16 @@ export class SSHHandler {
             if (isBoth) {
               stream.write('show running-config\n');
               setTimeout(() => {
-                runningSplitIdx = output.length;
                 stream.write('show startup-config\n');
                 setTimeout(() => {
                   if (!settled) { settled = true; clearTimeout(timeout); stream.end(); finish(); }
-                }, 8000);
-              }, 8000);
+                }, 10000);
+              }, 10000);
             } else {
               stream.write(`show ${configType}\n`);
               setTimeout(() => {
                 if (!settled) { settled = true; clearTimeout(timeout); stream.end(); finish(); }
-              }, 8000);
+              }, 10000);
             }
           }, 1000);
         }, 1000);

@@ -191,14 +191,19 @@ class HttpPollingClient extends EventEmitter {
             if (effectiveType === 'both') {
               // Single session for both configs — avoids opening two shells
               const bothResult = await this.handlers.ssh.execBackupCommands(bk.deviceId, 'both');
+              console.log(`📋 Backup split — running raw: ${(bothResult.runningOutput || '').length} chars, startup raw: ${(bothResult.startupOutput || '').length} chars`);
               runningConfig = cleanConfig(bothResult.runningOutput || '');
               startupConfig = cleanConfig(bothResult.startupOutput || '');
+              console.log(`📋 Backup cleaned — running: ${runningConfig.length} chars, startup: ${startupConfig.length} chars`);
             } else {
               const singleResult = await this.handlers.ssh.execBackupCommands(bk.deviceId, effectiveType);
+              console.log(`📋 Single backup (${effectiveType}) — raw: ${(singleResult.output || '').length} chars`);
               if (effectiveType === 'startup-config') {
                 startupConfig = cleanConfig(singleResult.output || '');
+                console.log(`📋 Cleaned startup: ${startupConfig.length} chars, starts with: ${startupConfig.substring(0, 80)}`);
               } else {
                 runningConfig = cleanConfig(singleResult.output || '');
+                console.log(`📋 Cleaned running: ${runningConfig.length} chars, starts with: ${runningConfig.substring(0, 80)}`);
               }
             }
             this.handlers.ssh.disconnect(bk.deviceId);
@@ -459,15 +464,26 @@ class SSHHandler {
       conn.shell((err, stream) => {
         if (err) return reject(err);
         let output = '';
-        let runningSplitIdx = 0;
         let settled = false;
-        const totalTimeout = isBoth ? 30000 : 20000;
+        const totalTimeout = isBoth ? 45000 : 25000;
         const timeout = setTimeout(() => {
           if (!settled) { settled = true; stream.end(); finish(); }
         }, totalTimeout);
         const finish = () => {
           if (isBoth) {
-            resolve({ runningOutput: output.substring(0, runningSplitIdx), startupOutput: output.substring(runningSplitIdx) });
+            // Use marker-based split: find the 'show startup-config' command echo
+            const marker = 'show startup-config';
+            const splitIdx = output.lastIndexOf(marker);
+            if (splitIdx > 0) {
+              // Find start of the line containing the marker (prompt + command)
+              const lineStart = output.lastIndexOf('\n', splitIdx - 1);
+              const runningOutput = output.substring(0, lineStart >= 0 ? lineStart : splitIdx);
+              const startupOutput = output.substring(lineStart >= 0 ? lineStart + 1 : splitIdx);
+              resolve({ runningOutput, startupOutput });
+            } else {
+              // Fallback: all output as running, empty startup
+              resolve({ runningOutput: output, startupOutput: '' });
+            }
           } else {
             resolve({ output });
           }
@@ -485,17 +501,16 @@ class SSHHandler {
             if (isBoth) {
               stream.write('show running-config\n');
               setTimeout(() => {
-                runningSplitIdx = output.length;
                 stream.write('show startup-config\n');
                 setTimeout(() => {
                   if (!settled) { settled = true; clearTimeout(timeout); stream.end(); finish(); }
-                }, 8000);
-              }, 8000);
+                }, 10000);
+              }, 10000);
             } else {
               stream.write(`show ${configType}\n`);
               setTimeout(() => {
                 if (!settled) { settled = true; clearTimeout(timeout); stream.end(); finish(); }
-              }, 8000);
+              }, 10000);
             }
           }, 1000);
         }, 1000);

@@ -180,16 +180,20 @@ export class HttpPollingClient extends EventEmitter {
             let runningConfig = '';
             let startupConfig = '';
             if (effectiveType === 'both') {
-              // Single session for both configs — avoids opening two shells
               const bothResult = await this.handlers.ssh.execBackupCommands(bk.deviceId, 'both');
+              console.log(`📋 Backup split — running raw: ${(bothResult.runningOutput || '').length} chars, startup raw: ${(bothResult.startupOutput || '').length} chars`);
               runningConfig = cleanConfig(bothResult.runningOutput || '');
               startupConfig = cleanConfig(bothResult.startupOutput || '');
+              console.log(`📋 Backup cleaned — running: ${runningConfig.length} chars, startup: ${startupConfig.length} chars`);
             } else {
               const singleResult = await this.handlers.ssh.execBackupCommands(bk.deviceId, effectiveType);
+              console.log(`📋 Single backup (${effectiveType}) — raw: ${(singleResult.output || '').length} chars`);
               if (effectiveType === 'startup-config') {
                 startupConfig = cleanConfig(singleResult.output || '');
+                console.log(`📋 Cleaned startup: ${startupConfig.length} chars, starts with: ${startupConfig.substring(0, 80)}`);
               } else {
                 runningConfig = cleanConfig(singleResult.output || '');
+                console.log(`📋 Cleaned running: ${runningConfig.length} chars, starts with: ${runningConfig.substring(0, 80)}`);
               }
             }
             this.handlers.ssh.disconnect(bk.deviceId);
