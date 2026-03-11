@@ -159,19 +159,15 @@ export class HttpPollingClient extends EventEmitter {
 
         case 'agent:ssh:backup': {
           // All-in-one: connect → show running/startup config → disconnect
+          // Uses a single shell session to avoid VTY line issues on Cisco devices
           const bk = data;
           try {
             await this.handlers.ssh.connect({ deviceId: bk.deviceId, host: bk.host, port: bk.port || 22, username: bk.username, password: bk.password });
-            const runResult = await this.handlers.ssh.execBackupCommands(bk.deviceId, 'running-config');
-            let startupResult = { output: '' };
-            if (bk.configType !== 'running-config') {
-              try { startupResult = await this.handlers.ssh.execBackupCommands(bk.deviceId, 'startup-config'); } catch (e) {}
-            }
-            this.handlers.ssh.disconnect(bk.deviceId);
+            const effectiveType = bk.configType || 'both';
             const cleanConfig = (raw) => {
               let cleaned = raw.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '');
               const lines = cleaned.split('\n');
-              const start = lines.findIndex(l => l.includes('Current configuration') || /^version\s/.test(l.trim()));
+              const start = lines.findIndex(l => l.includes('Current configuration') || l.includes('Using ') || /^version\s/.test(l.trim()));
               if (start < 0) return cleaned.trim();
               let end = lines.length;
               for (let i = lines.length - 1; i > start; i--) {
@@ -181,15 +177,29 @@ export class HttpPollingClient extends EventEmitter {
               }
               return lines.slice(start, end).join('\n').trim();
             };
-            const runningConfig = cleanConfig(runResult.output || '');
-            const startupConfig = startupResult.output ? cleanConfig(startupResult.output) : '';
+            let runningConfig = '';
+            let startupConfig = '';
+            if (effectiveType === 'both') {
+              // Single session for both configs — avoids opening two shells
+              const bothResult = await this.handlers.ssh.execBackupCommands(bk.deviceId, 'both');
+              runningConfig = cleanConfig(bothResult.runningOutput || '');
+              startupConfig = cleanConfig(bothResult.startupOutput || '');
+            } else {
+              const singleResult = await this.handlers.ssh.execBackupCommands(bk.deviceId, effectiveType);
+              if (effectiveType === 'startup-config') {
+                startupConfig = cleanConfig(singleResult.output || '');
+              } else {
+                runningConfig = cleanConfig(singleResult.output || '');
+              }
+            }
+            this.handlers.ssh.disconnect(bk.deviceId);
             result = {
               success: true,
               runningConfig,
               startupConfig,
               runningConfigSize: Buffer.byteLength(runningConfig),
               startupConfigSize: Buffer.byteLength(startupConfig),
-              configType: bk.configType || 'both'
+              configType: effectiveType
             };
           } catch (bkErr) {
             try { this.handlers.ssh.disconnect(bk.deviceId); } catch (e) {}

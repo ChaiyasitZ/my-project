@@ -158,24 +158,18 @@ class HttpPollingClient extends EventEmitter {
         }
         case 'agent:ssh:backup': {
           // All-in-one: connect → show running/startup config → disconnect
+          // Uses a single shell session to avoid VTY line issues on Cisco devices
           const bk = data;
           try {
             await this.handlers.ssh.connect({ deviceId: bk.deviceId, host: bk.host, port: bk.port || 22, username: bk.username, password: bk.password });
-            
-            // Use shell for backup to properly handle multi-command sequences
-            const runResult = await this.handlers.ssh.execBackupCommands(bk.deviceId, 'running-config');
-            let startupResult = { output: '' };
-            if (bk.configType !== 'running-config') {
-              try { startupResult = await this.handlers.ssh.execBackupCommands(bk.deviceId, 'startup-config'); } catch (e) {}
-            }
-            this.handlers.ssh.disconnect(bk.deviceId);
+            const effectiveType = bk.configType || 'both';
             // Clean config output (remove ANSI codes, command echo, and trailing prompts)
             const cleanConfig = (raw) => {
               // Strip ANSI escape sequences
               let cleaned = raw.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '');
               const lines = cleaned.split('\n');
-              // Find the start of actual config (e.g., "Current configuration" or "version ")
-              const start = lines.findIndex(l => l.includes('Current configuration') || /^version\s/.test(l.trim()));
+              // Find the start of actual config (e.g., "Current configuration", "Using " or "version ")
+              const start = lines.findIndex(l => l.includes('Current configuration') || l.includes('Using ') || /^version\s/.test(l.trim()));
               if (start < 0) return cleaned.trim();
               // Find the end (last "end" line or line with device prompt like "Router#")
               let end = lines.length;
@@ -186,15 +180,29 @@ class HttpPollingClient extends EventEmitter {
               }
               return lines.slice(start, end).join('\n').trim();
             };
-            const runningConfig = cleanConfig(runResult.output || '');
-            const startupConfig = startupResult.output ? cleanConfig(startupResult.output) : '';
+            let runningConfig = '';
+            let startupConfig = '';
+            if (effectiveType === 'both') {
+              // Single session for both configs — avoids opening two shells
+              const bothResult = await this.handlers.ssh.execBackupCommands(bk.deviceId, 'both');
+              runningConfig = cleanConfig(bothResult.runningOutput || '');
+              startupConfig = cleanConfig(bothResult.startupOutput || '');
+            } else {
+              const singleResult = await this.handlers.ssh.execBackupCommands(bk.deviceId, effectiveType);
+              if (effectiveType === 'startup-config') {
+                startupConfig = cleanConfig(singleResult.output || '');
+              } else {
+                runningConfig = cleanConfig(singleResult.output || '');
+              }
+            }
+            this.handlers.ssh.disconnect(bk.deviceId);
             result = {
               success: true,
               runningConfig,
               startupConfig,
               runningConfigSize: Buffer.byteLength(runningConfig),
               startupConfigSize: Buffer.byteLength(startupConfig),
-              configType: bk.configType || 'both'
+              configType: effectiveType
             };
           } catch (bkErr) {
             try { this.handlers.ssh.disconnect(bk.deviceId); } catch (e) {}
@@ -431,35 +439,58 @@ class SSHHandler {
 
   /**
    * Execute backup commands via interactive shell.
-   * Uses shell to properly send 'terminal length 0' then 'show running/startup-config'
-   * as separate commands, since SSH exec doesn't support multi-command sequences on Cisco.
+   * Uses a single shell session to send 'terminal length 0' then the requested
+   * show command(s). When configType is 'both', both running-config and
+   * startup-config are fetched in the same session to avoid VTY line issues.
+   *
+   * Returns { output } for single type, or { runningOutput, startupOutput } for 'both'.
    */
   async execBackupCommands(deviceId, configType = 'running-config') {
     const conn = this.connections.get(deviceId);
     if (!conn) throw new Error('Not connected');
+    const isBoth = configType === 'both';
     return new Promise((resolve, reject) => {
       conn.shell((err, stream) => {
         if (err) return reject(err);
         let output = '';
+        let runningSplitIdx = 0;
         let settled = false;
+        const totalTimeout = isBoth ? 30000 : 20000;
         const timeout = setTimeout(() => {
-          if (!settled) { settled = true; stream.end(); resolve({ output }); }
-        }, 20000);
+          if (!settled) { settled = true; stream.end(); finish(); }
+        }, totalTimeout);
+        const finish = () => {
+          if (isBoth) {
+            resolve({ runningOutput: output.substring(0, runningSplitIdx), startupOutput: output.substring(runningSplitIdx) });
+          } else {
+            resolve({ output });
+          }
+        };
         stream.on('data', (d) => {
           output += d.toString();
         });
         stream.on('close', () => {
-          if (!settled) { settled = true; clearTimeout(timeout); resolve({ output }); }
+          if (!settled) { settled = true; clearTimeout(timeout); finish(); }
         });
         // Wait for initial prompt, then send commands
         setTimeout(() => {
           stream.write('terminal length 0\n');
           setTimeout(() => {
-            stream.write(`show ${configType}\n`);
-            // Wait for output to complete, then close
-            setTimeout(() => {
-              if (!settled) { settled = true; clearTimeout(timeout); stream.end(); resolve({ output }); }
-            }, 8000);
+            if (isBoth) {
+              stream.write('show running-config\n');
+              setTimeout(() => {
+                runningSplitIdx = output.length;
+                stream.write('show startup-config\n');
+                setTimeout(() => {
+                  if (!settled) { settled = true; clearTimeout(timeout); stream.end(); finish(); }
+                }, 8000);
+              }, 8000);
+            } else {
+              stream.write(`show ${configType}\n`);
+              setTimeout(() => {
+                if (!settled) { settled = true; clearTimeout(timeout); stream.end(); finish(); }
+              }, 8000);
+            }
           }, 1000);
         }, 1000);
       });

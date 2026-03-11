@@ -1,1611 +1,454 @@
 %*************************************
-% ภาคผนวก จ.
+% ภาคผนวก ง. (ต่อ) - กระบวนการทำงานของ Desktop Agent
 %*************************************
-\appendixChapterTitle{จ}{ซอร์สโค้ดหลักของระบบ}
-\vspace*{-0.8in}
 
-% ── Local code listing configuration ──────────────
-\definecolor{codebg}{HTML}{F5F5F5}
-\definecolor{codegreen}{HTML}{2E7D32}
-\definecolor{codeblue}{HTML}{1565C0}
-\definecolor{codepurple}{HTML}{7B1FA2}
-\definecolor{codegray}{HTML}{616161}
-\definecolor{codestring}{HTML}{C62828}
-\definecolor{codeborder}{HTML}{BDBDBD}
-
-\lstdefinelanguage{JavaScript}{
-  morekeywords={async,await,break,case,catch,class,const,continue,debugger,default,delete,
-    do,else,export,extends,finally,for,function,if,import,in,instanceof,let,new,of,
-    return,super,switch,this,throw,try,typeof,var,void,while,with,yield,from,as,
-    true,false,null,undefined,static,get,set},
-  sensitive=true,
-  morecomment=[l]{//},
-  morecomment=[s]{/*}{*/},
-  morestring=[b]',
-  morestring=[b]",
-  morestring=[b]`,
-}
-
-\lstdefinelanguage{JSX}{
-  morekeywords={async,await,break,case,catch,class,const,continue,debugger,default,delete,
-    do,else,export,extends,finally,for,function,if,import,in,instanceof,let,new,of,
-    return,super,switch,this,throw,try,typeof,var,void,while,with,yield,from,as,
-    true,false,null,undefined,static,get,set},
-  sensitive=true,
-  morecomment=[l]{//},
-  morecomment=[s]{/*}{*/},
-  morestring=[b]',
-  morestring=[b]",
-  morestring=[b]`,
-}
-
-\lstset{
-  basicstyle=\ttfamily\fontsize{9}{11}\selectfont,
-  backgroundcolor=\color{codebg},
-  keywordstyle=\color{codeblue}\bfseries,
-  commentstyle=\color{codegreen}\itshape,
-  stringstyle=\color{codestring},
-  numberstyle=\tiny\color{codegray},
-  numbers=left,
-  numbersep=8pt,
-  frame=single,
-  rulecolor=\color{codeborder},
-  tabsize=2,
-  breaklines=true,
-  breakatwhitespace=false,
-  showstringspaces=false,
-  showspaces=false,
-  keepspaces=true,
-  columns=flexible,
-  xleftmargin=15pt,
-  framexleftmargin=15pt,
-  aboveskip=8pt,
-  belowskip=8pt,
-  captionpos=b,
-  escapeinside={(*@}{@*)},
-  literate={é}{{\'e}}1 {è}{{\`e}}1 {ê}{{\^e}}1,
-}
-% ── End local code listing configuration ──────────
-
-\section{โครงสร้างระบบฝั่งเซิร์ฟเวอร์ (Backend)}
+\section{ภาพรวม Desktop Agent}
+\hspace*{1.3em}
+Desktop Agent เป็นโปรแกรมที่ทำงานบนเครื่องคอมพิวเตอร์ของผู้ใช้ ทำหน้าที่เป็นตัวกลาง (Relay) ระหว่าง Backend บน Vercel Serverless กับอุปกรณ์เครือข่ายภายในองค์กร เนื่องจาก Vercel Serverless Functions ไม่สามารถเชื่อมต่อ SSH/NETCONF ไปยังอุปกรณ์ในเครือข่ายภายในได้โดยตรง Agent จึงทำหน้าที่รับคำสั่งจาก Backend ผ่าน HTTP Polling ดำเนินการกับอุปกรณ์เครือข่ายในเครื่อง และส่งผลลัพธ์กลับไปยัง Backend
 
 \hspace*{1.3em}
-ในส่วนนี้แสดงซอร์สโค้ดหลักของระบบแบ่งตามโมดูล ประกอบด้วย Express Server, Authentication, LLM Service, SSH Service, NETCONF Service, Console Service, Agent Relay Service, API Routes, Vercel Serverless Handler และฝั่ง Frontend ที่ใช้ React
+Agent ประกอบด้วย 4 Handler หลัก ดังนี้
 
-%% ─────────────────────────────────────
-\subsection{Express Server (server.js)}
+\begin{mycustomenum2}
+    \item \textbf{SSH Handler:} จัดการการเชื่อมต่อ SSH ไปยังอุปกรณ์เครือข่าย สำหรับสั่งงาน CLI, สำรองข้อมูล (Backup) และ Deploy Configuration
+    \item \textbf{NETCONF Handler:} จัดการ NETCONF Session ผ่าน SSH Subsystem สำหรับ Deploy Configuration แบบ XML/YANG
+    \item \textbf{Console Handler:} จัดการการเชื่อมต่อผ่าน Serial Port (Console Cable) สำหรับตั้งค่าเริ่มต้นอุปกรณ์ที่ยังไม่มี IP Address
+    \item \textbf{Ollama Handler:} เชื่อมต่อกับ Ollama LLM Server ที่ทำงานบนเครื่องผู้ใช้ สำหรับสร้าง Configuration จากภาษาธรรมชาติ
+\end{mycustomenum2}
+
+\section{การสื่อสารแบบ HTTP Polling}
 \hspace*{1.3em}
-ไฟล์หลักของเซิร์ฟเวอร์ Express ที่ทำหน้าที่ตั้งค่า Middleware, Security, CORS, Routes และเชื่อมต่อ MongoDB Atlas รวมถึง Vercel Serverless Handler
-
-\begin{lstlisting}[language=JavaScript, caption={server.js -- Express Server Setup}]
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import mongoose from 'mongoose';
-import session from 'express-session';
-import { config } from './config/config.js';
-import { mongooseOptions } from './lib/mongodb.js';
-import { compressionMiddleware, responseTimeMiddleware }
-  from './middleware/performance.js';
-import devicesRouter from './routes/devices.js';
-import configurationsRouter from './routes/configurations.js';
-import consoleRouter from './routes/console.js';
-import backupsRouter from './routes/backups.js';
-import yangModelsRouter from './routes/yangModels.js';
-import authRouter, { passport } from './routes/auth.js';
-import agentRouter from './routes/agent.js';
-
-const app = express();
-
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false
-}));
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 5 * 60 * 1000,
-  max: 1000,
-  message: { success: false,
-    message: 'Too many requests, please try again later.'
-  },
-  skip: (req) => {
-    return req.url.includes('/console')
-      || req.url.includes('/health')
-      || req.url.includes('/backups');
-  }
-});
-
-if (config.server.nodeEnv === 'production') {
-  app.use('/api/', limiter);
-}
-
-app.use(cors(config.cors));
-app.use(compressionMiddleware);
-app.use(responseTimeMiddleware);
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// Session configuration (required for Passport)
-app.use(session({
-  secret: config.auth.sessionSecret,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: config.server.nodeEnv === 'production',
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000
-  }
-}));
-
-app.use(passport.initialize());
-app.use(passport.session());
-
-// Health check endpoint
-app.get('/api/health', async (req, res) => {
-  try {
-    if (mongoose.connection.readyState === 1) {
-      await mongoose.connection.db.admin().ping();
-    } else {
-      throw new Error('MongoDB not connected');
-    }
-    res.json({
-      success: true, message: 'Server is healthy',
-      timestamp: new Date().toISOString(),
-      version: '2.0.0',
-      environment: config.server.nodeEnv,
-      database: 'MongoDB Atlas'
-    });
-  } catch (error) {
-    res.status(503).json({
-      success: false, message: 'Server is unhealthy',
-      error: error.message
-    });
-  }
-});
-
-// API routes
-app.use('/api/auth', authRouter);
-app.use('/api/devices', devicesRouter);
-app.use('/api/configurations', configurationsRouter);
-app.use('/api/console', consoleRouter);
-app.use('/api/backups', backupsRouter);
-app.use('/api/yang-models', yangModelsRouter);
-app.use('/api/agent', agentRouter);
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
-  res.status(err.status || 500).json({
-    success: false,
-    message: config.server.nodeEnv === 'production'
-      ? 'Internal server error' : err.message
-  });
-});
-
-// MongoDB connection
-async function connectToMongoDB() {
-  try {
-    await mongoose.connect(
-      config.database.mongodb_uri, mongooseOptions
-    );
-    console.log('Connected to MongoDB Atlas');
-  } catch (error) {
-    console.error('Failed to connect to MongoDB:', error);
-    if (!process.env.VERCEL) process.exit(1);
-    throw error;
-  }
-}
-
-// Vercel serverless handler
-export default async (req, res) => {
-  if (process.env.VERCEL) await connectDB();
-  return app(req, res);
-};
-\end{lstlisting}
-
-%% ─────────────────────────────────────
-\subsection{Authentication Middleware (auth.js)}
-\hspace*{1.3em}
-Middleware สำหรับตรวจสอบสิทธิ์ผู้ใช้ด้วย JWT Token พร้อมระบบ Cache เพื่อลดการอ่านฐานข้อมูลซ้ำ
-
-\begin{lstlisting}[language=JavaScript, caption={middleware/auth.js -- JWT Authentication}]
-import jwt from 'jsonwebtoken';
-import { config } from '../config/config.js';
-import User from '../models/User.js';
-
-const userCache = new Map();
-const USER_CACHE_TTL = 60 * 1000;
-
-function getCachedUser(userId) {
-  const entry = userCache.get(userId);
-  if (entry && Date.now() - entry.timestamp < USER_CACHE_TTL)
-    return entry.user;
-  if (entry) userCache.delete(userId);
-  return null;
-}
-
-function setCachedUser(userId, user) {
-  userCache.set(userId, { user, timestamp: Date.now() });
-  if (userCache.size > 500) {
-    const oldest = userCache.keys().next().value;
-    userCache.delete(oldest);
-  }
-}
-
-export const authenticateToken = async (req, res, next) => {
-  try {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    if (!token) return res.status(401).json({
-      success: false, message: 'Access token required'
-    });
-
-    const decoded = jwt.verify(token, config.auth.jwtSecret);
-    let user = getCachedUser(decoded.userId);
-    if (!user) {
-      user = await User.findById(decoded.userId).lean();
-      if (user) setCachedUser(decoded.userId, user);
-    }
-    if (!user) return res.status(401).json({
-      success: false, message: 'User not found'
-    });
-    if (!user.isActive) return res.status(403).json({
-      success: false, message: 'Account is deactivated'
-    });
-
-    req.user = user;
-    req.userId = user._id;
-    next();
-  } catch (error) {
-    if (error.name === 'TokenExpiredError')
-      return res.status(401).json({
-        success: false, message: 'Token expired',
-        code: 'TOKEN_EXPIRED'
-      });
-    if (error.name === 'JsonWebTokenError')
-      return res.status(401).json({
-        success: false, message: 'Invalid token'
-      });
-    return res.status(500).json({
-      success: false, message: 'Authentication error'
-    });
-  }
-};
-
-export const generateToken = (user) => {
-  return jwt.sign(
-    { userId: user._id, email: user.email, role: user.role },
-    config.auth.jwtSecret,
-    { expiresIn: config.auth.jwtExpiresIn || '7d' }
-  );
-};
-
-export const generateRefreshToken = (user) => {
-  return jwt.sign(
-    { userId: user._id, type: 'refresh' },
-    config.auth.jwtSecret,
-    { expiresIn: '30d' }
-  );
-};
-\end{lstlisting}
-
-%% ─────────────────────────────────────
-\subsection{LLM Service (llmService.js)}
-\hspace*{1.3em}
-บริการหลักสำหรับการเชื่อมต่อกับ Large Language Model (LLM) รองรับทั้ง OpenRouter (Cloud) และ Ollama (Local ผ่าน Agent) เพื่อสร้าง Configuration อัตโนมัติสำหรับอุปกรณ์ Cisco
-
-\begin{lstlisting}[language=JavaScript, caption={services/llmService.js -- LLM Service Class}]
-import axios from 'axios';
-import agentRelay from './agentRelay.js';
-
-    this.defaultParams = {
-      temperature: 0.1, max_tokens: 1000,
-      top_p: 0.85, frequency_penalty: 0.3,
-      presence_penalty: 0.2,
-      stop: ['```', 'Here are', 'Sure', 'Note:']
-    };
-
-    this.cache = new Map();
-    this.cacheTTL = 5 * 60 * 1000;
-    this.maxCacheSize = 100;
-
-    this.rateLimiter = {
-      requests: [], maxRequests: 30,
-      windowMs: 60 * 1000
-    };
-
-    this.knowledgeBase = this._initializeKnowledgeBase();
-  
-\end{lstlisting}
-
-\begin{lstlisting}[language=JavaScript, caption={llmService.js -- Chat Completion และ Ollama Relay}]
-  async _callChatCompletion(messages, params = {}, userId = null) {
-    if (this.provider === 'ollama') {
-      return this._chatViaOllama(userId, messages, params);
-    }
-    const response = await this.client.post(
-      '/chat/completions', {
-      model: params.model || this.model,
-      messages,
-      temperature: params.temperature
-        ?? this.defaultParams.temperature,
-      max_tokens: params.max_tokens
-        ?? this.defaultParams.max_tokens,
-      top_p: params.top_p ?? this.defaultParams.top_p,
-    });
-    return response.data;
-  }
-
-  async _chatViaOllama(userId, messages, params = {}) {
-    if (!userId)
-      throw new Error('Ollama mode requires an active agent.');
-    const isOnline = await agentRelay.isAgentOnline(userId);
-    if (!isOnline)
-      throw new Error('Agent not connected.');
-
-    const result = await agentRelay.sendToAgent(
-      userId, 'agent:ollama:chat', {
-      messages,
-      model: params.model || this.ollamaModel,
-      temperature: params.temperature
-        ?? this.defaultParams.temperature,
-      max_tokens: params.max_tokens
-        ?? this.defaultParams.max_tokens,
-    }, 8000);
-
-    if (result.pending) {
-      return { pending: true, commandId: result.commandId };
-    }
-    return result;
-  }
-\end{lstlisting}
-
-\begin{lstlisting}[language=JavaScript, caption={llmService.js -- generateConfiguration}]
-  async generateConfiguration(
-    prompt, deviceType, deviceContext = {},
-    templateName = 'cisco_cli', useCache = true,
-    options = {}
-  ) {
-    const startTime = Date.now();
-    this.stats.totalRequests++;
-    try {
-      if (useCache) {
-        const cacheKey = this._getCacheKey(
-          prompt, deviceType, 'cli'
-        );
-        const cached = this._getFromCache(cacheKey);
-        if (cached) return {
-          ...cached, fromCache: true,
-          executionTime: Date.now() - startTime
-        };
-      }
-      this._checkRateLimit();
-
-      let systemMessage, userMessage;
-      const built = this.buildFromTemplate(
-        templateName, prompt, deviceType, deviceContext
-      );
-      if (built.success) {
-        systemMessage = built.system;
-        userMessage = built.user;
-      } else {
-        systemMessage = this._buildSystemMessage(
-          prompt, deviceType);
-        userMessage = this._buildUserMessage(
-          prompt, deviceType, deviceContext);
-      }
-
-      const messages = [
-        { role: 'system', content: systemMessage },
-        { role: 'user', content: userMessage }
-      ];
-
-      let llmResponse;
-      let retryCount = 0;
-      const maxRetries = this.provider === 'ollama' ? 0 : 2;
-      while (retryCount <= maxRetries) {
-        try {
-          llmResponse = await this._callChatCompletion(
-            messages, this.defaultParams,
-            options.userId || null
-          );
-          break;
-        } catch (apiError) {
-          retryCount++;
-          if (retryCount > maxRetries) throw apiError;
-          await new Promise(r =>
-            setTimeout(r, 1000 * retryCount));
-        }
-      }
-
-      if (llmResponse.pending) {
-        return {
-          success: true, pending: true,
-          commandId: llmResponse.commandId,
-          message: 'Generation in progress via Ollama.'
-        };
-      }
-
-      const rawConfig = llmResponse?.choices?.[0]
-        ?.message?.content?.trim();
-      if (!rawConfig) throw new Error('Empty response');
-
-      const cleanConfig = this._cleanConfiguration(rawConfig);
-      const ensuredConfig = this._ensureTrunkAllowed(
-        cleanConfig, prompt);
-      const deployConfig = this._createDeploymentVersion(
-        ensuredConfig);
-      const validation = this._validateConfiguration(
-        ensuredConfig, deviceType);
-
-      const result = {
-        success: true,
-        configuration: deployConfig,
-        displayConfig: ensuredConfig,
-        model: this.getActiveModel(),
-        provider: this.provider,
-        deviceType,
-        executionTime: Date.now() - startTime,
-        validation,
-        confidenceScore: validation.score,
-        fromCache: false
-      };
-
-      if (useCache) {
-        const cacheKey = this._getCacheKey(
-          prompt, deviceType, 'cli');
-        this._setCache(cacheKey, result);
-      }
-      return result;
-    } catch (error) {
-      this.stats.errors++;
-      return {
-        success: false,
-        error: 'Generation failed: ' + error.message,
-        configuration: null,
-        executionTime: Date.now() - startTime
-      };
-    }
-  }
-\end{lstlisting}
-
-%% ─────────────────────────────────────
-\subsection{SSH Service (sshService.js)}
-\hspace*{1.3em}
-บริการสำหรับเชื่อมต่อ SSH ไปยังอุปกรณ์เครือข่าย รองรับ Session Reuse, การ Deploy Configuration ผ่าน Shell
-
-\begin{lstlisting}[language=JavaScript, caption={services/sshService.js -- SSH Service Class}]
-let Client;
-try {
-  const ssh2 = await import('ssh2');
-  Client = ssh2.Client;
-} catch (e) {
-  console.warn('ssh2 not available (serverless mode)');
-}
-
-export class SSHService {
-  constructor() {
-    this.connections = new Map();
-    this.persistentSessions = new Map();
-    this.sessionTimeout = 600000;
-    this.maxSessionsPerDevice = 3;
-    this.commandQueue = new Map();
-    this.sessionPool = new Map();
-
-    this.cleanupInterval = setInterval(() => {
-      this.cleanupExpiredSessions();
-      this.optimizeSessionPool();
-    }, 120000);
-
-    this.healthCheckInterval = setInterval(() => {
-      this.healthCheckSessions();
-    }, 30000);
-  }
-
-  async connect(deviceConfig) {
-    const { id, _id, ip_address, ssh_port,
-            username, password } = deviceConfig;
-    const deviceId = id || _id;
-    this.disconnect(deviceId);
-
-    return new Promise((resolve, reject) => {
-      const conn = new Client();
-      const timeout = setTimeout(() => {
-        conn.end();
-        reject(new Error('SSH connection timeout'));
-      }, 10000);
-
-      conn.on('ready', () => {
-        clearTimeout(timeout);
-        conn._isReady = true;
-        this.connections.set(deviceId, {
-          connection: conn,
-          createdAt: Date.now(),
-          lastUsed: Date.now(),
-          isReady: true
-        });
-        resolve(conn);
-      });
-
-      conn.on('error', (err) => {
-        clearTimeout(timeout);
-        conn._isReady = false;
-        this.connections.delete(deviceId);
-        reject(err);
-      });
-
-      conn.connect({
-        host: ip_address,
-        port: ssh_port || 22,
-        username, password,
-        readyTimeout: 15000,
-        authTimeout: 10000,
-        tryKeyboard: true,
-        keepaliveInterval: 15000,
-        keepaliveCountMax: 5,
-        algorithms: {
-          kex: ['diffie-hellman-group14-sha1',
-                'ecdh-sha2-nistp256'],
-          cipher: ['aes128-ctr', 'aes256-ctr',
-                   'aes128-cbc', '3des-cbc'],
-        }
-      });
-    });
-  }
-\end{lstlisting}
-
-\begin{lstlisting}[language=JavaScript, caption={sshService.js -- sendConfigCommands (Deploy Configuration)}]
-  async sendConfigCommands(deviceConfig, commands,
-    options = {}
-  ) {
-    const { tolerateErrors = false,
-            useSession = true } = options;
-    let conn, sessionReused = false;
-    const deviceId = deviceConfig.id || deviceConfig._id;
-    const sessionKey = deviceId + '_persistent';
-
-    // Try reuse existing persistent session
-    if (useSession) {
-      const existing =
-        this.persistentSessions.get(sessionKey);
-      if (existing && this.isSessionValid(existing)) {
-        conn = existing.connection;
-        existing.lastUsed = Date.now();
-        existing.useCount++;
-        sessionReused = true;
-      } else {
-        conn = await this.connect(deviceConfig);
-        this.persistentSessions.set(sessionKey, {
-          connection: conn, deviceId, deviceConfig,
-          createdAt: Date.now(),
-          lastUsed: Date.now(), useCount: 1
-        });
-      }
-    } else {
-      conn = await this.connect(deviceConfig);
-    }
-
-    // Create shell
-    let stream;
-    try {
-      stream = await new Promise((resolve, reject) => {
-        conn.shell({ pty: true },
-          (err, s) => err ? reject(err) : resolve(s));
-      });
-    } catch (shellError) {
-      this.persistentSessions.delete(sessionKey);
-      conn = await this.connect(deviceConfig);
-      stream = await new Promise((resolve, reject) => {
-        conn.shell({ pty: true },
-          (err, s) => err ? reject(err) : resolve(s));
-      });
-    }
-
-    return new Promise((resolve, reject) => {
-      let output = '', currentStep = 0;
-      let errorCount = 0, hasErrors = false;
-      const configCommands = commands.split('\n')
-        .map(c => c.trim())
-        .filter(c => c
-          && !c.startsWith('configure terminal')
-          && !c.startsWith('end'));
-      const allCommands = [
-        'enable', 'configure terminal',
-        ...configCommands, 'end', 'write memory'
-      ];
-
-      const timeout = setTimeout(() => {
-        stream.end();
-        reject(new Error('Deployment timeout'));
-      }, 30000);
-
-      const sendNextCommand = () => {
-        if (currentStep >= allCommands.length) {
-          clearTimeout(timeout);
-          setTimeout(() => {
-            stream.end();
-            resolve({
-              success: true, output: output.trim(),
-              commandsExecuted: allCommands,
-              errorCount, sessionReused
-            });
-          }, 2000);
-          return;
-        }
-        stream.write(
-          allCommands[currentStep] + '\r\n');
-        currentStep++;
-      };
-
-      stream.on('data', (data) => {
-        const chunk = data.toString();
-        output += chunk;
-        if (chunk.includes('#')
-          || chunk.includes('Password:')
-          || chunk.includes('(config)#')) {
-          setTimeout(sendNextCommand, 500);
-        }
-        if (chunk.toLowerCase().includes('password:'))
-          stream.write(
-            deviceConfig.password + '\r\n');
-        if (chunk.includes('% Invalid')
-          || chunk.includes('% Error')) {
-          errorCount++; hasErrors = true;
-        }
-      });
-    });
-  }
-\end{lstlisting}
-
-%% ─────────────────────────────────────
-\subsection{NETCONF Service (netconfService.js)}
-\hspace*{1.3em}
-บริการสำหรับการเชื่อมต่อ NETCONF (RFC 6241) ผ่าน SSH Subsystem รองรับทั้ง Cisco NX-OS (Nexus) และ IOS-XE พร้อม YANG Model Operations
-
-\begin{lstlisting}[language=JavaScript, caption={services/netconfService.js -- NETCONF Service Class}]
-let Client;
-try {
-  const ssh2 = await import('ssh2');
-  Client = ssh2.Client;
-} catch (e) {
-  console.warn('ssh2 not available (serverless mode)');
-}
-
-export class NetconfService {
-  constructor() {
-    this.connections = new Map();
-    this.defaultPort = 830;
-    this.sessionTimeout = 300000;
-
-    this.NAMESPACES = {
-      'nxos':
-        'http://cisco.com/ns/yang/cisco-nx-os-device',
-      'ios-xe':
-        'http://cisco.com/ns/yang/Cisco-IOS-XE-native',
-    };
-
-    this.ROOT_ELEMENTS = {
-      'nxos': 'System', 'nexus': 'System',
-      'ios-xe': 'native', 'ios': 'native'
-    };
-
-    this.NETCONF_HELLO = '<?xml version="1.0"?>\n'
-      + '<hello xmlns="urn:ietf:params:xml:ns:'
-      + 'netconf:base:1.0">\n  <capabilities>\n'
-      + '    <capability>urn:ietf:params:netconf:'
-      + 'base:1.0</capability>\n'
-      + '    <capability>urn:ietf:params:netconf:'
-      + 'capability:writable-running:1.0'
-      + '</capability>\n'
-      + '    <capability>urn:ietf:params:netconf:'
-      + 'capability:candidate:1.0</capability>\n'
-      + '  </capabilities>\n</hello>]]>]]>';
-
-    this.MESSAGE_DELIMITER = ']]>]]>';
-  }
-\end{lstlisting}
-
-\begin{lstlisting}[language=JavaScript, caption={netconfService.js -- connect}]
-  async connect(deviceConfig) {
-    if (!Client) throw new Error(
-      'NETCONF not available. Use agent relay.');
-    const { id, _id, ip_address, username,
-            password, netconf_port } = deviceConfig;
-    const deviceId = id || _id;
-    const port = netconf_port || this.defaultPort;
-    this.disconnect(deviceId);
-
-    return new Promise((resolve, reject) => {
-      const conn = new Client();
-      const timeout = setTimeout(() => {
-        conn.end();
-        reject(new Error('NETCONF connection timeout'));
-      }, 30000);
-
-      conn.on('ready', () => {
-        clearTimeout(timeout);
-        conn.subsys('netconf', (err, stream) => {
-          if (err) { conn.end(); reject(err); return; }
-          let serverHello = '';
-          let helloReceived = false;
-
-          const helloHandler = (data) => {
-            serverHello += data.toString();
-            if (serverHello.includes(
-              this.MESSAGE_DELIMITER)
-              && !helloReceived
-            ) {
-              helloReceived = true;
-              stream.removeListener(
-                'data', helloHandler);
-              const capabilities =
-                this.parseCapabilities(serverHello);
-              stream.write(this.NETCONF_HELLO,
-                'utf8', (err) => {
-                if (err) { reject(err); return; }
-                this.connections.set(deviceId, {
-                  connection: conn, stream,
-                  capabilities,
-                  createdAt: Date.now(),
-                  lastUsed: Date.now()
-                });
-                resolve({
-                  success: true, deviceId,
-                  capabilities,
-                  message: 'NETCONF session established'
-                });
-              });
-            }
-          };
-          stream.on('data', helloHandler);
-        });
-      });
-
-      conn.connect({
-        host: ip_address, port,
-        username, password,
-        readyTimeout: 30000,
-        algorithms: {
-          kex: ['diffie-hellman-group14-sha256',
-                'ecdh-sha2-nistp256'],
-          cipher: ['aes256-ctr', 'aes128-ctr']
-        }
-      });
-    });
-  }
-\end{lstlisting}
-
-\begin{lstlisting}[language=JavaScript, caption={netconfService.js -- sendRpc และ editConfig}]
-  async sendRpc(deviceId, rpcContent,
-    messageId = null, timeoutMs = 60000
-  ) {
-    const session = this.connections.get(deviceId);
-    if (!session)
-      throw new Error('No active NETCONF session');
-    session.lastUsed = Date.now();
-    const msgId = messageId || 'msg-' + Date.now();
-
-    const rpcMessage =
-      '<?xml version="1.0" encoding="UTF-8"?>\n'
-      + '<rpc message-id="' + msgId
-      + '" xmlns="urn:ietf:params:xml:ns:'
-      + 'netconf:base:1.0">\n'
-      + rpcContent
-      + '\n</rpc>' + this.MESSAGE_DELIMITER;
-
-    return new Promise((resolve, reject) => {
-      let response = '';
-      const timeout = setTimeout(() => {
-        session.stream.removeListener(
-          'data', dataHandler);
-        reject(new Error('NETCONF timeout'));
-      }, timeoutMs);
-
-      const dataHandler = (data) => {
-        response += data.toString();
-        if (response.includes(
-          this.MESSAGE_DELIMITER)) {
-          clearTimeout(timeout);
-          session.stream.removeListener(
-            'data', dataHandler);
-          const clean = response
-            .replace(this.MESSAGE_DELIMITER, '')
-            .trim();
-          if (clean.includes('<rpc-error>')) {
-            reject(new Error('NETCONF error: '
-              + this.parseRpcError(clean)));
-          } else {
-            resolve({
-              success: true,
-              messageId: msgId,
-              response: clean
-            });
-          }
-        }
-      };
-      session.stream.on('data', dataHandler);
-      session.stream.write(rpcMessage, 'utf8');
-    });
-  }
-
-  async editConfig(deviceId, configXml,
-    target = 'running',
-    defaultOperation = 'merge'
-  ) {
-    const rpc = '  <edit-config>'
-      + '<target><' + target + '/></target>'
-      + '<default-operation>' + defaultOperation
-      + '</default-operation>'
-      + '<config>\n' + configXml
-      + '\n    </config></edit-config>';
-    return await this.sendRpc(deviceId, rpc, null, 90000);
-  }
-
-  async getRunningConfig(deviceId, filter = null) {
-    let filterXml = filter
-      ? '\n  <filter type="subtree">'
-        + filter + '</filter>'
-      : '';
-    return await this.sendRpc(deviceId,
-      '  <get-config><source><running/></source>'
-      + filterXml + '</get-config>', null, 180000);
-  }
-\end{lstlisting}
-
-%% ─────────────────────────────────────
-\subsection{Console Service (consoleService.js)}
-\hspace*{1.3em}
-บริการสำหรับเชื่อมต่อผ่าน Serial Console (RS-232/USB) เพื่อทำ Initial Configuration ของอุปกรณ์เครือข่ายที่ยังไม่มี IP Address
-
-\begin{lstlisting}[language=JavaScript, caption={services/consoleService.js -- Console Service}]
-let SerialPort, ReadlineParser;
-try {
-  const sp = await import('serialport');
-  SerialPort = sp.SerialPort;
-  const rp = await import(
-    '@serialport/parser-readline');
-  ReadlineParser = rp.ReadlineParser;
-} catch (e) {
-  console.warn('serialport not available');
-}
-
-export class ConsoleService {
-  constructor() {
-    this.connections = new Map();
-    this.serialPortAvailable = !!SerialPort;
-    this.defaultSettings = {
-      baudRate: 9600, dataBits: 8,
-      parity: 'none', stopBits: 1,
-      flowControl: false
-    };
-  }
-
-  async getAvailablePorts() {
-    const ports = await SerialPort.list();
-    const formattedPorts = ports.map(port => {
-      let displayName = port.path;
-      if (port.manufacturer) {
-        if (port.manufacturer.toLowerCase()
-          .includes('ftdi'))
-          displayName = port.path
-            + ' - FTDI USB Serial';
-        else
-          displayName = port.path
-            + ' - ' + port.manufacturer;
-      }
-      return {
-        path: port.path,
-        manufacturer: port.manufacturer || 'Unknown',
-        vendorId: port.vendorId || 'N/A',
-        friendlyName: displayName,
-        isUSB: port.path.includes('USB')
-      };
-    });
-    return {
-      success: true, ports: formattedPorts,
-      count: formattedPorts.length
-    };
-  }
-
-  async connectConsole(connectionConfig) {
-    const { deviceId, portPath, baudRate } =
-      connectionConfig;
-    if (this.connections.has(deviceId))
-      await this.disconnectConsole(deviceId);
-
-    const port = new SerialPort({
-      path: portPath,
-      baudRate: baudRate || 9600,
-      dataBits: 8, parity: 'none', stopBits: 1,
-      autoOpen: false
-    });
-    const parser = port.pipe(
-      new ReadlineParser({ delimiter: '\r\n' }));
-
-    return new Promise((resolve, reject) => {
-      port.open((err) => {
-        if (err) { reject(err); return; }
-        this.connections.set(deviceId, {
-          port, parser, portPath,
-          connectedAt: new Date()
-        });
-        resolve({
-          success: true,
-          message: 'Console connected via ' + portPath
-        });
-      });
-    });
-  }
-
-  async sendInitialConfig(deviceId, configCommands) {
-    const connection = this.connections.get(deviceId);
-    if (!connection)
-      throw new Error('No active console connection');
-    let configResults = [];
-    const commands = configCommands.split('\n')
-      .map(l => l.trim())
-      .filter(l => l && !l.startsWith('#'));
-
-    for (let i = 0; i < commands.length; i++) {
-      try {
-        const result = await this.sendConsoleCommand(
-          deviceId, commands[i], true);
-        configResults.push({
-          command: commands[i], success: true,
-          output: result.output, sequence: i + 1
-        });
-        await new Promise(r => setTimeout(r, 500));
-      } catch (cmdError) {
-        configResults.push({
-          command: commands[i], success: false,
-          error: cmdError.message, sequence: i + 1
-        });
-      }
-    }
-
-    const successCount =
-      configResults.filter(r => r.success).length;
-    return {
-      success: true,
-      message: 'Initial configuration completed: '
-        + successCount + '/' + configResults.length,
-      results: configResults
-    };
-  }
-}
-
-export default new ConsoleService();
-\end{lstlisting}
-
-%% ─────────────────────────────────────
-\subsection{Agent Relay Service (agentRelay.js)}
-\hspace*{1.3em}
-บริการ Relay สำหรับสื่อสารระหว่าง Backend (Vercel Serverless) กับ Desktop Agent ผ่าน MongoDB Command Queue โดยใช้ HTTP Polling เป็นกลไกการสื่อสาร
-
-\begin{lstlisting}[language=JavaScript, caption={services/agentRelay.js -- Agent Relay (HTTP Polling)}]
-import AgentCommand from '../models/AgentCommand.js';
-import AgentHeartbeat from '../models/AgentHeartbeat.js';
-import Notification from '../models/Notification.js';
-
-class AgentRelay {
-  constructor() {}
-
-  initialize() {
-    console.log('Agent relay initialized');
-  }
-
-  async sendToAgent(userId, event, data,
-    timeoutMs = 8000
-  ) {
-    const online = await this.isAgentOnline(userId);
-    if (!online) throw new Error('No agent connected.');
-
-    const command = await AgentCommand.create({
-      userId, event, data, status: 'pending'
-    });
-    const maxWait = Math.min(timeoutMs, 55000);
-    const pollInterval = 300;
-    const startTime = Date.now();
-
-    while (Date.now() - startTime < maxWait) {
-      const updated = await AgentCommand
-        .findById(command._id);
-      if (updated.status === 'completed')
-        return {
-          success: true, ...(updated.result || {})
-        };
-      if (updated.status === 'failed')
-        throw new Error(
-          updated.error || 'Command failed');
-      await new Promise(r =>
-        setTimeout(r, pollInterval));
-    }
-
-    return {
-      success: false, pending: true,
-      commandId: command._id.toString(),
-      message: 'Command sent. Poll for result.'
-    };
-  }
-
-  async isAgentOnline(userId) {
-    const agent = await AgentHeartbeat
-      .getOnlineAgent(userId.toString());
-    return !!agent;
-  }
-
-  async getAgentInfo(userId) {
-    return await AgentHeartbeat
-      .getOnlineAgent(userId.toString());
-  }
-}
-
-const agentRelay = new AgentRelay();
-export default agentRelay;
-\end{lstlisting}
-
-%% ─────────────────────────────────────
-\subsection{Device Routes (routes/devices.js)}
-\hspace*{1.3em}
-Express Routes สำหรับจัดการอุปกรณ์เครือข่าย (CRUD) พร้อม Joi Validation, Duplicate Check และ Cache Invalidation
-
-\begin{lstlisting}[language=JavaScript, caption={routes/devices.js -- Device Validation Schema และ CRUD}]
-import express from 'express';
-import Joi from 'joi';
-import Device from '../models/Device.js';
-import sshService from '../services/sshService.js';
-import netconfService
-  from '../services/netconfService.js';
-import { authenticateToken }
-  from '../middleware/auth.js';
-import { getOrSetCache, invalidateCache, CacheKeys }
-  from '../lib/cache.js';
-
-const router = express.Router();
-router.use(authenticateToken);
-
-const deviceSchema = Joi.object({
-  name: Joi.string().required().max(255),
-  type: Joi.string().valid(
-    'router', 'switch', 'nexus', 'ios-xe'
-  ).required(),
-  layer: Joi.string().valid('layer-2', 'layer-3')
-    .optional().allow('', null),
-  ip_address: Joi.string().ip().required(),
-  ssh_port: Joi.number().integer()
-    .min(1).max(65535).default(22),
-  netconf_port: Joi.number().integer()
-    .min(1).max(65535).default(830),
-  netconf_enabled: Joi.boolean().default(false),
-  username: Joi.string().required().max(255),
-  password: Joi.string().required().max(255),
-  description: Joi.string().allow('').max(1000),
-  location: Joi.string().allow('').max(255),
-  model: Joi.string().allow('').max(255),
-  status: Joi.string().valid(
-    'active', 'inactive', 'maintenance', 'error'
-  ).default('active')
-}).options({ stripUnknown: true });
-
-// GET /api/devices
-router.get('/', async (req, res) => {
-  try {
-    const { status, type, limit = 50,
-            offset = 0 } = req.query;
-    const filter = { userId: req.userId };
-    if (status) filter.status = status;
-    if (type) filter.type = type;
-
-    const devices = await Device.aggregate([
-      { $match: filter },
-      { $sort: { createdAt: -1 } },
-      { $skip: parseInt(offset) },
-      { $limit: parseInt(limit) },
-      { $lookup: {
-          from: 'configurationhistories',
-          localField: '_id',
-          foreignField: 'device_id',
-          as: 'config_history'
-      }},
-      { $addFields: {
-          id: '$_id',
-          total_configs: {
-            $size: '$config_history' },
-          deployed_configs: {
-            $size: { $filter: {
-              input: '$config_history',
-              as: 'c',
-              cond: { $eq: [
-                '$$c.status', 'deployed'] }
-            }}
-          }
-      }}
-    ]);
-    res.json({ success: true, devices });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch devices'
-    });
-  }
-});
-
-// PUT /api/devices/:id
-router.put('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { error, value } =
-      deviceUpdateSchema.validate(req.body);
-    if (error) return res.status(400).json({
-      success: false, message: 'Validation error',
-      details: error.details
-    });
-
-    if (value.password === '') delete value.password;
-    if (value.type && value.type !== 'switch')
-      delete value.layer;
-
-    const device = await Device.findOneAndUpdate(
-      { _id: id, userId: req.userId },
-      { ...value, updatedAt: new Date() },
-      { new: true }
-    );
-    if (!device) return res.status(404).json({
-      success: false, message: 'Device not found'
-    });
-
-    invalidateCache(CacheKeys.devices(req.userId));
-    res.json({
-      success: true, device,
-      message: 'Device updated successfully'
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update device'
-    });
-  }
-});
-\end{lstlisting}
-
-%% ─────────────────────────────────────
-\subsection{Configuration Deploy via Agent (routes/configurations.js)}
-\hspace*{1.3em}
-ฟังก์ชัน Deploy Configuration ผ่าน Agent Relay โดยตรวจสอบว่ามี Agent ออนไลน์หรือไม่ ถ้ามีจะส่งคำสั่งผ่าน Agent แทนการเชื่อมต่อ SSH โดยตรง
-
-\begin{lstlisting}[language=JavaScript, caption={routes/configurations.js -- Deploy via Agent}]
-import express from 'express';
-import Device from '../models/Device.js';
-import ConfigurationHistory
-  from '../models/ConfigurationHistory.js';
-import llmService from '../services/llmService.js';
-import sshService from '../services/sshService.js';
-import agentRelay from '../services/agentRelay.js';
-import { authenticateToken }
-  from '../middleware/auth.js';
-
-const router = express.Router();
-
-async function deployViaAgent(
-  userId, device, configCommands
-) {
-  const agentOnline =
-    await agentRelay.isAgentOnline(userId);
-
-  if (agentOnline) {
-    const result = await agentRelay.sendToAgent(
-      userId, 'agent:ssh:deploy-config', {
-        deviceId: device._id.toString(),
-        host: device.ip_address,
-        port: device.ssh_port || 22,
-        username: device.username,
-        password: device.password,
-        commands: configCommands,
-        enablePassword: device.enable_password
-      }, 25000);
-
-    if (result.pending) return {
-      success: true, pending: true,
-      output: 'Configuration sent to agent...',
-      commandId: result.commandId
-    };
-    if (!result.success)
-      throw new Error(
-        result.error || 'Agent deploy failed');
-    return result;
-  }
-
-  // Fallback to direct SSH
-  return await sshService.sendConfigCommands(
-    device, configCommands);
-}
-
-router.use(authenticateToken);
-\end{lstlisting}
-
-%% ─────────────────────────────────────
-\subsection{Vercel Serverless Handler (api/handler.js)}
-\hspace*{1.3em}
-Entry point สำหรับ Vercel Serverless Functions ทำหน้าที่ Lazy-load Express Application และ Proxy Request
-
-\begin{lstlisting}[language=JavaScript, caption={api/handler.js -- Vercel Serverless Handler}]
-let app;
-
-async function getApp() {
-  if (!app) {
-    const mod = await import('../backend/server.js');
-    app = mod.default;
-  }
-  return app;
-}
-
-export default async function handler(req, res) {
-  try {
-    const appHandler = await getApp();
-    if (!req.url.startsWith('/api')) {
-      req.url = '/api' + req.url;
-    }
-    return await appHandler(req, res);
-  } catch (err) {
-    console.error('Request error:', err.message);
-    res.statusCode = 500;
-    res.end(JSON.stringify({
-      error: 'Internal server error'
-    }));
-  }
-}
-
-export const config = { maxDuration: 60 };
-\end{lstlisting}
-
-%% ─────────────────────────────────────
-\section{โครงสร้างระบบฝั่งไคลเอนต์ (Frontend)}
+เนื่องจาก Backend อยู่บน Vercel Serverless ซึ่งไม่รองรับ WebSocket (Persistent Connection) ระบบจึงใช้ HTTP Polling เป็นกลไกการสื่อสารระหว่าง Agent กับ Backend โดย Agent จะส่ง HTTP Request ไปยัง Backend เป็นระยะ ๆ เพื่อ ตรวจสอบคำสั่งใหม่ และรายงานสถานะ
 
 \hspace*{1.3em}
-ระบบ Frontend พัฒนาด้วย React + Vite โดยใช้ React Router สำหรับ Routing, Lazy Loading สำหรับ Code Splitting และ Axios สำหรับ HTTP Client
+ตารางที่ \ref{tabD2:PollingEndpoints} แสดง API Endpoints ที่ Agent ใช้ในการสื่อสารกับ Backend
 
-%% ─────────────────────────────────────
-\subsection{React Entry Point (main.jsx)}
-
-\begin{lstlisting}[language=JSX, caption={frontend/src/main.jsx -- React Application Entry}]
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import { SpeedInsights }
-  from '@vercel/speed-insights/react'
-import './index.css'
-import App from './App.jsx'
-import { ThemeProvider }
-  from './context/ThemeContext.jsx'
-
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <ThemeProvider>
-      <App />
-      <SpeedInsights />
-    </ThemeProvider>
-  </StrictMode>,
-)
-\end{lstlisting}
-
-%% ─────────────────────────────────────
-\subsection{Application Router (App.jsx)}
-
-\begin{lstlisting}[language=JSX, caption={frontend/src/App.jsx -- React Router และ Lazy Loading}]
-import { HashRouter as Router, Routes, Route,
-  Navigate } from 'react-router-dom';
-import { useState, useEffect, lazy, Suspense }
-  from 'react';
-import { Toaster } from 'react-hot-toast';
-import axios from 'axios';
-import Sidebar from './components/Sidebar';
-import ErrorBoundary
-  from './components/ErrorBoundary';
-import ProtectedRoute
-  from './components/ProtectedRoute';
-import PageTransition
-  from './components/PageTransition';
-import { AuthProvider, useAuth }
-  from './context/AuthContext';
-import Dashboard from './pages/Dashboard';
-import Login from './pages/Login';
-
-// Lazy-loaded pages (Code Splitting)
-const Devices = lazy(() =>
-  import('./pages/Devices'));
-const Configurations = lazy(() =>
-  import('./pages/Configurations'));
-const ConfigurationHistory = lazy(() =>
-  import('./pages/ConfigurationHistory'));
-const ConsoleConfiguration = lazy(() =>
-  import('./pages/ConsoleConfiguration'));
-const BackupManagement = lazy(() =>
-  import('./pages/BackupManagement'));
-const Diagrams = lazy(() =>
-  import('./pages/Diagrams'));
-const AgentSettings = lazy(() =>
-  import('./pages/AgentSettings'));
-
-const API_BASE_URL = import.meta.env.VITE_API_URL
-  || '/api';
-axios.defaults.baseURL = API_BASE_URL;
-
-function AuthenticatedLayout({ children,
-  connectionStatus, sidebarCollapsed,
-  onToggleSidebar
-}) {
-  return (
-    <div className="flex min-h-screen">
-      <Sidebar
-        connectionStatus={connectionStatus}
-        isCollapsed={sidebarCollapsed}
-        onToggleCollapse={onToggleSidebar}
-      />
-      <div className="flex-1">
-        <main className="pt-20 pb-8 px-4">
-          <div className="max-w-7xl mx-auto">
-            <PageTransition>
-              {children}
-            </PageTransition>
-          </div>
-        </main>
-      </div>
-    </div>
-  );
-}
-\end{lstlisting}
-
-%% ─────────────────────────────────────
-\section{โครงสร้าง Desktop Agent (Electron)}
-
-\hspace*{1.3em}
-Desktop Agent เป็นแอปพลิเคชัน Electron ที่ทำหน้าที่เป็นตัวกลางระหว่าง Backend (Vercel) กับอุปกรณ์เครือข่ายในเครือข่ายภายใน โดยใช้ HTTP Polling เป็นกลไกการสื่อสาร รองรับ SSH, NETCONF, Serial Console และ Ollama LLM
-
-%% ─────────────────────────────────────
-\subsection{Agent Configuration และ HTTP Polling Client}
-
-\begin{lstlisting}[language=JavaScript, caption={agent-gui/src/main.js -- AgentConfig และ HttpPollingClient}]
-const { app, BrowserWindow, Tray, Menu,
-  ipcMain } = require('electron');
-const path = require('path');
-const os = require('os');
-const crypto = require('crypto');
-const { EventEmitter } = require('events');
-const fs = require('fs');
-
-class AgentConfig {
-  constructor() {
-    this.configDir = path.join(
-      app.getPath('userData'));
-    this.configPath = path.join(
-      this.configDir, 'config.json');
-    this.data = this._load();
-    if (!this.data.agentId) {
-      this.data.agentId = crypto.randomBytes(16)
-        .toString('hex');
-      this._save();
-    }
-  }
-
-  _load() {
-    try {
-      if (fs.existsSync(this.configPath))
-        return JSON.parse(
-          fs.readFileSync(
-            this.configPath, 'utf8'));
-    } catch (e) {}
-    return {};
-  }
-
-  _save() {
-    try {
-      if (!fs.existsSync(this.configDir))
-        fs.mkdirSync(
-          this.configDir, { recursive: true });
-      fs.writeFileSync(this.configPath,
-        JSON.stringify(this.data, null, 2));
-    } catch (e) {}
-  }
-
-  get(key) { return this.data[key] || ''; }
-  set(key, value) {
-    this.data[key] = value; this._save();
-  }
-}
-
-class HttpPollingClient extends EventEmitter {
-  constructor({ serverUrl, agentToken,
-    agentName, version, handlers
-  }) {
-    super();
-    this.serverUrl = serverUrl.replace(/\/$/, '');
-    this.agentToken = agentToken;
-    this.agentName = agentName;
-    this.version = version;
-    this.handlers = handlers;
-    this.connected = false;
-    this.pollInterval = null;
-    this.heartbeatInterval = null;
-    this.cachedPorts = [];
-  }
-
-  async connect() {
-    await this._sendHeartbeat();
-    this.connected = true;
-    this.emit('connected');
-
-    // Heartbeat every 5 seconds
-    this.heartbeatInterval = setInterval(() => {
-      this._sendHeartbeat()
-        .catch(err => this.emit('error', err));
-    }, 5000);
-
-    // Poll commands every 2 seconds
-    this.pollInterval = setInterval(() => {
-      this._pollCommands().catch(() => {});
-    }, 2000);
-
-    // Refresh serial ports every 30 seconds
-    this.portRefreshInterval =
-      setInterval(async () => {
-      try {
-        const result =
-          await this.handlers.console.listPorts();
-        if (result && result.ports)
-          this.cachedPorts = result.ports;
-      } catch (e) {}
-    }, 30000);
-  }
-
-  async _sendHeartbeat() {
-    const response = await this._fetch(
-      '/api/agent/poll/heartbeat', {
-      method: 'POST',
-      body: JSON.stringify({
-        agentName: this.agentName,
-        agentVersion: this.version,
-        platform: os.platform(),
-        hostname: os.hostname(),
-        capabilities: {
-          serialPorts: this.cachedPorts
-        }
-      })
-    });
-    if (!response.ok) throw new Error(
-      'Heartbeat failed: ' + response.status);
-  }
-
-  async _pollCommands() {
-    const response = await this._fetch(
-      '/api/agent/poll/commands',
-      { method: 'GET' });
-    if (!response.ok) return;
-    const { commands } = await response.json();
-    for (const cmd of commands) {
-      this.emit('command', {
-        type: cmd.event,
-        deviceId: cmd.data?.deviceId
-      });
-      this._handleCommand(cmd);
-    }
-  }
-
-  async _handleCommand(cmd) {
-    const { commandId, event, data } = cmd;
-    try {
-      let result;
-      switch (event) {
-        case 'agent:ssh:connect':
-          result = await this.handlers
-            .ssh.connect(data);
-          break;
-        case 'agent:ssh:deploy-config': {
-          const { deviceId, host, port,
-            username, password, commands } = data;
-          await this.handlers.ssh.connect({
-            deviceId, host,
-            port: port || 22,
-            username, password
-          });
-          result = await this.handlers
-            .ssh.sendConfig(
-              deviceId, commands);
-          this.handlers.ssh.disconnect(deviceId);
-          break;
-        }
-        case 'agent:netconf:connect':
-          result = await this.handlers
-            .netconf.connect(data);
-          break;
-        case 'agent:ollama:chat':
-          result = await this.handlers
-            .ollama.chat(data);
-          break;
-        case 'list-ports':
-          result = await this.handlers
-            .console.listPorts();
-          break;
-      }
-      await this._reportResult(commandId, result);
-    } catch (error) {
-      await this._reportResult(
-        commandId, null, error.message);
-    }
-  }
-}
-\end{lstlisting}
-
-
-\hspace*{1.3em}
-
-\hspace*{1.3em}
-
-\hspace*{1.3em}
-
-\hspace*{1.3em}
-
-\hspace*{1.3em}
-
-\hspace*{1.3em}
-
-\hspace*{1.3em}
-
-\hspace*{1.3em}
-
-\hspace*{1.3em}
-
-\hspace*{1.3em}
-
-\hspace*{1.3em}
-
-\begin{center}
-\vspace*{-1.5cm}
-\textbf{ประวัติผู้จัดทำ}
-\end{center}
-
-\vspace{0.5cm} % เพิ่มระยะห่างระหว่างหัวข้อและรูป
-% ผู้จัดทำคนที่ 1
-\begin{center}
-\fbox{\includegraphics[width=2in,height=2in,keepaspectratio]{Image/profile.jpg}}
-\end{center}
-
-\vspace{-0.5cm} % ลดระยะห่างระหว่างรูปและข้อความ
-
-\begin{tabularx}{\textwidth}{lX}
-\\
-ชื่อ-นามสกุล                    & : นายชัยสิทธิ์ มินทกร
-\\
-รหัสประจำตัวนักศึกษา           & : 6506022610014
-\\
-วันเดือนปีเกิด                  & : 4 สิงหาคม พ.ศ.2546
-\\
-สาขาวิชา                    & : วิศวกรรมสารสนเทศและเครือข่าย 
-\\
-\\
-ประวัติการศึกษา                 
-                            & : \hangindent=0.5em
-                            จบการศึกษาระดับประถมศึกษา ในปีการศึกษา พ.ศ.2558 \\
-                            & ~ \hangindent=0.5em โรงเรียนวัดบางประทุนนอก \\
-                            & : \hangindent=0.5em
-                            จบการศึกษามัธยมศึกษาตอนต้น ในปีการศึกษา พ.ศ.2561 \\
-                            & ~ \hangindent=0.5em โรงเรียนมัธยมวัดสิงห์\\
-                            & : \hangindent=0.5em
-                            จบการศึกษาประกาศนียบัตรวิชาชีพ ในปีการศึกษา พ.ศ.2564 \\
-                            & ~ \hangindent=0.5em สาขาวิชาอิเล็กทรอนิกส์ วิทยาลัยเทคนิคสมุทรสาคร \\
-                            & : \hangindent=0.5em
-                            ศึกษาต่อในระดับปริญญาตรี ปี พ.ศ.2565 \\
-                            & ~ \hangindent=0.5em สาขาวิชาวิศวกรรมสารสนเทศและเครือข่าย คณะเทคโนโลยีและการจัดการอุตสาหกรรม \\
-                            & ~ \hangindent=0.5em  มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าพระนครเหนือ วิทยาเขตปราจีนบุรี
-                            \\
-ที่อยู่ที่สามารถติดต่อได้          & : \hangindent=0.5em
-                            204/1 ซอยพระรามที่ 2 ซอย 28 แยก 5 เเขวงจอมทอง เขตจอมทอง กรุงเทพมหานครฯ 10150
-                            \\
-เบอร์โทรศัพท์มือถือ          & : \hangindent=0.5em
-                            092-830-2920
-                            \\
-ที่อยู่อิเล็กทรอนิกส์          & : \hangindent=0.5em
-                            chaiyasit.m@email.kmutnb.ac.th
+\begin{table}[H]
+\centering
+\caption{\fontSixTeen{API Endpoints สำหรับ Agent Polling}}
+\label{tabD2:PollingEndpoints}
+\fontSixTeen
+\begin{tabularx}{\textwidth}{|l|l|l|X|}
+\hline
+\textbf{Endpoint} & \textbf{Method} & \textbf{Interval} & \textbf{คำอธิบาย} \\
+\hline
+/api/agent/poll/heartbeat & POST & 5 วินาที & ส่ง Heartbeat แจ้งสถานะ Online พร้อมข้อมูล Serial Port \\
+\hline
+/api/agent/poll/commands & GET & 2 วินาที & ดึงคำสั่งที่รอดำเนินการจาก Command Queue \\
+\hline
+/api/agent/poll/result/\{id\} & POST & ทุกคำสั่ง & ส่งผลลัพธ์การดำเนินการกลับไปยัง Backend \\
+\hline
+/api/agent/poll/shell-create & POST & ครั้งเดียว & สร้าง Interactive Shell Session ใหม่ \\
+\hline
+/api/agent/poll/shell-output & POST & ทุก Output & ส่ง Output จาก Shell ไปยัง Frontend \\
+\hline
+/api/agent/poll/shell-input/\{id\} & GET & 500 ms & ดึง Keystroke Input จาก Frontend \\
+\hline
+/api/agent/poll/shell-closed & POST & ครั้งเดียว & แจ้ง Backend ว่า Shell Session ถูกปิด \\
+\hline
 \end{tabularx}
+\end{table}
+
+\hspace*{1.3em}
+ทุก HTTP Request ที่ Agent ส่งจะแนบ Header \textbf{X-Agent-Token} สำหรับยืนยันตัวตน โดย Token นี้ได้มาจากการลงทะเบียน Agent ผ่านหน้าเว็บแอปพลิเคชัน
+
+\section{กระบวนการเริ่มต้นและเชื่อมต่อ Agent}
+\hspace*{1.3em}
+เมื่อ Agent เริ่มทำงาน จะมีลำดับขั้นตอนดังนี้
+
+\begin{mycustomenum2}
+    \item \textbf{โหลดการตั้งค่า:} อ่านค่า Server URL, Agent Token และ Agent Name จาก Configuration Store ที่เก็บไว้ในเครื่องผู้ใช้
+    \item \textbf{ตั้งค่าเริ่มต้น (ครั้งแรก):} หากยังไม่มีการตั้งค่า ระบบจะแสดง Interactive CLI ให้ผู้ใช้กรอก Server URL และ Agent Token
+    \item \textbf{ตรวจสอบ Ollama:} ตรวจสอบว่า Ollama LLM Server พร้อมใช้งานหรือไม่ หากไม่พร้อม Agent จะยังทำงานได้แต่ไม่สามารถสร้าง Configuration ด้วย AI ได้
+    \item \textbf{สร้าง Handlers:} สร้าง SSH Handler, NETCONF Handler, Console Handler และ Ollama Handler
+    \item \textbf{เชื่อมต่อ Backend:} ส่ง Heartbeat แรกเพื่อยืนยันตัวตน เมื่อสำเร็จจะเริ่ม Polling Loop สำหรับ Heartbeat (ทุก 5 วินาที) และ Command Queue (ทุก 2 วินาที)
+    \item \textbf{รอรับคำสั่ง:} Agent เข้าสู่สถานะ Online พร้อมรับคำสั่งจาก Backend
+\end{mycustomenum2}
+
+\section{กระบวนการ Command Queue}
+\hspace*{1.3em}
+Command Queue เป็นกลไกหลักในการสื่อสารระหว่าง Backend กับ Agent โดยมีขั้นตอนดังนี้
+
+\begin{mycustomenum2}
+    \item \textbf{ผู้ใช้สั่งงาน:} ผู้ใช้ดำเนินการผ่านหน้าเว็บ เช่น สั่ง Backup, Deploy หรือ Test Connection
+    \item \textbf{Backend สร้าง AgentCommand:} Backend สร้าง Document ใน MongoDB Collection \textbf{agentcommands} พร้อมสถานะ \textbf{pending} ระบุ Event, Data และ User ID
+    \item \textbf{Agent ดึงคำสั่ง:} Agent ทำ HTTP GET ไปยัง \textbf{/api/agent/poll/commands} ทุก 2 วินาที Backend จะ query คำสั่งที่มีสถานะ pending และเปลี่ยนเป็น \textbf{processing}
+    \item \textbf{Agent ดำเนินการ:} Agent รับคำสั่ง เรียก Handler ที่เกี่ยวข้อง (SSH, NETCONF, Console หรือ Ollama) เพื่อดำเนินการกับอุปกรณ์จริง
+    \item \textbf{Agent ส่งผลลัพธ์:} Agent ทำ HTTP POST ผลลัพธ์ไปยัง \textbf{/api/agent/poll/result/\{commandId\}} Backend อัปเดตสถานะ Command เป็น \textbf{completed} หรือ \textbf{failed}
+    \item \textbf{Frontend รับผล:} Frontend ทำ Polling ไปยัง Backend เพื่อดึงผลลัพธ์และแสดงต่อผู้ใช้
+\end{mycustomenum2}
+
+\section{ประเภทคำสั่งที่ Agent รองรับ}
+\hspace*{1.3em}
+Agent รองรับคำสั่งทั้งหมด 23 ประเภท แบ่งตาม Handler ดังตารางที่ \ref{tabD2:AgentCommands}
+
+\begin{table}[H]
+\centering
+\caption{\fontSixTeen{คำสั่ง SSH ที่ Agent รองรับ}}
+\label{tabD2:AgentCommands}
+\fontSixTeen
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{Event} & \textbf{คำอธิบาย} \\
+\hline
+agent:ssh:connect & เชื่อมต่อ SSH ไปยังอุปกรณ์เครือข่าย \\
+\hline
+agent:ssh:disconnect & ปิดการเชื่อมต่อ SSH \\
+\hline
+agent:ssh:exec & สั่งคำสั่ง CLI เดี่ยวบนอุปกรณ์ \\
+\hline
+agent:ssh:send-config & ส่งชุดคำสั่ง Configuration ผ่าน Interactive Shell \\
+\hline
+agent:ssh:deploy-config & เชื่อมต่อ $\rightarrow$ ส่ง Config $\rightarrow$ ปิดการเชื่อมต่อ (All-in-one) \\
+\hline
+agent:ssh:backup & เชื่อมต่อ $\rightarrow$ ดึง Running/Startup Config $\rightarrow$ ปิด (All-in-one) \\
+\hline
+agent:ssh:open-shell & เปิด Interactive SSH Shell Session \\
+\hline
+agent:ssh:shell-input & ส่ง Keystroke ไปยัง Shell Session ที่เปิดอยู่ \\
+\hline
+agent:ssh:close-shell & ปิด Interactive Shell Session \\
+\hline
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{\fontSixTeen{คำสั่ง NETCONF ที่ Agent รองรับ}}
+\label{tabD2:NetconfCommands}
+\fontSixTeen
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{Event} & \textbf{คำอธิบาย} \\
+\hline
+agent:netconf:connect & สร้าง NETCONF Session (SSH Subsystem Port 830) \\
+\hline
+agent:netconf:disconnect & ปิด NETCONF Session \\
+\hline
+agent:netconf:get-config & อ่าน Running Configuration ผ่าน get-config RPC \\
+\hline
+agent:netconf:edit-config & แก้ไข Configuration ผ่าน Candidate Datastore Workflow \\
+\hline
+agent:netconf:rpc & ส่ง Raw RPC Operation \\
+\hline
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{\fontSixTeen{คำสั่ง Console (Serial Port) ที่ Agent รองรับ}}
+\label{tabD2:ConsoleCommands}
+\fontSixTeen
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{Event} & \textbf{คำอธิบาย} \\
+\hline
+agent:console:list-ports & แสดงรายการ Serial Port ที่เชื่อมต่อกับเครื่อง \\
+\hline
+agent:console:connect & เชื่อมต่อ Serial Port \\
+\hline
+agent:console:disconnect & ปิดการเชื่อมต่อ Serial Port \\
+\hline
+agent:console:command & ส่งคำสั่งผ่าน Serial Console \\
+\hline
+agent:console:test & ทดสอบการเชื่อมต่อ Serial Port \\
+\hline
+agent:console:initial-config & ส่งชุดคำสั่งตั้งค่าเริ่มต้น SSH ให้อุปกรณ์ \\
+\hline
+\end{tabularx}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{\fontSixTeen{คำสั่ง Ollama LLM ที่ Agent รองรับ}}
+\label{tabD2:OllamaCommands}
+\fontSixTeen
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{Event} & \textbf{คำอธิบาย} \\
+\hline
+agent:ollama:status & ตรวจสอบสถานะ Ollama Server \\
+\hline
+agent:ollama:health & ตรวจสอบว่า Ollama พร้อมใช้งานหรือไม่ \\
+\hline
+agent:ollama:models & แสดงรายการ LLM Model ที่ติดตั้ง \\
+\hline
+agent:ollama:set-model & เปลี่ยน Model ที่ใช้งาน \\
+\hline
+agent:ollama:chat & สร้าง Configuration ด้วย Chat Completion \\
+\hline
+agent:ollama:generate & สร้างข้อความด้วย Text Generation \\
+\hline
+\end{tabularx}
+\end{table}
+
+\section{กระบวนการ Heartbeat}
+\hspace*{1.3em}
+Agent ส่ง Heartbeat ไปยัง Backend ทุก 5 วินาทีเพื่อรายงานสถานะ Online/Offline โดย Heartbeat Payload ประกอบด้วยข้อมูลดังนี้
+
+\begin{mycustomenum2}
+    \item \textbf{agentName:} ชื่อ Agent ที่ผู้ใช้กำหนด
+    \item \textbf{agentVersion:} เวอร์ชันของ Agent
+    \item \textbf{platform:} ระบบปฏิบัติการ (win32, linux, darwin)
+    \item \textbf{hostname:} ชื่อเครื่องคอมพิวเตอร์
+    \item \textbf{capabilities.serialPorts:} รายการ Serial Port ที่เชื่อมต่อกับเครื่อง (สแกนทุกครั้งที่ส่ง Heartbeat)
+\end{mycustomenum2}
+
+\hspace*{1.3em}
+Backend จะบันทึก Heartbeat ลงใน Collection \textbf{agentheartbeats} และใช้เวลาของ Heartbeat ล่าสุดในการตัดสินว่า Agent ยังออนไลน์อยู่หรือไม่ หากไม่ได้รับ Heartbeat เกิน 30 วินาที Backend จะถือว่า Agent ออฟไลน์
+
+\section{กระบวนการ SSH Backup}
+\hspace*{1.3em}
+การสำรองข้อมูล Configuration ของอุปกรณ์ผ่าน Agent มีขั้นตอนดังนี้
+
+\begin{mycustomenum2}
+    \item \textbf{เชื่อมต่อ SSH:} Agent สร้าง SSH Connection ไปยังอุปกรณ์ที่ระบุ
+    \item \textbf{เปิด Interactive Shell:} เปิด Shell Session เพื่อรองรับ Multi-command Sequence บนอุปกรณ์ Cisco
+    \item \textbf{ปิด Pagination:} ส่งคำสั่ง \textbf{terminal length 0} เพื่อปิดการแบ่งหน้า Output
+    \item \textbf{ดึง Configuration:} ส่งคำสั่ง \textbf{show running-config} และ/หรือ \textbf{show startup-config} ตามประเภทที่เลือก โดยใช้ Shell Session เดียวกันเพื่อหลีกเลี่ยงปัญหา VTY Line
+    \item \textbf{ทำความสะอาด Output:} ลบ ANSI Escape Codes, Command Echo และ Device Prompt ออกจาก Output เพื่อให้ได้เฉพาะ Configuration จริง
+    \item \textbf{ปิดการเชื่อมต่อ:} ปิด SSH Connection
+    \item \textbf{ส่งผลลัพธ์:} ส่ง Running Config และ/หรือ Startup Config กลับไปยัง Backend เพื่อบันทึกลงฐานข้อมูล
+\end{mycustomenum2}
+
+\hspace*{1.3em}
+ระบบรองรับ 3 โหมดการ Backup ดังตารางที่ \ref{tabD2:BackupModes}
+
+\begin{table}[H]
+\centering
+\caption{\fontSixTeen{โหมดการ Backup Configuration}}
+\label{tabD2:BackupModes}
+\fontSixTeen
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+\textbf{โหมด} & \textbf{คำสั่ง SSH} & \textbf{คำอธิบาย} \\
+\hline
+running-config & show running-config & ดึงเฉพาะ Running Configuration \\
+\hline
+startup-config & show startup-config & ดึงเฉพาะ Startup Configuration \\
+\hline
+both & show running-config + show startup-config & ดึงทั้งสองใน Shell Session เดียว \\
+\hline
+\end{tabularx}
+\end{table}
+
+\section{กระบวนการ Deploy Configuration ผ่าน SSH}
+\hspace*{1.3em}
+การ Deploy Configuration ผ่าน SSH จะใช้ Interactive Shell เพื่อส่งชุดคำสั่ง CLI ไปยังอุปกรณ์ โดยมีลำดับขั้นตอนดังนี้
+
+\begin{mycustomenum2}
+    \item \textbf{เชื่อมต่อ SSH:} Agent สร้าง SSH Connection ไปยังอุปกรณ์เป้าหมาย
+    \item \textbf{เปิด Shell:} เปิด Interactive Shell พร้อม Terminal Emulation (xterm)
+    \item \textbf{เข้าสู่ Privileged Mode:} ส่งคำสั่ง \textbf{enable} พร้อม Enable Password (ถ้ามี)
+    \item \textbf{เข้าสู่ Configuration Mode:} ส่งคำสั่ง \textbf{configure terminal}
+    \item \textbf{ส่งคำสั่ง Config:} ส่งคำสั่ง Configuration ทีละบรรทัด
+    \item \textbf{ออกจาก Configuration Mode:} ส่งคำสั่ง \textbf{end}
+    \item \textbf{บันทึก Configuration:} ส่งคำสั่ง \textbf{write memory} เพื่อบันทึกลง Startup Config
+\end{mycustomenum2}
+
+\hspace*{1.3em}
+ระบบใช้ Prompt Detection Pattern \textbf{/[\#>]\textbackslash s*\$/} พร้อม Debounce 200ms เพื่อตรวจจับว่าอุปกรณ์พร้อมรับคำสั่งถัดไปแล้ว โดยมี Timeout สูงสุด 60 วินาที
+
+\section{กระบวนการ Interactive Shell ผ่าน Agent Relay}
+\hspace*{1.3em}
+Interactive Shell เป็นฟีเจอร์ที่ช่วยให้ผู้ใช้สามารถใช้งาน SSH Terminal ผ่านเว็บเบราว์เซอร์ได้ โดย Agent ทำหน้าที่ Relay I/O ระหว่าง Frontend กับอุปกรณ์เครือข่ายผ่าน Polling-based Protocol ดังนี้
+
+\begin{mycustomenum2}
+    \item \textbf{สร้าง Session:} Agent สร้าง Shell Session บนอุปกรณ์และแจ้ง Backend ผ่าน \textbf{POST /api/agent/poll/shell-create}
+    \item \textbf{ส่ง Output:} เมื่อมี Data จากอุปกรณ์ Agent จะส่ง Output ไปยัง Backend ผ่าน \textbf{POST /api/agent/poll/shell-output} ทันที
+    \item \textbf{รับ Input:} Agent ทำ Polling ไปยัง \textbf{GET /api/agent/poll/shell-input/\{sessionId\}} ทุก 500ms เพื่อรับ Keystroke จากผู้ใช้
+    \item \textbf{ส่ง Input ไปยังอุปกรณ์:} เมื่อได้รับ Keystroke Agent จะเขียนลง SSH Shell Stream
+    \item \textbf{ปิด Session:} เมื่อ Shell ถูกปิด Agent จะแจ้ง Backend ผ่าน \textbf{POST /api/agent/poll/shell-closed}
+\end{mycustomenum2}
+
+\hspace*{1.3em}
+Session ID มีรูปแบบ \textbf{shell-\{timestamp\}-\{random6\}} และข้อมูล I/O ถูกเก็บใน MongoDB Collection \textbf{shellsessions} เพื่อ Buffer ระหว่าง Agent กับ Frontend
+
+\section{กระบวนการเชื่อมต่อ Serial Console}
+\hspace*{1.3em}
+Console Handler ใช้สำหรับเชื่อมต่อกับอุปกรณ์เครือข่ายผ่านสาย Console (Serial Port) เพื่อตั้งค่าเริ่มต้น เช่น กำหนด IP Address และเปิดใช้งาน SSH ให้กับอุปกรณ์ใหม่ที่ยังไม่มีการกำหนดค่า
+
+\hspace*{1.3em}
+ตารางที่ \ref{tabD2:SerialConfig} แสดงค่าเริ่มต้นของ Serial Port Configuration
+
+\begin{table}[H]
+\centering
+\caption{\fontSixTeen{ค่าเริ่มต้น Serial Port Configuration}}
+\label{tabD2:SerialConfig}
+\fontSixTeen
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+\textbf{พารามิเตอร์} & \textbf{ค่าเริ่มต้น} & \textbf{คำอธิบาย} \\
+\hline
+Baud Rate & 9600 & ความเร็วในการสื่อสาร (bps) \\
+\hline
+Data Bits & 8 & จำนวนบิตข้อมูลต่อ Frame \\
+\hline
+Parity & none & การตรวจสอบความถูกต้อง \\
+\hline
+Stop Bits & 1 & จำนวนบิตหยุด \\
+\hline
+\end{tabularx}
+\end{table}
+
+\hspace*{1.3em}
+ระบบจะสแกน Serial Port ทุกครั้งที่ส่ง Heartbeat และระบุ Manufacturer (FTDI, Prolific, Silicon Labs) เพื่อช่วยผู้ใช้เลือก Port ที่ถูกต้อง นอกจากนี้ Backend จะตรวจจับ \textbf{serialPortAvailable} Flag เพื่อ Relay คำสั่ง Console ไปยัง Desktop Agent โดยอัตโนมัติ เนื่องจาก Vercel Serverless ไม่สามารถใช้ Native Module ของ Serial Port ได้
+
+\section{กระบวนการเชื่อมต่อ Ollama LLM}
+\hspace*{1.3em}
+Ollama Handler จัดการการเชื่อมต่อกับ Ollama LLM Server ที่ทำงานบนเครื่องผู้ใช้ (localhost:11434) สำหรับสร้าง Network Configuration จากภาษาธรรมชาติ
+
+\hspace*{1.3em}
+ตารางที่ \ref{tabD2:OllamaConfig} แสดงค่าเริ่มต้นของ Ollama Configuration
+
+\begin{table}[H]
+\centering
+\caption{\fontSixTeen{ค่าเริ่มต้น Ollama LLM Configuration}}
+\label{tabD2:OllamaConfig}
+\fontSixTeen
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+\textbf{พารามิเตอร์} & \textbf{ค่าเริ่มต้น} & \textbf{คำอธิบาย} \\
+\hline
+Base URL & http://localhost:11434 & URL ของ Ollama Server \\
+\hline
+Default Model & qwen2.5-coder & โมเดล LLM ที่ใช้เป็นค่าเริ่มต้น \\
+\hline
+Request Timeout & 120 วินาที & Timeout สำหรับ API Request \\
+\hline
+Temperature & 0.1 & ค่าความสุ่มของ Output (ต่ำ = แม่นยำ) \\
+\hline
+Max Tokens & 1000 & จำนวน Token สูงสุดที่สร้าง \\
+\hline
+Top-p & 0.85 & Nucleus Sampling Parameter \\
+\hline
+\end{tabularx}
+\end{table}
+
+\hspace*{1.3em}
+Ollama Handler จะแปลง Response จาก Ollama API ให้อยู่ในรูปแบบ OpenAI-compatible เพื่อให้ Backend สามารถใช้งานได้โดยไม่ต้องแก้ไข Logic โดยรูปแบบ Response ที่ส่งกลับมีโครงสร้างดังนี้
+
+\begin{verbatim}
+{
+  "choices": [{
+    "message": { "role": "assistant", "content": "..." },
+    "finish_reason": "stop"
+  }],
+  "usage": {
+    "prompt_tokens": 150,
+    "completion_tokens": 200,
+    "total_tokens": 350
+  },
+  "model": "qwen2.5-coder",
+  "provider": "ollama"
+}
+\end{verbatim}
+
+\section{ค่าเริ่มต้นและ Timeout ของ Agent}
+\hspace*{1.3em}
+ตารางที่ \ref{tabD2:AgentTimeouts} สรุปค่า Timeout และค่าเริ่มต้นที่สำคัญของแต่ละ Handler
+
+\begin{table}[H]
+\centering
+\caption{\fontSixTeen{สรุปค่า Timeout และค่าเริ่มต้นของ Agent Handlers}}
+\label{tabD2:AgentTimeouts}
+\fontSixTeen
+\begin{tabularx}{\textwidth}{|l|l|l|X|}
+\hline
+\textbf{Handler} & \textbf{Operation} & \textbf{Timeout} & \textbf{คำอธิบาย} \\
+\hline
+SSH & Connect & 10 วินาที & เชื่อมต่อ SSH \\
+\hline
+SSH & Execute Command & 30 วินาที & สั่งคำสั่งเดี่ยว \\
+\hline
+SSH & Send Config & 60 วินาที & ส่งชุดคำสั่ง Config \\
+\hline
+SSH & Backup (single) & 20 วินาที & ดึง Config ประเภทเดียว \\
+\hline
+SSH & Backup (both) & 30 วินาที & ดึงทั้ง Running และ Startup \\
+\hline
+SSH & Session Timeout & 10 นาที & หมดเวลา Shell Session \\
+\hline
+NETCONF & Connect & 30 วินาที & สร้าง SSH + NETCONF Session \\
+\hline
+NETCONF & Hello Fallback & 5 วินาที & Fallback ถ้าไม่ได้รับ Server Hello \\
+\hline
+NETCONF & Send RPC & 30 วินาที & ส่ง XML RPC Operation \\
+\hline
+NETCONF & Session Timeout & 5 นาที & หมดเวลา NETCONF Session \\
+\hline
+Console & Command (prompt) & 10 วินาที & รอ Prompt หลังส่งคำสั่ง \\
+\hline
+Console & Command (no wait) & 2 วินาที & ไม่รอ Prompt \\
+\hline
+Ollama & Request & 120 วินาที & LLM Chat Completion \\
+\hline
+Ollama & Health Check & 5 วินาที & ตรวจสอบ Ollama \\
+\hline
+Polling & Heartbeat & 5 วินาที & รอบ Heartbeat \\
+\hline
+Polling & Commands & 2 วินาที & รอบดึงคำสั่ง \\
+\hline
+Polling & Shell Input & 500 ms & รอบดึง Keystroke \\
+\hline
+\end{tabularx}
+\end{table}
+
+\section{SSH Algorithm ที่รองรับ}
+\hspace*{1.3em}
+Agent รองรับ SSH Algorithm หลากหลายเพื่อให้เข้ากันได้กับอุปกรณ์เครือข่ายทั้งรุ่นใหม่และรุ่นเก่า ดังตารางที่ \ref{tabD2:SSHAlgorithms}
+
+\begin{table}[H]
+\centering
+\caption{\fontSixTeen{SSH Algorithms ที่ Agent รองรับ}}
+\label{tabD2:SSHAlgorithms}
+\fontSixTeen
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{ประเภท} & \textbf{Algorithms ที่รองรับ} \\
+\hline
+Key Exchange & ecdh-sha2-nistp256, ecdh-sha2-nistp384, ecdh-sha2-nistp521, diffie-hellman-group14-sha256, diffie-hellman-group14-sha1, diffie-hellman-group1-sha1 \\
+\hline
+Cipher & aes128-ctr, aes192-ctr, aes256-ctr, aes128-cbc, aes192-cbc, aes256-cbc, 3des-cbc, aes128-gcm, aes256-gcm \\
+\hline
+HMAC & hmac-sha2-256, hmac-sha1, hmac-sha2-512 \\
+\hline
+Host Key & ssh-rsa, ssh-dss, ecdsa-sha2-nistp256, ecdsa-sha2-nistp384, ecdsa-sha2-nistp521, ssh-ed25519, rsa-sha2-256, rsa-sha2-512 \\
+\hline
+\end{tabularx}
+\end{table}
+
+\section{Dependencies ของ Agent}
+\hspace*{1.3em}
+ตารางที่ \ref{tabD2:AgentDeps} แสดง Package Dependencies หลักของ Agent
+
+\begin{table}[H]
+\centering
+\caption{\fontSixTeen{Package Dependencies ของ Desktop Agent}}
+\label{tabD2:AgentDeps}
+\fontSixTeen
+\begin{tabularx}{\textwidth}{|l|l|X|}
+\hline
+\textbf{Package} & \textbf{Version} & \textbf{หน้าที่} \\
+\hline
+ssh2 & \^{}1.15.0 & เชื่อมต่อ SSH และ NETCONF Session \\
+\hline
+serialport & \^{}12.0.0 & เชื่อมต่อ Serial Console Port \\
+\hline
+@serialport/parser-readline & \^{}12.0.0 & Parse ข้อมูล Serial แบบ Line-based \\
+\hline
+conf & \^{}12.0.0 & จัดเก็บ Configuration แบบ Persistent \\
+\hline
+chalk & \^{}5.3.0 & แสดงสีใน Terminal \\
+\hline
+ora & \^{}7.0.1 & แสดง Spinner ใน Terminal \\
+\hline
+inquirer & \^{}9.2.12 & Interactive CLI Prompts \\
+\hline
+\end{tabularx}
+\end{table}
+
+\hspace*{1.3em}
+Agent ถูก Bundle ด้วย \textbf{esbuild} และ Build เป็น Standalone Executable (\textbf{NetConfigAgent.exe}) ด้วย \textbf{@yao-pkg/pkg} โดย Target เป็น \textbf{node18-win-x64} เพื่อให้ผู้ใช้สามารถรันได้โดยไม่ต้องติดตั้ง Node.js
+
 

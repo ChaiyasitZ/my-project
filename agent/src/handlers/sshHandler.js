@@ -249,31 +249,56 @@ export class SSHHandler {
 
   /**
    * Execute backup commands via interactive shell.
-   * Uses shell to send 'terminal length 0' then 'show running/startup-config'.
+   * Uses a single shell session to send 'terminal length 0' then the requested
+   * show command(s). When configType is 'both', both running-config and
+   * startup-config are fetched in the same session to avoid VTY line issues.
+   *
+   * Returns { output } for single type, or { runningOutput, startupOutput } for 'both'.
    */
   async execBackupCommands(deviceId, configType = 'running-config') {
     const entry = this.connections.get(deviceId);
     if (!entry) throw new Error('Device not connected');
     entry.lastUsed = Date.now();
+    const isBoth = configType === 'both';
     return new Promise((resolve, reject) => {
       entry.connection.shell((err, stream) => {
         if (err) return reject(err);
         let output = '';
+        let runningSplitIdx = 0;
         let settled = false;
+        const totalTimeout = isBoth ? 30000 : 20000;
         const timeout = setTimeout(() => {
-          if (!settled) { settled = true; stream.end(); resolve({ output }); }
-        }, 20000);
+          if (!settled) { settled = true; stream.end(); finish(); }
+        }, totalTimeout);
+        const finish = () => {
+          if (isBoth) {
+            resolve({ runningOutput: output.substring(0, runningSplitIdx), startupOutput: output.substring(runningSplitIdx) });
+          } else {
+            resolve({ output });
+          }
+        };
         stream.on('data', (d) => { output += d.toString(); });
         stream.on('close', () => {
-          if (!settled) { settled = true; clearTimeout(timeout); resolve({ output }); }
+          if (!settled) { settled = true; clearTimeout(timeout); finish(); }
         });
         setTimeout(() => {
           stream.write('terminal length 0\n');
           setTimeout(() => {
-            stream.write(`show ${configType}\n`);
-            setTimeout(() => {
-              if (!settled) { settled = true; clearTimeout(timeout); stream.end(); resolve({ output }); }
-            }, 8000);
+            if (isBoth) {
+              stream.write('show running-config\n');
+              setTimeout(() => {
+                runningSplitIdx = output.length;
+                stream.write('show startup-config\n');
+                setTimeout(() => {
+                  if (!settled) { settled = true; clearTimeout(timeout); stream.end(); finish(); }
+                }, 8000);
+              }, 8000);
+            } else {
+              stream.write(`show ${configType}\n`);
+              setTimeout(() => {
+                if (!settled) { settled = true; clearTimeout(timeout); stream.end(); finish(); }
+              }, 8000);
+            }
           }, 1000);
         }, 1000);
       });

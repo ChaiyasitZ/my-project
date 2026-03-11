@@ -116,51 +116,490 @@
 
 \begin{figure}[H]
     \centerline{\includegraphics[width=1.2\textwidth]{Image/Level-0.png}}
-    \caption{\fontSixTeen{DFD Main Process}}
+    \caption{\fontSixTeen{DFD Level 0 - Context Diagram (System Boundary)}}
     \label{fig3:Level-0}
 \end{figure}
+
+\hspace*{1.3em}
+จากภาพที่ \ref{fig3:Level-0} แสดง Context Diagram ซึ่งเป็นมุมมองระดับสูงสุดของระบบ แสดงขอบเขตของระบบ (System Boundary) โดยมี External Entity หลัก ได้แก่ Network Admin, Network Devices, Google OAuth 2.0, Ollama LLM, Desktop Agent และ MongoDB Atlas (D1-D9) พร้อมทั้งแสดง Data Flow ระหว่าง Entity กับ Process 0.0 (Network Config Management)
 
 \begin{figure}[H]
     \hspace*{-0\textwidth}
     \includegraphics[width=\textwidth]{Image/Level-1.png}
-    \caption{\fontSixTeen{DFD ของ Main Process 1.0 (Authentication)}}
+    \caption{\fontSixTeen{DFD Level 1 - Main Process Decomposition (Process 1.0-6.0)}}
 \label{fig3:DataflowDiagram}
 \end{figure}
 
+\hspace*{1.3em}
+จากภาพที่ \ref{fig3:DataflowDiagram} แสดงการแยกย่อยกระบวนการหลักของระบบ ประกอบด้วย 6 กระบวนการ ได้แก่ Process 1.0 Authentication, Process 2.0 Device Management, Process 3.0 Config Generation, Process 4.0 Deployment, Process 5.0 Backup Management และ Process 6.0 Console Management โดยทั้งหมดเชื่อมต่อกับ Data Store D1-D7 และสื่อสารกับ External Entity ผ่าน Desktop Agent (Agent Relay)
+
 \begin{figure}[H]
-    \centerline{\includegraphics[width=\textwidth]{Image/Level-2.png}}
-    \caption{\fontSixTeen{DFD ของ Main Process 2.0 (Device Management)}}
-    \label{fig3:DataflowDiagram_Level2_Process1.0}
+    \centerline{\includegraphics[width=1.15\textwidth]{Image/Level-2.png}}
+    \caption{\fontSixTeen{DFD Level 2 - Process 2.0 Device Management Decomposition (Sub-Process 2.1-2.5)}}
+    \label{fig3:DataflowDiagram_Level2}
 \end{figure}
+
+\hspace*{1.3em}
+จากภาพที่ \ref{fig3:DataflowDiagram_Level2} แสดงการแยกย่อย Process 2.0 ประกอบด้วย Sub-Process 2.1 Add Device, 2.2 Edit Device, 2.3 Delete Device, 2.4 Test Connection (ผ่าน Desktop Agent) และ 2.5 List Devices โดยเชื่อมต่อกับ D2 (Devices Database) และ Network Devices
 
 \begin{figure}[H]
     \centerline{\includegraphics[width=1.0\textwidth]{Image/Level-3.png}}
-    \caption{\fontSixTeen{DFD ของ Main Process 3.0 ( Config Generator)}}
-    \label{fig3:DataflowDiagram_Level2_Process2.0}
+    \caption{\fontSixTeen{DFD Level 3 - Process 3.0 Configuration Generation Decomposition (Sub-Process 3.1-3.5)}}
+    \label{fig3:DataflowDiagram_Level3}
 \end{figure}
+
+\hspace*{1.3em}
+จากภาพที่ \ref{fig3:DataflowDiagram_Level3} แสดงการแยกย่อย Process 3.0 ประกอบด้วย Sub-Process 3.1 Receive Prompt, 3.2 Prepare Context (อ่านข้อมูลจาก D2 Device Database), 3.3 Call LLM (ส่ง Prompt ไปยัง Ollama), 3.4 Validate Config และ 3.5 Save Config (บันทึกลง D3 Config History Database)
 
 \begin{figure}[H]
     \centerline{\includegraphics[width=1.0\textwidth]{Image/Level-4.png}}
-    \caption{\fontSixTeen{DFD ของ Main Process 4.0 (Deployment)}}
-    \label{fig3:DataflowDiagram_Level2_Process3.0}
+    \caption{\fontSixTeen{DFD Level 4 - Process 4.0 Configuration Deployment Decomposition (Sub-Process 4.1-4.4)}}
+    \label{fig3:DataflowDiagram_Level4}
 \end{figure}
+
+\hspace*{1.3em}
+จากภาพที่ \ref{fig3:DataflowDiagram_Level4} แสดงการแยกย่อย Process 4.0 ประกอบด้วย Sub-Process 4.1 Select Config (อ่านจาก D3 Config Database), 4.2 Load Device (อ่านจาก D2 Device Database), 4.3 Deploy Config (ส่งผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH/NETCONF) และ 4.4 Update Status
 
 \begin{figure}[H]
     \centerline{\includegraphics[width=1.0\textwidth]{Image/Level-5.png}}
-    \caption{\fontSixTeen{DFD ระดับที่ 2 ของ Main Process (Backup Management)}}
-    \label{fig3:DataflowDiagram_Level2_Process4.0}
+    \caption{\fontSixTeen{DFD Level 5 - Process 5.0 Backup Management Decomposition (Sub-Process 5.1-5.4)}}
+    \label{fig3:DataflowDiagram_Level5}
 \end{figure}
+
+\hspace*{1.3em}
+จากภาพที่ \ref{fig3:DataflowDiagram_Level5} แสดงการแยกย่อย Process 5.0 ประกอบด้วย Sub-Process 5.1 Start Backup (อ่านจาก D2 Device Database), 5.2 Fetch Config (ส่ง SSH via Agent: show run), 5.3 Check Duplicate (ตรวจสอบ Hash จาก D4 Backup Database) และ 5.4 Save Backup (บันทึกลง D4 Backup Database)
 
 \begin{figure}[H]
     \centerline{\includegraphics[width=1.0\textwidth]{Image/Level-6.png}}
-    \caption{\fontSixTeen{DFD ระดับที่ 2 ของ Process 5.0 (Configuration History)}}
-    \label{fig3:DataflowDiagram_Level2_Process5.0}
+    \caption{\fontSixTeen{DFD ของ Process 6.0 Console Management (Interactive SSH via Agent Relay)}}
+    \label{fig3:DataflowDiagram_Level6}
 \end{figure}
+
+\hspace*{1.3em}
+จากภาพที่ \ref{fig3:DataflowDiagram_Level6} แสดง Process 6.0 Console Management ซึ่งจัดการ Interactive SSH Shell ผ่าน Agent Relay $\rightarrow$ Desktop Agent โดยใช้ Polling-based I/O Buffer และเชื่อมต่อกับ D9 Shell Sessions สำหรับจัดเก็บข้อมูล Session
 
 \section{พจนานุกรมข้อมูล (Data Flow Description)}
 
 % =====================================================
-% DF-6: Serial Console Configuration
+% DF-1: Authentication (Process 1.0)
+% =====================================================
+
+\begin{table}[H]
+    \caption{\fontSixTeen{แสดง Data Flow การเข้าสู่ระบบ}}
+    \label{tab:df-1-1}
+    \fontSixTeen 
+    \begin{tabularx}{\textwidth}{|l|L|} 
+        \hline
+        \textbf{Data Flow ID:} & DF-1.1 \\
+        \hline
+        \textbf{Data Flow Name:} & การเข้าสู่ระบบผ่าน Google OAuth 2.0 \\
+        \hline
+        \textbf{Description:} & กระบวนการยืนยันตัวตนของผู้ใช้ผ่าน Google OAuth 2.0 โดยระบบจะส่ง OAuth Request ไปยัง Google และรับ JWT Token กลับมาเพื่อสร้าง Session \\
+        \hline
+        \textbf{Source:} & ผู้ใช้ (User) \\
+        \hline
+        \textbf{Destination:} & กระบวนการ Authentication (Process 1.0) $\rightarrow$ Google OAuth 2.0 \\
+        \hline
+        \textbf{Type Of Data Flow:} & Authentication Request \\
+        \hline
+        \textbf{Data Structure:} & ข้อมูลการเข้าสู่ระบบ = \{ \nonumber \\
+                        & \hspace{1em} ``oauth\_provider'' : ``google'', \nonumber \\
+                        & \hspace{1em} ``callback\_url'' : ``URL สำหรับรับ OAuth Callback'', \nonumber \\
+                        & \hspace{1em} ``scope'' : ``profile, email'' \nonumber \\
+                        & \} \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+\begin{table}[H]
+    \caption{\fontSixTeen{แสดง Data Flow ผลการเข้าสู่ระบบ}}
+    \label{tab:df-1-2}
+    \fontSixTeen 
+    \begin{tabularx}{\textwidth}{|l|L|} 
+        \hline
+        \textbf{Data Flow ID:} & DF-1.2 \\
+        \hline
+        \textbf{Data Flow Name:} & ผลการเข้าสู่ระบบ \\
+        \hline
+        \textbf{Description:} & ข้อมูลผลลัพธ์จากการยืนยันตัวตน รวมถึง JWT Token และข้อมูลผู้ใช้ที่บันทึกลง D1 (Users) \\
+        \hline
+        \textbf{Source:} & Google OAuth 2.0 $\rightarrow$ กระบวนการ Authentication (Process 1.0) \\
+        \hline
+        \textbf{Destination:} & ผู้ใช้ (User) และ D1 ฐานข้อมูลผู้ใช้ (Users) \\
+        \hline
+        \textbf{Type Of Data Flow:} & Authentication Result \\
+        \hline
+        \textbf{Data Structure:} & ผลการเข้าสู่ระบบ = \{ \nonumber \\
+                        & \hspace{1em} ``token'' : ``JWT Token สำหรับ Authentication'', \nonumber \\
+                        & \hspace{1em} ``user'' : \{ \nonumber \\
+                        & \hspace{2em} ``googleId'' : ``Google ID ของผู้ใช้'', \nonumber \\
+                        & \hspace{2em} ``email'' : ``อีเมลของผู้ใช้'', \nonumber \\
+                        & \hspace{2em} ``name'' : ``ชื่อผู้ใช้'', \nonumber \\
+                        & \hspace{2em} ``avatar'' : ``URL รูปโปรไฟล์'', \nonumber \\
+                        & \hspace{2em} ``role'' : ``user | admin'', \nonumber \\
+                        & \hspace{2em} ``agentToken'' : ``Token สำหรับ Desktop Agent'' \nonumber \\
+                        & \hspace{1em} \} \nonumber \\
+                        & \} \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+% =====================================================
+% DF-2: Device Management (Process 2.0)
+% =====================================================
+
+\begin{table}[H]
+    \caption{\fontSixTeen{แสดง Data Flow ข้อมูลอุปกรณ์}}
+    \label{tab:df-2-1}
+    \fontSixTeen 
+    \begin{tabularx}{\textwidth}{|l|L|} 
+        \hline
+        \textbf{Data Flow ID:} & DF-2.1 \\
+        \hline
+        \textbf{Data Flow Name:} & ข้อมูลอุปกรณ์ \\
+        \hline
+        \textbf{Description:} & ข้อมูลของอุปกรณ์เครือข่ายที่ผู้ใช้บันทึกเข้าสู่ระบบเพื่อการจัดการ \\
+        \hline
+        \textbf{Source:} & ผู้ใช้ (User) \\
+        \hline
+        \textbf{Destination:} & D2 ฐานข้อมูลอุปกรณ์ (Devices) \\
+        \hline
+        \textbf{Type Of Data Flow:} & Device Data \\
+        \hline
+        \textbf{Data Structure:} & ข้อมูลอุปกรณ์ = \{ \nonumber \\
+                        & \hspace{1em} ``name'' : ``ชื่ออุปกรณ์ เช่น Core-Switch-01 (สูงสุด 255 ตัวอักษร)'', \nonumber \\
+                        & \hspace{1em} ``type'' : ``router | switch | nexus | ios-xe'', \nonumber \\
+                        & \hspace{1em} ``layer'' : ``layer-2 | layer-3 (เฉพาะ switch)'', \nonumber \\
+                        & \hspace{1em} ``ip\_address'' : ``IP Address เช่น 192.168.1.10'', \nonumber \\
+                        & \hspace{1em} ``ssh\_port'' : ``พอร์ต SSH (default: 22, range: 1-65535)'', \nonumber \\
+                        & \hspace{1em} ``netconf\_port'' : ``พอร์ต NETCONF (default: 830)'', \nonumber \\
+                        & \hspace{1em} ``netconf\_enabled'' : ``true | false (default: true สำหรับ nexus และ ios-xe)'', \nonumber \\
+                        & \hspace{1em} ``username'' : ``ชื่อผู้ใช้สำหรับ SSH (สูงสุด 255 ตัวอักษร)'', \nonumber \\
+                        & \hspace{1em} ``password'' : ``รหัสผ่านสำหรับ SSH'', \nonumber \\
+                        & \hspace{1em} ``description'' : ``คำอธิบายอุปกรณ์'', \nonumber \\
+                        & \hspace{1em} ``location'' : ``ตำแหน่งที่ตั้ง เช่น Data Center Rack A1'', \nonumber \\
+                        & \hspace{1em} ``model'' : ``รุ่นของอุปกรณ์ เช่น Cisco ISR 4321'', \nonumber \\
+                        & \hspace{1em} ``status'' : ``active | inactive | maintenance | error'' \nonumber \\
+                        & \} \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+\begin{table}[H]
+    \caption{\fontSixTeen{แสดง Data Flow การทดสอบการเชื่อมต่อ}}
+    \label{tab:df-2-2}
+    \fontSixTeen 
+    \begin{tabularx}{\textwidth}{|l|L|} 
+        \hline
+        \textbf{Data Flow ID:} & DF-2.2 \\
+        \hline
+        \textbf{Data Flow Name:} & การทดสอบการเชื่อมต่อ \\
+        \hline
+        \textbf{Description:} & กระบวนการทดสอบการเชื่อมต่อกับอุปกรณ์เครือข่ายผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH \\
+        \hline
+        \textbf{Source:} & กระบวนการจัดการอุปกรณ์ (Device Management Process) \\
+        \hline
+        \textbf{Destination:} & Desktop Agent $\rightarrow$ อุปกรณ์เครือข่าย (Network Device) \\
+        \hline
+        \textbf{Type Of Data Flow:} & Test Connection (via Agent Relay) \\
+        \hline
+        \textbf{Data Structure:} & ผลการทดสอบ = \{ \nonumber \\
+                        & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId)'', \nonumber \\
+                        & \hspace{1em} ``ssh\_status'' : ``connected | disconnected | connecting | error'', \nonumber \\
+                        & \hspace{1em} ``ssh\_connected\_at'' : ``เวลาที่เชื่อมต่อ (Date)'', \nonumber \\
+                        & \hspace{1em} ``ssh\_session\_id'' : ``รหัสเซสชัน SSH'', \nonumber \\
+                        & \hspace{1em} ``last\_connection'' : \{ \nonumber \\
+                        & \hspace{2em} ``type'' : ``ssh | console'', \nonumber \\
+                        & \hspace{2em} ``timestamp'' : ``เวลาที่เชื่อมต่อ'', \nonumber \\
+                        & \hspace{2em} ``status'' : ``success | failed | timeout'', \nonumber \\
+                        & \hspace{2em} ``error\_message'' : ``ข้อความผิดพลาด (ถ้ามี)'' \nonumber \\
+                        & \hspace{1em} \} \nonumber \\
+                        & \} \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+% =====================================================
+% DF-3: Configuration Generation (Process 3.0)
+% =====================================================
+
+\begin{table}[H]
+    \caption{\fontSixTeen{แสดง Data Flow คำขอสร้างคอนฟิก}}
+    \label{tab:df-3-1}
+    \fontSixTeen 
+    \begin{tabularx}{\textwidth}{|l|L|} 
+        \hline
+        \textbf{Data Flow ID:} & DF-3.1 \\
+        \hline
+        \textbf{Data Flow Name:} & คำขอสร้างคอนฟิก \\
+        \hline
+        \textbf{Description:} & คำสั่งหรือข้อความ Prompt จากผู้ใช้เพื่อให้ LLM สร้างคอนฟิกสำหรับอุปกรณ์เครือข่าย \\
+        \hline
+        \textbf{Source:} & ผู้ใช้ (User) \\
+        \hline
+        \textbf{Destination:} & กระบวนการสร้างคอนฟิก (Configuration Generation Process) \\
+        \hline
+        \textbf{Type Of Data Flow:} & Request Data \\
+        \hline
+        \textbf{Data Structure:} & คำขอสร้างคอนฟิก = \{ \nonumber \\
+                        & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId, Required) - สำหรับสร้างทีละอุปกรณ์'', \nonumber \\
+                        & \hspace{1em} ``device\_ids'' : ``[รหัสอุปกรณ์] (Array of ObjectId) - สำหรับสร้างหลายอุปกรณ์พร้อมกัน'', \nonumber \\
+                        & \hspace{1em} ``prompt'' : ``คำสั่ง เช่น config ospf area 0 (ขั้นต่ำ 10 ตัวอักษร)'', \nonumber \\
+                        & \hspace{1em} ``config\_type'' : ``cli | netconf-yang'', \nonumber \\
+                        & \hspace{1em} ``device\_context'' : \{ \nonumber \\
+                        & \hspace{2em} ``type'' : ``router | switch | nexus | ios-xe'', \nonumber \\
+                        & \hspace{2em} ``layer'' : ``layer-2 | layer-3'', \nonumber \\
+                        & \hspace{2em} ``vendor'' : ``cisco | juniper | huawei | arista'', \nonumber \\
+                        & \hspace{2em} ``model'' : ``รุ่นของอุปกรณ์'' \nonumber \\
+                        & \hspace{1em} \} \nonumber \\
+                        & \} \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+\begin{table}[H]
+    \caption{\fontSixTeen{แสดง Data Flow คอนฟิกที่สร้างโดย LLM}}
+    \label{tab:df-3-2}
+    \fontSixTeen 
+    \begin{tabularx}{\textwidth}{|l|L|} 
+        \hline
+        \textbf{Data Flow ID:} & DF-3.2 \\
+        \hline
+        \textbf{Data Flow Name:} & คอนฟิกที่สร้างโดย LLM \\
+        \hline
+        \textbf{Description:} & คอนฟิกที่ถูกสร้างโดย LLM (Ollama via Desktop Agent) และบันทึกลงฐานข้อมูล \\
+        \hline
+        \textbf{Source:} & Ollama LLM API (via Agent Relay $\rightarrow$ Desktop Agent) \\
+        \hline
+        \textbf{Destination:} & D3 ฐานข้อมูลประวัติการคอนฟิก (Configurations) \\
+        \hline
+        \textbf{Type Of Data Flow:} & Configuration Data \\
+        \hline
+        \textbf{Data Structure:} & คอนฟิกที่สร้าง = \{ \nonumber \\
+                        & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId)'', \nonumber \\
+                        & \hspace{1em} ``prompt'' : ``คำสั่งของผู้ใช้ (ขั้นต่ำ 10 ตัวอักษร)'', \nonumber \\
+                        & \hspace{1em} ``generated\_config'' : ``คำสั่ง Cisco IOS พร้อม Comments (สำหรับแสดงผล)'', \nonumber \\
+                        & \hspace{1em} ``deployment\_config'' : ``คำสั่ง Cisco IOS (สำหรับ Deploy จริง)'', \nonumber \\
+                        & \hspace{1em} ``config\_type'' : ``cli | netconf-yang'', \nonumber \\
+                        & \hspace{1em} ``ai\_model'' : ``ollama (default)'', \nonumber \\
+                        & \hspace{1em} ``status'' : ``generated | deployed | failed | rolled\_back'', \nonumber \\
+                        & \hspace{1em} ``execution\_time'' : ``เวลาที่ใช้ในการสร้าง (ms)'', \nonumber \\
+                        & \hspace{1em} ``validated\_before\_deploy'' : ``true | false'', \nonumber \\
+                        & \hspace{1em} ``user\_rating'' : ``คะแนน 1-5 (Optional)'', \nonumber \\
+                        & \hspace{1em} ``feedback\_text'' : ``ความคิดเห็นของผู้ใช้ (Optional)'', \nonumber \\
+                        & \hspace{1em} ``created\_at'' : ``เวลาที่สร้าง (Timestamp)'' \nonumber \\
+                        & \} \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+% =====================================================
+% DF-4: Configuration Deployment (Process 4.0)
+% =====================================================
+
+\begin{table}[H]
+    \caption{\fontSixTeen{แสดง Data Flow คำขอ Deploy คอนฟิก}}
+    \label{tab:df-4-1}
+    \fontSixTeen 
+    \begin{tabularx}{\textwidth}{|l|L|} 
+        \hline
+        \textbf{Data Flow ID:} & DF-4.1 \\
+        \hline
+        \textbf{Data Flow Name:} & คำขอ Deploy คอนฟิก \\
+        \hline
+        \textbf{Description:} & คำขอจากผู้ใช้เพื่อติดตั้งคอนฟิกูเรชันผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH/NETCONF \\
+        \hline
+        \textbf{Source:} & ผู้ใช้ (User) \\
+        \hline
+        \textbf{Destination:} & กระบวนการติดตั้งคอนฟิก (Deployment Process) \\
+        \hline
+        \textbf{Type Of Data Flow:} & Deployment Request \\
+        \hline
+        \textbf{Data Structure:} & คำขอ Deploy คอนฟิก = \{ \nonumber \\
+                        & \hspace{1em} ``config\_id'' : ``รหัสคอนฟิก (ObjectId)'', \nonumber \\
+                        & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId)'', \nonumber \\
+                        & \hspace{1em} ``deployment\_config'' : ``คอนฟิกที่จะ Deploy'', \nonumber \\
+                        & \hspace{1em} ``device\_credentials'' : \{ \nonumber \\
+                        & \hspace{2em} ``ip\_address'' : ``IP ของอุปกรณ์'', \nonumber \\
+                        & \hspace{2em} ``username'' : ``ชื่อผู้ใช้'', \nonumber \\
+                        & \hspace{2em} ``password'' : ``รหัสผ่าน'', \nonumber \\
+                        & \hspace{2em} ``enable\_password'' : ``รหัสผ่าน Enable (Optional)'', \nonumber \\
+                        & \hspace{2em} ``ssh\_port'' : ``พอร์ต SSH (default: 22)'' \nonumber \\
+                        & \hspace{1em} \} \nonumber \\
+                        & \} \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+\begin{table}[H]
+    \caption{\fontSixTeen{แสดง Data Flow ผลการ Deploy คอนฟิก}}
+    \label{tab:df-4-2}
+    \fontSixTeen 
+    \begin{tabularx}{\textwidth}{|l|L|} 
+        \hline
+        \textbf{Data Flow ID:} & DF-4.2 \\
+        \hline
+        \textbf{Data Flow Name:} & ผลการ Deploy คอนฟิก \\
+        \hline
+        \textbf{Description:} & ผลลัพธ์จากการ Deploy คอนฟิกผ่าน Desktop Agent ไปยังอุปกรณ์เครือข่าย \\
+        \hline
+        \textbf{Source:} & Desktop Agent (ผ่าน Agent Relay) \\
+        \hline
+        \textbf{Destination:} & ผู้ใช้และ D3 ฐานข้อมูลประวัติการคอนฟิก (Configurations) \\
+        \hline
+        \textbf{Type Of Data Flow:} & Result Data \\
+        \hline
+        \textbf{Data Structure:} & ผลลัพธ์การ Deploy = \{ \nonumber \\
+                        & \hspace{1em} ``config\_id'' : ``รหัสคอนฟิก (ObjectId)'', \nonumber \\
+                        & \hspace{1em} ``status'' : ``deployed | failed | rolled\_back'', \nonumber \\
+                        & \hspace{1em} ``deployed\_config'' : ``คอนฟิกที่ Deploy สำเร็จ'', \nonumber \\
+                        & \hspace{1em} ``deployed\_at'' : ``เวลาที่ Deploy (Timestamp)'', \nonumber \\
+                        & \hspace{1em} ``deployment\_time'' : ``เวลาที่ใช้ในการ Deploy (ms)'', \nonumber \\
+                        & \hspace{1em} ``error\_message'' : ``รายละเอียดข้อผิดพลาด (ถ้ามี)'', \nonumber \\
+                        & \hspace{1em} ``device\_response'' : ``ผลตอบกลับจากอุปกรณ์'', \nonumber \\
+                        & \hspace{1em} ``updated\_at'' : ``เวลาที่อัปเดต (Timestamp)'' \nonumber \\
+                        & \} \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+% =====================================================
+% DF-5: Backup Management (Process 5.0)
+% =====================================================
+
+\begin{table}[H]
+    \caption{\fontSixTeen{แสดง Data Flow คำขอสำรองคอนฟิก}}
+    \label{tab:df-5-1}
+    \fontSixTeen 
+    \begin{tabularx}{\textwidth}{|l|L|} 
+        \hline
+        \textbf{Data Flow ID:} & DF-5.1 \\
+        \hline
+        \textbf{Data Flow Name:} & คำขอสำรองคอนฟิก \\
+        \hline
+        \textbf{Description:} & คำขอจากผู้ใช้เพื่อสำรองคอนฟิกผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH (Interactive Shell) จากอุปกรณ์เครือข่าย โดย Agent จะเชื่อมต่อ SSH อัตโนมัติ ส่งคำสั่ง terminal length 0 และ show running-config/show startup-config ผ่าน Interactive Shell แยกคำสั่ง พร้อมทำความสะอาดผลลัพธ์ (ลบ ANSI codes, Command Echo และ Device Prompt) \\
+        \hline
+        \textbf{Source:} & ผู้ใช้ (User) \\
+        \hline
+        \textbf{Destination:} & กระบวนการสำรองคอนฟิก (Backup Process) \\
+        \hline
+        \textbf{Type Of Data Flow:} & Request Data \\
+        \hline
+        \textbf{Data Structure:} & คำขอสำรอง = \{ \nonumber \\
+                        & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId, Required)'', \nonumber \\
+                        & \hspace{1em} ``backup\_name'' : ``ชื่อไฟล์สำรอง (สูงสุด 255 ตัวอักษร, Required)'', \nonumber \\
+                        & \hspace{1em} ``config\_type'' : ``running-config | startup-config | both'', \nonumber \\
+                        & \hspace{1em} ``backup\_type'' : ``manual'', \nonumber \\
+                        & \hspace{1em} ``description'' : ``คำอธิบายการสำรอง (Optional)'', \nonumber \\
+                        & \hspace{1em} ``tags'' : ``ป้ายกำกับ (Array of Strings)'', \nonumber \\
+                        & \hspace{1em} ``is\_restore\_point'' : ``true | false (default: false)'' \nonumber \\
+                        & \} \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+\begin{table}[H]
+    \caption{\fontSixTeen{แสดง Data Flow ข้อมูลสำรองคอนฟิก}}
+    \label{tab:df-5-2}
+    \fontSixTeen 
+    \begin{tabularx}{\textwidth}{|l|L|} 
+        \hline
+        \textbf{Data Flow ID:} & DF-5.2 \\
+        \hline
+        \textbf{Data Flow Name:} & ข้อมูลสำรองคอนฟิก \\
+        \hline
+        \textbf{Description:} & ข้อมูลคอนฟิกที่ Desktop Agent ดึงมาจากอุปกรณ์ผ่าน SSH และส่งกลับผ่าน Agent Relay เพื่อบันทึกลงฐานข้อมูลสำรอง \\
+        \hline
+        \textbf{Source:} & Desktop Agent (ผ่าน Agent Relay) \\
+        \hline
+        \textbf{Destination:} & D4 ฐานข้อมูลสำรองคอนฟิก (Backups) \\
+        \hline
+        \textbf{Type Of Data Flow:} & Backup Data \\
+        \hline
+        \textbf{Data Structure:} & ข้อมูลสำรอง = \{ \nonumber \\
+                        & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId)'', \nonumber \\
+                        & \hspace{1em} ``backup\_name'' : ``ชื่อไฟล์สำรอง (Unique per device)'', \nonumber \\
+                        & \hspace{1em} ``description'' : ``คำอธิบาย'', \nonumber \\
+                        & \hspace{1em} ``running\_config'' : ``Running Configuration (String)'', \nonumber \\
+                        & \hspace{1em} ``startup\_config'' : ``Startup Configuration (String)'', \nonumber \\
+                        & \hspace{1em} ``config\_type'' : ``running-config | startup-config | both'', \nonumber \\
+                        & \hspace{1em} ``backup\_type'' : ``manual'', \nonumber \\
+                        & \hspace{1em} ``file\_size'' : ``ขนาดไฟล์ (bytes)'', \nonumber \\
+                        & \hspace{1em} ``config\_hash'' : ``SHA-256 Hash สำหรับตรวจสอบความซ้ำ (64 chars)'', \nonumber \\
+                        & \hspace{1em} ``created\_by'' : ``ผู้สร้าง (default: system)'', \nonumber \\
+                        & \hspace{1em} ``is\_restore\_point'' : ``true | false'', \nonumber \\
+                        & \hspace{1em} ``tags'' : ``ป้ายกำกับ (Array)'', \nonumber \\
+                        & \hspace{1em} ``createdAt'' : ``วันที่สร้าง (Auto)'', \nonumber \\
+                        & \hspace{1em} ``updatedAt'' : ``วันที่แก้ไข (Auto)'' \nonumber \\
+                        & \} \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+% =====================================================
+% DF-5: Rollback Operations (Process 5.0 ต่อ)
+% =====================================================
+
+\begin{table}[H]
+    \caption{\fontSixTeen{แสดง Data Flow การ Rollback คอนฟิก}}
+    \label{tab:df-5-3}
+    \fontSixTeen 
+    \begin{tabularx}{\textwidth}{|l|L|} 
+        \hline
+        \textbf{Data Flow ID:} & DF-5.3 \\
+        \hline
+        \textbf{Data Flow Name:} & คำขอ Rollback คอนฟิก \\
+        \hline
+        \textbf{Description:} & คำขอจากผู้ใช้เพื่อย้อนกลับคอนฟิกไปยังเวอร์ชันก่อนหน้าผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH \\
+        \hline
+        \textbf{Source:} & ผู้ใช้ (User) \\
+        \hline
+        \textbf{Destination:} & กระบวนการ Rollback (Rollback Process) \\
+        \hline
+        \textbf{Type Of Data Flow:} & Rollback Request \\
+        \hline
+        \textbf{Data Structure:} & คำขอ Rollback = \{ \nonumber \\
+                        & \hspace{1em} ``config\_id'' : ``รหัสคอนฟิกที่ต้องการย้อนกลับไป (ObjectId)'', \nonumber \\
+                        & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId)'', \nonumber \\
+                        & \hspace{1em} ``rollback\_reason'' : ``เหตุผลในการ Rollback'', \nonumber \\
+                        & \hspace{1em} ``restored\_from'' : ``อ้างอิง Backup ID (ถ้า Restore จาก Backup)'', \nonumber \\
+                        & \hspace{1em} ``restored\_from\_config'' : ``อ้างอิง Config ID ที่ย้อนกลับไป'' \nonumber \\
+                        & \} \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+\begin{table}[H]
+    \caption{\fontSixTeen{แสดง Data Flow ผลการ Rollback}}
+    \label{tab:df-5-4}
+    \fontSixTeen 
+    \begin{tabularx}{\textwidth}{|l|L|} 
+        \hline
+        \textbf{Data Flow ID:} & DF-5.4 \\
+        \hline
+        \textbf{Data Flow Name:} & ผลการ Rollback คอนฟิก \\
+        \hline
+        \textbf{Description:} & ผลลัพธ์จากการ Rollback คอนฟิกผ่าน Desktop Agent บนอุปกรณ์เครือข่าย \\
+        \hline
+        \textbf{Source:} & Desktop Agent (ผ่าน Agent Relay) \\
+        \hline
+        \textbf{Destination:} & D3 ฐานข้อมูลประวัติการคอนฟิก (Configurations) \\
+        \hline
+        \textbf{Type Of Data Flow:} & Result Data \\
+        \hline
+        \textbf{Data Structure:} & ผลการ Rollback = \{ \nonumber \\
+                        & \hspace{1em} ``status'' : ``rolled\_back | failed'', \nonumber \\
+                        & \hspace{1em} ``rolled\_back\_at'' : ``เวลาที่ Rollback (Timestamp)'', \nonumber \\
+                        & \hspace{1em} ``rolled\_back\_by'' : ``อ้างอิง Config ID ที่ถูกแทนที่'', \nonumber \\
+                        & \hspace{1em} ``rollback\_reason'' : ``เหตุผลในการ Rollback'', \nonumber \\
+                        & \hspace{1em} ``error\_message'' : ``ข้อผิดพลาด (ถ้ามี)'' \nonumber \\
+                        & \} \\
+        \hline
+    \end{tabularx}
+\end{table}
+
+% =====================================================
+% DF-6: Console Management (Process 6.0)
 % =====================================================
 
 \begin{table}[H]
@@ -222,362 +661,6 @@
                         & \hspace{1em} ``username'' : ``ชื่อผู้ใช้สำหรับ SSH'', \nonumber \\
                         & \hspace{1em} ``password'' : ``รหัสผ่านสำหรับ SSH'', \nonumber \\
                         & \hspace{1em} ``rsaKeySize'' : ``ขนาด RSA Key (default: 2048)'' \nonumber \\
-                        & \} \\
-        \hline
-    \end{tabularx}
-\end{table}
-
-% =====================================================
-% DF-1: Device Management
-% =====================================================
-
-\begin{table}[H]
-    \caption{\fontSixTeen{แสดง Data Flow ข้อมูลอุปกรณ์}}
-    \label{tab:df-1-1}
-    \fontSixTeen 
-    \begin{tabularx}{\textwidth}{|l|L|} 
-        \hline
-        \textbf{Data Flow ID:} & DF-1.1 \\
-        \hline
-        \textbf{Data Flow Name:} & ข้อมูลอุปกรณ์ \\
-        \hline
-        \textbf{Description:} & ข้อมูลของอุปกรณ์เครือข่ายที่ผู้ใช้บันทึกเข้าสู่ระบบเพื่อการจัดการ \\
-        \hline
-        \textbf{Source:} & ผู้ใช้ (User) \\
-        \hline
-        \textbf{Destination:} & D1 ฐานข้อมูลอุปกรณ์ (Device Database) \\
-        \hline
-        \textbf{Type Of Data Flow:} & Device Data \\
-        \hline
-        \textbf{Data Structure:} & ข้อมูลอุปกรณ์ = \{ \nonumber \\
-                        & \hspace{1em} ``name'' : ``ชื่ออุปกรณ์ เช่น Core-Switch-01 (สูงสุด 255 ตัวอักษร)'', \nonumber \\
-                        & \hspace{1em} ``type'' : ``router | switch | nexus | ios-xe'', \nonumber \\
-                        & \hspace{1em} ``layer'' : ``layer-2 | layer-3 (เฉพาะ switch)'', \nonumber \\
-                        & \hspace{1em} ``ip\_address'' : ``IP Address เช่น 192.168.1.10'', \nonumber \\
-                        & \hspace{1em} ``ssh\_port'' : ``พอร์ต SSH (default: 22, range: 1-65535)'', \nonumber \\
-                        & \hspace{1em} ``netconf\_port'' : ``พอร์ต NETCONF (default: 830)'', \nonumber \\
-                        & \hspace{1em} ``netconf\_enabled'' : ``true | false (default: true สำหรับ nexus และ ios-xe)'', \nonumber \\
-                        & \hspace{1em} ``username'' : ``ชื่อผู้ใช้สำหรับ SSH (สูงสุด 255 ตัวอักษร)'', \nonumber \\
-                        & \hspace{1em} ``password'' : ``รหัสผ่านสำหรับ SSH'', \nonumber \\
-                        & \hspace{1em} ``enable\_password'' : ``รหัสผ่าน Enable (Optional)'', \nonumber \\
-                        & \hspace{1em} ``description'' : ``คำอธิบายอุปกรณ์'', \nonumber \\
-                        & \hspace{1em} ``location'' : ``ตำแหน่งที่ตั้ง เช่น Data Center Rack A1'', \nonumber \\
-                        & \hspace{1em} ``model'' : ``รุ่นของอุปกรณ์ เช่น Cisco ISR 4321'', \nonumber \\
-                        & \hspace{1em} ``vendor'' : ``cisco | juniper | huawei | arista | other'', \nonumber \\
-                        & \hspace{1em} ``status'' : ``active | inactive | maintenance | error'' \nonumber \\
-                        & \} \\
-        \hline
-    \end{tabularx}
-\end{table}
-
-\begin{table}[H]
-    \caption{\fontSixTeen{แสดง Data Flow การทดสอบการเชื่อมต่อ}}
-    \label{tab:df-1-2}
-    \fontSixTeen 
-    \begin{tabularx}{\textwidth}{|l|L|} 
-        \hline
-        \textbf{Data Flow ID:} & DF-1.2 \\
-        \hline
-        \textbf{Data Flow Name:} & การทดสอบการเชื่อมต่อ \\
-        \hline
-        \textbf{Description:} & กระบวนการทดสอบการเชื่อมต่อกับอุปกรณ์เครือข่ายผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH \\
-        \hline
-        \textbf{Source:} & กระบวนการจัดการอุปกรณ์ (Device Management Process) \\
-        \hline
-        \textbf{Destination:} & Desktop Agent $\rightarrow$ อุปกรณ์เครือข่าย (Network Device) \\
-        \hline
-        \textbf{Type Of Data Flow:} & Test Connection (via Agent Relay) \\
-        \hline
-        \textbf{Data Structure:} & ผลการทดสอบ = \{ \nonumber \\
-                        & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId)'', \nonumber \\
-                        & \hspace{1em} ``ssh\_status'' : ``connected | disconnected | connecting | error'', \nonumber \\
-                        & \hspace{1em} ``ssh\_connected\_at'' : ``เวลาที่เชื่อมต่อ (Date)'', \nonumber \\
-                        & \hspace{1em} ``ssh\_session\_id'' : ``รหัสเซสชัน SSH'', \nonumber \\
-                        & \hspace{1em} ``last\_connection'' : \{ \nonumber \\
-                        & \hspace{2em} ``type'' : ``ssh | console'', \nonumber \\
-                        & \hspace{2em} ``timestamp'' : ``เวลาที่เชื่อมต่อ'', \nonumber \\
-                        & \hspace{2em} ``status'' : ``success | failed | timeout'', \nonumber \\
-                        & \hspace{2em} ``error\_message'' : ``ข้อความผิดพลาด (ถ้ามี)'' \nonumber \\
-                        & \hspace{1em} \} \nonumber \\
-                        & \} \\
-        \hline
-    \end{tabularx}
-\end{table}
-
-% =====================================================
-% DF-2: Configuration Generation
-% =====================================================
-
-\begin{table}[H]
-    \caption{\fontSixTeen{แสดง Data Flow คำขอสร้างคอนฟิก}}
-    \label{tab:df-2-1}
-    \fontSixTeen 
-    \begin{tabularx}{\textwidth}{|l|L|} 
-        \hline
-        \textbf{Data Flow ID:} & DF-2.1 \\
-        \hline
-        \textbf{Data Flow Name:} & คำขอสร้างคอนฟิก \\
-        \hline
-        \textbf{Description:} & คำสั่งหรือข้อความ Prompt จากผู้ใช้เพื่อให้ LLM สร้างคอนฟิกสำหรับอุปกรณ์เครือข่าย \\
-        \hline
-        \textbf{Source:} & ผู้ใช้ (User) \\
-        \hline
-        \textbf{Destination:} & กระบวนการสร้างคอนฟิก (Configuration Generation Process) \\
-        \hline
-        \textbf{Type Of Data Flow:} & Request Data \\
-        \hline
-        \textbf{Data Structure:} & คำขอสร้างคอนฟิก = \{ \nonumber \\
-                        & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId, Required) - สำหรับสร้างทีละอุปกรณ์'', \nonumber \\
-                        & \hspace{1em} ``device\_ids'' : ``[รหัสอุปกรณ์] (Array of ObjectId) - สำหรับสร้างหลายอุปกรณ์พร้อมกัน'', \nonumber \\
-                        & \hspace{1em} ``prompt'' : ``คำสั่ง เช่น config ospf area 0 (ขั้นต่ำ 10 ตัวอักษร)'', \nonumber \\
-                        & \hspace{1em} ``config\_type'' : ``cli | netconf-yang'', \nonumber \\
-                        & \hspace{1em} ``device\_context'' : \{ \nonumber \\
-                        & \hspace{2em} ``type'' : ``router | switch | nexus | ios-xe'', \nonumber \\
-                        & \hspace{2em} ``layer'' : ``layer-2 | layer-3'', \nonumber \\
-                        & \hspace{2em} ``vendor'' : ``cisco | juniper | huawei | arista'', \nonumber \\
-                        & \hspace{2em} ``model'' : ``รุ่นของอุปกรณ์'' \nonumber \\
-                        & \hspace{1em} \} \nonumber \\
-                        & \} \\
-        \hline
-    \end{tabularx}
-\end{table}
-
-\begin{table}[H]
-    \caption{\fontSixTeen{แสดง Data Flow คอนฟิกที่สร้างโดย LLM}}
-    \label{tab:df-2-2}
-    \fontSixTeen 
-    \begin{tabularx}{\textwidth}{|l|L|} 
-        \hline
-        \textbf{Data Flow ID:} & DF-2.2 \\
-        \hline
-        \textbf{Data Flow Name:} & คอนฟิกที่สร้างโดย LLM \\
-        \hline
-        \textbf{Description:} & คอนฟิกที่ถูกสร้างโดย LLM (Ollama via Desktop Agent) และบันทึกลงฐานข้อมูล \\
-        \hline
-        \textbf{Source:} & Ollama LLM API (via Agent Relay $\rightarrow$ Desktop Agent) \\
-        \hline
-        \textbf{Destination:} & D2 ฐานข้อมูลประวัติการคอนฟิก (ConfigurationHistory) \\
-        \hline
-        \textbf{Type Of Data Flow:} & Configuration Data \\
-        \hline
-        \textbf{Data Structure:} & คอนฟิกที่สร้าง = \{ \nonumber \\
-                        & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId)'', \nonumber \\
-                        & \hspace{1em} ``prompt'' : ``คำสั่งของผู้ใช้ (ขั้นต่ำ 10 ตัวอักษร)'', \nonumber \\
-                        & \hspace{1em} ``generated\_config'' : ``คำสั่ง Cisco IOS พร้อม Comments (สำหรับแสดงผล)'', \nonumber \\
-                        & \hspace{1em} ``deployment\_config'' : ``คำสั่ง Cisco IOS (สำหรับ Deploy จริง)'', \nonumber \\
-                        & \hspace{1em} ``config\_type'' : ``cli | netconf-yang'', \nonumber \\
-                        & \hspace{1em} ``ai\_model'' : ``ollama (default)'', \nonumber \\
-                        & \hspace{1em} ``status'' : ``generated | deployed | failed | rolled\_back'', \nonumber \\
-                        & \hspace{1em} ``execution\_time'' : ``เวลาที่ใช้ในการสร้าง (ms)'', \nonumber \\
-                        & \hspace{1em} ``validated\_before\_deploy'' : ``true | false'', \nonumber \\
-                        & \hspace{1em} ``user\_rating'' : ``คะแนน 1-5 (Optional)'', \nonumber \\
-                        & \hspace{1em} ``feedback\_text'' : ``ความคิดเห็นของผู้ใช้ (Optional)'', \nonumber \\
-                        & \hspace{1em} ``created\_at'' : ``เวลาที่สร้าง (Timestamp)'' \nonumber \\
-                        & \} \\
-        \hline
-    \end{tabularx}
-\end{table}
-
-% =====================================================
-% DF-3: Configuration Deployment
-% =====================================================
-
-\begin{table}[H]
-    \caption{\fontSixTeen{แสดง Data Flow คำขอ Deploy คอนฟิก}}
-    \label{tab:df-3-1}
-    \fontSixTeen 
-    \begin{tabularx}{\textwidth}{|l|L|} 
-        \hline
-        \textbf{Data Flow ID:} & DF-3.1 \\
-        \hline
-        \textbf{Data Flow Name:} & คำขอ Deploy คอนฟิก \\
-        \hline
-        \textbf{Description:} & คำขอจากผู้ใช้เพื่อติดตั้งคอนฟิกูเรชันผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH/NETCONF \\
-        \hline
-        \textbf{Source:} & ผู้ใช้ (User) \\
-        \hline
-        \textbf{Destination:} & กระบวนการติดตั้งคอนฟิก (Deployment Process) \\
-        \hline
-        \textbf{Type Of Data Flow:} & Deployment Request \\
-        \hline
-        \textbf{Data Structure:} & คำขอ Deploy คอนฟิก = \{ \nonumber \\
-                        & \hspace{1em} ``config\_id'' : ``รหัสคอนฟิก (ObjectId)'', \nonumber \\
-                        & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId)'', \nonumber \\
-                        & \hspace{1em} ``deployment\_config'' : ``คอนฟิกที่จะ Deploy'', \nonumber \\
-                        & \hspace{1em} ``device\_credentials'' : \{ \nonumber \\
-                        & \hspace{2em} ``ip\_address'' : ``IP ของอุปกรณ์'', \nonumber \\
-                        & \hspace{2em} ``username'' : ``ชื่อผู้ใช้'', \nonumber \\
-                        & \hspace{2em} ``password'' : ``รหัสผ่าน'', \nonumber \\
-                        & \hspace{2em} ``enable\_password'' : ``รหัสผ่าน Enable (Optional)'', \nonumber \\
-                        & \hspace{2em} ``ssh\_port'' : ``พอร์ต SSH (default: 22)'' \nonumber \\
-                        & \hspace{1em} \} \nonumber \\
-                        & \} \\
-        \hline
-    \end{tabularx}
-\end{table}
-
-\begin{table}[H]
-    \caption{\fontSixTeen{แสดง Data Flow ผลการ Deploy คอนฟิก}}
-    \label{tab:df-3-2}
-    \fontSixTeen 
-    \begin{tabularx}{\textwidth}{|l|L|} 
-        \hline
-        \textbf{Data Flow ID:} & DF-3.2 \\
-        \hline
-        \textbf{Data Flow Name:} & ผลการ Deploy คอนฟิก \\
-        \hline
-        \textbf{Description:} & ผลลัพธ์จากการ Deploy คอนฟิกผ่าน Desktop Agent ไปยังอุปกรณ์เครือข่าย \\
-        \hline
-        \textbf{Source:} & Desktop Agent (ผ่าน Agent Relay) \\
-        \hline
-        \textbf{Destination:} & ผู้ใช้และ D2 ฐานข้อมูลประวัติการคอนฟิก (ConfigurationHistory) \\
-        \hline
-        \textbf{Type Of Data Flow:} & Result Data \\
-        \hline
-        \textbf{Data Structure:} & ผลลัพธ์การ Deploy = \{ \nonumber \\
-                        & \hspace{1em} ``config\_id'' : ``รหัสคอนฟิก (ObjectId)'', \nonumber \\
-                        & \hspace{1em} ``status'' : ``deployed | failed | rolled\_back'', \nonumber \\
-                        & \hspace{1em} ``deployed\_config'' : ``คอนฟิกที่ Deploy สำเร็จ'', \nonumber \\
-                        & \hspace{1em} ``deployed\_at'' : ``เวลาที่ Deploy (Timestamp)'', \nonumber \\
-                        & \hspace{1em} ``deployment\_time'' : ``เวลาที่ใช้ในการ Deploy (ms)'', \nonumber \\
-                        & \hspace{1em} ``error\_message'' : ``รายละเอียดข้อผิดพลาด (ถ้ามี)'', \nonumber \\
-                        & \hspace{1em} ``device\_response'' : ``ผลตอบกลับจากอุปกรณ์'', \nonumber \\
-                        & \hspace{1em} ``updated\_at'' : ``เวลาที่อัปเดต (Timestamp)'' \nonumber \\
-                        & \} \\
-        \hline
-    \end{tabularx}
-\end{table}
-
-% =====================================================
-% DF-4: Backup Management
-% =====================================================
-
-\begin{table}[H]
-    \caption{\fontSixTeen{แสดง Data Flow คำขอสำรองคอนฟิก}}
-    \label{tab:df-4-1}
-    \fontSixTeen 
-    \begin{tabularx}{\textwidth}{|l|L|} 
-        \hline
-        \textbf{Data Flow ID:} & DF-4.1 \\
-        \hline
-        \textbf{Data Flow Name:} & คำขอสำรองคอนฟิก \\
-        \hline
-        \textbf{Description:} & คำขอจากผู้ใช้เพื่อสำรองคอนฟิกผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH (Interactive Shell) จากอุปกรณ์เครือข่าย โดย Agent จะเชื่อมต่อ SSH อัตโนมัติ ส่งคำสั่ง terminal length 0 และ show running-config/show startup-config ผ่าน Interactive Shell แยกคำสั่ง พร้อมทำความสะอาดผลลัพธ์ (ลบ ANSI codes, Command Echo และ Device Prompt) \\
-        \hline
-        \textbf{Source:} & ผู้ใช้ (User) \\
-        \hline
-        \textbf{Destination:} & กระบวนการสำรองคอนฟิก (Backup Process) \\
-        \hline
-        \textbf{Type Of Data Flow:} & Request Data \\
-        \hline
-        \textbf{Data Structure:} & คำขอสำรอง = \{ \nonumber \\
-                        & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId, Required)'', \nonumber \\
-                        & \hspace{1em} ``backup\_name'' : ``ชื่อไฟล์สำรอง (สูงสุด 255 ตัวอักษร, Required)'', \nonumber \\
-                        & \hspace{1em} ``config\_type'' : ``running-config | startup-config | both'', \nonumber \\
-                        & \hspace{1em} ``backup\_type'' : ``manual'', \nonumber \\
-                        & \hspace{1em} ``description'' : ``คำอธิบายการสำรอง (Optional)'', \nonumber \\
-                        & \hspace{1em} ``tags'' : ``ป้ายกำกับ (Array of Strings)'', \nonumber \\
-                        & \hspace{1em} ``is\_restore\_point'' : ``true | false (default: false)'' \nonumber \\
-                        & \} \\
-        \hline
-    \end{tabularx}
-\end{table}
-
-\begin{table}[H]
-    \caption{\fontSixTeen{แสดง Data Flow ข้อมูลสำรองคอนฟิก}}
-    \label{tab:df-4-2}
-    \fontSixTeen 
-    \begin{tabularx}{\textwidth}{|l|L|} 
-        \hline
-        \textbf{Data Flow ID:} & DF-4.2 \\
-        \hline
-        \textbf{Data Flow Name:} & ข้อมูลสำรองคอนฟิก \\
-        \hline
-        \textbf{Description:} & ข้อมูลคอนฟิกที่ Desktop Agent ดึงมาจากอุปกรณ์ผ่าน SSH และส่งกลับผ่าน Agent Relay เพื่อบันทึกลงฐานข้อมูลสำรอง \\
-        \hline
-        \textbf{Source:} & Desktop Agent (ผ่าน Agent Relay) \\
-        \hline
-        \textbf{Destination:} & D3 ฐานข้อมูลสำรองคอนฟิก (ConfigurationBackup) \\
-        \hline
-        \textbf{Type Of Data Flow:} & Backup Data \\
-        \hline
-        \textbf{Data Structure:} & ข้อมูลสำรอง = \{ \nonumber \\
-                        & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId)'', \nonumber \\
-                        & \hspace{1em} ``backup\_name'' : ``ชื่อไฟล์สำรอง (Unique per device)'', \nonumber \\
-                        & \hspace{1em} ``description'' : ``คำอธิบาย'', \nonumber \\
-                        & \hspace{1em} ``running\_config'' : ``Running Configuration (String)'', \nonumber \\
-                        & \hspace{1em} ``startup\_config'' : ``Startup Configuration (String)'', \nonumber \\
-                        & \hspace{1em} ``config\_type'' : ``running-config | startup-config | both'', \nonumber \\
-                        & \hspace{1em} ``backup\_type'' : ``manual'', \nonumber \\
-                        & \hspace{1em} ``file\_size'' : ``ขนาดไฟล์ (bytes)'', \nonumber \\
-                        & \hspace{1em} ``config\_hash'' : ``SHA-256 Hash สำหรับตรวจสอบความซ้ำ (64 chars)'', \nonumber \\
-                        & \hspace{1em} ``created\_by'' : ``ผู้สร้าง (default: system)'', \nonumber \\
-                        & \hspace{1em} ``is\_restore\_point'' : ``true | false'', \nonumber \\
-                        & \hspace{1em} ``tags'' : ``ป้ายกำกับ (Array)'', \nonumber \\
-                        & \hspace{1em} ``createdAt'' : ``วันที่สร้าง (Auto)'', \nonumber \\
-                        & \hspace{1em} ``updatedAt'' : ``วันที่แก้ไข (Auto)'' \nonumber \\
-                        & \} \\
-        \hline
-    \end{tabularx}
-\end{table}
-
-% =====================================================
-% DF-5: Rollback Operations
-% =====================================================
-
-\begin{table}[H]
-    \caption{\fontSixTeen{แสดง Data Flow การ Rollback คอนฟิก}}
-    \label{tab:df-5-1}
-    \fontSixTeen 
-    \begin{tabularx}{\textwidth}{|l|L|} 
-        \hline
-        \textbf{Data Flow ID:} & DF-5.1 \\
-        \hline
-        \textbf{Data Flow Name:} & คำขอ Rollback คอนฟิก \\
-        \hline
-        \textbf{Description:} & คำขอจากผู้ใช้เพื่อย้อนกลับคอนฟิกไปยังเวอร์ชันก่อนหน้าผ่าน Agent Relay $\rightarrow$ Desktop Agent $\rightarrow$ SSH \\
-        \hline
-        \textbf{Source:} & ผู้ใช้ (User) \\
-        \hline
-        \textbf{Destination:} & กระบวนการ Rollback (Rollback Process) \\
-        \hline
-        \textbf{Type Of Data Flow:} & Rollback Request \\
-        \hline
-        \textbf{Data Structure:} & คำขอ Rollback = \{ \nonumber \\
-                        & \hspace{1em} ``config\_id'' : ``รหัสคอนฟิกที่ต้องการย้อนกลับไป (ObjectId)'', \nonumber \\
-                        & \hspace{1em} ``device\_id'' : ``รหัสอุปกรณ์ (ObjectId)'', \nonumber \\
-                        & \hspace{1em} ``rollback\_reason'' : ``เหตุผลในการ Rollback'', \nonumber \\
-                        & \hspace{1em} ``restored\_from'' : ``อ้างอิง Backup ID (ถ้า Restore จาก Backup)'', \nonumber \\
-                        & \hspace{1em} ``restored\_from\_config'' : ``อ้างอิง Config ID ที่ย้อนกลับไป'' \nonumber \\
-                        & \} \\
-        \hline
-    \end{tabularx}
-\end{table}
-
-\begin{table}[H]
-    \caption{\fontSixTeen{แสดง Data Flow ผลการ Rollback}}
-    \label{tab:df-5-2}
-    \fontSixTeen 
-    \begin{tabularx}{\textwidth}{|l|L|} 
-        \hline
-        \textbf{Data Flow ID:} & DF-5.2 \\
-        \hline
-        \textbf{Data Flow Name:} & ผลการ Rollback คอนฟิก \\
-        \hline
-        \textbf{Description:} & ผลลัพธ์จากการ Rollback คอนฟิกผ่าน Desktop Agent บนอุปกรณ์เครือข่าย \\
-        \hline
-        \textbf{Source:} & Desktop Agent (ผ่าน Agent Relay) \\
-        \hline
-        \textbf{Destination:} & D2 ฐานข้อมูลประวัติการคอนฟิก (ConfigurationHistory) \\
-        \hline
-        \textbf{Type Of Data Flow:} & Result Data \\
-        \hline
-        \textbf{Data Structure:} & ผลการ Rollback = \{ \nonumber \\
-                        & \hspace{1em} ``status'' : ``rolled\_back | failed'', \nonumber \\
-                        & \hspace{1em} ``rolled\_back\_at'' : ``เวลาที่ Rollback (Timestamp)'', \nonumber \\
-                        & \hspace{1em} ``rolled\_back\_by'' : ``อ้างอิง Config ID ที่ถูกแทนที่'', \nonumber \\
-                        & \hspace{1em} ``rollback\_reason'' : ``เหตุผลในการ Rollback'', \nonumber \\
-                        & \hspace{1em} ``error\_message'' : ``ข้อผิดพลาด (ถ้ามี)'' \nonumber \\
                         & \} \\
         \hline
     \end{tabularx}
@@ -656,27 +739,27 @@
     \caption{\fontSixTeen{ตารางฐานข้อมูล}}
     \label{tab:database_tables}
     \fontSixTeen 
-    \begin{tabularx}{\textwidth}{|l|l|X|} 
+    \begin{tabularx}{\textwidth}{|c|c|l|X|} 
         \hline
-        \multicolumn{1}{|c|}{\textbf{ลำดับที่}} & \multicolumn{1}{c|}{\textbf{ชื่อตาราง}} & \multicolumn{1}{c|}{\textbf{คำอธิบาย}} \\
+        \textbf{ลำดับที่} & \textbf{Data Store} & \multicolumn{1}{c|}{\textbf{ชื่อตาราง}} & \multicolumn{1}{c|}{\textbf{คำอธิบาย}} \\
         \hline
-        1 & User & เก็บข้อมูลผู้ใช้งานระบบที่ลงทะเบียนผ่าน Google OAuth \\
+        1 & D1 & User & เก็บข้อมูลผู้ใช้งานระบบที่ลงทะเบียนผ่าน Google OAuth \\
         \hline
-        2 & Device & เก็บข้อมูลและสถานะของอุปกรณ์เครือข่ายทั้งหมด \\
+        2 & D2 & Device & เก็บข้อมูลและสถานะของอุปกรณ์เครือข่ายทั้งหมด \\
         \hline
-        3 & ConfigurationHistory & เก็บบันทึกประวัติการสร้างและ Deploy คอนฟิกของแต่ละอุปกรณ์ \\
+        3 & D3 & ConfigurationHistory & เก็บบันทึกประวัติการสร้างและ Deploy คอนฟิกของแต่ละอุปกรณ์ \\
         \hline
-        4 & ConfigurationBackup & จัดเก็บไฟล์สำรองข้อมูลการคอนฟิกของอุปกรณ์ \\
+        4 & D4 & ConfigurationBackup & จัดเก็บไฟล์สำรองข้อมูลการคอนฟิกของอุปกรณ์ \\
         \hline
-        5 & YangModel & จัดเก็บข้อมูล YANG Model ที่ใช้สำหรับ NETCONF Configuration \\
+        5 & D5 & YangModel & จัดเก็บข้อมูล YANG Model ที่ใช้สำหรับ NETCONF Configuration \\
         \hline
-        6 & AgentCommand & คิวคำสั่งสำหรับ Agent Relay (HTTP Polling) ระหว่าง Backend กับ Desktop Agent \\
+        6 & D6 & AgentCommand & คิวคำสั่งสำหรับ Agent Relay (HTTP Polling) ระหว่าง Backend กับ Desktop Agent \\
         \hline
-        7 & AgentHeartbeat & ติดตามสถานะ Online/Offline ของ Desktop Agent ผ่าน Heartbeat \\
+        7 & D7 & AgentHeartbeat & ติดตามสถานะ Online/Offline ของ Desktop Agent ผ่าน Heartbeat \\
         \hline
-        8 & Notification & เก็บ Event Notifications สำหรับ Frontend Polling (แทน Socket.IO) \\
+        8 & D8 & Notification & เก็บ Event Notifications สำหรับ Frontend Polling (แทน Socket.IO) \\
         \hline
-        9 & ShellSession & Buffer ข้อมูล Interactive Shell I/O สำหรับ SSH Terminal ผ่าน Polling \\
+        9 & D9 & ShellSession & Buffer ข้อมูล Interactive Shell I/O สำหรับ SSH Terminal ผ่าน Polling \\
         \hline
     \end{tabularx}
 \end{table}
