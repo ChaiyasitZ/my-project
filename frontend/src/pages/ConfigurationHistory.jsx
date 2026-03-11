@@ -310,8 +310,7 @@ function ConfigurationHistory() {
                 { key: 'all', label: 'All', count: groupedConfigurations.length },
                 { key: 'generated', label: 'Generated', count: groupedConfigurations.filter(c => c.status === 'generated').length },
                 { key: 'deployed', label: 'Deployed', count: groupedConfigurations.filter(c => c.status === 'deployed').length },
-                { key: 'failed', label: 'Failed', count: groupedConfigurations.filter(c => c.status === 'failed').length },
-                { key: 'rolled_back', label: 'Rolled Back', count: groupedConfigurations.filter(c => c.status === 'rolled_back').length }
+                { key: 'failed', label: 'Failed', count: groupedConfigurations.filter(c => c.status === 'failed').length }
               ].map((filterOption) => (
                 <button
                   key={filterOption.key}
