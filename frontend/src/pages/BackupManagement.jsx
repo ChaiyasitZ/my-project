@@ -832,15 +832,13 @@ function BackupManagement() {
                       <EyeIcon className="h-3.5 w-3.5" />
                     </button>
                     {!backup.is_restore_point && (
-                      <>
-                        <button onClick={() => handleSetRestorePoint(backup)} className="btn btn-secondary btn-sm" title="Set Restore Point" aria-label="Set restore point">
-                          <ShieldIcon className="h-3.5 w-3.5" />
-                        </button>
-                        <button onClick={() => handleDeleteBackup(backup)} className="btn btn-danger btn-sm" title="Delete" aria-label="Delete backup">
-                          <TrashIcon className="h-3.5 w-3.5" />
-                        </button>
-                      </>
+                      <button onClick={() => handleSetRestorePoint(backup)} className="btn btn-secondary btn-sm" title="Set Restore Point" aria-label="Set restore point">
+                        <ShieldIcon className="h-3.5 w-3.5" />
+                      </button>
                     )}
+                    <button onClick={() => handleDeleteBackup(backup)} className="btn btn-danger btn-sm" title="Delete" aria-label="Delete backup">
+                      <TrashIcon className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
               </div>
