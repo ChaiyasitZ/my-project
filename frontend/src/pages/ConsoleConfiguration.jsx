@@ -923,7 +923,7 @@ function ConsoleConfiguration() {
 
           {/* Command Details */}
           <div className="space-y-2 max-h-64 overflow-auto custom-scrollbar">
-            {configResults.results.map((result, index) => (
+            {(configResults.results || []).map((result, index) => (
               <div
                 key={index}
                 className={`p-3 rounded ${
