@@ -467,40 +467,20 @@ class SSHHandler {
         let settled = false;
         const totalTimeout = isBoth ? 60000 : 30000;
         const timeout = setTimeout(() => {
-          if (!settled) { settled = true; stream.end(); finish(); }
+          if (!settled) { settled = true; stream.end(); reject(new Error('Backup command timeout')); }
         }, totalTimeout);
         const stripAnsi = (str) => str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '');
-        const finish = () => {
-          const clean = stripAnsi(output);
-          if (isBoth) {
-            const marker = 'show startup-config';
-            const splitIdx = clean.lastIndexOf(marker);
-            if (splitIdx > 0) {
-              const lineStart = clean.lastIndexOf('\n', splitIdx - 1);
-              const runningOutput = clean.substring(0, lineStart >= 0 ? lineStart : splitIdx);
-              const startupOutput = clean.substring(lineStart >= 0 ? lineStart + 1 : splitIdx);
-              resolve({ runningOutput, startupOutput });
-            } else {
-              // Fallback: all output as running, empty startup
-              resolve({ runningOutput: clean, startupOutput: '' });
-            }
-          } else {
-            resolve({ output: clean });
-          }
-        };
-        stream.on('data', (d) => {
-          output += d.toString();
-        });
+        stream.on('data', (d) => { output += d.toString(); });
         stream.on('close', () => {
-          if (!settled) { settled = true; clearTimeout(timeout); finish(); }
+          if (!settled) { settled = true; clearTimeout(timeout); reject(new Error('Shell closed unexpectedly')); }
         });
-        // Wait for prompt after each command before sending next
+        // Wait for Cisco prompt (hostname# or hostname>) after command output
         const waitForPrompt = (minLen = 0) => {
           return new Promise((res) => {
             const start = output.length;
             const check = setInterval(() => {
               const newData = stripAnsi(output.substring(start));
-              if (newData.length > minLen && /[#>]\s*$/.test(newData)) {
+              if (newData.length > minLen && /[A-Za-z0-9_\-]+[#>]\s*$/.test(newData)) {
                 clearInterval(check);
                 res();
               }
@@ -514,15 +494,27 @@ class SSHHandler {
             stream.write('terminal length 0\n');
             await waitForPrompt();
             if (isBoth) {
+              // Capture running config output separately
+              const beforeRunning = output.length;
               stream.write('show running-config\n');
               await waitForPrompt(100);
+              const runningOutput = stripAnsi(output.substring(beforeRunning));
+              // Capture startup config output separately
+              const beforeStartup = output.length;
               stream.write('show startup-config\n');
               await waitForPrompt(100);
+              const startupOutput = stripAnsi(output.substring(beforeStartup));
+              if (!settled) { settled = true; clearTimeout(timeout); stream.end(); }
+              console.log(`📋 execBackup — running: ${runningOutput.length} chars, startup: ${startupOutput.length} chars`);
+              resolve({ runningOutput, startupOutput });
             } else {
+              const beforeCmd = output.length;
               stream.write(`show ${configType}\n`);
               await waitForPrompt(100);
+              const cmdOutput = stripAnsi(output.substring(beforeCmd));
+              if (!settled) { settled = true; clearTimeout(timeout); stream.end(); }
+              resolve({ output: cmdOutput });
             }
-            if (!settled) { settled = true; clearTimeout(timeout); stream.end(); finish(); }
           } catch (e) {
             if (!settled) { settled = true; clearTimeout(timeout); stream.end(); reject(e); }
           }
