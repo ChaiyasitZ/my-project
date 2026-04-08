@@ -1,37 +1,47 @@
-%*************************************
+﻿%*************************************
 % ภาคผนวก ง.
 %*************************************
 \appendixChapterTitle{ง}{กระบวนการทำงาน NETCONF/YANG ในระบบ}
 \vspace*{-0.8in}
 
 \section{ภาพรวมโปรโตคอล NETCONF}
-\hspace*{1.3em}
-NETCONF (Network Configuration Protocol) เป็นโปรโตคอลมาตรฐานตาม RFC 6241 ที่ใช้ในการจัดการคอนฟิกอุปกรณ์เครือข่ายผ่านช่องทาง SSH ที่ปลอดภัย โดยใช้ XML เป็นรูปแบบข้อมูลสำหรับการสื่อสารระหว่าง Client (ระบบเว็บแอปพลิเคชัน) กับ Server (อุปกรณ์เครือข่าย) ในโครงงานนี้ระบบใช้ NETCONF เป็นกลไกหลักในการเชื่อมต่อและสั่งงานอุปกรณ์ Cisco Nexus (NX-OS) และ IOS-XE
+
+\begin{figure}[H]
+\centering
+\adjustbox{frame, width=1.0\textwidth}{
+    \includegraphics[width=1.0\textwidth]{Image/netconf-1_2.png}
+}
+\caption{\fontSixTeen{ภาพรวมโปรโตคอล NETCONF}}
+\label{figB:netconf1-2}
+\end{figure}
 
 \hspace*{1.3em}
-โปรโตคอล NETCONF มีสถาปัตยกรรมแบบ 4 ชั้น (Layer) ดังนี้
+NETCONF (Network Configuration Protocol) เปนโปรโตคอลมาตรฐานตาม RFC 6241 ทใชในการจดการคอนฟกอปกรณเครอขายผานชองทาง SSH ทปลอดภย โดยใช XML เปนรปแบบขอมลสำหรบการสอสารระหวาง Client (ระบบเวบแอปพลเคชน) กบ Server (อปกรณเครอขาย) ในโครงงานนระบบใช NETCONF เปนกลไกหลกในการเชอมตอและสงงานอปกรณ Cisco Nexus (NX-OS) และ IOS-XE
+
+\hspace*{1.3em}
+โปรโตคอล NETCONF มสถาปตยกรรมแบบ 4 ชน (Layer) ดงน
 
 \begin{mycustomenum2}
-    \item \textbf{Transport Layer:} ใช้ SSH (Secure Shell) เป็นช่องทางการสื่อสาร โดยเชื่อมต่อผ่าน SSH Subsystem ชื่อ \textbf{netconf} ที่พอร์ต 830 (ค่าเริ่มต้นมาตรฐาน)
-    \item \textbf{Messages Layer:} ใช้ XML-based RPC (Remote Procedure Call) ในการส่งคำสั่งและรับผลลัพธ์ โดยข้อความทุกข้อความสิ้นสุดด้วย Delimiter \textbf{]]>]]>} เพื่อระบุจุดสิ้นสุดของข้อความ
-    \item \textbf{Operations Layer:} กำหนดชุดคำสั่ง (Operations) ที่สามารถดำเนินการได้ เช่น \textbf{get-config}, \textbf{edit-config}, \textbf{lock}, \textbf{unlock}, \textbf{commit}, \textbf{validate} และ \textbf{close-session}
-    \item \textbf{Content Layer:} ข้อมูลคอนฟิกที่จัดการผ่าน NETCONF จะถูกกำหนดโครงสร้างด้วย YANG Data Model
+    \item \textbf{Transport Layer:} ใช SSH (Secure Shell) เปนชองทางการสอสาร โดยเชอมตอผาน SSH Subsystem ชอ \textbf{netconf} ทพอรต 830 (คาเรมตนมาตรฐาน)
+    \item \textbf{Messages Layer:} ใช XML-based RPC (Remote Procedure Call) ในการสงคำสงและรบผลลพธ โดยขอความทกขอความสนสดดวย Delimiter \textbf{]]>]]>} เพอระบจดสนสดของขอความ
+    \item \textbf{Operations Layer:} กำหนดชดคำสง (Operations) ทสามารถดำเนนการได เชน \textbf{get-config}, \textbf{edit-config}, \textbf{lock}, \textbf{unlock}, \textbf{commit}, \textbf{validate} และ \textbf{close-session}
+    \item \textbf{Content Layer:} ขอมลคอนฟกทจดการผาน NETCONF จะถกกำหนดโครงสรางดวย YANG Data Model
 \end{mycustomenum2}
 
 \section{YANG Data Model}
 \hspace*{1.3em}
-YANG (Yet Another Next Generation) เป็นภาษามาตรฐานตาม RFC 7950 สำหรับกำหนดโครงสร้างข้อมูล (Data Model) ของอุปกรณ์เครือข่าย YANG กำหนดว่าข้อมูลคอนฟิกที่จะส่งผ่าน NETCONF ต้องมีรูปแบบอย่างไร ประกอบด้วยฟิลด์อะไรบ้าง แต่ละฟิลด์มีชนิดข้อมูลอะไร และมีข้อจำกัดอย่างไร
+YANG (Yet Another Next Generation) เปนภาษามาตรฐานตาม RFC 7950 สำหรบกำหนดโครงสรางขอมล (Data Model) ของอปกรณเครอขาย YANG กำหนดวาขอมลคอนฟกทจะสงผาน NETCONF ตองมรปแบบอยางไร ประกอบดวยฟลดอะไรบาง แตละฟลดมชนดขอมลอะไร และมขอจำกดอยางไร
 
 \hspace*{1.3em}
-ในโครงงานนี้รองรับ YANG Namespace ของอุปกรณ์ Cisco 2 ประเภทหลัก ดังนี้
+ในโครงงานนรองรบ YANG Namespace ของอปกรณ Cisco 2 ประเภทหลก ดงน
 
 \begin{table}[H]
 \centering
-\caption{\fontSixTeen{YANG Namespace และ Root Element สำหรับอุปกรณ์ Cisco ที่รองรับในระบบ}}
+\caption{\fontSixTeen{YANG Namespace และ Root Element สำหรบอปกรณ Cisco ทรองรบในระบบ}}
 \label{tabD:YangNamespaces}
 \begin{tabularx}{\textwidth}{|l|X|l|}
 \hline
-\textbf{ประเภทอุปกรณ์} & \textbf{YANG Namespace} & \textbf{Root Element} \\
+\textbf{ประเภทอปกรณ} & \textbf{YANG Namespace} & \textbf{Root Element} \\
 \hline
 Cisco NX-OS (Nexus) & \textbf{http://cisco.com/ns/yang/cisco-nx-os-device} & \textbf{System} \\
 \hline
@@ -41,164 +51,146 @@ Cisco IOS-XE & \textbf{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \textbf{n
 \end{table}
 
 \hspace*{1.3em}
-โครงสร้าง YANG Model ประกอบด้วยองค์ประกอบหลักดังนี้
+โครงสราง YANG Model ประกอบดวยองคประกอบหลกดงน
 
 \begin{mycustomenum2}
-    \item \textbf{module:} หน่วยหลักของ YANG Model กำหนดชื่อโมดูลและ Namespace
-    \item \textbf{namespace:} URI ที่ระบุตัวตนของโมดูล ใช้ใน XML เพื่อระบุว่าข้อมูลเป็นของโมดูลใด
-    \item \textbf{prefix:} ชื่อย่อสำหรับอ้างอิง Namespace ในเอกสาร XML
-    \item \textbf{container:} โหนดที่ใช้จัดกลุ่มข้อมูลย่อย (เปรียบเสมือนโฟลเดอร์)
-    \item \textbf{list:} โหนดที่มีข้อมูลหลายรายการ โดยแต่ละรายการใช้ \textbf{key} ในการระบุตัวตน
-    \item \textbf{leaf:} โหนดปลายสุดที่เก็บค่าข้อมูลจริง เช่น ชื่ออินเทอร์เฟซ, IP Address
-    \item \textbf{leaf-list:} โหนดปลายสุดที่เก็บค่าได้หลายค่า (เช่น รายการ VLAN ที่อนุญาต)
+    \item \textbf{module:} หนวยหลกของ YANG Model กำหนดชอโมดลและ Namespace
+    \item \textbf{namespace:} URI ทระบตวตนของโมดล ใชใน XML เพอระบวาขอมลเปนของโมดลใด
+    \item \textbf{prefix:} ชอยอสำหรบอางอง Namespace ในเอกสาร XML
+    \item \textbf{container:} โหนดทใชจดกลมขอมลยอย (เปรยบเสมอนโฟลเดอร)
+    \item \textbf{list:} โหนดทมขอมลหลายรายการ โดยแตละรายการใช \textbf{key} ในการระบตวตน
+    \item \textbf{leaf:} โหนดปลายสดทเกบคาขอมลจรง เชน ชออนเทอรเฟซ, IP Address
+    \item \textbf{leaf-list:} โหนดปลายสดทเกบคาไดหลายคา (เชน รายการ VLAN ทอนญาต)
 \end{mycustomenum2}
 
 \hspace*{1.3em}
-ในระบบนี้ผู้ใช้สามารถอัปโหลด YANG Model เองได้ โดยระบบจะ Parse ข้อมูลจาก YANG Content อัตโนมัติ ดึงค่า \textbf{module}, \textbf{namespace}, \textbf{prefix} และ \textbf{revision} มาจัดเก็บในฐานข้อมูล นอกจากนี้แต่ละ YANG Model สามารถมี XML Templates เพื่อใช้เป็น Template สำหรับ LLM ในการสร้าง Configuration ได้
+ในระบบนผใชสามารถอปโหลด YANG Model เองได โดยระบบจะ Parse ขอมลจาก YANG Content อตโนมต ดงคา \textbf{module}, \textbf{namespace}, \textbf{prefix} และ \textbf{revision} มาจดเกบในฐานขอมล นอกจากนแตละ YANG Model สามารถม XML Templates เพอใชเปน Template สำหรบ LLM ในการสราง Configuration ได
 
-\section{กระบวนการเชื่อมต่อ NETCONF Session}
+\section{กระบวนการเชอมตอ NETCONF Session}
 \hspace*{1.3em}
-การเชื่อมต่อ NETCONF Session ในระบบมีขั้นตอนดังต่อไปนี้
+การเชอมตอ NETCONF Session ในระบบมขนตอนดงตอไปน
 
-\subsection{ขั้นตอนที่ 1: SSH Connection}
+\subsection{ขนตอนท 1: SSH Connection}
 \hspace*{1.3em}
-ระบบเริ่มต้นด้วยการสร้าง SSH Connection ไปยังอุปกรณ์เครือข่ายที่พอร์ต NETCONF (ค่าเริ่มต้นคือ 830) โดยใช้ SSH2 Library ใน Node.js พร้อมกำหนด Algorithms ที่เข้ากันได้กับอุปกรณ์ Cisco ดังนี้
+ระบบเรมตนดวยการสราง SSH Connection ไปยงอปกรณเครอขายทพอรต NETCONF (คาเรมตนคอ 830) โดยใช SSH2 Library ใน Node.js พรอมกำหนด Algorithms ทเขากนไดกบอปกรณ Cisco ดงน
 
 \begin{mycustomenum2}
     \item \textbf{Key Exchange:} \textbf{diffie-hellman-group14-sha256}, \textbf{ecdh-sha2-nistp256}
     \item \textbf{Cipher:} \textbf{aes256-ctr}, \textbf{aes128-ctr}
-    \item \textbf{Connection Timeout:} 30 วินาที
+    \item \textbf{Connection Timeout:} 30 วนาท
 \end{mycustomenum2}
 
-\subsection{ขั้นตอนที่ 2: NETCONF Subsystem}
+\subsection{ขนตอนท 2: NETCONF Subsystem}
 \hspace*{1.3em}
-เมื่อ SSH Connection สำเร็จ ระบบจะเปิด NETCONF Subsystem ผ่านคำสั่ง \textbf{conn.subsys('netconf')} เพื่อเข้าสู่โหมดการสื่อสาร NETCONF โดยเฉพาะ ซึ่งจะได้ Stream สำหรับรับ-ส่งข้อความ XML
+เมอ SSH Connection สำเรจ ระบบจะเปด NETCONF Subsystem ผานคำสง \textbf{conn.subsys('netconf')} เพอเขาสโหมดการสอสาร NETCONF โดยเฉพาะ ซงจะได Stream สำหรบรบ-สงขอความ XML
 
-\subsection{ขั้นตอนที่ 3: Hello Exchange}
+\subsection{ขนตอนท 3: Hello Exchange}
 \hspace*{1.3em}
-ขั้นตอนแรกของโปรโตคอล NETCONF คือการแลกเปลี่ยน Hello Message ระหว่าง Client กับ Server เพื่อตกลง Capabilities ที่ทั้งสองฝ่ายรองรับ
-
-\hspace*{1.3em}
-\textbf{Server Hello:} อุปกรณ์เครือข่ายจะส่ง Hello Message มาก่อน ระบบจะ Parse เพื่อดึง Capabilities ที่อุปกรณ์รองรับ เช่น \textbf{base:1.0}, \textbf{writable-running}, \textbf{candidate} เป็นต้น
+ขนตอนแรกของโปรโตคอล NETCONF คอการแลกเปลยน Hello Message ระหวาง Client กบ Server เพอตกลง Capabilities ททงสองฝายรองรบ
 
 \hspace*{1.3em}
-\textbf{Client Hello:} ระบบตอบกลับด้วย Hello Message ที่ประกาศ Capabilities ที่ Client รองรับ ตัวอย่าง Hello Message ที่ระบบส่งไปมีดังนี้
+\textbf{Server Hello:} อปกรณเครอขายจะสง Hello Message มากอน ระบบจะ Parse เพอดง Capabilities ทอปกรณรองรบ เชน \textbf{base:1.0}, \textbf{writable-running}, \textbf{candidate} เปนตน
 
+\hspace*{1.3em}
+\textbf{Client Hello:} ระบบตอบกลบดวย Hello Message ทประกาศ Capabilities ท Client รองรบ ตวอยาง Hello Message ทระบบสงไปมดงน
+
+{\fontsize{13}{14}\selectfont
 \begin{verbatim}
 <?xml version="1.0" encoding="UTF-8"?>
 <hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
   <capabilities>
-    <capability>
-      urn:ietf:params:netconf:base:1.0
-    </capability>
-    <capability>
-      urn:ietf:params:netconf:capability:writable-running:1.0
-    </capability>
-    <capability>
-      urn:ietf:params:netconf:capability:candidate:1.0
-    </capability>
-    <capability>
-      urn:ietf:params:netconf:capability:confirmed-commit:1.0
-    </capability>
-    <capability>
-      urn:ietf:params:netconf:capability:validate:1.0
-    </capability>
+    <capability>urn:ietf:params:netconf:base:1.0</capability>
+    <capability>urn:ietf:params:netconf:capability:writable-running:1.0</capability>
+    <capability>urn:ietf:params:netconf:capability:candidate:1.0</capability>
+    <!-- ... other capabilities ... -->
   </capabilities>
 </hello>]]>]]>
 \end{verbatim}
+}
 
 \hspace*{1.3em}
-เมื่อทั้งสองฝ่ายแลกเปลี่ยน Hello Message สำเร็จ NETCONF Session จะถูกสร้างขึ้นและพร้อมสำหรับการดำเนินการ RPC ระบบจะจัดเก็บ Session ไว้ใน \textbf{connections Map} พร้อมข้อมูล Capabilities, Stream และ Timestamp เพื่อใช้ในการดำเนินการต่อไป
+เมอทงสองฝายแลกเปลยน Hello Message สำเรจ NETCONF Session จะถกสรางขนและพรอมสำหรบการดำเนนการ RPC ระบบจะจดเกบ Session ไวใน \textbf{connections Map} พรอมขอมล Capabilities, Stream และ Timestamp เพอใชในการดำเนนการตอไป
 
-\section{NETCONF RPC Operations ที่ใช้ในระบบ}
+\section{NETCONF RPC Operations ทใชในระบบ}
 \hspace*{1.3em}
-ระบบใช้ NETCONF RPC Operations หลายชนิดในการจัดการคอนฟิกอุปกรณ์เครือข่าย ทุก RPC Message จะถูกห่อด้วย \textbf{<rpc>} Envelope พร้อมระบุ \textbf{message-id} ที่ไม่ซ้ำกัน และสิ้นสุดด้วย Delimiter \textbf{]]>]]>} โดยรูปแบบทั่วไปของ RPC Message มีดังนี้
+ระบบใช NETCONF RPC Operations หลายชนดในการจดการคอนฟกอปกรณเครอขาย ทก RPC Message จะถกหอดวย \textbf{<rpc>} Envelope พรอมระบ \textbf{message-id} ทไมซำกน และสนสดดวย Delimiter \textbf{]]>]]>} โดยรปแบบทวไปของ RPC Message มดงน
 
+{\fontsize{13}{14}\selectfont
 \begin{verbatim}
 <?xml version="1.0" encoding="UTF-8"?>
-<rpc message-id="msg-1709648000000"
-     xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+<rpc message-id="msg-1" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
   <!-- Operation content here -->
 </rpc>]]>]]>
 \end{verbatim}
+}
 
 \hspace*{1.3em}
-รายละเอียดของ RPC Operations แต่ละชนิดมีดังนี้
+รายละเอยดของ RPC Operations แตละชนดมดงน
 
-\subsection{get-config (อ่านค่าคอนฟิก)}
+\subsection{get-config (อานคาคอนฟก)}
 \hspace*{1.3em}
-ใช้สำหรับอ่านค่า Running Configuration จากอุปกรณ์ สามารถเลือกอ่านทั้งหมดหรือเฉพาะส่วนที่ต้องการด้วย Subtree Filter ตัวอย่างการอ่านค่าคอนฟิกทั้งหมดจาก Running Datastore มีดังนี้
+ใชสำหรบอานคา Running Configuration จากอปกรณ สามารถเลอกอานทงหมดหรอเฉพาะสวนทตองการดวย Subtree Filter ตวอยางการอานคาคอนฟกทงหมดจาก Running Datastore มดงน
 
+{\fontsize{13}{14}\selectfont
 \begin{verbatim}
-<rpc message-id="msg-001"
-     xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
-  <get-config>
-    <source>
-      <running/>
-    </source>
-  </get-config>
+<rpc message-id="1" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <get-config><source><running/></source></get-config>
 </rpc>]]>]]>
 \end{verbatim}
+}
 
 \hspace*{1.3em}
-ตัวอย่างการอ่านเฉพาะส่วน Interface ของอุปกรณ์ NX-OS ด้วย Subtree Filter มีดังนี้
+ตวอยางการอานเฉพาะสวน Interface ของอปกรณ NX-OS ดวย Subtree Filter มดงน
 
+{\fontsize{13}{14}\selectfont
 \begin{verbatim}
-<rpc message-id="msg-002"
-     xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+<rpc message-id="2" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
   <get-config>
-    <source>
-      <running/>
-    </source>
+    <source><running/></source>
     <filter type="subtree">
-      <System xmlns="http://cisco.com/ns/yang/
-               cisco-nx-os-device">
+      <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
         <intf-items/>
       </System>
     </filter>
   </get-config>
 </rpc>]]>]]>
 \end{verbatim}
+}
 
-\subsection{edit-config (แก้ไขคอนฟิก)}
+\subsection{edit-config (แกไขคอนฟก)}
 \hspace*{1.3em}
-ใช้สำหรับแก้ไขค่า Configuration ของอุปกรณ์ สามารถเลือก Target Datastore เป็น \textbf{running} (แก้ไขทันที) หรือ \textbf{candidate} (แก้ไขเป็นร่างก่อน) และกำหนด Default Operation เป็น \textbf{merge} (รวมกับค่าเดิม) หรือ \textbf{replace} (แทนที่ค่าเดิม)
+ใชสำหรบแกไขคา Configuration ของอปกรณ สามารถเลอก Target Datastore เปน \textbf{running} (แกไขทนท) หรอ \textbf{candidate} (แกไขเปนรางกอน) และกำหนด Default Operation เปน \textbf{merge} (รวมกบคาเดม) หรอ \textbf{replace} (แทนทคาเดม)
 
 \hspace*{1.3em}
-ตัวอย่างการตั้งค่า Hostname ของอุปกรณ์ NX-OS ผ่าน edit-config มีดังนี้
+ตวอยางการตงคา Hostname ของอปกรณ NX-OS ผาน edit-config มดงน
 
+{\fontsize{13}{14}\selectfont
 \begin{verbatim}
-<rpc message-id="msg-003"
-     xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+<rpc message-id="3" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
   <edit-config>
-    <target>
-      <running/>
-    </target>
+    <target><running/></target>
     <default-operation>merge</default-operation>
     <config>
-      <System xmlns="http://cisco.com/ns/yang/
-               cisco-nx-os-device">
+      <System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device">
         <name>Switch-Core-01</name>
       </System>
     </config>
   </edit-config>
 </rpc>]]>]]>
 \end{verbatim}
+}
 
 \hspace*{1.3em}
-ตัวอย่างการตั้งค่า Interface ของอุปกรณ์ IOS-XE ผ่าน edit-config มีดังนี้
+ตวอยางการตงคา Interface ของอปกรณ IOS-XE ผาน edit-config มดงน
 
+{\fontsize{13}{14}\selectfont
 \begin{verbatim}
-<rpc message-id="msg-004"
-     xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+<rpc message-id="4" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
   <edit-config>
-    <target>
-      <running/>
-    </target>
+    <target><running/></target>
     <default-operation>merge</default-operation>
     <config>
-      <native xmlns="http://cisco.com/ns/yang/
-               Cisco-IOS-XE-native">
+      <native xmlns="http://cisco.com/ns/yang/Cisco-IOS-XE-native">
         <interface>
           <GigabitEthernet>
             <name>1</name>
@@ -217,163 +209,156 @@ Cisco IOS-XE & \textbf{http://cisco.com/ns/yang/Cisco-IOS-XE-native} & \textbf{n
   </edit-config>
 </rpc>]]>]]>
 \end{verbatim}
+}
 
-\subsection{lock / unlock (ล็อกและปลดล็อก Datastore)}
+\subsection{lock / unlock (ลอกและปลดลอก Datastore)}
 \hspace*{1.3em}
-ใช้สำหรับล็อก Datastore เพื่อป้องกันไม่ให้ Session อื่นแก้ไขค่าในขณะที่กำลังทำงาน และปลดล็อกเมื่อดำเนินการเสร็จสิ้น
+ใชสำหรบลอก Datastore เพอปองกนไมให Session อนแกไขคาในขณะทกำลงทำงาน และปลดลอกเมอดำเนนการเสรจสน
 
+{\fontsize{13}{14}\selectfont
 \begin{verbatim}
 <!-- Lock -->
-<rpc message-id="msg-005"
-     xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
-  <lock>
-    <target>
-      <candidate/>
-    </target>
-  </lock>
+<rpc message-id="5" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <lock><target><candidate/></target></lock>
 </rpc>]]>]]>
 
 <!-- Unlock -->
-<rpc message-id="msg-006"
-     xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
-  <unlock>
-    <target>
-      <candidate/>
-    </target>
-  </unlock>
+<rpc message-id="6" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <unlock><target><candidate/></target></unlock>
 </rpc>]]>]]>
 \end{verbatim}
+}
 
-\subsection{commit (ยืนยันการเปลี่ยนแปลง)}
+\subsection{commit (ยนยนการเปลยนแปลง)}
 \hspace*{1.3em}
-ใช้สำหรับยืนยัน (Commit) การเปลี่ยนแปลงจาก Candidate Datastore ไปยัง Running Datastore ทำให้คอนฟิกมีผลบังคับใช้จริง
+ใชสำหรบยนยน (Commit) การเปลยนแปลงจาก Candidate Datastore ไปยง Running Datastore ทำใหคอนฟกมผลบงคบใชจรง
 
+{\fontsize{13}{14}\selectfont
 \begin{verbatim}
-<rpc message-id="msg-007"
-     xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+<rpc message-id="7" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
   <commit/>
 </rpc>]]>]]>
 \end{verbatim}
+}
 
-\subsection{validate (ตรวจสอบความถูกต้อง)}
+\subsection{validate (ตรวจสอบความถกตอง)}
 \hspace*{1.3em}
-ใช้ตรวจสอบว่าคอนฟิกที่เตรียมไว้ใน Candidate Datastore มีความถูกต้องตาม YANG Schema หรือไม่ ก่อนที่จะทำการ Commit
+ใชตรวจสอบวาคอนฟกทเตรยมไวใน Candidate Datastore มความถกตองตาม YANG Schema หรอไม กอนทจะทำการ Commit
 
+{\fontsize{13}{14}\selectfont
 \begin{verbatim}
-<rpc message-id="msg-008"
-     xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
-  <validate>
-    <source>
-      <candidate/>
-    </source>
-  </validate>
+<rpc message-id="8" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <validate><source><candidate/></source></validate>
 </rpc>]]>]]>
 \end{verbatim}
+}
 
-\subsection{discard-changes (ยกเลิกการเปลี่ยนแปลง)}
+\subsection{discard-changes (ยกเลกการเปลยนแปลง)}
 \hspace*{1.3em}
-ใช้สำหรับยกเลิกการเปลี่ยนแปลงที่อยู่ใน Candidate Datastore กลับไปเป็นค่าเดิมของ Running Datastore ใช้ในกรณีที่ตรวจพบข้อผิดพลาดก่อนที่จะ Commit
+ใชสำหรบยกเลกการเปลยนแปลงทอยใน Candidate Datastore กลบไปเปนคาเดมของ Running Datastore ใชในกรณทตรวจพบขอผดพลาดกอนทจะ Commit
 
+{\fontsize{13}{14}\selectfont
 \begin{verbatim}
-<rpc message-id="msg-009"
-     xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+<rpc message-id="9" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
   <discard-changes/>
 </rpc>]]>]]>
 \end{verbatim}
+}
 
-\subsection{close-session (ปิด NETCONF Session)}
+\subsection{close-session (ปด NETCONF Session)}
 \hspace*{1.3em}
-ใช้สำหรับปิด NETCONF Session อย่างสมบูรณ์เมื่อดำเนินการเสร็จสิ้น
+ใชสำหรบปด NETCONF Session อยางสมบรณเมอดำเนนการเสรจสน
 
+{\fontsize{13}{14}\selectfont
 \begin{verbatim}
-<rpc message-id="msg-010"
-     xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+<rpc message-id="10" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
   <close-session/>
 </rpc>]]>]]>
 \end{verbatim}
+}
 
 \hspace*{1.3em}
-ตารางที่ \ref{tabD:RpcOperations} สรุป RPC Operations ทั้งหมดที่ใช้ในระบบพร้อมค่า Timeout ที่กำหนด
+ตารางท \ref{tabD:RpcOperations} สรป RPC Operations ทงหมดทใชในระบบพรอมคา Timeout ทกำหนด
 
 \begin{table}[H]
 \centering
-\caption{\fontSixTeen{สรุป NETCONF RPC Operations ที่ใช้ในระบบ}}
+\caption{\fontSixTeen{สรป NETCONF RPC Operations ทใชในระบบ}}
 \label{tabD:RpcOperations}
 \begin{tabularx}{\textwidth}{|l|l|l|X|}
 \hline
-\textbf{Operation} & \textbf{RPC} & \textbf{Timeout} & \textbf{คำอธิบาย} \\
+\textbf{Operation} & \textbf{RPC} & \textbf{Timeout} & \textbf{คำอธบาย} \\
 \hline
-เชื่อมต่อ & Hello Exchange & 30 วินาที & สร้าง SSH + NETCONF Session \\
+เชอมตอ & Hello Exchange & 30 วนาท & สราง SSH + NETCONF Session \\
 \hline
-อ่านคอนฟิก & \textbf{get-config} & 180 วินาที & อ่าน Running Configuration \\
+อานคอนฟก & \textbf{get-config} & 180 วนาท & อาน Running Configuration \\
 \hline
-อ่านข้อมูล & \textbf{get} & 120 วินาที & อ่าน Operational Data \\
+อานขอมล & \textbf{get} & 120 วนาท & อาน Operational Data \\
 \hline
-แก้ไขคอนฟิก & \textbf{edit-config} & 90 วินาที & แก้ไข Running/Candidate \\
+แกไขคอนฟก & \textbf{edit-config} & 90 วนาท & แกไข Running/Candidate \\
 \hline
-ยืนยัน & \textbf{commit} & 120 วินาที & ยืนยัน Candidate $\rightarrow$ Running \\
+ยนยน & \textbf{commit} & 120 วนาท & ยนยน Candidate $\rightarrow$ Running \\
 \hline
-ตรวจสอบ & \textbf{validate} & 60 วินาที & ตรวจสอบ Candidate \\
+ตรวจสอบ & \textbf{validate} & 60 วนาท & ตรวจสอบ Candidate \\
 \hline
-ยกเลิก & \textbf{discard-changes} & 15 วินาที & ยกเลิก Candidate \\
+ยกเลก & \textbf{discard-changes} & 15 วนาท & ยกเลก Candidate \\
 \hline
-ล็อก/ปลดล็อก & \textbf{lock/unlock} & 30 วินาที & ล็อก Datastore \\
+ลอก/ปลดลอก & \textbf{lock/unlock} & 30 วนาท & ลอก Datastore \\
 \hline
-ปิด Session & \textbf{close-session} & 10 วินาที & ปิด NETCONF Session \\
+ปด Session & \textbf{close-session} & 10 วนาท & ปด NETCONF Session \\
 \hline
 \end{tabularx}
 \end{table}
 
-\section{กระบวนการ Deploy Configuration ผ่าน NETCONF}
+\section{กระบวนการ Deploy Configuration ผาน NETCONF}
 \hspace*{1.3em}
-การ Deploy Configuration ผ่าน NETCONF ในระบบมี 2 รูปแบบ ขึ้นอยู่กับ Capabilities ที่อุปกรณ์รองรับ ดังนี้
+การ Deploy Configuration ผาน NETCONF ในระบบม 2 รปแบบ ขนอยกบ Capabilities ทอปกรณรองรบ ดงน
 
-\subsection{รูปแบบที่ 1: ใช้ Candidate Datastore (แนะนำ)}
+\subsection{รปแบบท 1: ใช Candidate Datastore (แนะนำ)}
 \hspace*{1.3em}
-วิธีนี้เป็นวิธีที่ปลอดภัยที่สุดตามมาตรฐาน RFC 6241 เนื่องจากการเปลี่ยนแปลงจะถูกเขียนไปยัง Candidate Datastore ก่อน และจะมีผลบังคับใช้ก็ต่อเมื่อทำการ Commit สำเร็จเท่านั้น หากเกิดข้อผิดพลาดสามารถ Discard Changes เพื่อย้อนกลับได้ ขั้นตอนมีดังนี้
+วธนเปนวธทปลอดภยทสดตามมาตรฐาน RFC 6241 เนองจากการเปลยนแปลงจะถกเขยนไปยง Candidate Datastore กอน และจะมผลบงคบใชกตอเมอทำการ Commit สำเรจเทานน หากเกดขอผดพลาดสามารถ Discard Changes เพอยอนกลบได ขนตอนมดงน
 
 \begin{mycustomenum2}
-    \item \textbf{Lock Candidate:} ล็อก Candidate Datastore เพื่อป้องกัน Session อื่นแก้ไข
-    \item \textbf{Edit-Config:} ส่ง Configuration XML ไปยัง Candidate Datastore ด้วย \textbf{edit-config}
-    \item \textbf{Validate (ถ้ารองรับ):} ตรวจสอบความถูกต้องของ Candidate ด้วย \textbf{validate}
-    \item \textbf{Commit:} ยืนยันการเปลี่ยนแปลงจาก Candidate ไปยัง Running ด้วย \textbf{commit}
-    \item \textbf{Unlock Candidate:} ปลดล็อก Candidate Datastore
+    \item \textbf{Lock Candidate:} ลอก Candidate Datastore เพอปองกน Session อนแกไข
+    \item \textbf{Edit-Config:} สง Configuration XML ไปยง Candidate Datastore ดวย \textbf{edit-config}
+    \item \textbf{Validate (ถารองรบ):} ตรวจสอบความถกตองของ Candidate ดวย \textbf{validate}
+    \item \textbf{Commit:} ยนยนการเปลยนแปลงจาก Candidate ไปยง Running ดวย \textbf{commit}
+    \item \textbf{Unlock Candidate:} ปลดลอก Candidate Datastore
 \end{mycustomenum2}
 
 \hspace*{1.3em}
-หากขั้นตอนใดเกิดข้อผิดพลาด ระบบจะทำ Cleanup อัตโนมัติ ได้แก่ Discard Changes เพื่อยกเลิกการเปลี่ยนแปลงใน Candidate และ Unlock เพื่อปลดล็อก Datastore
+หากขนตอนใดเกดขอผดพลาด ระบบจะทำ Cleanup อตโนมต ไดแก Discard Changes เพอยกเลกการเปลยนแปลงใน Candidate และ Unlock เพอปลดลอก Datastore
 
-\subsection{รูปแบบที่ 2: ใช้ Writable-Running (Fallback)}
+\subsection{รปแบบท 2: ใช Writable-Running (Fallback)}
 \hspace*{1.3em}
-สำหรับอุปกรณ์ที่ไม่รองรับ Candidate Datastore ระบบจะใช้ \textbf{writable-running} เป็นทางเลือก โดยการเปลี่ยนแปลงจะมีผลทันทีเมื่อ edit-config สำเร็จ ขั้นตอนมีดังนี้
+สำหรบอปกรณทไมรองรบ Candidate Datastore ระบบจะใช \textbf{writable-running} เปนทางเลอก โดยการเปลยนแปลงจะมผลทนทเมอ edit-config สำเรจ ขนตอนมดงน
 
 \begin{mycustomenum2}
-    \item \textbf{Edit-Config:} ส่ง Configuration XML ไปยัง Running Datastore โดยตรง
-    \item การเปลี่ยนแปลงมีผลบังคับใช้ทันที ไม่ต้อง Commit
+    \item \textbf{Edit-Config:} สง Configuration XML ไปยง Running Datastore โดยตรง
+    \item การเปลยนแปลงมผลบงคบใชทนท ไมตอง Commit
 \end{mycustomenum2}
 
 \hspace*{1.3em}
-\textbf{ข้อควรระวัง:} วิธีนี้ไม่มีขั้นตอน Validate ก่อน Commit และไม่สามารถ Rollback ได้หากเกิดข้อผิดพลาด จึงควรใช้ Candidate Datastore เป็นลำดับแรกเมื่อเป็นไปได้
+\textbf{ขอควรระวง:} วธนไมมขนตอน Validate กอน Commit และไมสามารถ Rollback ไดหากเกดขอผดพลาด จงควรใช Candidate Datastore เปนลำดบแรกเมอเปนไปได
 
-\section{Subtree Filter สำหรับอ่านข้อมูลอุปกรณ์}
+\section{Subtree Filter สำหรบอานขอมลอปกรณ}
 \hspace*{1.3em}
-ระบบใช้ Subtree Filter ใน \textbf{<get>} RPC เพื่ออ่านข้อมูลเฉพาะส่วนที่ต้องการจากอุปกรณ์ โดยไม่ต้องอ่านข้อมูลทั้งหมด ซึ่งช่วยลดปริมาณข้อมูลที่รับ-ส่งและเพิ่มประสิทธิภาพ ระบบรองรับ Filter หลายประเภทตามชนิดของอุปกรณ์ ดังนี้
+ระบบใช Subtree Filter ใน \textbf{<get>} RPC เพออานขอมลเฉพาะสวนทตองการจากอปกรณ โดยไมตองอานขอมลทงหมด ซงชวยลดปรมาณขอมลทรบ-สงและเพมประสทธภาพ ระบบรองรบ Filter หลายประเภทตามชนดของอปกรณ ดงน
 
-\subsection{Subtree Filter สำหรับ NX-OS (Nexus)}
+\subsection{Subtree Filter สำหรบ NX-OS (Nexus)}
 \hspace*{1.3em}
-YANG Model ของ Cisco NX-OS ใช้ Root Element \textbf{System} ภายใต้ Namespace \textbf{cisco-nx-os-device} ตัวอย่าง Filter ที่ใช้ในระบบมีดังนี้
+YANG Model ของ Cisco NX-OS ใช Root Element \textbf{System} ภายใต Namespace \textbf{cisco-nx-os-device} ตวอยาง Filter ทใชในระบบมดงน
 
 \begin{table}[H]
 \centering
-\caption{\fontSixTeen{Subtree Filter สำหรับอุปกรณ์ Cisco NX-OS}}
+\caption{\fontSixTeen{Subtree Filter สำหรบอปกรณ Cisco NX-OS}}
 \label{tabD:NxosFilters}
 \begin{tabularx}{\textwidth}{|l|l|X|}
 \hline
-\textbf{ประเภทข้อมูล} & \textbf{YANG Path} & \textbf{คำอธิบาย} \\
+\textbf{ประเภทขอมล} & \textbf{YANG Path} & \textbf{คำอธบาย} \\
 \hline
-System Info & \textbf{System/name} & ชื่ออุปกรณ์ (Hostname) \\
+System Info & \textbf{System/name} & ชออปกรณ (Hostname) \\
 \hline
-Interfaces & \textbf{System/intf-items} & อินเทอร์เฟซทั้งหมด (Physical, SVI, Port-channel) \\
+Interfaces & \textbf{System/intf-items} & อนเทอรเฟซทงหมด (Physical, SVI, Port-channel) \\
 \hline
 VLANs & \textbf{System/bd-items} & Bridge Domain / VLAN \\
 \hline
@@ -381,26 +366,26 @@ OSPF & \textbf{System/ospf-items} & Routing Protocol OSPF \\
 \hline
 BGP & \textbf{System/bgp-items} & Routing Protocol BGP \\
 \hline
-Features & \textbf{System/fm-items} & Feature Manager (เปิด/ปิดฟีเจอร์) \\
+Features & \textbf{System/fm-items} & Feature Manager (เปด/ปดฟเจอร) \\
 \hline
 \end{tabularx}
 \end{table}
 
-\subsection{Subtree Filter สำหรับ IOS-XE}
+\subsection{Subtree Filter สำหรบ IOS-XE}
 \hspace*{1.3em}
-YANG Model ของ Cisco IOS-XE ใช้ Root Element \textbf{native} ภายใต้ Namespace \textbf{Cisco-IOS-XE-native} ตัวอย่าง Filter ที่ใช้ในระบบมีดังนี้
+YANG Model ของ Cisco IOS-XE ใช Root Element \textbf{native} ภายใต Namespace \textbf{Cisco-IOS-XE-native} ตวอยาง Filter ทใชในระบบมดงน
 
 \begin{table}[H]
 \centering
-\caption{\fontSixTeen{Subtree Filter สำหรับอุปกรณ์ Cisco IOS-XE}}
+\caption{\fontSixTeen{Subtree Filter สำหรบอปกรณ Cisco IOS-XE}}
 \label{tabD:IosXeFilters}
 \begin{tabularx}{\textwidth}{|l|l|X|}
 \hline
-\textbf{ประเภทข้อมูล} & \textbf{YANG Path} & \textbf{คำอธิบาย} \\
+\textbf{ประเภทขอมล} & \textbf{YANG Path} & \textbf{คำอธบาย} \\
 \hline
-Hostname & \textbf{native/hostname} & ชื่ออุปกรณ์ \\
+Hostname & \textbf{native/hostname} & ชออปกรณ \\
 \hline
-Interfaces & \textbf{native/interface} & อินเทอร์เฟซ GigabitEthernet/Loopback \\
+Interfaces & \textbf{native/interface} & อนเทอรเฟซ GigabitEthernet/Loopback \\
 \hline
 VLANs & \textbf{native/vlan} & VLAN Configuration \\
 \hline
@@ -411,82 +396,73 @@ BGP & \textbf{native/router/bgp} & Routing Protocol BGP \\
 \end{tabularx}
 \end{table}
 
-\section{การ Deploy ผ่าน Agent Relay}
+\section{การ Deploy ผาน Agent Relay}
 \hspace*{1.3em}
-เนื่องจากระบบ Backend ทำงานเป็น Vercel Serverless Functions ซึ่งไม่สามารถเชื่อมต่อ SSH/NETCONF ไปยังอุปกรณ์ในเครือข่ายภายในได้โดยตรง ระบบจึงใช้ Desktop Agent เป็นตัวกลาง (Relay) ในการส่งคำสั่ง NETCONF ไปยังอุปกรณ์ กระบวนการมีดังนี้
+เนองจากระบบ Backend ทำงานเปน Vercel Serverless Functions ซงไมสามารถเชอมตอ SSH/NETCONF ไปยงอปกรณในเครอขายภายในไดโดยตรง ระบบจงใช Desktop Agent เปนตวกลาง (Relay) ในการสงคำสง NETCONF ไปยงอปกรณ กระบวนการมดงน
 
 \begin{mycustomenum2}
-    \item \textbf{Backend สร้าง Command:} เมื่อผู้ใช้สั่ง Deploy ระบบจะสร้าง AgentCommand ใน MongoDB พร้อมข้อมูล NETCONF XML Configuration
-    \item \textbf{Agent Poll Command:} Desktop Agent ทำ HTTP Polling ทุก 2 วินาทีเพื่อดึง Pending Commands
-    \item \textbf{Agent ดำเนินการ:} Agent เชื่อมต่อ SSH/NETCONF ไปยังอุปกรณ์จริงในเครือข่ายภายใน ดำเนินการตาม Workflow (Lock $\rightarrow$ Edit-Config $\rightarrow$ Validate $\rightarrow$ Commit $\rightarrow$ Unlock)
-    \item \textbf{Agent รายงานผล:} Agent ส่งผลลัพธ์กลับมายัง Backend ผ่าน HTTP POST
-    \item \textbf{Backend ส่งผลให้ผู้ใช้:} Backend อัปเดตสถานะ Command และแจ้งผลลัพธ์ให้ผู้ใช้ทราบ
+    \item \textbf{Backend สราง Command:} เมอผใชสง Deploy ระบบจะสราง AgentCommand ใน MongoDB พรอมขอมล NETCONF XML Configuration
+    \item \textbf{Agent Poll Command:} Desktop Agent ทำ HTTP Polling ทก 2 วนาทเพอดง Pending Commands
+    \item \textbf{Agent ดำเนนการ:} Agent เชอมตอ SSH/NETCONF ไปยงอปกรณจรงในเครอขายภายใน ดำเนนการตาม Workflow (Lock $\rightarrow$ Edit-Config $\rightarrow$ Validate $\rightarrow$ Commit $\rightarrow$ Unlock)
+    \item \textbf{Agent รายงานผล:} Agent สงผลลพธกลบมายง Backend ผาน HTTP POST
+    \item \textbf{Backend สงผลใหผใช:} Backend อปเดตสถานะ Command และแจงผลลพธใหผใชทราบ
 \end{mycustomenum2}
 
-\section{การจัดการ YANG Model ในระบบ}
+\section{การจดการ YANG Model ในระบบ}
 \hspace*{1.3em}
-ระบบมีระบบจัดการ YANG Model ที่ช่วยให้ผู้ใช้สามารถอัปโหลด จัดเก็บ และใช้ YANG Model ในการสร้าง Configuration ผ่าน LLM ได้ โดยมีองค์ประกอบหลักดังนี้
+ระบบมระบบจดการ YANG Model ทชวยใหผใชสามารถอปโหลด จดเกบ และใช YANG Model ในการสราง Configuration ผาน LLM ได โดยมองคประกอบหลกดงน
 
-\subsection{การอัปโหลดและ Parse YANG Model}
+\subsection{การอปโหลดและ Parse YANG Model}
 \hspace*{1.3em}
-เมื่อผู้ใช้อัปโหลด YANG Model ระบบจะ Parse เนื้อหาอัตโนมัติเพื่อดึงข้อมูลสำคัญ ได้แก่
+เมอผใชอปโหลด YANG Model ระบบจะ Parse เนอหาอตโนมตเพอดงขอมลสำคญ ไดแก
 
 \begin{mycustomenum2}
-    \item \textbf{module name:} ชื่อโมดูล YANG เช่น \textbf{cisco-nx-os-device}
-    \item \textbf{namespace:} URI ของโมดูล เช่น \textbf{http://cisco.com/ns/yang/cisco-nx-os-device}
-    \item \textbf{prefix:} ชื่อย่อสำหรับอ้างอิง เช่น \textbf{nxos}
-    \item \textbf{revision:} เวอร์ชันของ YANG Model เช่น \textbf{2024-01-01}
+    \item \textbf{module name:} ชอโมดล YANG เชน \textbf{cisco-nx-os-device}
+    \item \textbf{namespace:} URI ของโมดล เชน \textbf{http://cisco.com/ns/yang/cisco-nx-os-device}
+    \item \textbf{prefix:} ชอยอสำหรบอางอง เชน \textbf{nxos}
+    \item \textbf{revision:} เวอรชนของ YANG Model เชน \textbf{2024-01-01}
 \end{mycustomenum2}
 
 \subsection{XML Templates}
 \hspace*{1.3em}
-แต่ละ YANG Model สามารถมี XML Templates หลายรายการ ซึ่งเป็นตัวอย่าง XML Configuration ที่ถูกต้องตาม YANG Schema ระบบจะส่ง Templates เหล่านี้ให้ LLM เป็นตัวอย่างประกอบเพื่อช่วยให้ LLM สร้าง Configuration ที่มี Syntax และ Namespace ถูกต้อง
+แตละ YANG Model สามารถม XML Templates หลายรายการ ซงเปนตวอยาง XML Configuration ทถกตองตาม YANG Schema ระบบจะสง Templates เหลานให LLM เปนตวอยางประกอบเพอชวยให LLM สราง Configuration ทม Syntax และ Namespace ถกตอง
 
-\subsection{การใช้ YANG Model สำหรับ LLM Generation}
+\subsection{การใช YANG Model สำหรบ LLM Generation}
 \hspace*{1.3em}
-เมื่อผู้ใช้สร้าง Configuration ด้วย LLM ระบบจะ
+เมอผใชสราง Configuration ดวย LLM ระบบจะ
 
 \begin{mycustomenum2}
-    \item ดึง YANG Models ที่ตรงกับประเภทอุปกรณ์ (NX-OS หรือ IOS-XE) จากฐานข้อมูล
-    \item จัดรูปแบบข้อมูล YANG Model เป็นข้อความบริบท (Context) ประกอบด้วย Namespace, Config Paths และ XML Templates
-    \item ส่งข้อมูลบริบทพร้อม Prompt ของผู้ใช้ไปให้ LLM เพื่อสร้าง Configuration ที่ถูกต้องตาม YANG Schema
+    \item ดง YANG Models ทตรงกบประเภทอปกรณ (NX-OS หรอ IOS-XE) จากฐานขอมล
+    \item จดรปแบบขอมล YANG Model เปนขอความบรบท (Context) ประกอบดวย Namespace, Config Paths และ XML Templates
+    \item สงขอมลบรบทพรอม Prompt ของผใชไปให LLM เพอสราง Configuration ทถกตองตาม YANG Schema
+\end{mycustomenum2}
+
+\section{การจดการ Error ใน NETCONF}
+\hspace*{1.3em}
+เมออปกรณพบขอผดพลาดในการดำเนนการ NETCONF จะตอบกลบดวย \textbf{<rpc-error>} ระบบจะ Parse ขอมลใน Error Message เพอแสดงรายละเอยดใหผใชทราบ โดย Error Message ประกอบดวย
+
+\begin{mycustomenum2}
+    \item \textbf{error-tag:} ประเภทของขอผดพลาด เชน \textbf{invalid-value}, \textbf{data-missing}, \textbf{operation-failed}
+    \item \textbf{error-message:} คำอธบายขอผดพลาดเปนขอความภาษาองกฤษ
+    \item \textbf{error-path:} ตำแหนงใน YANG Model ทเกดขอผดพลาด เชน \textbf{/System/intf-items}
 \end{mycustomenum2}
 
 \hspace*{1.3em}
+ตวอยาง RPC Error Response มดงน
 
-\hspace*{1.3em}
-
-\hspace*{1.3em}
-
-\section{การจัดการ Error ใน NETCONF}
-\hspace*{1.3em}
-เมื่ออุปกรณ์พบข้อผิดพลาดในการดำเนินการ NETCONF จะตอบกลับด้วย \textbf{<rpc-error>} ระบบจะ Parse ข้อมูลใน Error Message เพื่อแสดงรายละเอียดให้ผู้ใช้ทราบ โดย Error Message ประกอบด้วย
-
-\begin{mycustomenum2}
-    \item \textbf{error-tag:} ประเภทของข้อผิดพลาด เช่น \textbf{invalid-value}, \textbf{data-missing}, \textbf{operation-failed}
-    \item \textbf{error-message:} คำอธิบายข้อผิดพลาดเป็นข้อความภาษาอังกฤษ
-    \item \textbf{error-path:} ตำแหน่งใน YANG Model ที่เกิดข้อผิดพลาด เช่น \textbf{/System/intf-items}
-\end{mycustomenum2}
-
-\hspace*{1.3em}
-ตัวอย่าง RPC Error Response มีดังนี้
-
+{\fontsize{13}{14}\selectfont
 \begin{verbatim}
-<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"
-           message-id="msg-003">
+<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="3">
   <rpc-error>
     <error-type>application</error-type>
     <error-tag>invalid-value</error-tag>
     <error-severity>error</error-severity>
     <error-path>/System/intf-items</error-path>
-    <error-message xml:lang="en">
-      Invalid interface name
-    </error-message>
+    <error-message xml:lang="en">Invalid interface name</error-message>
   </rpc-error>
 </rpc-reply>]]>]]>
 \end{verbatim}
+}
 
 \hspace*{1.3em}
-ในกระบวนการ Deploy ผ่าน Candidate Datastore หากเกิดข้อผิดพลาดตรงขั้นตอนใดก็ตาม ระบบจะทำ Cleanup อัตโนมัติ ประกอบด้วย Discard Changes เพื่อยกเลิกการเปลี่ยนแปลงใน Candidate, Unlock เพื่อปลดล็อก Datastore และแจ้ง Error กลับให้ผู้ใช้ทราบพร้อมรายละเอียด เพื่อให้สามารถแก้ไข Configuration และลองใหม่ได้
-
-
+ในกระบวนการ Deploy ผาน Candidate Datastore หากเกดขอผดพลาดตรงขนตอนใดกตาม ระบบจะทำ Cleanup อตโนมต ประกอบดวย Discard Changes เพอยกเลกการเปลยนแปลงใน Candidate, Unlock เพอปลดลอก Datastore และแจง Error กลบใหผใชทราบพรอมรายละเอยด เพอใหสามารถแกไข Configuration และลองใหมได

@@ -810,7 +810,7 @@ function ConsoleConfiguration() {
                                <div className="mt-2">
                                  <span className="text-xs text-blue-700 dark:text-blue-400 block mb-2">Quick Select CIDR (showing usable hosts):</span>
                                  <div className="grid grid-cols-8 gap-1">
-                                   {Array.from({length: 22}, (_, i) => i + 10).map(num => {
+                                   {Array.from({length: 24}, (_, i) => i + 9).map(num => {
                                      const cidr = `/${num}`;
                                      const hostCount = cidrToHostCount(cidr);
                                      const formatHostCount = (count) => {
@@ -955,18 +955,14 @@ function ConsoleConfiguration() {
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Configuration Results</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg flex flex-col items-center justify-center">
               <div className="text-2xl font-bold text-green-600 dark:text-green-400">{configResults.summary?.successful || 0}</div>
               <div className="text-sm text-green-700 dark:text-green-300">Successful Commands</div>
             </div>
-            <div className="bg-red-50 dark:bg-red-900/30 p-4 rounded-lg">
+            <div className="bg-red-50 dark:bg-red-900/30 p-4 rounded-lg flex flex-col items-center justify-center">
               <div className="text-2xl font-bold text-red-600 dark:text-red-400">{configResults.summary?.failed || 0}</div>
               <div className="text-sm text-red-700 dark:text-red-300">Failed Commands</div>
-            </div>
-            <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{configResults.summary?.successRate ?? 0}%</div>
-              <div className="text-sm text-blue-700 dark:text-blue-300">Success Rate</div>
             </div>
           </div>
 

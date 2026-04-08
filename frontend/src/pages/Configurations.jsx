@@ -775,10 +775,77 @@ ${indentedConfig}
     try {
       // Multi-device generation (CLI mode)
       if (isMultiDevice) {
+        // Clean out undefined values in case of selection errors
+        const validDeviceIds = selectedDevices.filter(id => id);
+        
+        if (validDeviceIds.length === 0) {
+           throw new Error('No valid devices selected.');
+        }
+
         const response = await axios.post('/configurations/generate-multi', {
-          device_ids: selectedDevices,
+          device_ids: validDeviceIds,
           prompt: prompt
         });
+
+        // Handle async Ollama pending state for multi-device
+        if (response.data.results && response.data.results.some(r => r.pending)) {
+          toast('Generating via Ollama AI...', { icon: '🧠', duration: 5000 });
+          const pendingResult = response.data.results.find(r => r.pending);
+          const commandId = pendingResult.commandId;
+          
+          const maxPollTime = 120000;
+          const pollInterval = 2000;
+          const pollStart = Date.now();
+          
+          let ollamaResult = null;
+          while (Date.now() - pollStart < maxPollTime) {
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+            try {
+              const pollRes = await axios.get(`/configurations/llm-result/${commandId}`);
+              if (pollRes.data.status === 'completed') {
+                ollamaResult = pollRes.data.result;
+                break;
+              } else if (pollRes.data.status === 'failed') {
+                throw new Error(pollRes.data.error || 'Ollama generation failed');
+              }
+            } catch (pollErr) {
+              if (pollErr.response?.status === 404) {
+                throw new Error('Generation request expired. Please try again.');
+              }
+              throw pollErr;
+            }
+          }
+          
+          if (!ollamaResult) {
+            throw new Error('Ollama generation timed out. Try a smaller model or simpler prompt.');
+          }
+
+          toast.success('Configuration generated via Ollama! (Async result)');
+          
+          // Show the raw multi-device output as the first device's result since it's hard to split perfectly without backend processing
+          if (ollamaResult.content) {
+             const mockConfiguration = {
+                generated_config: ollamaResult.content,
+                validation: { score: 0, warnings: ['Generated via Ollama — async result, validation pending'] },
+                model: ollamaResult.model || 'ollama',
+                provider: 'ollama',
+                method: 'ollama_chat'
+             };
+             
+             setMultiDeviceResults([{
+                device_name: 'Multi-Device Response',
+                success: true,
+                configuration: mockConfiguration
+             }]);
+             setActiveResultTab(0);
+             setGeneratedConfig(mockConfiguration);
+             setValidation(mockConfiguration.validation);
+             setEditedConfig(mockConfiguration.generated_config);
+          }
+          setIsEditing(false);
+          setIsGenerating(false);
+          return;
+        }
 
         if (response.data.success && response.data.results) {
           setMultiDeviceResults(response.data.results);
@@ -790,8 +857,9 @@ ${indentedConfig}
             setGeneratedConfig(firstSuccess.configuration);
             setValidation(firstSuccess.configuration.validation);
             setEditedConfig(firstSuccess.configuration.generated_config);
-            setIsEditing(false);
           }
+          setIsEditing(false); // Make sure editing is false even if all failed
+          setIsGenerating(false); // explicitly set to false to close modal loader
           
           toast.success(`Generated configurations for ${response.data.succeeded}/${response.data.total} devices`);
         } else {
@@ -1241,7 +1309,7 @@ ${indentedConfig}
                             </span>
                             <span className="truncate">
                               {selectedDevices.length === 1
-                                ? devices.find(d => d.id === selectedDevices[0])?.name || 'Selected'
+                                ? devices.find(d => (d.id || d._id) === selectedDevices[0])?.name || 'Selected'
                                 : `${selectedDevices.length} devices selected`}
                             </span>
                           </div>
@@ -1261,7 +1329,7 @@ ${indentedConfig}
                                 checked={selectedDevices.length === devices.length && devices.length > 0}
                                 onChange={(e) => {
                                   if (e.target.checked) {
-                                    setSelectedDevices(devices.map(d => d.id));
+                                    setSelectedDevices(devices.map(d => d.id || d._id));
                                   } else {
                                     setSelectedDevices([]);
                                   }
@@ -1282,19 +1350,19 @@ ${indentedConfig}
                           </div>
                           {devices.map((device) => (
                             <label
-                              key={device.id}
+                              key={device.id || device._id}
                               className={`px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer flex items-center gap-3 transition-colors ${
-                                selectedDevices.includes(device.id) ? 'bg-blue-50 dark:bg-blue-900/30' : ''
+                                selectedDevices.includes(device.id || device._id) ? 'bg-blue-50 dark:bg-blue-900/30' : ''
                               }`}
                             >
                               <input
                                 type="checkbox"
-                                checked={selectedDevices.includes(device.id)}
+                                checked={selectedDevices.includes(device.id || device._id)}
                                 onChange={(e) => {
                                   if (e.target.checked) {
-                                    setSelectedDevices([...selectedDevices, device.id]);
+                                    setSelectedDevices([...selectedDevices, device.id || device._id]);
                                   } else {
-                                    setSelectedDevices(selectedDevices.filter(id => id !== device.id));
+                                    setSelectedDevices(selectedDevices.filter(id => id !== (device.id || device._id)));
                                   }
                                 }}
                                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -1337,17 +1405,17 @@ ${indentedConfig}
                         {selectedDevice ? (
                           <div className="flex items-center gap-3">
                             <DeviceIcon 
-                              deviceType={devices.find(d => d.id === selectedDevice)?.type} 
-                              layer={devices.find(d => d.id === selectedDevice)?.layer}
+                              deviceType={devices.find(d => (d.id || d._id) === selectedDevice)?.type} 
+                              layer={devices.find(d => (d.id || d._id) === selectedDevice)?.layer}
                               className="h-5 w-5 text-gray-600 dark:text-gray-400"
                             />
                             <span>
-                              {devices.find(d => d.id === selectedDevice)?.name} 
+                              {devices.find(d => (d.id || d._id) === selectedDevice)?.name} 
                               <span className="text-gray-500 dark:text-gray-400 ml-1">
-                                ({devices.find(d => d.id === selectedDevice)?.type})
+                                ({devices.find(d => (d.id || d._id) === selectedDevice)?.type})
                               </span>
                               <span className="text-gray-400 ml-1">
-                                - {devices.find(d => d.id === selectedDevice)?.ip_address}
+                                - {devices.find(d => (d.id || d._id) === selectedDevice)?.ip_address}
                               </span>
                             </span>
                           </div>
@@ -1370,12 +1438,12 @@ ${indentedConfig}
                           </div>
                           {devices.map((device) => (
                             <div
-                              key={device.id}
+                              key={device.id || device._id}
                               className={`px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer flex items-center gap-3 transition-colors ${
                                 selectedDevice === device.id ? 'bg-blue-50 dark:bg-blue-900/30 border-l-4 border-blue-500' : ''
                               }`}
                               onClick={() => {
-                                setSelectedDevice(device.id);
+                                setSelectedDevice(device.id || device._id);
                                 setSelectedYangModelsForGen([]); // Clear YANG selections when device changes
                                 setShowDeviceDropdown(false);
                               }}
@@ -2363,7 +2431,7 @@ ${indentedConfig}
                 >
                   <option value="">Choose a device...</option>
                   {devices.filter(d => d.netconf_enabled || d.type === 'nexus').map((device) => (
-                    <option key={device.id} value={device.id}>
+                    <option key={device.id || device._id} value={device.id}>
                       {device.name} ({device.type}) - {device.ip_address}
                     </option>
                   ))}
@@ -2515,7 +2583,7 @@ ${indentedConfig}
             {/* Quick Filters - Dynamic based on selected device type */}
             <div className="mt-6">
               {(() => {
-                const selectedDeviceData = devices.find(d => d.id === operationDevice);
+                const selectedDeviceData = devices.find(d => (d.id || d._id) === operationDevice);
                 const isIosXe = selectedDeviceData?.type === 'router' || selectedDeviceData?.type === 'ios-xe';
                 
                 const nxosFilters = [

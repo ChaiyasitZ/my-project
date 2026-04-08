@@ -1,8 +1,21 @@
+\appendixChapterTitle{จ}{กระบวนการทำงานของ Desktop Agent}
+\vspace*{-0.8in}
+
 %*************************************
 % ภาคผนวก ง. (ต่อ) - กระบวนการทำงานของ Desktop Agent
 %*************************************
 
 \section{ภาพรวม Desktop Agent}
+
+\begin{figure}[H]
+\centering
+\adjustbox{frame, width=1.0\textwidth}{
+    \includegraphics[width=1.0\textwidth]{Image/agent-1.png}
+}
+\caption{\fontSixTeen{หน้าตัวอย่างของ Desktop Agent}}
+\label{figB:Ollama1}
+\end{figure}
+
 \hspace*{1.3em}
 Desktop Agent เป็นโปรแกรมที่ทำงานบนเครื่องคอมพิวเตอร์ของผู้ใช้ ทำหน้าที่เป็นตัวกลาง (Relay) ระหว่าง Backend บน Vercel Serverless กับอุปกรณ์เครือข่ายภายในองค์กร เนื่องจาก Vercel Serverless Functions ไม่สามารถเชื่อมต่อ SSH/NETCONF ไปยังอุปกรณ์ในเครือข่ายภายในได้โดยตรง Agent จึงทำหน้าที่รับคำสั่งจาก Backend ผ่าน HTTP Polling ดำเนินการกับอุปกรณ์เครือข่ายในเครื่อง และส่งผลลัพธ์กลับไปยัง Backend
 
@@ -50,7 +63,7 @@ Agent ประกอบด้วย 4 Handler หลัก ดังนี้
 \end{table}
 
 \hspace*{1.3em}
-ทุก HTTP Request ที่ Agent ส่งจะแนบ Header \textbf{X-Agent-Token} สำหรับยืนยันตัวตน โดย Token นี้ได้มาจากการลงทะเบียน Agent ผ่านหน้าเว็บแอปพลิเคชัน
+ทุก HTTP Request ที่ Agent ส่งจะแนบ Header \textbf{X-Agent-Token} สำหรับยืนยันตัวตน โดย Token นี้ได้มาจากการสร้างที่หน้า Agent Setting ผ่านหน้าเว็บแอปพลิเคชัน
 
 \section{กระบวนการเริ่มต้นและเชื่อมต่อ Agent}
 \hspace*{1.3em}
@@ -328,21 +341,15 @@ Top-p & 0.85 & Nucleus Sampling Parameter \\
 \hspace*{1.3em}
 Ollama Handler จะแปลง Response จาก Ollama API ให้อยู่ในรูปแบบ OpenAI-compatible เพื่อให้ Backend สามารถใช้งานได้โดยไม่ต้องแก้ไข Logic โดยรูปแบบ Response ที่ส่งกลับมีโครงสร้างดังนี้
 
+{\fontsize{13}{14}\selectfont
 \begin{verbatim}
 {
-  "choices": [{
-    "message": { "role": "assistant", "content": "..." },
-    "finish_reason": "stop"
-  }],
-  "usage": {
-    "prompt_tokens": 150,
-    "completion_tokens": 200,
-    "total_tokens": 350
-  },
-  "model": "qwen2.5-coder",
-  "provider": "ollama"
+  "choices": [{"message": {"role": "assistant", "content": "..."}, "finish_reason": "stop"}],
+  "usage": {"prompt_tokens": 150, "completion_tokens": 200, "total_tokens": 350},
+  "model": "qwen2.5-coder", "provider": "ollama"
 }
 \end{verbatim}
+}
 
 \section{ค่าเริ่มต้นและ Timeout ของ Agent}
 \hspace*{1.3em}

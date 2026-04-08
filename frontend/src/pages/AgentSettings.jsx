@@ -352,11 +352,11 @@ function AgentSettings() {
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
                   {ollamaStatus?.ollama?.available ? 'Ollama Model Ready' : 'Ollama Not Available'}
                 </h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {ollamaStatus?.ollama?.available
-                    ? `v${ollamaStatus.ollama.version} — ${ollamaStatus.ollama.modelCount || 0} model(s)`
-                    : ollamaStatus?.ollama?.error || 'Install Ollama on your agent machine'}
-                </p>
+                {!ollamaStatus?.ollama?.available && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {ollamaStatus?.ollama?.error || 'Install Ollama on your agent machine'}
+                  </p>
+                )}
               </div>
             </div>
             <button
@@ -376,7 +376,9 @@ function AgentSettings() {
                 <span>Models</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5">
-                {ollamaStatus.ollama.models.map((model) => (
+                {ollamaStatus.ollama.models
+                  .filter(model => model.name.includes('qwen2.5-coder:7b'))
+                  .map((model) => (
                   <button
                     key={model.name}
                     onClick={() => handleChangeModel(model.name)}

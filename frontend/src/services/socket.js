@@ -9,55 +9,82 @@ import axios from 'axios';
 
 // ─── Notification Polling ───
 
-let notificationPollInterval = null;
+let notificationPollTimeout = null;
+let isPollingActive = false;
+let isFetchInProgress = false;
 let lastNotificationTime = new Date(Date.now() - 30000).toISOString();
 const eventListeners = new Map(); // event -> Set<callback>
+
+/**
+ * Perform the actual poll request, and schedule the next one.
+ */
+const pollNotifications = async () => {
+  if (!isPollingActive) return;
+  if (isFetchInProgress) return;
+  
+  isFetchInProgress = true;
+  try {
+    const { data } = await axios.get(`/agent/notifications?since=${lastNotificationTime}`);
+    
+    // Process notifications first
+    for (const notification of (data.notifications || [])) {
+      const listeners = eventListeners.get(notification.event);
+      if (listeners) {
+        for (const callback of listeners) {
+          try {
+            callback(notification.data);
+          } catch (e) {
+            console.error('Notification handler error:', e);
+          }
+        }
+      }
+    }
+
+    // Update time using the latest notification's timestamp if available,
+    // otherwise use serverTime. This avoids missing notifications due to DB insertion delays,
+    // and correctly advances the cursor.
+    if (data.notifications && data.notifications.length > 0) {
+      const latestNotification = data.notifications[data.notifications.length - 1];
+      // Add 1ms to avoid $gt fetching the exact same record if we use the same string
+      lastNotificationTime = latestNotification.timestamp;
+    } else if (data.serverTime) {
+      lastNotificationTime = data.serverTime;
+    }
+    
+  } catch (error) {
+    if (error.response?.status !== 401) {
+      console.warn('Notification poll error:', error.message);
+    }
+  } finally {
+    isFetchInProgress = false;
+    // Schedule the next poll if still active
+    if (isPollingActive) {
+      notificationPollTimeout = setTimeout(pollNotifications, 3000);
+    }
+  }
+};
 
 /**
  * Start polling for notifications (replaces socket.connect)
  */
 export const connectSocket = () => {
-  if (notificationPollInterval) return; // Already polling
+  if (isPollingActive) return; // Already polling
   
   console.log('📡 Started notification polling');
-  
-  notificationPollInterval = setInterval(async () => {
-    try {
-      const { data } = await axios.get(`/agent/notifications?since=${lastNotificationTime}`);
-      
-      if (data.serverTime) {
-        lastNotificationTime = data.serverTime;
-      }
-      
-      // Dispatch notifications to subscribed listeners
-      for (const notification of (data.notifications || [])) {
-        const listeners = eventListeners.get(notification.event);
-        if (listeners) {
-          for (const callback of listeners) {
-            try {
-              callback(notification.data);
-            } catch (e) {
-              console.error('Notification handler error:', e);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      // Silently ignore poll errors (e.g. 401 when logged out)
-      if (error.response?.status !== 401) {
-        console.warn('Notification poll error:', error.message);
-      }
-    }
-  }, 3000); // Poll every 3 seconds
+  isPollingActive = true;
+  pollNotifications();
 };
 
 /**
  * Stop polling for notifications (replaces socket.disconnect)
  */
 export const disconnectSocket = () => {
-  if (notificationPollInterval) {
-    clearInterval(notificationPollInterval);
-    notificationPollInterval = null;
+  if (isPollingActive) {
+    isPollingActive = false;
+    if (notificationPollTimeout) {
+      clearTimeout(notificationPollTimeout);
+      notificationPollTimeout = null;
+    }
     console.log('📡 Stopped notification polling');
   }
 };
