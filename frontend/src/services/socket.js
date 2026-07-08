@@ -134,22 +134,19 @@ export const subscribeToBackupError = (callback) => {
 /**
  * Subscribe to agent status changes via polling
  * Polls /api/agent/status every 5 seconds
+ *
+ * Fires on every poll (not just online/offline flips) so consumers that
+ * display live agent stats (e.g. RAM/VRAM usage) stay up to date, not just
+ * frozen at whatever value was reported the moment the agent connected.
  */
 export const subscribeToAgentStatus = (callback) => {
-  let lastOnlineState = null;
-  
   const interval = setInterval(async () => {
     try {
       const { data } = await axios.get('/agent/status');
-      
-      // Only fire callback when status changes
-      if (lastOnlineState !== data.online) {
-        lastOnlineState = data.online;
-        callback({
-          online: data.online,
-          agentInfo: data.agent
-        });
-      }
+      callback({
+        online: data.online,
+        agentInfo: data.agent
+      });
     } catch (error) {
       // Ignore polling errors
     }

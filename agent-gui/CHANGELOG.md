@@ -2,6 +2,11 @@
 
 All notable changes to the NetConfig Agent GUI are documented in this file.
 
+## [1.6.0] - 2026-07-08
+
+### Added
+- Heartbeat now reports system RAM (total/free) and best-effort GPU VRAM (via `nvidia-smi`, with a Windows WMI fallback for total-only) so the web app's Agent Settings page can show live RAM/VRAM instead of just the OS platform string.
+
 ## [1.5.0] - 2026-07-08
 
 ### Added

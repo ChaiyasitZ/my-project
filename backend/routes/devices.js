@@ -586,6 +586,7 @@ router.post('/:id/ssh/connect', async (req, res) => {
       // Update status to connecting
       device.ssh_status = 'connecting';
       await device.save();
+      invalidateCache(CacheKeys.devices(req.userId));
 
       // Try agent relay first (Vercel mode)
       const agentOnline = await agentRelay.isAgentOnline(req.userId);
@@ -603,6 +604,7 @@ router.post('/:id/ssh/connect', async (req, res) => {
           device.ssh_connected_at = new Date();
           device.ssh_session_id = `agent-${device._id}`;
           await device.save();
+          invalidateCache(CacheKeys.devices(req.userId));
           return res.json({
             success: true,
             message: `SSH session connected to ${device.name} via agent`,
@@ -628,6 +630,7 @@ router.post('/:id/ssh/connect', async (req, res) => {
       device.ssh_connected_at = new Date();
       device.ssh_session_id = session.sessionKey;
       await device.save();
+      invalidateCache(CacheKeys.devices(req.userId));
       
       res.json({
         success: true,
@@ -646,6 +649,7 @@ router.post('/:id/ssh/connect', async (req, res) => {
       device.status = 'error';
       device.ssh_status = 'error';
       await device.save();
+      invalidateCache(CacheKeys.devices(req.userId));
       
       res.status(500).json({
         success: false,
@@ -700,6 +704,7 @@ router.post('/:id/ssh/disconnect', async (req, res) => {
     device.ssh_connected_at = null;
     device.ssh_session_id = null;
     await device.save();
+    invalidateCache(CacheKeys.devices(req.userId));
     
     res.json({
       success: true,

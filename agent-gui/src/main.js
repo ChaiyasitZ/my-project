@@ -14,9 +14,58 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 const { EventEmitter } = require('events');
+const { exec } = require('child_process');
 
 // ─── Config Store (simple JSON file) ───
 const fs = require('fs');
+
+// ─── System Resource Info (RAM / GPU VRAM) ───
+// Reported in each heartbeat so the web UI can show live resource usage,
+// which is handy for judging whether the machine has headroom to run
+// bigger local Ollama models.
+
+function getRamInfo() {
+  return {
+    ramTotalMB: Math.round(os.totalmem() / (1024 * 1024)),
+    ramFreeMB: Math.round(os.freemem() / (1024 * 1024))
+  };
+}
+
+// Best-effort GPU VRAM detection. Tries `nvidia-smi` first (works for any
+// NVIDIA GPU and reports live usage); falls back to a WMI query for total
+// VRAM only (no live usage) on machines without an NVIDIA GPU/driver.
+// Note: Win32_VideoController.AdapterRAM is a 32-bit field and can under-report
+// for cards with >4GB VRAM — it's still useful as a rough "do I have a GPU" signal.
+function getGpuInfo() {
+  return new Promise((resolve) => {
+    exec('nvidia-smi --query-gpu=name,memory.total,memory.used --format=csv,noheader,nounits', { timeout: 3000, windowsHide: true }, (err, stdout) => {
+      if (!err && stdout && stdout.trim()) {
+        const [name, total, used] = stdout.trim().split('\n')[0].split(',').map(s => s.trim());
+        const vramTotalMB = parseInt(total, 10);
+        const vramUsedMB = parseInt(used, 10);
+        if (!isNaN(vramTotalMB)) {
+          resolve({ name, vramTotalMB, vramUsedMB: isNaN(vramUsedMB) ? null : vramUsedMB });
+          return;
+        }
+      }
+
+      // Fallback: PowerShell WMI query for total VRAM only
+      exec('powershell -NoProfile -NonInteractive -Command "(Get-CimInstance Win32_VideoController | Select-Object -First 1 Name, AdapterRAM) | ConvertTo-Json -Compress"', { timeout: 3000, windowsHide: true }, (err2, stdout2) => {
+        if (!err2 && stdout2 && stdout2.trim()) {
+          try {
+            const parsed = JSON.parse(stdout2.trim());
+            const bytes = Number(parsed.AdapterRAM);
+            if (bytes > 0) {
+              resolve({ name: parsed.Name || null, vramTotalMB: Math.round(bytes / (1024 * 1024)), vramUsedMB: null });
+              return;
+            }
+          } catch (e) { /* fall through to null */ }
+        }
+        resolve(null);
+      });
+    });
+  });
+}
 
 class AgentConfig {
   constructor() {
@@ -71,6 +120,7 @@ class HttpPollingClient extends EventEmitter {
     this.shellPollIntervals = new Map();
     this.shellStreams = new Map();
     this.cachedPorts = [];  // Cache detected serial ports for heartbeat
+    this.cachedGpuInfo = null; // Cache GPU/VRAM info for heartbeat (refreshed periodically, not on every heartbeat — exec is slow)
   }
 
   async connect() {
@@ -79,6 +129,10 @@ class HttpPollingClient extends EventEmitter {
       const result = await this.handlers.console.listPorts();
       if (result && result.ports) this.cachedPorts = result.ports;
     } catch (e) {}
+
+    // Kick off GPU detection in the background so it's cached before the
+    // heartbeat needs it, without delaying the initial connection.
+    this._refreshGpuInfo();
 
     await this._sendHeartbeat();
     this.connected = true;
@@ -102,6 +156,20 @@ class HttpPollingClient extends EventEmitter {
         if (result && result.ports) this.cachedPorts = result.ports;
       } catch (e) {}
     }, 30000);
+
+    // Refresh cached GPU/VRAM info every 10s (nvidia-smi/WMI calls are too
+    // slow to run on every 5s heartbeat, so this runs independently)
+    this.gpuRefreshInterval = setInterval(() => {
+      this._refreshGpuInfo();
+    }, 10000);
+  }
+
+  async _refreshGpuInfo() {
+    try {
+      this.cachedGpuInfo = await getGpuInfo();
+    } catch (e) {
+      this.cachedGpuInfo = null;
+    }
   }
 
   async _sendHeartbeat() {
@@ -114,6 +182,10 @@ class HttpPollingClient extends EventEmitter {
         hostname: os.hostname(),
         capabilities: {
           serialPorts: this.cachedPorts
+        },
+        systemInfo: {
+          ...getRamInfo(),
+          gpu: this.cachedGpuInfo
         }
       })
     });
@@ -412,6 +484,7 @@ class HttpPollingClient extends EventEmitter {
     if (this.pollInterval) { clearInterval(this.pollInterval); this.pollInterval = null; }
     if (this.heartbeatInterval) { clearInterval(this.heartbeatInterval); this.heartbeatInterval = null; }
     if (this.portRefreshInterval) { clearInterval(this.portRefreshInterval); this.portRefreshInterval = null; }
+    if (this.gpuRefreshInterval) { clearInterval(this.gpuRefreshInterval); this.gpuRefreshInterval = null; }
     for (const [, intervalId] of this.shellPollIntervals) clearInterval(intervalId);
     this.shellPollIntervals.clear();
   }

@@ -11,6 +11,48 @@
 
 import { EventEmitter } from 'events';
 import os from 'os';
+import { exec } from 'child_process';
+
+// Best-effort GPU VRAM detection. Tries `nvidia-smi` first (works for any
+// NVIDIA GPU on any OS and reports live usage); falls back to a Windows WMI
+// query for total VRAM only (no live usage) if that's not available.
+function getGpuInfo() {
+  return new Promise((resolve) => {
+    exec('nvidia-smi --query-gpu=name,memory.total,memory.used --format=csv,noheader,nounits', { timeout: 3000, windowsHide: true }, (err, stdout) => {
+      if (!err && stdout && stdout.trim()) {
+        const [name, total, used] = stdout.trim().split('\n')[0].split(',').map(s => s.trim());
+        const vramTotalMB = parseInt(total, 10);
+        const vramUsedMB = parseInt(used, 10);
+        if (!isNaN(vramTotalMB)) {
+          resolve({ name, vramTotalMB, vramUsedMB: isNaN(vramUsedMB) ? null : vramUsedMB });
+          return;
+        }
+      }
+
+      if (process.platform !== 'win32') {
+        resolve(null);
+        return;
+      }
+
+      // Fallback: PowerShell WMI query for total VRAM only. Note:
+      // Win32_VideoController.AdapterRAM is a 32-bit field and can
+      // under-report for cards with >4GB VRAM.
+      exec('powershell -NoProfile -NonInteractive -Command "(Get-CimInstance Win32_VideoController | Select-Object -First 1 Name, AdapterRAM) | ConvertTo-Json -Compress"', { timeout: 3000, windowsHide: true }, (err2, stdout2) => {
+        if (!err2 && stdout2 && stdout2.trim()) {
+          try {
+            const parsed = JSON.parse(stdout2.trim());
+            const bytes = Number(parsed.AdapterRAM);
+            if (bytes > 0) {
+              resolve({ name: parsed.Name || null, vramTotalMB: Math.round(bytes / (1024 * 1024)), vramUsedMB: null });
+              return;
+            }
+          } catch (e) { /* fall through to null */ }
+        }
+        resolve(null);
+      });
+    });
+  });
+}
 
 export class HttpPollingClient extends EventEmitter {
   constructor({ serverUrl, agentToken, agentName, version, handlers }) {
@@ -25,12 +67,25 @@ export class HttpPollingClient extends EventEmitter {
     this.heartbeatInterval = null;
     this.shellPollIntervals = new Map(); // sessionId -> intervalId
     this.shellStreams = new Map(); // sessionId -> { stream, deviceId }
+    this.cachedGpuInfo = null; // Refreshed periodically — exec is too slow to run on every heartbeat
+  }
+
+  async _refreshGpuInfo() {
+    try {
+      this.cachedGpuInfo = await getGpuInfo();
+    } catch (e) {
+      this.cachedGpuInfo = null;
+    }
   }
 
   /**
    * Connect to the server (start polling)
    */
   async connect() {
+    // Kick off GPU detection in the background so it's cached before the
+    // heartbeat needs it, without delaying the initial connection.
+    this._refreshGpuInfo();
+
     // Send initial heartbeat to verify connection
     try {
       await this._sendHeartbeat();
@@ -55,6 +110,11 @@ export class HttpPollingClient extends EventEmitter {
           }
         });
       }, 1000);
+
+      // Refresh cached GPU/VRAM info every 10s (independent of heartbeat)
+      this.gpuRefreshInterval = setInterval(() => {
+        this._refreshGpuInfo();
+      }, 10000);
     } catch (error) {
       throw error;
     }
@@ -86,6 +146,11 @@ export class HttpPollingClient extends EventEmitter {
         hostname: os.hostname(),
         capabilities: {
           serialPorts
+        },
+        systemInfo: {
+          ramTotalMB: Math.round(os.totalmem() / (1024 * 1024)),
+          ramFreeMB: Math.round(os.freemem() / (1024 * 1024)),
+          gpu: this.cachedGpuInfo
         }
       })
     });
@@ -535,6 +600,11 @@ export class HttpPollingClient extends EventEmitter {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
+    }
+
+    if (this.gpuRefreshInterval) {
+      clearInterval(this.gpuRefreshInterval);
+      this.gpuRefreshInterval = null;
     }
 
     // Stop all shell polling

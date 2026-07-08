@@ -41,6 +41,12 @@ const agentHeartbeatSchema = new mongoose.Schema({
   capabilities: {
     type: mongoose.Schema.Types.Mixed,
     default: {}
+  },
+  // System resource snapshot reported by the agent each heartbeat:
+  // { ramTotalMB, ramFreeMB, gpu: { name, vramTotalMB, vramUsedMB } | null }
+  systemInfo: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   }
 });
 
@@ -62,7 +68,8 @@ agentHeartbeatSchema.statics.getOnlineAgent = async function (userId) {
     hostname: heartbeat.hostname,
     connectedAt: heartbeat.connectedAt,
     lastHeartbeat: heartbeat.lastHeartbeat,
-    capabilities: heartbeat.capabilities || {}
+    capabilities: heartbeat.capabilities || {},
+    systemInfo: heartbeat.systemInfo || {}
   };
 };
 

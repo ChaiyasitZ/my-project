@@ -13,16 +13,40 @@ import {
   InfoIcon,
   MonitorIcon,
   ClockIcon,
-  GlobeIcon,
   TerminalIcon,
   BrainCircuitIcon,
   CpuIcon,
   SparklesIcon,
-  AlertTriangleIcon
+  AlertTriangleIcon,
+  MemoryStickIcon,
+  MicrochipIcon
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { subscribeToAgentStatus } from '../services/socket';
+
+const mbToGB = (mb) => (mb / 1024).toFixed(1).replace(/\.0$/, '');
+
+// "9.8 / 16 GB free" — shows how much headroom is left for running local
+// Ollama models, which is more actionable than just the total capacity.
+function formatRam(systemInfo) {
+  if (!systemInfo || typeof systemInfo.ramTotalMB !== 'number') return null;
+  const totalGB = mbToGB(systemInfo.ramTotalMB);
+  if (typeof systemInfo.ramFreeMB !== 'number') return `${totalGB} GB`;
+  return `${mbToGB(systemInfo.ramFreeMB)} / ${totalGB} GB free`;
+}
+
+// "2.1 / 8 GB (RTX 3070)" when nvidia-smi reports live usage, or
+// "~8 GB (RTX 3070)" when only the total is known (WMI fallback).
+function formatVram(systemInfo) {
+  const gpu = systemInfo?.gpu;
+  if (!gpu || typeof gpu.vramTotalMB !== 'number') return null;
+  const totalGB = mbToGB(gpu.vramTotalMB);
+  const sizeText = typeof gpu.vramUsedMB === 'number'
+    ? `${mbToGB(gpu.vramUsedMB)} / ${totalGB} GB`
+    : `~${totalGB} GB`;
+  return gpu.name ? `${sizeText} (${gpu.name})` : sizeText;
+}
 
 function AgentSettings() {
   const [agentStatus, setAgentStatus] = useState(null); // { online, agentInfo }
@@ -173,7 +197,10 @@ function AgentSettings() {
   }
 
   const isOnline = agentStatus?.online;
-  const info = agentStatus?.agentInfo;
+  // The initial fetch / manual refresh return { agent }, while the live
+  // polling subscription below normalizes it to { agentInfo } — accept
+  // either so the info card doesn't go blank between those two paths.
+  const info = agentStatus?.agentInfo || agentStatus?.agent;
 
   return (
     <div className="space-y-4">
@@ -240,12 +267,13 @@ function AgentSettings() {
 
           {/* Agent Info (when connected) */}
           {isOnline && info && (
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="mt-3 grid grid-cols-3 gap-2">
               {[
                 { icon: MonitorIcon, color: 'text-blue-500', label: 'Name', value: info.name },
-                { icon: GlobeIcon, color: 'text-purple-500', label: 'Platform', value: info.platform },
-                { icon: TerminalIcon, color: 'text-orange-500', label: 'Version', value: info.version },
                 { icon: ClockIcon, color: 'text-green-500', label: 'Hostname', value: info.hostname },
+                { icon: TerminalIcon, color: 'text-orange-500', label: 'Version', value: info.version },
+                { icon: MemoryStickIcon, color: 'text-pink-500', label: 'RAM', value: formatRam(info.systemInfo) },
+                { icon: MicrochipIcon, color: 'text-cyan-500', label: 'VRAM', value: formatVram(info.systemInfo) },
               ].map(({ icon: Icon, color, label, value }) => (
                 <div key={label} className="flex items-center gap-1.5 bg-white dark:bg-gray-800 rounded-lg px-2 py-1.5 shadow-sm">
                   <Icon className={`h-3.5 w-3.5 ${color} flex-shrink-0`} />
@@ -451,11 +479,11 @@ function AgentSettings() {
               
               {/* GUI Agent (Windows-only) */}
               <div className="mt-1.5">
-                <a href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.5.0-agent/NetConfigAgent-GUI-win-x64.zip" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-800">
+                <a href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.6.0-agent/NetConfigAgent-GUI-win-x64.zip" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-800">
                   <MonitorIcon className="h-3.5 w-3.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <span className="font-semibold">Windows GUI</span>
-                    <span className="text-xs opacity-60 ml-1">x64 • v1.5.0</span>
+                    <span className="text-xs opacity-60 ml-1">x64 • v1.6.0</span>
                   </div>
                   <DownloadIcon className="h-3.5 w-3.5 flex-shrink-0" />
                 </a>
