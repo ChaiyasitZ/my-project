@@ -38,8 +38,7 @@ import { validateConfigPrompt, getValidationErrorMessage } from '../utils/prompt
 import { 
   connectSocket, 
   disconnectSocket,
-  subscribeToBackupProgress,
-  subscribeToDeploymentProgress
+  subscribeToBackupProgress
 } from '../services/socket';
 
 function Configurations() {
@@ -59,6 +58,7 @@ function Configurations() {
   const [configMode, setConfigMode] = useState('cli'); // 'cli' or 'netconf'
   const [isGenerating, setIsGenerating] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
+  const [isApplyingAll, setIsApplyingAll] = useState(false);
   const [generatedConfig, setGeneratedConfig] = useState(null);
   const [validation, setValidation] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -259,22 +259,16 @@ ${indentedConfig}
       }
     });
     
-    // Subscribe to deployment progress
-    const unsubscribeDeployment = subscribeToDeploymentProgress((data) => {
-      console.log('📡 Deployment progress:', data);
-      
-      if (data.status === 'in-progress') {
-        toast.loading(data.message, { id: 'deployment' });
-      } else if (data.status === 'complete') {
-        toast.success(data.message, { id: 'deployment' });
-      } else if (data.status === 'failed') {
-        toast.error(data.message, { id: 'deployment' });
-      }
-    });
+    // Note: deployment success/failure toasts are shown directly by
+    // handleApplyConfiguration / handleApplyAllConfigurations from the API
+    // response. We intentionally don't also subscribe to the backend's
+    // deployment:progress notifications here — doing so used to show a
+    // second "Configuration deployed successfully" toast for the same
+    // deployment (one from the direct request, one from the polled
+    // notification), which looked like the toast was firing twice.
     
     return () => {
       unsubscribeBackup();
-      unsubscribeDeployment();
       disconnectSocket();
     };
   }, []);
@@ -1115,6 +1109,19 @@ ${indentedConfig}
         deployment_time: deploymentTime,
         mock_deployment: isMock
       });
+
+      // Keep the multi-device results list in sync so "Deploy All" and the
+      // per-device tabs reflect this device as already deployed too.
+      setMultiDeviceResults(prev => prev.map(r => {
+        const rConfigId = r.configuration?.id || r.configuration?._id;
+        if (r.success && rConfigId && String(rConfigId) === String(configId)) {
+          return {
+            ...r,
+            configuration: { ...r.configuration, status: 'deployed', deployment_time: deploymentTime, mock_deployment: isMock }
+          };
+        }
+        return r;
+      }));
       
       const successMessage = deploymentTimeSeconds 
         ? `Configuration deployed successfully in ${deploymentTimeSeconds}s!` 
@@ -1143,6 +1150,127 @@ ${indentedConfig}
       toast.error(errorMsg, { id: toastId, duration: 10000 });
     } finally {
       setIsApplying(false);
+    }
+  };
+
+  // Deploy every successfully-generated device in the current multi-device
+  // batch at the same time, instead of requiring the user to click into each
+  // device's tab and deploy one at a time.
+  const handleApplyAllConfigurations = async () => {
+    const deployable = multiDeviceResults
+      .map((result, index) => ({ ...result, index }))
+      .filter(r => r.success && r.configuration && r.configuration.status === 'generated');
+
+    if (deployable.length === 0) return;
+
+    // Verify interface names against each real device first (CLI-only check,
+    // same safety net as the single-device deploy flow), running all checks
+    // in parallel so it doesn't add up per device.
+    const verifyToastId = toast.loading(`Checking interface names on ${deployable.length} device(s)...`);
+    const verifyResults = await Promise.allSettled(deployable.map(async (item) => {
+      const configId = item.configuration.id || item.configuration._id;
+      const res = await axios.post(`/configurations/${configId}/verify-interfaces`);
+      return { device_name: item.device_name, ...res.data };
+    }));
+    toast.dismiss(verifyToastId);
+
+    const mismatchedDevices = verifyResults
+      .filter(r => r.status === 'fulfilled' && r.value?.blocked)
+      .map(r => r.value);
+
+    let message = `Deploy configurations to all ${deployable.length} devices at the same time?\n\n${deployable.map(r => `• ${r.device_name}`).join('\n')}\n\nThis will modify all of these devices' configurations simultaneously.`;
+    let dialogType = 'warning';
+
+    if (mismatchedDevices.length > 0) {
+      const mismatchText = mismatchedDevices.map(m => {
+        const lines = (m.mismatches || []).map(x => x.suggestion
+          ? `${x.configInterface} — did you mean ${x.suggestion}?`
+          : `${x.configInterface} — ${x.reason}`
+        ).join('; ');
+        return `• ${m.device_name}: ${lines}`;
+      }).join('\n');
+
+      message = `⚠️ ${mismatchedDevices.length} of ${deployable.length} device(s) reference interface names that don't exist on the real device:\n\n${mismatchText}\n\nDeploying anyway may fail or silently do nothing for these lines.\n\nDeploy all ${deployable.length} devices anyway?`;
+      dialogType = 'danger';
+    }
+
+    const confirmed = await showConfirmation({
+      title: `Deploy Configuration to ${deployable.length} Devices`,
+      message,
+      confirmText: `Deploy All (${deployable.length})`,
+      cancelText: 'Cancel',
+      type: dialogType
+    });
+
+    if (!confirmed) return;
+
+    setIsApplyingAll(true);
+    const toastId = toast.loading(`Deploying to ${deployable.length} devices at the same time...`);
+
+    // Fire all deployments in parallel — each device gets its own request so
+    // one slow/failed device doesn't hold up the others.
+    const deployResults = await Promise.allSettled(deployable.map(async (item) => {
+      const configId = item.configuration.id || item.configuration._id;
+      const response = await axios.post('/configurations/apply', {
+        configuration_id: String(configId),
+        validate_before_apply: false,
+        mock_deploy: false
+      });
+      return response.data;
+    }));
+
+    let succeeded = 0;
+    let failed = 0;
+    const failedNames = [];
+
+    setMultiDeviceResults(prev => {
+      const next = [...prev];
+      deployResults.forEach((result, i) => {
+        const item = deployable[i];
+        if (result.status === 'fulfilled') {
+          succeeded++;
+          const data = result.value;
+          const deploymentTime = data?.deployment_time || data?.deployment_time_ms || null;
+          next[item.index] = {
+            ...next[item.index],
+            configuration: {
+              ...next[item.index].configuration,
+              status: 'deployed',
+              deployment_time: deploymentTime,
+              mock_deployment: data?.mock === true
+            }
+          };
+        } else {
+          failed++;
+          failedNames.push(item.device_name);
+          const errData = result.reason?.response?.data;
+          next[item.index] = {
+            ...next[item.index],
+            deployError: errData?.message || result.reason?.message || 'Deployment failed'
+          };
+        }
+      });
+      return next;
+    });
+
+    // If the currently-displayed device was part of this batch and deployed
+    // successfully, refresh its status too.
+    const activeItem = deployable.find(d => d.index === activeResultTab);
+    if (activeItem) {
+      const activeIdx = deployable.indexOf(activeItem);
+      if (deployResults[activeIdx]?.status === 'fulfilled') {
+        setGeneratedConfig(prev => (prev ? { ...prev, status: 'deployed' } : prev));
+      }
+    }
+
+    setIsApplyingAll(false);
+
+    if (failed === 0) {
+      toast.success(`Deployed successfully to all ${succeeded} device(s)!`, { id: toastId, duration: 5000 });
+    } else if (succeeded === 0) {
+      toast.error(`Deployment failed for all ${failed} device(s).`, { id: toastId, duration: 8000 });
+    } else {
+      toast.error(`Deployed to ${succeeded}/${deployable.length} devices. Failed: ${failedNames.join(', ')}`, { id: toastId, duration: 10000 });
     }
   };
 
@@ -1226,7 +1354,7 @@ ${indentedConfig}
             LLM Configuration Generator
           </h1>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            Generate Cisco device configurations using LLM via OpenRouter
+            Generate Cisco device configurations using LLM
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -1712,11 +1840,30 @@ ${indentedConfig}
           {/* Multi-Device Results Tabs */}
           {multiDeviceResults.length > 1 && (
             <div className="mb-3">
-              <div className="flex items-center gap-2 mb-2">
-                <ServerIcon className="h-4 w-4 text-gray-500" />
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {multiDeviceResults.filter(r => r.success).length}/{multiDeviceResults.length} devices generated
-                </span>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <ServerIcon className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {multiDeviceResults.filter(r => r.success).length}/{multiDeviceResults.length} devices generated
+                  </span>
+                </div>
+                {multiDeviceResults.filter(r => r.success && r.configuration?.status === 'generated').length > 1 && (
+                  <button
+                    onClick={handleApplyAllConfigurations}
+                    disabled={isApplyingAll || isApplying}
+                    className="btn btn-primary btn-sm"
+                    title="Deploy all successfully generated devices at the same time"
+                  >
+                    {isApplyingAll ? (
+                      <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white mr-1.5"></div>
+                    ) : (
+                      <CheckCircleIcon className="h-3.5 w-3.5 mr-1.5" />
+                    )}
+                    {isApplyingAll
+                      ? 'Deploying All...'
+                      : `Deploy All (${multiDeviceResults.filter(r => r.success && r.configuration?.status === 'generated').length})`}
+                  </button>
+                )}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {multiDeviceResults.map((result, index) => (
@@ -1737,26 +1884,39 @@ ${indentedConfig}
                     className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                       activeResultTab === index
                         ? 'bg-blue-600 text-white shadow-sm'
-                        : result.success
-                          ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200'
+                        : !result.success
+                          ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200'
+                          : result.deployError
+                            ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 hover:bg-orange-200'
+                            : result.configuration?.status === 'deployed'
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                   >
                     {result.device_name}
-                    {result.success ? (
-                      <CheckCircleIcon className="h-3 w-3 ml-1 inline" />
-                    ) : (
+                    {!result.success || result.deployError ? (
                       <XCircleIcon className="h-3 w-3 ml-1 inline" />
+                    ) : (
+                      <CheckCircleIcon className="h-3 w-3 ml-1 inline" />
                     )}
                   </button>
                 ))}
               </div>
-              {/* Show error message for failed device */}
+              {/* Show error message for failed generation */}
               {multiDeviceResults[activeResultTab] && !multiDeviceResults[activeResultTab].success && (
                 <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
                   <p className="text-sm text-red-700 dark:text-red-400">
                     <XCircleIcon className="h-4 w-4 inline mr-1" />
                     Failed: {multiDeviceResults[activeResultTab].error || 'Unknown error'}
+                  </p>
+                </div>
+              )}
+              {/* Show error message for failed deployment (from Deploy All) */}
+              {multiDeviceResults[activeResultTab]?.success && multiDeviceResults[activeResultTab]?.deployError && (
+                <div className="mt-2 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                  <p className="text-sm text-orange-700 dark:text-orange-400">
+                    <XCircleIcon className="h-4 w-4 inline mr-1" />
+                    Deployment failed: {multiDeviceResults[activeResultTab].deployError}
                   </p>
                 </div>
               )}
