@@ -2,6 +2,12 @@
 
 All notable changes to the NetConfig Agent GUI are documented in this file.
 
+## [1.3.0] - 2026-07-08
+
+### Changed
+- Command polling interval lowered from 2s to 1s, so SSH/deploy/console actions started from the web app are picked up about twice as fast.
+- Interactive shell input polling tightened from 500ms to 300ms for a more responsive live console.
+
 ## [1.2.0] - 2026-07-08
 
 ### Changed
