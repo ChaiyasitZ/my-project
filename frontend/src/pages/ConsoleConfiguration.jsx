@@ -810,10 +810,11 @@ function ConsoleConfiguration() {
                                <div className="mt-2">
                                  <span className="text-xs text-blue-700 dark:text-blue-400 block mb-2">Quick Select CIDR (showing usable hosts):</span>
                                  <div className="grid grid-cols-8 gap-1">
-                                   {Array.from({length: 24}, (_, i) => i + 9).map(num => {
+                                   {Array.from({length: 32}, (_, i) => i + 1).map(num => {
                                      const cidr = `/${num}`;
                                      const hostCount = cidrToHostCount(cidr);
                                      const formatHostCount = (count) => {
+                                       if (count >= 1000000000) return `${(count / 1000000000).toFixed(1)}B`;
                                        if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
                                        if (count >= 1000) return `${(count / 1000).toFixed(0)}K`;
                                        return count.toString();
