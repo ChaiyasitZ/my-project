@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NETCONF Operations</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f3f4f6; color: #111827; }
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar { width: 240px; background: #1e293b; color: white; padding: 16px 0; flex-shrink: 0; }
+  .sidebar-logo { padding: 0 20px 20px; font-size: 18px; font-weight: 700; color: #818cf8; border-bottom: 1px solid #334155; margin-bottom: 8px; }
+  .sidebar-nav a { display: flex; align-items: center; gap: 12px; padding: 10px 20px; color: #94a3b8; text-decoration: none; font-size: 14px; border-left: 3px solid transparent; }
+  .sidebar-nav a.active { background: #334155; color: white; border-left-color: #818cf8; }
+  .main { flex: 1; padding: 24px 32px; }
+
+  .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .page-title { font-size: 24px; font-weight: 700; }
+  .mode-toggle { display: flex; background: #e5e7eb; border-radius: 12px; padding: 4px; }
+  .mode-btn { padding: 8px 16px; border-radius: 10px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; background: transparent; color: #6b7280; }
+  .mode-btn.active { background: white; color: #7c3aed; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+  .sub-tabs { display: flex; gap: 4px; border-bottom: 2px solid #e5e7eb; margin-bottom: 24px; }
+  .sub-tab { display: flex; align-items: center; gap: 6px; padding: 10px 16px; font-size: 13px; font-weight: 500; color: #6b7280; border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+  .sub-tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+  .tab-badge { font-size: 11px; padding: 1px 8px; border-radius: 10px; font-weight: 600; }
+  .tab-badge.purple { background: #f3e8ff; color: #7c3aed; }
+  .tab-badge.green { background: #dcfce7; color: #15803d; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.06); padding: 24px; }
+
+  .card-title { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .card-title svg { width: 22px; height: 22px; color: #2563eb; }
+
+  .info-box { padding: 12px 16px; border-radius: 10px; margin-bottom: 16px; font-size: 13px; }
+  .info-box.blue { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+
+  label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 6px; }
+
+  .input-select { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 10px; font-size: 14px; outline: none; background: white; }
+  .input-select:focus { border-color: #2563eb; box-shadow: 0 0 0 3px #3b82f620; }
+
+  /* Operation Type Buttons */
+  .op-type-group { display: flex; gap: 8px; margin-bottom: 16px; }
+  .op-type-btn { flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid #d1d5db; font-size: 13px; font-weight: 600; cursor: pointer; background: white; color: #6b7280; text-align: center; transition: all 0.2s; }
+  .op-type-btn:hover { background: #f9fafb; }
+  .op-type-btn.active-get { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
+  .op-type-btn.active-getconfig { background: #f0fdf4; border-color: #22c55e; color: #15803d; }
+  .op-type-btn.active-custom { background: #faf5ff; border-color: #a855f7; color: #7e22ce; }
+  .op-type-btn svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; }
+
+  /* Textarea */
+  textarea { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 10px; font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; outline: none; resize: vertical; }
+  textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 3px #3b82f620; }
+  .amber-hint { color: #d97706; font-weight: 400; }
+
+  /* Execute Button */
+  .btn-execute { width: 100%; padding: 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; background: #2563eb; color: white; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
+  .btn-execute:hover { background: #1d4ed8; }
+  .btn-execute svg { width: 16px; height: 16px; }
+
+  /* Quick Filters */
+  .quick-section { margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 16px; }
+  .quick-title { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 10px; }
+  .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .quick-btn { text-align: left; padding: 8px 12px; border-radius: 8px; border: none; background: #f3f4f6; color: #374151; font-size: 12px; cursor: pointer; transition: all 0.2s; }
+  .quick-btn:hover { background: #eff6ff; color: #1d4ed8; }
+
+  /* Result Section */
+  .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .result-title { font-size: 18px; font-weight: 600; }
+  .btn-copy { padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; border: 1px solid #d1d5db; background: #f3f4f6; color: #374151; }
+  .btn-copy:hover { background: #e5e7eb; }
+  .btn-copy svg { width: 14px; height: 14px; }
+
+  .result-success { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px 16px; border-radius: 10px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .result-success .left { display: flex; align-items: center; gap: 8px; color: #15803d; font-size: 13px; font-weight: 500; }
+  .result-success .left svg { width: 16px; height: 16px; }
+  .result-success .op-badge { background: #dbeafe; color: #1d4ed8; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; margin-left: 6px; }
+  .result-success .time { color: #16a34a; font-size: 12px; }
+
+  .xml-result { background: #111827; border-radius: 10px; padding: 16px; max-height: 400px; overflow-y: auto; }
+  .xml-result pre { font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; color: #4ade80; line-height: 1.6; white-space: pre-wrap; }
+  .xml-result .tag { color: #60a5fa; }
+  .xml-result .attr { color: #c084fc; }
+  .xml-result .val { color: #fbbf24; }
+
+  .empty-state { text-align: center; padding: 48px 24px; }
+  .empty-state svg { width: 56px; height: 56px; color: #d1d5db; margin: 0 auto 12px; display: block; }
+  .empty-state p { color: #9ca3af; font-size: 14px; }
+  .empty-state p.sub { font-size: 12px; color: #d1d5db; margin-top: 4px; }
+
+  .space-y > * + * { margin-top: 14px; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-logo">NetConfig LLM</div>
+    <nav class="sidebar-nav">
+      <a href="#">Dashboard</a>
+      <a href="#">Devices</a>
+      <a href="#" class="active">Configurations</a>
+      <a href="#">History</a>
+      <a href="#">Backups</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <h1 class="page-title">AI Configuration</h1>
+      <div class="mode-toggle">
+        <button class="mode-btn">CLI</button>
+        <button class="mode-btn active">NETCONF/YANG</button>
+      </div>
+    </div>
+
+    <div class="sub-tabs">
+      <button class="sub-tab">Generate Config</button>
+      <button class="sub-tab">Active Sessions <span class="tab-badge green">2</span></button>
+      <button class="sub-tab">YANG Models <span class="tab-badge purple">3</span></button>
+      <button class="sub-tab active">Operations</button>
+    </div>
+
+    <div class="grid">
+      <!-- Left: Operations Form -->
+      <div class="card">
+        <div class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          NETCONF Operations
+        </div>
+
+        <div class="info-box blue">
+          <strong>Monitor Mode:</strong> Execute NETCONF operations to query device state and configuration. Use &lt;get&gt; for operational data and &lt;get-config&gt; for configuration data.
+        </div>
+
+        <div class="space-y">
+          <!-- Device Selection -->
+          <div>
+            <label>Select Device</label>
+            <select class="input-select">
+              <option value="" disabled>Choose a device...</option>
+              <option selected>NX-Switch-01 (nexus) - 192.168.1.10</option>
+              <option>NX-Switch-02 (nexus) - 192.168.1.11</option>
+              <option>IOS-Router-01 (ios-xe) - 192.168.1.20</option>
+            </select>
+          </div>
+
+          <!-- Operation Type -->
+          <div>
+            <label>Operation Type</label>
+            <div class="op-type-group">
+              <button class="op-type-btn active-get">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                &lt;get&gt;
+              </button>
+              <button class="op-type-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                &lt;get-config&gt;
+              </button>
+              <button class="op-type-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                Custom RPC
+              </button>
+            </div>
+          </div>
+
+          <!-- XML Filter -->
+          <div>
+            <label>XML Filter <span class="amber-hint">(recommended to avoid timeout)</span></label>
+            <textarea rows="5" placeholder='Use a filter to avoid timeout. Use Quick Filters below or enter your own.'><System xmlns="http://cisco.com/ns/yang/cisco-nx-os-device"><intf-items/></System></textarea>
+          </div>
+
+          <!-- Execute Button -->
+          <button class="btn-execute">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Execute Operation
+          </button>
+        </div>
+
+        <!-- Quick Filters -->
+        <div class="quick-section">
+          <div class="quick-title">Quick Filters (NX-OS):</div>
+          <div class="quick-grid">
+            <button class="quick-btn">• Interfaces</button>
+            <button class="quick-btn">• VLANs</button>
+            <button class="quick-btn">• Routing</button>
+            <button class="quick-btn">• System Info</button>
+            <button class="quick-btn">• OSPF</button>
+            <button class="quick-btn">• BGP</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Operation Result -->
+      <div class="card">
+        <div class="result-header">
+          <div class="result-title">Operation Result</div>
+          <button class="btn-copy">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy
+          </button>
+        </div>
+
+        <!-- Success Result -->
+        <div class="result-success">
+          <div class="left">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            NX-Switch-01
+            <span class="op-badge">get</span>
+          </div>
+          <span class="time">245ms</span>
+        </div>
+
+        <!-- XML Response -->
+        <div class="xml-result">
+          <pre><span class="tag">&lt;?xml version="1.0" encoding="UTF-8"?&gt;</span>
+<span class="tag">&lt;rpc-reply</span> <span class="attr">xmlns</span>=<span class="val">"urn:ietf:params:xml:ns:netconf:base:1.0"</span>
+             <span class="attr">message-id</span>=<span class="val">"101"</span><span class="tag">&gt;</span>
+  <span class="tag">&lt;data&gt;</span>
+    <span class="tag">&lt;System</span> <span class="attr">xmlns</span>=<span class="val">"http://cisco.com/ns/yang/cisco-nx-os-device"</span><span class="tag">&gt;</span>
+      <span class="tag">&lt;intf-items&gt;</span>
+        <span class="tag">&lt;PhysIf-list&gt;</span>
+          <span class="tag">&lt;id&gt;</span>eth1/1<span class="tag">&lt;/id&gt;</span>
+          <span class="tag">&lt;adminSt&gt;</span>up<span class="tag">&lt;/adminSt&gt;</span>
+          <span class="tag">&lt;operSt&gt;</span>up<span class="tag">&lt;/operSt&gt;</span>
+          <span class="tag">&lt;descr&gt;</span>Uplink to Core<span class="tag">&lt;/descr&gt;</span>
+          <span class="tag">&lt;speed&gt;</span>10G<span class="tag">&lt;/speed&gt;</span>
+          <span class="tag">&lt;mtu&gt;</span>9216<span class="tag">&lt;/mtu&gt;</span>
+        <span class="tag">&lt;/PhysIf-list&gt;</span>
+        <span class="tag">&lt;PhysIf-list&gt;</span>
+          <span class="tag">&lt;id&gt;</span>eth1/2<span class="tag">&lt;/id&gt;</span>
+          <span class="tag">&lt;adminSt&gt;</span>up<span class="tag">&lt;/adminSt&gt;</span>
+          <span class="tag">&lt;operSt&gt;</span>down<span class="tag">&lt;/operSt&gt;</span>
+          <span class="tag">&lt;descr&gt;</span>Server Port<span class="tag">&lt;/descr&gt;</span>
+          <span class="tag">&lt;speed&gt;</span>1G<span class="tag">&lt;/speed&gt;</span>
+          <span class="tag">&lt;mtu&gt;</span>1500<span class="tag">&lt;/mtu&gt;</span>
+        <span class="tag">&lt;/PhysIf-list&gt;</span>
+        <span class="tag">&lt;PhysIf-list&gt;</span>
+          <span class="tag">&lt;id&gt;</span>eth1/3<span class="tag">&lt;/id&gt;</span>
+          <span class="tag">&lt;adminSt&gt;</span>down<span class="tag">&lt;/adminSt&gt;</span>
+          <span class="tag">&lt;operSt&gt;</span>down<span class="tag">&lt;/operSt&gt;</span>
+          <span class="tag">&lt;descr&gt;</span>Unused<span class="tag">&lt;/descr&gt;</span>
+        <span class="tag">&lt;/PhysIf-list&gt;</span>
+      <span class="tag">&lt;/intf-items&gt;</span>
+    <span class="tag">&lt;/System&gt;</span>
+  <span class="tag">&lt;/data&gt;</span>
+<span class="tag">&lt;/rpc-reply&gt;</span></pre>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
