@@ -164,6 +164,21 @@ class HttpPollingClient extends EventEmitter {
           }
           break;
         }
+        case 'agent:ssh:get-interfaces': {
+          // All-in-one: connect → run interface-list command → disconnect.
+          // Used to verify LLM-generated interface names against the real
+          // device before deploying.
+          const ifData = data;
+          try {
+            await this.handlers.ssh.connect({ deviceId: ifData.deviceId, host: ifData.host, port: ifData.port || 22, username: ifData.username, password: ifData.password });
+            result = await this.handlers.ssh.executeCommand(ifData.deviceId, ifData.command || 'show ip interface brief');
+            this.handlers.ssh.disconnect(ifData.deviceId);
+          } catch (ifErr) {
+            this.handlers.ssh.disconnect(ifData.deviceId);
+            throw ifErr;
+          }
+          break;
+        }
         case 'agent:ssh:backup': {
           // All-in-one: connect → show running/startup config → disconnect
           // Uses a single shell session to avoid VTY line issues on Cisco devices

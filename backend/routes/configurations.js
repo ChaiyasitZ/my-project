@@ -11,6 +11,7 @@ import agentRelay from '../services/agentRelay.js';
 import notificationService from '../services/notificationService.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getOrSetCache, invalidateCache, CacheKeys } from '../lib/cache.js';
+import { extractInterfaceReferences, parseInterfaceBriefOutput, compareInterfaces } from '../utils/interfaceNaming.js';
 
 const router = express.Router();
 
@@ -871,6 +872,118 @@ router.post('/fast-apply', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Internal server error during fast configuration application',
+      error: error.message
+    });
+  }
+});
+
+// POST /api/configurations/:id/verify-interfaces - Check generated interface
+// names against the device's real, live interface list before deploying.
+router.post('/:id/verify-interfaces', async (req, res) => {
+  try {
+    const configuration = await ConfigurationHistory.findOne({
+      _id: req.params.id,
+      userId: req.userId
+    });
+
+    if (!configuration) {
+      return res.status(404).json({ success: false, message: 'Configuration not found' });
+    }
+
+    const device = await Device.findOne({ _id: configuration.device_id, userId: req.userId });
+    if (!device) {
+      return res.status(404).json({ success: false, message: 'Device not found' });
+    }
+
+    const configText = configuration.deployment_config || configuration.generated_config || '';
+    const configInterfaces = extractInterfaceReferences(configText);
+
+    if (configInterfaces.length === 0) {
+      return res.json({
+        success: true,
+        checked: false,
+        reachable: null,
+        message: 'No interface references found in this configuration',
+        matched: [],
+        mismatches: []
+      });
+    }
+
+    // Pull the device's real, live interface list
+    let liveInterfaces = [];
+    let source = 'none';
+
+    try {
+      if (device.netconf_enabled) {
+        const sessionStatus = netconfService.getSessionStatus(device._id.toString());
+        if (!sessionStatus.connected) {
+          const connectResult = await netconfService.connect(device);
+          if (!connectResult.success) throw new Error(connectResult.message || 'NETCONF connection failed');
+        }
+        const details = await netconfService.getDeviceDetails(device._id.toString(), 'interfaces', device.type);
+        liveInterfaces = (details?.data?.interfaces || []).map(i => i.id).filter(Boolean);
+        source = 'netconf';
+      } else {
+        const agentOnline = await agentRelay.isAgentOnline(req.userId);
+        if (agentOnline) {
+          const result = await agentRelay.sendToAgent(req.userId, 'agent:ssh:get-interfaces', {
+            deviceId: device._id.toString(),
+            host: device.ip_address,
+            port: device.ssh_port || 22,
+            username: device.username,
+            password: device.password,
+            command: 'show ip interface brief'
+          }, 20000);
+          liveInterfaces = parseInterfaceBriefOutput(result.output || '');
+          source = 'agent-ssh';
+        } else {
+          const result = await sshService.executeCommand(device, 'show ip interface brief');
+          liveInterfaces = parseInterfaceBriefOutput(result.output || '');
+          source = 'direct-ssh';
+        }
+      }
+    } catch (liveErr) {
+      // Couldn't reach the device to verify — don't block deploy on our own
+      // inability to check, just say so and let the normal deploy flow run.
+      console.warn('⚠️ Interface verification: could not reach device -', liveErr.message);
+      return res.json({
+        success: true,
+        checked: false,
+        reachable: false,
+        message: `Could not verify interfaces against the device: ${liveErr.message}`,
+        matched: [],
+        mismatches: []
+      });
+    }
+
+    if (liveInterfaces.length === 0) {
+      return res.json({
+        success: true,
+        checked: false,
+        reachable: true,
+        message: 'Device returned no interfaces to compare against',
+        matched: [],
+        mismatches: []
+      });
+    }
+
+    const { matched, mismatched } = compareInterfaces(configInterfaces, liveInterfaces);
+
+    res.json({
+      success: true,
+      checked: true,
+      reachable: true,
+      source,
+      deviceInterfaces: liveInterfaces,
+      matched,
+      mismatches: mismatched,
+      blocked: mismatched.length > 0
+    });
+  } catch (error) {
+    console.error('❌ Interface verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to verify interfaces',
       error: error.message
     });
   }

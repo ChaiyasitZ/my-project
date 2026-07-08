@@ -2,6 +2,11 @@
 
 All notable changes to the NetConfig Agent GUI are documented in this file.
 
+## [1.5.0] - 2026-07-08
+
+### Added
+- Support for a new `agent:ssh:get-interfaces` relay command, used by the backend to verify that interface names in an LLM-generated configuration (e.g. `eth0/1`) actually exist on the real device (e.g. `GigabitEthernet0/1`) before deployment.
+
 ## [1.4.0] - 2026-07-08
 
 ### Added

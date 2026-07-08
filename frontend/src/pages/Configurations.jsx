@@ -1012,6 +1012,44 @@ ${indentedConfig}
 
     const isNetconf = generatedConfig.config_type === 'netconf-yang';
     const modeLabel = isNetconf ? 'NETCONF' : 'SSH';
+    const configId = generatedConfig.id || generatedConfig._id;
+
+    // Verify the interface names the LLM generated (e.g. "eth0/1") actually
+    // exist on the real device (e.g. "GigabitEthernet0/1") before deploying.
+    // CLI-only: NETCONF configs are XML and don't match the "interface X"
+    // pattern this check looks for. If the device can't be reached to check,
+    // we don't block deploy — only a confirmed mismatch does.
+    if (configId && !isNetconf) {
+      let verifyResult = null;
+      const verifyToastId = toast.loading('Checking interface names against the device...');
+      try {
+        const verifyResponse = await axios.post(`/configurations/${configId}/verify-interfaces`);
+        verifyResult = verifyResponse.data;
+      } catch (verifyError) {
+        console.warn('Interface verification failed, proceeding without it:', verifyError.message);
+      } finally {
+        toast.dismiss(verifyToastId);
+      }
+
+      if (verifyResult?.blocked) {
+        const mismatchLines = verifyResult.mismatches.map(m => (
+          m.suggestion
+            ? `• ${m.configInterface} — not found. Did you mean ${m.suggestion}?`
+            : `• ${m.configInterface} — ${m.reason}`
+        )).join('\n');
+        const deviceInterfaceList = (verifyResult.deviceInterfaces || []).join(', ') || 'none detected';
+
+        const proceedAnyway = await showConfirmation({
+          title: 'Interface Mismatch Detected',
+          message: `This configuration references interface(s) that don't exist on the device:\n\n${mismatchLines}\n\nInterfaces actually on this device:\n${deviceInterfaceList}\n\nDeploying anyway may fail or silently do nothing for these lines.`,
+          confirmText: 'Deploy Anyway',
+          cancelText: 'Cancel',
+          type: 'danger'
+        });
+
+        if (!proceedAnyway) return;
+      }
+    }
 
     let statusNotes = '';
     if (isNetconf && validateBeforeApply) statusNotes += '\n\n✓ Validation will run before applying.';
