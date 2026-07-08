@@ -957,7 +957,9 @@ class OllamaHandler {
 // ELECTRON APP
 // ═══════════════════════════════════════
 
-const VERSION = '1.0.0';
+// Sourced from package.json so the reported/displayed version never drifts
+// out of sync with an actual release again.
+const VERSION = require('../package.json').version;
 let mainWindow = null;
 let tray = null;
 let config = null;
@@ -981,7 +983,8 @@ function sendStatus() {
       connected: isConnected,
       serverUrl: config.get('serverUrl'),
       agentName: config.get('agentName'),
-      hasToken: !!config.get('agentToken')
+      hasToken: !!config.get('agentToken'),
+      version: VERSION
     });
   }
 }

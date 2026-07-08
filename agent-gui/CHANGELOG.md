@@ -2,6 +2,11 @@
 
 All notable changes to the NetConfig Agent GUI are documented in this file.
 
+## [1.3.1] - 2026-07-08
+
+### Fixed
+- The version shown in the app's status bar, and the version reported to the server in the heartbeat, were hardcoded to `v1.0.0` and never updated across releases. Both now read from `package.json` at runtime, so they always match the actual build.
+
 ## [1.3.0] - 2026-07-08
 
 ### Changed

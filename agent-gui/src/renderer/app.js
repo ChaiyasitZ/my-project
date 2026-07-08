@@ -11,6 +11,7 @@ const $ = id => document.getElementById(id);
 
 const statusDot = $('status-dot');
 const statusText = $('status-text');
+const statusVersion = $('status-version');
 const inputServer = $('input-server');
 const inputName = $('input-name');
 const inputToken = $('input-token');
@@ -199,6 +200,9 @@ function showToast(message) {
 // ─── IPC Event Listeners ───
 window.agent.onStatus((status) => {
   updateConnectionUI(status.connected);
+  if (status.version && statusVersion) {
+    statusVersion.textContent = `v${status.version}`;
+  }
 });
 
 window.agent.onConfig((cfg) => {
