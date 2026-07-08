@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   XIcon, 
@@ -31,10 +31,23 @@ function ConfigProgressModal({
 }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [stepStatuses, setStepStatuses] = useState({});
+  // Tracks every scheduled step-animation timeout so it can be fully
+  // cancelled the instant real generation finishes, instead of only the
+  // first one in the chain (which let a fast/template generation still
+  // sit through several more seconds of a "fake" animation).
+  const scheduledTimeoutsRef = useRef([]);
 
-  // Simulate progress through steps while generating
+  const clearScheduledTimeouts = () => {
+    scheduledTimeoutsRef.current.forEach(clearTimeout);
+    scheduledTimeoutsRef.current = [];
+  };
+
+  // Simulate progress through steps while generating. Cancelled immediately
+  // (via the cleanup below) as soon as `isGenerating` flips to false, so
+  // fast generations reflect their real speed instead of a fixed ~5.5s.
   useEffect(() => {
     if (!isOpen) {
+      clearScheduledTimeouts();
       setCurrentStep(0);
       setStepStatuses({});
       return;
@@ -45,7 +58,7 @@ function ConfigProgressModal({
       setCurrentStep(0);
       setStepStatuses({ analyzing: 'in-progress' });
 
-      // Progress through steps with realistic timing
+      // Progress through steps with realistic timing (capped by real completion)
       const timings = [800, 1200, 2500, 1000]; // ms for each step
       let stepIndex = 0;
 
@@ -63,14 +76,17 @@ function ConfigProgressModal({
           stepIndex++;
 
           if (stepIndex < STEPS.length - 1) {
-            setTimeout(progressStep, timings[stepIndex] || 1000);
+            scheduledTimeoutsRef.current.push(setTimeout(progressStep, timings[stepIndex] || 1000));
           }
         }
       };
 
-      const timer = setTimeout(progressStep, timings[0]);
-      return () => clearTimeout(timer);
+      scheduledTimeoutsRef.current.push(setTimeout(progressStep, timings[0]));
+      return () => clearScheduledTimeouts();
     }
+
+    // isGenerating just turned false — nothing left to animate.
+    clearScheduledTimeouts();
   }, [isOpen, isGenerating]);
 
   // Handle completion or error

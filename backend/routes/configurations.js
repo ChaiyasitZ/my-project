@@ -522,21 +522,23 @@ router.post('/generate-multi', async (req, res) => {
         });
       }
     } else if (multiResult.success && multiResult.configs) {
-      // Process each device's result
-      for (const device of devices) {
+      // Process each device's result. Explanation generation is independent
+      // per device, so run all devices concurrently instead of awaiting them
+      // one at a time — sequential awaits could add up to 8s of pure waiting
+      // per extra device on top of the actual generation time.
+      const processDevice = async (device) => {
         const deviceConfig = multiResult.configs[device.name];
         const executionTime = Date.now() - startTime;
 
         if (!deviceConfig || !deviceConfig.success) {
-          results.push({
+          return {
             device_id: device._id,
             device_name: device.name,
             device_type: device.type,
             success: false,
             error: deviceConfig?.error || 'No configuration generated for this device',
             execution_time: executionTime
-          });
-          continue;
+          };
         }
 
         try {
@@ -576,7 +578,7 @@ router.post('/generate-multi', async (req, res) => {
 
           await configuration.save();
 
-          results.push({
+          return {
             device_id: device._id,
             device_name: device.name,
             device_type: device.type,
@@ -592,18 +594,21 @@ router.post('/generate-multi', async (req, res) => {
               explanation: explanationText,
               deployment_config: deviceConfig.deploymentConfig
             }
-          });
+          };
         } catch (deviceError) {
-          results.push({
+          return {
             device_id: device._id,
             device_name: device.name,
             device_type: device.type,
             success: false,
             error: deviceError.message,
             execution_time: Date.now() - startTime
-          });
+          };
         }
-      }
+      };
+
+      const deviceResults = await Promise.all(devices.map(processDevice));
+      results.push(...deviceResults);
     } else {
       // Overall failure
       for (const device of devices) {

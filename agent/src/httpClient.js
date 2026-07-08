@@ -4,8 +4,8 @@
  * Replaces Socket.IO WebSocket with HTTP polling for Vercel serverless compatibility.
  * 
  * Protocol:
- * - Agent sends heartbeat every 3 seconds
- * - Agent polls for commands every 2 seconds
+ * - Agent sends heartbeat every 5 seconds
+ * - Agent polls for commands every 1 second
  * - Agent executes commands locally and posts results back
  */
 
@@ -45,7 +45,8 @@ export class HttpPollingClient extends EventEmitter {
         });
       }, 5000);
 
-      // Start command polling (every 2 seconds)
+      // Start command polling (every 1 second, was 2s) so SSH/deploy/console
+      // actions started from the web app get picked up sooner.
       this.pollInterval = setInterval(() => {
         this._pollCommands().catch(err => {
           // Don't emit error for every poll failure, just log
@@ -53,7 +54,7 @@ export class HttpPollingClient extends EventEmitter {
             console.error('Poll error:', err.message);
           }
         });
-      }, 2000);
+      }, 1000);
     } catch (error) {
       throw error;
     }
@@ -459,7 +460,7 @@ export class HttpPollingClient extends EventEmitter {
       } catch (e) {
         // Ignore poll errors for shell input
       }
-    }, 500); // Poll every 500ms for responsive shell
+    }, 300); // Poll every 300ms (was 500ms) for more responsive shell
 
     this.shellPollIntervals.set(sessionId, intervalId);
   }

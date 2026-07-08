@@ -163,7 +163,8 @@ export const subscribeToAgentStatus = (callback) => {
 
 /**
  * Subscribe to shell output for a session
- * Polls every 500ms for responsive terminal
+ * Polls every 300ms (was 500ms) for a more responsive terminal, matching
+ * the agent's tightened input-polling cadence.
  */
 export const subscribeToShellData = (sessionId, callback) => {
   let cursor = 0;
@@ -185,7 +186,7 @@ export const subscribeToShellData = (sessionId, callback) => {
     } catch (error) {
       // Ignore polling errors
     }
-  }, 500);
+  }, 300);
   
   return () => clearInterval(interval);
 };

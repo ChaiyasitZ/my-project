@@ -89,9 +89,11 @@ class HttpPollingClient extends EventEmitter {
       this._sendHeartbeat().catch(err => this.emit('error', err));
     }, 5000);
 
+    // Poll for new commands every 1s (was 2s) so SSH/deploy/console actions
+    // started from the web app get picked up sooner.
     this.pollInterval = setInterval(() => {
       this._pollCommands().catch(() => {});
-    }, 2000);
+    }, 1000);
 
     // Refresh cached serial ports every 30s
     this.portRefreshInterval = setInterval(async () => {
@@ -365,7 +367,7 @@ class HttpPollingClient extends EventEmitter {
         if (closed) { this._stopShellPolling(sessionId); return; }
         for (const input of inputs) { try { this.handlers.ssh.writeToShell(sessionId, input); } catch (e) {} }
       } catch (e) {}
-    }, 500);
+    }, 300); // Poll every 300ms (was 500ms) for more responsive interactive typing
     this.shellPollIntervals.set(sessionId, intervalId);
   }
 
