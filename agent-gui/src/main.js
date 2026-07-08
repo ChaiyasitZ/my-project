@@ -1226,7 +1226,7 @@ app.whenReady().then(() => {
       type: 'warning',
       title: 'Uninstall NetConfig Agent',
       message: 'Are you sure you want to uninstall NetConfig Agent?',
-      detail: 'This will:\n• Disconnect from the server\n• Delete all saved settings and tokens\n• Remove application data\n• Close the application',
+      detail: 'This will:\n• Disconnect from the server\n• Delete all saved settings and tokens\n• Remove application data\n• Delete this application folder\n• Close the application',
       buttons: ['Cancel', 'Uninstall'],
       defaultId: 0,
       cancelId: 0,
@@ -1265,7 +1265,31 @@ app.whenReady().then(() => {
         } catch (e) { /* ignore */ }
       }
 
-      // 5. Quit the app
+      // 5. Self-delete the installation folder. Windows won't let a running
+      // process delete the directory it's running from, so a small helper
+      // script is spawned into %TEMP% to do it a moment after we quit.
+      // Skipped outside of a packaged build (e.g. `npm run dev`) so this
+      // never wipes the dev checkout.
+      if (app.isPackaged) {
+        try {
+          const installDir = path.dirname(app.getPath('exe'));
+          const helperPath = path.join(os.tmpdir(), `NetConfigAgent-uninstall-helper-${Date.now()}.bat`);
+          const helperScript = [
+            '@echo off',
+            'timeout /t 1 /nobreak >nul',
+            `rd /s /q "${installDir}"`,
+            'del "%~f0"'
+          ].join('\r\n');
+          fs.writeFileSync(helperPath, helperScript);
+          require('child_process').spawn('cmd.exe', ['/c', helperPath], {
+            detached: true,
+            stdio: 'ignore',
+            windowsHide: true
+          }).unref();
+        } catch (e) { /* best-effort; user can still run Uninstall.bat manually */ }
+      }
+
+      // 6. Quit the app
       app.isQuitting = true;
       app.quit();
 

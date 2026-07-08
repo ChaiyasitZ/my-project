@@ -2,6 +2,12 @@
 
 All notable changes to the NetConfig Agent GUI are documented in this file.
 
+## [1.4.0] - 2026-07-08
+
+### Added
+- A standalone `Uninstall.bat` is now bundled in the zip next to `NetConfig Agent.exe`. Running it stops the agent, removes the auto-start entry and saved settings, and deletes the whole application folder.
+- The tray icon's existing "Uninstall Agent" option now also deletes the installation folder itself (previously it only cleared settings/registry/app data and left the program files behind).
+
 ## [1.3.1] - 2026-07-08
 
 ### Fixed

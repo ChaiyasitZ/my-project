@@ -451,15 +451,15 @@ function AgentSettings() {
               
               {/* GUI Agent (Windows-only) */}
               <div className="mt-1.5">
-                <a href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.3.1-agent/NetConfigAgent-GUI-win-x64.zip" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-[11px] hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-800">
+                <a href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.4.0-agent/NetConfigAgent-GUI-win-x64.zip" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-[11px] hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-800">
                   <MonitorIcon className="h-3.5 w-3.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <span className="font-semibold">Windows GUI</span>
-                    <span className="text-[10px] opacity-60 ml-1">x64 • v1.3.1</span>
+                    <span className="text-[10px] opacity-60 ml-1">x64 • v1.4.0</span>
                   </div>
                   <DownloadIcon className="h-3.5 w-3.5 flex-shrink-0" />
                 </a>
-                <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 ml-0.5">Extract zip → Run &quot;NetConfig Agent.exe&quot;</p>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 ml-0.5">Extract zip → Run &quot;NetConfig Agent.exe&quot;. To remove it later, run &quot;Uninstall.bat&quot; from the same folder (or use the tray icon&apos;s &quot;Uninstall Agent&quot; option).</p>
               </div>
             </div>
           </div>

@@ -1,6 +1,6 @@
 {
   "name": "netconfig-agent-gui",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "NetConfig Agent - GUI desktop app for managing network devices",
   "main": "src/main.js",
   "type": "commonjs",
@@ -24,6 +24,9 @@
       "node_modules/@serialport/**",
       "node_modules/ssh2/**",
       "node_modules/cpu-features/**"
+    ],
+    "extraFiles": [
+      { "from": "build-resources/Uninstall.bat", "to": "Uninstall.bat" }
     ],
     "win": {
       "target": "dir",
