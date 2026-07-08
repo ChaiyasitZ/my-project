@@ -18,8 +18,7 @@ import {
   BrainCircuitIcon,
   CpuIcon,
   SparklesIcon,
-  AlertTriangleIcon,
-  AppWindowMacIcon
+  AlertTriangleIcon
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -448,45 +447,20 @@ function AgentSettings() {
             <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-xs">2</div>
             <div className="min-w-0 w-full">
               <h4 className="text-xs font-semibold text-gray-900 dark:text-white">Download Agent</h4>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">Get the Desktop Agent app for your platform.</p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">Get the Desktop Agent app (Windows only).</p>
               
-              {/* GUI Agent (Primary) */}
+              {/* GUI Agent (Windows-only) */}
               <div className="mt-1.5">
-                <a href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.0.0/NetConfigAgent-GUI-win-x64.zip" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-[11px] hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-800">
+                <a href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.2.0-agent/NetConfigAgent-GUI-win-x64.zip" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-[11px] hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-800">
                   <MonitorIcon className="h-3.5 w-3.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <span className="font-semibold">Windows GUI</span>
-                    <span className="text-[10px] opacity-60 ml-1">x64 • Recommended</span>
+                    <span className="text-[10px] opacity-60 ml-1">x64 • v1.2.0</span>
                   </div>
                   <DownloadIcon className="h-3.5 w-3.5 flex-shrink-0" />
                 </a>
                 <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 ml-0.5">Extract zip → Run &quot;NetConfig Agent.exe&quot;</p>
               </div>
-
-              {/* CLI Agents (Secondary) */}
-              <details className="mt-1.5">
-                <summary className="text-[10px] text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 select-none">CLI versions (macOS / Linux)</summary>
-                <div className="mt-1 flex flex-col gap-1">
-                  <a href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.0.0/NetConfigAgent.exe" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-[11px] hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700">
-                    <MonitorIcon className="h-3 w-3 flex-shrink-0" />
-                    <span className="font-medium">Windows CLI</span>
-                    <span className="text-[10px] opacity-60">x64</span>
-                    <DownloadIcon className="h-3 w-3 ml-auto flex-shrink-0" />
-                  </a>
-                  <a href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.0.0/NetConfigAgent-macos-x64" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-[11px] hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700">
-                    <AppWindowMacIcon className="h-3 w-3 flex-shrink-0" />
-                    <span className="font-medium">macOS CLI</span>
-                    <span className="text-[10px] opacity-60">Intel/ARM</span>
-                    <DownloadIcon className="h-3 w-3 ml-auto flex-shrink-0" />
-                  </a>
-                  <a href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.0.0/NetConfigAgent-linux-x64" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-[11px] hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700">
-                    <TerminalIcon className="h-3 w-3 flex-shrink-0" />
-                    <span className="font-medium">Linux CLI</span>
-                    <span className="text-[10px] opacity-60">x64</span>
-                    <DownloadIcon className="h-3 w-3 ml-auto flex-shrink-0" />
-                  </a>
-                </div>
-              </details>
             </div>
           </div>
 
