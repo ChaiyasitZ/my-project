@@ -250,7 +250,7 @@ function AgentSettings() {
                 <div key={label} className="flex items-center gap-1.5 bg-white dark:bg-gray-800 rounded-lg px-2 py-1.5 shadow-sm">
                   <Icon className={`h-3.5 w-3.5 ${color} flex-shrink-0`} />
                   <div className="min-w-0">
-                    <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">{label}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 leading-tight">{label}</p>
                     <p className="text-xs font-medium text-gray-900 dark:text-white truncate">{value || 'N/A'}</p>
                   </div>
                 </div>
@@ -394,7 +394,7 @@ function AgentSettings() {
                       )}
                       {model.name}
                     </span>
-                    <span className="text-[10px] opacity-70">
+                    <span className="text-xs opacity-70">
                       {model.size ? `${(model.size / 1e9).toFixed(1)}GB` : ''}
                     </span>
                   </button>
@@ -432,12 +432,12 @@ function AgentSettings() {
             <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-xs">1</div>
             <div className="min-w-0">
               <h4 className="text-xs font-semibold text-gray-900 dark:text-white">Install Ollama</h4>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">Download Ollama and pull a model for AI config generation.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">Download Ollama and pull a model for AI config generation.</p>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
-                <a href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-[11px] hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                <a href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-xs hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
                   <DownloadIcon className="h-3 w-3" /> Ollama
                 </a>
-                <code className="px-2 py-1 bg-gray-900 dark:bg-gray-800 rounded text-[11px] text-green-400 font-mono">ollama pull qwen2.5-coder:7b</code>
+                <code className="px-2 py-1 bg-gray-900 dark:bg-gray-800 rounded text-xs text-green-400 font-mono">ollama pull qwen2.5-coder:7b</code>
               </div>
             </div>
           </div>
@@ -447,19 +447,19 @@ function AgentSettings() {
             <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-xs">2</div>
             <div className="min-w-0 w-full">
               <h4 className="text-xs font-semibold text-gray-900 dark:text-white">Download Agent</h4>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">Get the Desktop Agent app (Windows only).</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">Get the Desktop Agent app (Windows only).</p>
               
               {/* GUI Agent (Windows-only) */}
               <div className="mt-1.5">
-                <a href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.5.0-agent/NetConfigAgent-GUI-win-x64.zip" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-[11px] hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-800">
+                <a href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.5.0-agent/NetConfigAgent-GUI-win-x64.zip" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-800">
                   <MonitorIcon className="h-3.5 w-3.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <span className="font-semibold">Windows GUI</span>
-                    <span className="text-[10px] opacity-60 ml-1">x64 • v1.5.0</span>
+                    <span className="text-xs opacity-60 ml-1">x64 • v1.5.0</span>
                   </div>
                   <DownloadIcon className="h-3.5 w-3.5 flex-shrink-0" />
                 </a>
-                <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 ml-0.5">Extract zip → Run &quot;NetConfig Agent.exe&quot;. To remove it later, run &quot;Uninstall.bat&quot; from the same folder (or use the tray icon&apos;s &quot;Uninstall Agent&quot; option).</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 ml-0.5">Extract zip → Run &quot;NetConfig Agent.exe&quot;. To remove it later, run &quot;Uninstall.bat&quot; from the same folder (or use the tray icon&apos;s &quot;Uninstall Agent&quot; option).</p>
               </div>
             </div>
           </div>
@@ -469,7 +469,7 @@ function AgentSettings() {
             <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-xs">3</div>
             <div className="min-w-0">
               <h4 className="text-xs font-semibold text-gray-900 dark:text-white">Generate & Copy Token</h4>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">Click &quot;Generate Agent Token&quot; above and copy it to your clipboard.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">Click &quot;Generate Agent Token&quot; above and copy it to your clipboard.</p>
             </div>
           </div>
 
@@ -478,7 +478,7 @@ function AgentSettings() {
             <div className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-xs">4</div>
             <div className="min-w-0">
               <h4 className="text-xs font-semibold text-gray-900 dark:text-white">Run & Connect</h4>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">Open the app, paste server URL & token, click Connect. Minimizes to system tray.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">Open the app, paste server URL & token, click Connect. Minimizes to system tray.</p>
             </div>
           </div>
         </div>

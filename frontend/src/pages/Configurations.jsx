@@ -1547,7 +1547,7 @@ ${indentedConfig}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{model.name}</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
                               model.device_type === 'nexus' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300' :
                               model.device_type === 'ios-xe' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' :
                               model.device_type === 'ios-xr' ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300' :
@@ -1555,7 +1555,7 @@ ${indentedConfig}
                             }`}>
                               {model.device_type?.toUpperCase() || 'ALL'}
                             </span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${getCategoryColor(model.category)}`}>
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${getCategoryColor(model.category)}`}>
                               {model.category}
                             </span>
                           </div>
@@ -2067,7 +2067,7 @@ ${indentedConfig}
                         <div>
                           <div className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
                             {session.device_name || 'Unknown Device'}
-                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-green-500 text-white rounded">
+                            <span className="px-1.5 py-0.5 text-xs font-bold bg-green-500 text-white rounded">
                               CONNECTED
                             </span>
                           </div>
@@ -2140,7 +2140,7 @@ ${indentedConfig}
                                     <div className="flex flex-col">
                                       <div className="flex items-center gap-2">
                                         {categoryLabel && (
-                                          <span className={`text-[9px] px-1 py-0.5 rounded font-sans font-medium ${
+                                          <span className={`text-xs px-1 py-0.5 rounded font-sans font-medium ${
                                             isBase ? 'bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200' :
                                             isOpenConfig ? 'bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200' :
                                             'bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200'
@@ -2149,12 +2149,12 @@ ${indentedConfig}
                                         <span className="font-semibold text-gray-800 dark:text-gray-200">{moduleName}</span>
                                         {revision && <span className="text-gray-500">@{revision}</span>}
                                       </div>
-                                      <div className="text-gray-400 text-[10px] truncate mt-1">{cap}</div>
+                                      <div className="text-gray-400 text-xs truncate mt-1">{cap}</div>
                                     </div>
                                   ) : (
                                     <div className="flex items-center gap-2">
                                       {isBase && (
-                                        <span className="text-[9px] px-1 py-0.5 rounded font-sans font-medium bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200">NETCONF</span>
+                                        <span className="text-xs px-1 py-0.5 rounded font-sans font-medium bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200">NETCONF</span>
                                       )}
                                       <span className="text-gray-600 dark:text-gray-400 break-all">{cap}</span>
                                     </div>
@@ -2381,7 +2381,7 @@ ${indentedConfig}
                         {model.namespace && (
                           <div className="mt-3 pt-3 border-t dark:border-gray-700">
                             <span className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Namespace URI</span>
-                            <div className="font-mono text-[10px] text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 rounded p-2 break-all border dark:border-gray-600">
+                            <div className="font-mono text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 rounded p-2 break-all border dark:border-gray-600">
                               {model.namespace}
                             </div>
                           </div>

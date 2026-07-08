@@ -4,7 +4,7 @@
 
 @layer base {
   html {
-    font-size: 15px; /* Base font size */
+    font-size: 16px; /* Base font size - browser default, so rem-based text scales correctly with zoom */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -352,7 +352,7 @@
 
   /* Badge sizes */
   .badge-sm {
-    @apply px-2 py-0.5 text-[10px];
+    @apply px-2 py-0.5 text-xs;
   }
 
   .badge-lg {
@@ -622,7 +622,7 @@
   }
   
   .responsive-badge {
-    @apply text-[10px] px-1 py-0.5;
+    @apply text-xs px-1 py-0.5;
   }
 }
 

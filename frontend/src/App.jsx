@@ -24,7 +24,6 @@ const Configurations = lazy(() => import('./pages/Configurations'));
 const ConfigurationHistory = lazy(() => import('./pages/ConfigurationHistory'));
 const ConsoleConfiguration = lazy(() => import('./pages/ConsoleConfiguration'));
 const BackupManagement = lazy(() => import('./pages/BackupManagement'));
-const Diagrams = lazy(() => import('./pages/Diagrams'));
 const AgentSettings = lazy(() => import('./pages/AgentSettings'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
@@ -213,8 +212,6 @@ function AppContent() {
             </AuthenticatedLayout>
           </ProtectedRoute>
         } />
-        {/* Public Diagrams Route - Standalone documentation page */}
-        <Route path="/diagrams" element={<Diagrams />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       </Suspense>
