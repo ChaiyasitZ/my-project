@@ -825,64 +825,67 @@ Generate coordinated Cisco IOS commands for ALL ${devices.length} devices. Use =
   _parseMultiDeviceResponse(rawResponse, deviceNames) {
     const configs = {};
 
-    // Split on === DEVICE: <name> === pattern
-    const delimiter = /^={3,}\s*DEVICE:\s*(.+?)\s*={3,}\s*$/gmi;
-    const parts = rawResponse.split(delimiter);
+    // 1. Clean markdown code blocks if the LLM wrapped the whole response
+    let cleanResponse = rawResponse.replace(/^```.*?[\r\n]/gm, '').replace(/```[\r\n]*$/gm, '');
 
-    // parts array: [preamble, name1, config1, name2, config2, ...]
-    if (parts.length >= 3) {
-      for (let i = 1; i < parts.length; i += 2) {
-        const name = parts[i].trim();
-        const config = (parts[i + 1] || '').trim();
-        // Match to known device name (case-insensitive)
-        const matchedDevice = deviceNames.find(d => d.toLowerCase() === name.toLowerCase());
-        if (matchedDevice) {
-          configs[matchedDevice] = config;
-        } else {
-          // Try partial match
-          const partial = deviceNames.find(d => name.toLowerCase().includes(d.toLowerCase()) || d.toLowerCase().includes(name.toLowerCase()));
-          if (partial && !configs[partial]) {
-            configs[partial] = config;
-          }
-        }
-      }
-    }
-
-    // Fallback: try --- DEVICE: name --- or similar patterns
-    if (Object.keys(configs).length < deviceNames.length) {
-      const altDelimiter = /^-{3,}\s*DEVICE:\s*(.+?)\s*-{3,}\s*$/gmi;
-      const altParts = rawResponse.split(altDelimiter);
-      if (altParts.length >= 3) {
-        for (let i = 1; i < altParts.length; i += 2) {
-          const name = altParts[i].trim();
-          const config = (altParts[i + 1] || '').trim();
+    const assignConfigs = (p) => {
+      if (p.length >= 3) {
+        for (let i = 1; i < p.length; i += 2) {
+          const name = p[i].trim();
+          const config = (p[i + 1] || '').trim();
+          
+          // Match to known device name (case-insensitive)
           const matchedDevice = deviceNames.find(d => d.toLowerCase() === name.toLowerCase());
           if (matchedDevice && !configs[matchedDevice]) {
             configs[matchedDevice] = config;
+          } else {
+            // Try partial match
+            const partial = deviceNames.find(d => name.toLowerCase().includes(d.toLowerCase()) || d.toLowerCase().includes(name.toLowerCase()));
+            if (partial && !configs[partial]) {
+              configs[partial] = config;
+            }
           }
         }
       }
+    };
+
+    // 2. Try the primary delimiter === DEVICE: <name> ===
+    const primaryDelimiter = /^={3,}\s*DEVICE:\s*(.+?)\s*={3,}\s*$/gmi;
+    assignConfigs(cleanResponse.split(primaryDelimiter));
+
+    // 3. Fallback: try --- DEVICE: name --- or similar patterns
+    if (Object.keys(configs).length < deviceNames.length) {
+      const altDelimiter = /^-{3,}\s*DEVICE:\s*(.+?)\s*-{3,}\s*$/gmi;
+      assignConfigs(cleanResponse.split(altDelimiter));
     }
 
-    // Last fallback: try to find device names as headers in the text
+    // 4. Last fallback: try to find device names as headers in the text
     if (Object.keys(configs).length < deviceNames.length) {
-      for (const deviceName of deviceNames) {
-        if (configs[deviceName]) continue;
-        // Look for "! R1" or "! --- R1 ---" or "hostname R1" as markers
-        const namePattern = new RegExp(`(?:^!\\s*${deviceName}\\s*$|^!\\s*---\\s*${deviceName}\\s*---\\s*$|^hostname\\s+${deviceName}\\s*$)`, 'gmi');
-        const match = namePattern.exec(rawResponse);
-        if (match) {
-          const startIdx = match.index + match[0].length;
-          // Find next device marker or end
-          const nextDevice = deviceNames.find(d => d !== deviceName);
-          let endIdx = rawResponse.length;
-          if (nextDevice) {
-            const nextPattern = new RegExp(`(?:^!\\s*${nextDevice}\\s*$|^!\\s*---\\s*${nextDevice}\\s*---\\s*$|^hostname\\s+${nextDevice}\\s*$|^={3,}\\s*DEVICE:|^-{3,}\\s*DEVICE:)`, 'gmi');
-            nextPattern.lastIndex = startIdx;
-            const nextMatch = nextPattern.exec(rawResponse);
-            if (nextMatch) endIdx = nextMatch.index;
+      const markers = [];
+      const escapes = deviceNames.map(d => d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      const deviceNamesRegex = escapes.join('|');
+      
+      const anyDevicePattern = new RegExp(`(?:^!\\s*(${deviceNamesRegex})\\s*$|^!\\s*---\\s*(${deviceNamesRegex})\\s*---\\s*$|^hostname\\s+(${deviceNamesRegex})\\s*$)`, 'gmi');
+      
+      let match;
+      while ((match = anyDevicePattern.exec(cleanResponse)) !== null) {
+        const name = match[1] || match[2] || match[3];
+        if (name) {
+          markers.push({ name: name, startIdx: match.index + match[0].length, fullMatchIndex: match.index });
+        }
+      }
+
+      if (markers.length > 0) {
+        for (let i = 0; i < markers.length; i++) {
+          const current = markers[i];
+          const next = markers[i + 1];
+          const endIdx = next ? next.fullMatchIndex : cleanResponse.length;
+          const configBody = cleanResponse.substring(current.startIdx, endIdx).trim();
+
+          const matchedDevice = deviceNames.find(d => d.toLowerCase() === current.name.toLowerCase());
+          if (matchedDevice && !configs[matchedDevice]) {
+            configs[matchedDevice] = configBody;
           }
-          configs[deviceName] = rawResponse.substring(startIdx, endIdx).trim();
         }
       }
     }
