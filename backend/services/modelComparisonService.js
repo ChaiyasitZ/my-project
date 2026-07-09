@@ -58,11 +58,19 @@ export async function queueComparison({ userId, deviceId, deviceType, deviceCont
 
     const messages = llmService.getComparisonMessages(prompt, deviceType, deviceContext, templateName);
 
+    // Speed-only tweak for the comparison call itself (isolated to this
+    // function — never touches the real OpenRouter prompt/params). Smaller
+    // 7B models generate noticeably faster with a tighter token budget and an
+    // explicit "be brief" instruction, since most of the latency is per-token.
+    if (messages[0]?.role === 'system') {
+      messages[0].content += '\n\nBe direct and concise. Output only the requested configuration/commands with no extra commentary, so you can respond as quickly as possible.';
+    }
+
     const commandId = await agentRelay.sendToAgentAsync(userId, 'agent:ollama:chat', {
       messages,
       model: COMPARISON_MODEL,
-      temperature: 0.3,
-      max_tokens: 1500,
+      temperature: 0.2,
+      max_tokens: 700,
       // Metadata only used by POST /poll/result/:commandId once the agent
       // responds — the agent itself ignores these extra fields.
       comparisonLog: true,
