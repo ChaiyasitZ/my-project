@@ -586,10 +586,31 @@ export class HttpPollingClient extends EventEmitter {
     return response;
   }
 
+  // Tell the backend we're going offline on purpose (Ctrl+C / graceful exit)
+  // so it can disconnect any devices connected through this agent immediately
+  // instead of waiting up to 15s for the heartbeat to expire. Best-effort: a
+  // short timeout keeps this from ever delaying shutdown.
+  async _sendOfflineBeacon() {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 1500);
+      await this._fetch('/api/agent/poll/offline', {
+        method: 'POST',
+        body: JSON.stringify({}),
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+    } catch (e) {
+      // Network down / server unreachable — the 15s heartbeat timeout will
+      // still catch this case, just not instantly.
+    }
+  }
+
   /**
    * Disconnect from server (stop polling)
    */
-  disconnect() {
+  async disconnect() {
+    await this._sendOfflineBeacon();
     this.connected = false;
     
     if (this.pollInterval) {

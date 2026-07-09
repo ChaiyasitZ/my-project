@@ -140,7 +140,7 @@ async function main() {
     await sshHandler.disconnectAll();
     await netconfHandler.disconnectAll();
     await consoleHandler.disconnectAll();
-    client.disconnect();
+    await client.disconnect();
     console.log(chalk.gray('  Goodbye!\n'));
     process.exit(0);
   });

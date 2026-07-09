@@ -13,6 +13,7 @@ import ShellSession from '../models/ShellSession.js';
 import Notification from '../models/Notification.js';
 import { authenticateToken } from '../middleware/auth.js';
 import agentRelay from '../services/agentRelay.js';
+import { reconcileAgentDevices } from '../services/deviceReconciliation.js';
 
 const router = express.Router();
 
@@ -383,6 +384,22 @@ router.post('/poll/heartbeat', authenticateAgent, async (req, res) => {
     );
     
     res.json({ success: true, serverTime: new Date().toISOString() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/agent/poll/offline - Agent announces it's going offline on purpose
+ * (quit, manual disconnect, uninstall). Lets devices connected through it be
+ * disconnected immediately instead of waiting up to 15s for the heartbeat to
+ * expire. Best-effort/idempotent: safe to call even if already offline.
+ */
+router.post('/poll/offline', authenticateAgent, async (req, res) => {
+  try {
+    await AgentHeartbeat.deleteOne({ userId: req.userId });
+    const disconnected = await reconcileAgentDevices(req.userId);
+    res.json({ success: true, disconnected });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

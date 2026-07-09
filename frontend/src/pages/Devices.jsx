@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -11,6 +11,7 @@ import {
   SearchIcon,
   RefreshCwIcon
 } from 'lucide-react';
+import { subscribeToAgentStatus } from '../services/socket';
 import DeviceIcon from '../components/DeviceIcon';
 import PageLoader from '../components/PageLoader';
 import Pagination from '../components/Pagination';
@@ -179,11 +180,39 @@ function Devices() {
           });
         });
         setSshSessions(newSessions);
+
+        // Backend auto-disconnects devices when their agent goes offline;
+        // surface that to the user instead of leaving stale "Connected" badges unexplained.
+        if (response.data.agentDisconnected > 0) {
+          toast.error(
+            response.data.agentDisconnected === 1
+              ? 'Agent went offline — 1 device was disconnected.'
+              : `Agent went offline — ${response.data.agentDisconnected} devices were disconnected.`,
+            { duration: 6000 }
+          );
+          fetchDevices();
+        }
       }
     } catch (error) {
       console.error('Error fetching SSH session statuses:', error);
     }
   }, []);
+
+  // Watch agent online/offline status separately at a tighter interval (5s, via
+  // the shared agent-status poller) so a crashed/disconnected agent gets its
+  // devices reconciled much sooner than the 30s device-list poll above would
+  // otherwise allow. Graceful agent shutdowns are handled near-instantly by the
+  // backend itself (see the agent's offline beacon); this covers crashes/network loss.
+  const wasAgentOnline = useRef(null);
+  useEffect(() => {
+    const unsubscribe = subscribeToAgentStatus(({ online }) => {
+      if (wasAgentOnline.current === true && online === false) {
+        fetchSshSessionStatuses();
+      }
+      wasAgentOnline.current = online;
+    });
+    return unsubscribe;
+  }, [fetchSshSessionStatuses]);
 
   const handleSshConnect = async (device) => {
     const deviceId = device.id || device._id;

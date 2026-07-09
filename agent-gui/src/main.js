@@ -479,7 +479,28 @@ class HttpPollingClient extends EventEmitter {
     return fetch(url, { ...options, headers: { 'Content-Type': 'application/json', 'X-Agent-Token': this.agentToken, ...(options.headers || {}) } });
   }
 
-  disconnect() {
+  // Tell the backend we're going offline on purpose (quit/manual disconnect/
+  // uninstall) so it can disconnect any devices connected through this agent
+  // immediately instead of waiting up to 15s for the heartbeat to expire.
+  // Best-effort: a short timeout keeps this from ever delaying shutdown.
+  async _sendOfflineBeacon() {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 1500);
+      await this._fetch('/api/agent/poll/offline', {
+        method: 'POST',
+        body: JSON.stringify({}),
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+    } catch (e) {
+      // Network down / server unreachable — the 15s heartbeat timeout will
+      // still catch this case, just not instantly.
+    }
+  }
+
+  async disconnect() {
+    await this._sendOfflineBeacon();
     this.connected = false;
     if (this.pollInterval) { clearInterval(this.pollInterval); this.pollInterval = null; }
     if (this.heartbeatInterval) { clearInterval(this.heartbeatInterval); this.heartbeatInterval = null; }
@@ -1172,9 +1193,9 @@ async function connectAgent() {
   }
 }
 
-function disconnectAgent() {
+async function disconnectAgent() {
   if (client) {
-    client.disconnect();
+    await client.disconnect();
     client = null;
   }
   if (sshHandler) sshHandler.disconnectAll();
@@ -1325,7 +1346,7 @@ app.whenReady().then(() => {
 
     try {
       // 1. Disconnect from server
-      disconnectAgent();
+      await disconnectAgent();
       addLog('info', 'Uninstalling agent...');
 
       // 2. Delete config data
@@ -1392,9 +1413,15 @@ app.on('activate', () => {
   if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
 });
 
-app.on('before-quit', () => {
+let quitInProgress = false;
+app.on('before-quit', (event) => {
   app.isQuitting = true;
-  disconnectAgent();
+  if (quitInProgress) return;
+  quitInProgress = true;
+  // Hold the quit briefly so the offline beacon actually reaches the server
+  // (disconnectAgent() is async and would otherwise be cut off mid-flight).
+  event.preventDefault();
+  disconnectAgent().finally(() => app.exit(0));
 });
 
 app.on('window-all-closed', () => {

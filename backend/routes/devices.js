@@ -7,6 +7,7 @@ import netconfService from '../services/netconfService.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getOrSetCache, invalidateCache, CacheKeys } from '../lib/cache.js';
 import agentRelay from '../services/agentRelay.js';
+import { reconcileAgentDevices } from '../services/deviceReconciliation.js';
 
 const router = express.Router();
 
@@ -52,6 +53,9 @@ const deviceUpdateSchema = Joi.object({
 router.get('/', async (req, res) => {
   try {
     const { status, type, limit = 50, offset = 0, noCache } = req.query;
+    
+    // Auto-disconnect devices left "connected" if their agent has since gone offline
+    const agentDisconnected = await reconcileAgentDevices(req.userId);
     
     // Build query filter - include userId to filter by user
     const filter = { userId: req.userId };
@@ -118,7 +122,8 @@ router.get('/', async (req, res) => {
       devices: result.devices,
       total: result.total,
       limit: parseInt(limit),
-      offset: parseInt(offset)
+      offset: parseInt(offset),
+      agentDisconnected
     });
     
   } catch (error) {
@@ -723,6 +728,9 @@ router.post('/:id/ssh/disconnect', async (req, res) => {
 // GET /api/devices/ssh/status-all - Get SSH status for all devices
 router.get('/ssh/status-all', async (req, res) => {
   try {
+    // Auto-disconnect devices left "connected" if their agent has since gone offline
+    const agentDisconnected = await reconcileAgentDevices(req.userId);
+    
     const devices = await Device.find({ userId: req.userId });
     
     const statusList = devices.map(device => {
@@ -744,7 +752,8 @@ router.get('/ssh/status-all', async (req, res) => {
     
     res.json({
       success: true,
-      devices: statusList
+      devices: statusList,
+      agentDisconnected
     });
     
   } catch (error) {
