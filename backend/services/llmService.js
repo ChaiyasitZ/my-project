@@ -22,6 +22,11 @@ export class LLMService {
     this.ollamaModel = process.env.OLLAMA_MODEL || 'llama3.2';
     this.apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
     this.timeout = 120000; // 120 seconds
+
+    // UX-only padding added to fresh OpenRouter config generations so the
+    // progress modal animation has time to play out instead of feeling
+    // abrupt. Configurable via env, defaults to 4s. Does not apply to Ollama.
+    this.uxDelayMs = Number(process.env.LLM_UX_DELAY_MS ?? 4000);
     
     // HTTP Client for OpenRouter
     this.client = axios.create({
@@ -594,6 +599,14 @@ Generate backup_name and description as JSON:`;
       // Update stats
       this.stats.totalTokens += tokensUsed;
       
+      // UX smoothing: OpenRouter responses can return in ~1s, which makes the
+      // progress modal's animation feel abrupt/cut-off. Pad fresh (non-cached)
+      // OpenRouter generations so the perceived generation time feels more
+      // substantial. Doesn't apply to Ollama, which is already slow enough.
+      if (this.provider !== 'ollama') {
+        await new Promise(resolve => setTimeout(resolve, this.uxDelayMs));
+      }
+      
       return result;
       
     } catch (error) { 
@@ -812,6 +825,11 @@ Generate coordinated Cisco IOS commands for ALL ${devices.length} devices. Use =
           recommendations: validation.warnings.length > 0 ? validation.warnings : ['Configuration looks good'],
           fromCache: false
         };
+      }
+
+      // UX smoothing (see generateConfiguration) — same padding for multi-device.
+      if (this.provider !== 'ollama') {
+        await new Promise(resolve => setTimeout(resolve, this.uxDelayMs));
       }
 
       return { success: true, configs: processedConfigs };
@@ -3037,6 +3055,11 @@ Give a brief, easy-to-understand explanation in plain text (NO hashtags, NO mark
       
       // Update stats
       this.stats.totalTokens += tokensUsed;
+      
+      // UX smoothing (see generateConfiguration) — same padding for NETCONF.
+      if (this.provider !== 'ollama') {
+        await new Promise(resolve => setTimeout(resolve, this.uxDelayMs));
+      }
       
       return result;
       
