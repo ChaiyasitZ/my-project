@@ -18,15 +18,26 @@
  */
 import agentRelay from './agentRelay.js';
 import llmService from './llmService.js';
+import AgentCommand from '../models/AgentCommand.js';
 
 const COMPARISON_MODEL = 'qwen2.5-coder:7b';
 
-export async function queueComparison({ userId, deviceId, deviceType, deviceContext, prompt, templateName, openrouter }) {
+/**
+ * Queues the comparison job. Can be called concurrently with (not after) the
+ * real OpenRouter call — dispatching this is just a couple of fast DB checks
+ * plus a command-queue insert, it does NOT wait for Ollama to actually finish
+ * generating. The real Ollama inference happens later on the agent's own
+ * timeline regardless of when this is queued, and never delays or gates the
+ * OpenRouter response in any way.
+ *
+ * @returns {Promise<string|null>} the AgentCommand id, or null if skipped
+ */
+export async function queueComparison({ userId, deviceId, deviceType, deviceContext, prompt, templateName, openrouter = null }) {
   try {
-    if (!userId || !prompt) return;
+    if (!userId || !prompt) return null;
 
     const online = await agentRelay.isAgentOnline(userId);
-    if (!online) return;
+    if (!online) return null;
 
     // Check Ollama is actually reachable on the agent's machine (not just
     // that the agent itself is connected) before queuing anything. If it's
@@ -38,16 +49,16 @@ export async function queueComparison({ userId, deviceId, deviceType, deviceCont
       statusResult = await agentRelay.sendToAgent(userId, 'agent:ollama:status', {}, 4000);
     } catch (err) {
       console.log(`Model comparison skipped (Ollama status check failed): ${err.message}`);
-      return;
+      return null;
     }
     if (statusResult?.pending || !statusResult?.available) {
       console.log('Model comparison skipped: Ollama not running on agent.');
-      return;
+      return null;
     }
 
     const messages = llmService.getComparisonMessages(prompt, deviceType, deviceContext, templateName);
 
-    await agentRelay.sendToAgentAsync(userId, 'agent:ollama:chat', {
+    const commandId = await agentRelay.sendToAgentAsync(userId, 'agent:ollama:chat', {
       messages,
       model: COMPARISON_MODEL,
       temperature: 0.3,
@@ -59,13 +70,33 @@ export async function queueComparison({ userId, deviceId, deviceType, deviceCont
         deviceId: deviceId || null,
         deviceType: deviceType || null,
         prompt,
-        openrouter: openrouter || null
+        openrouter
       }
     });
+    return commandId;
   } catch (error) {
     // Best-effort only; never let this affect the real generation request.
     console.warn('Model comparison queue failed (non-fatal):', error.message);
+    return null;
   }
 }
 
-export default { queueComparison };
+/**
+ * Backfills the OpenRouter side of the comparison once it's actually
+ * available. Needed because when queueComparison() is dispatched concurrently
+ * with the OpenRouter call (rather than after it), the OpenRouter result
+ * doesn't exist yet at queue time.
+ */
+export async function attachOpenrouterResult(commandId, openrouter) {
+  if (!commandId) return;
+  try {
+    await AgentCommand.updateOne(
+      { _id: commandId },
+      { $set: { 'data.comparisonContext.openrouter': openrouter } }
+    );
+  } catch (error) {
+    console.warn('Failed to attach OpenRouter result to comparison job (non-fatal):', error.message);
+  }
+}
+
+export default { queueComparison, attachOpenrouterResult };

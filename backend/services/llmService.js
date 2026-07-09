@@ -599,14 +599,6 @@ Generate backup_name and description as JSON:`;
       // Update stats
       this.stats.totalTokens += tokensUsed;
       
-      // UX smoothing: OpenRouter responses can return in ~1s, which makes the
-      // progress modal's animation feel abrupt/cut-off. Pad fresh (non-cached)
-      // OpenRouter generations so the perceived generation time feels more
-      // substantial. Doesn't apply to Ollama, which is already slow enough.
-      if (this.provider !== 'ollama') {
-        await new Promise(resolve => setTimeout(resolve, this.uxDelayMs));
-      }
-      
       return result;
       
     } catch (error) { 
