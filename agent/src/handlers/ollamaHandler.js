@@ -54,6 +54,29 @@ export class OllamaHandler {
   }
 
   /**
+   * Best-effort: if Ollama isn't already running, try to start `ollama serve`
+   * in the background. Only ever called once at agent startup — never in
+   * response to a generate-config prompt, so it's not tied to any specific
+   * user action or request.
+   * @returns {{ started: boolean, alreadyRunning?: boolean, confirmed?: boolean, error?: string }}
+   */
+  async ensureRunning() {
+    const health = await this.checkHealth();
+    if (health.available) return { started: false, alreadyRunning: true };
+
+    try {
+      const { spawn } = await import('child_process');
+      const child = spawn('ollama', ['serve'], { detached: true, stdio: 'ignore' });
+      child.unref();
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const recheck = await this.checkHealth();
+      return { started: true, confirmed: recheck.available };
+    } catch (error) {
+      return { started: false, error: error.message };
+    }
+  }
+
+  /**
    * List available models from local Ollama instance
    * @returns {string[]} Array of model names
    */

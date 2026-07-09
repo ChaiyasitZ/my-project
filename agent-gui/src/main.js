@@ -1074,6 +1074,29 @@ class OllamaHandler {
     } catch { return { available: false }; }
   }
 
+  /**
+   * Best-effort: if Ollama isn't already running, try to start `ollama serve`
+   * in the background. Called once at agent startup/connect only — NEVER in
+   * response to a generate-config prompt, so it's not tied to any specific
+   * user action or request.
+   */
+  async ensureRunning() {
+    const health = await this.checkHealth();
+    if (health.available) return { started: false, alreadyRunning: true };
+
+    try {
+      const { spawn } = require('child_process');
+      const child = spawn('ollama', ['serve'], { detached: true, stdio: 'ignore', windowsHide: true });
+      child.unref();
+      // Give it a moment to bind, then confirm.
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const recheck = await this.checkHealth();
+      return { started: true, confirmed: recheck.available };
+    } catch (err) {
+      return { started: false, error: err.message };
+    }
+  }
+
   async listModels() {
     try {
       const res = await fetch(`${this.baseUrl}/api/tags`);
@@ -1199,6 +1222,14 @@ async function connectAgent() {
 
   const savedModel = config.get('ollamaModel');
   if (savedModel) ollamaHandler.setModel(savedModel);
+
+  // Best-effort, one-time at agent startup — NOT tied to any prompt/request.
+  ollamaHandler.ensureRunning().then(r => {
+    if (r.alreadyRunning) addLog('info', 'Ollama already running.');
+    else if (r.started && r.confirmed) addLog('info', 'Started Ollama service.');
+    else if (r.started) addLog('warn', 'Attempted to start Ollama, but health check did not confirm it came up.');
+    else addLog('info', `Ollama not running and could not be auto-started (${r.error || 'not installed?'}).`);
+  }).catch(() => {});
 
   client = new HttpPollingClient({
     serverUrl,

@@ -25,8 +25,8 @@ export class LLMService {
 
     // UX-only padding added to fresh OpenRouter config generations so the
     // progress modal animation has time to play out instead of feeling
-    // abrupt. Configurable via env, defaults to 4s. Does not apply to Ollama.
-    this.uxDelayMs = Number(process.env.LLM_UX_DELAY_MS ?? 4000);
+    // abrupt. Configurable via env, defaults to 8s. Does not apply to Ollama.
+    this.uxDelayMs = Number(process.env.LLM_UX_DELAY_MS ?? 8000);
     
     // HTTP Client for OpenRouter
     this.client = axios.create({

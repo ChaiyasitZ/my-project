@@ -48,7 +48,17 @@ async function main() {
   // ─── Check Ollama availability ───
   const ollamaHandler = new OllamaHandler();
   const ollamaSpinner = ora('Checking Ollama availability...').start();
-  const ollamaHealth = await ollamaHandler.checkHealth();
+  let ollamaHealth = await ollamaHandler.checkHealth();
+
+  if (!ollamaHealth.available) {
+    // One-time, at startup only — try to bring it up ourselves before
+    // reporting failure. Never attempted again later in response to prompts.
+    ollamaSpinner.text = 'Ollama not detected, attempting to start it...';
+    const startResult = await ollamaHandler.ensureRunning();
+    if (startResult.confirmed) {
+      ollamaHealth = await ollamaHandler.checkHealth();
+    }
+  }
 
   if (!ollamaHealth.available) {
     ollamaSpinner.fail(chalk.red('Ollama is not running!'));

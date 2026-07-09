@@ -28,6 +28,23 @@ export async function queueComparison({ userId, deviceId, deviceType, deviceCont
     const online = await agentRelay.isAgentOnline(userId);
     if (!online) return;
 
+    // Check Ollama is actually reachable on the agent's machine (not just
+    // that the agent itself is connected) before queuing anything. If it's
+    // not running, skip quietly — server-side log only, nothing surfaced to
+    // the user, and no attempt made to start it from here (that only happens
+    // once at agent startup, never in response to a prompt).
+    let statusResult;
+    try {
+      statusResult = await agentRelay.sendToAgent(userId, 'agent:ollama:status', {}, 4000);
+    } catch (err) {
+      console.log(`Model comparison skipped (Ollama status check failed): ${err.message}`);
+      return;
+    }
+    if (statusResult?.pending || !statusResult?.available) {
+      console.log('Model comparison skipped: Ollama not running on agent.');
+      return;
+    }
+
     const messages = llmService.getComparisonMessages(prompt, deviceType, deviceContext, templateName);
 
     await agentRelay.sendToAgentAsync(userId, 'agent:ollama:chat', {

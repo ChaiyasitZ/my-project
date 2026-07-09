@@ -2,6 +2,11 @@
 
 All notable changes to the NetConfig Agent GUI are documented in this file.
 
+## [1.8.0] - 2026-07-10
+
+### Added
+- On startup/connect, the agent now makes a one-time, best-effort attempt to start `ollama serve` if Ollama is installed but not already running. This only ever happens once at agent startup — never triggered by, or tied to, any specific generate-config request.
+
 ## [1.7.0] - 2026-07-09
 
 ### Added
