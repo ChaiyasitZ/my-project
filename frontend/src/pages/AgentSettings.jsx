@@ -48,6 +48,16 @@ function formatVram(systemInfo) {
   return gpu.name ? `${sizeText} (${gpu.name})` : sizeText;
 }
 
+// "34% (8 cores)" — live CPU load, sampled on the agent every 5s.
+function formatCpu(systemInfo) {
+  const cpu = systemInfo?.cpu;
+  if (!cpu) return null;
+  if (typeof cpu.usagePercent === 'number') {
+    return cpu.cores ? `${cpu.usagePercent}% (${cpu.cores} cores)` : `${cpu.usagePercent}%`;
+  }
+  return cpu.cores ? `${cpu.cores} cores` : null;
+}
+
 function AgentSettings() {
   const [agentStatus, setAgentStatus] = useState(null); // { online, agentInfo }
   const [token, setToken] = useState(null);
@@ -272,6 +282,7 @@ function AgentSettings() {
                 { icon: MonitorIcon, color: 'text-blue-500', label: 'Name', value: info.name },
                 { icon: ClockIcon, color: 'text-green-500', label: 'Hostname', value: info.hostname },
                 { icon: TerminalIcon, color: 'text-orange-500', label: 'Version', value: info.version },
+                { icon: CpuIcon, color: 'text-purple-500', label: 'CPU', value: formatCpu(info.systemInfo) },
                 { icon: MemoryStickIcon, color: 'text-pink-500', label: 'RAM', value: formatRam(info.systemInfo) },
                 { icon: MicrochipIcon, color: 'text-cyan-500', label: 'VRAM', value: formatVram(info.systemInfo) },
               ].map(({ icon: Icon, color, label, value }) => (
@@ -479,11 +490,11 @@ function AgentSettings() {
               
               {/* GUI Agent (Windows-only) */}
               <div className="mt-1.5">
-                <a href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.6.0-agent/NetConfigAgent-GUI-win-x64.zip" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-800">
+                <a href="https://github.com/ChaiyasitZ/my-project/releases/download/v1.7.0-agent/NetConfigAgent-GUI-win-x64.zip" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-2.5 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded text-xs hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors border border-blue-200 dark:border-blue-800">
                   <MonitorIcon className="h-3.5 w-3.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <span className="font-semibold">Windows GUI</span>
-                    <span className="text-xs opacity-60 ml-1">x64 • v1.6.0</span>
+                    <span className="text-xs opacity-60 ml-1">x64 • v1.7.0</span>
                   </div>
                   <DownloadIcon className="h-3.5 w-3.5 flex-shrink-0" />
                 </a>

@@ -67,6 +67,38 @@ function getGpuInfo() {
   });
 }
 
+// CPU usage %. Node has no built-in "current CPU usage" API, so this samples
+// os.cpus() twice ~200ms apart and compares the busy/idle time deltas — the
+// same technique libraries like os-utils use. Called on an interval (not per
+// heartbeat) since it needs that sampling window.
+function _cpuTimesSnapshot() {
+  const cpus = os.cpus();
+  let idle = 0, total = 0;
+  for (const cpu of cpus) {
+    idle += cpu.times.idle;
+    total += cpu.times.user + cpu.times.nice + cpu.times.sys + cpu.times.idle + cpu.times.irq;
+  }
+  return { idle, total };
+}
+
+function getCpuInfo() {
+  return new Promise((resolve) => {
+    const cpus = os.cpus();
+    const start = _cpuTimesSnapshot();
+    setTimeout(() => {
+      const end = _cpuTimesSnapshot();
+      const idleDiff = end.idle - start.idle;
+      const totalDiff = end.total - start.total;
+      const usagePercent = totalDiff > 0 ? Math.max(0, Math.min(100, Math.round(100 - (100 * idleDiff / totalDiff)))) : null;
+      resolve({
+        model: cpus[0]?.model?.trim() || null,
+        cores: cpus.length,
+        usagePercent
+      });
+    }, 200);
+  });
+}
+
 class AgentConfig {
   constructor() {
     this.configDir = path.join(app.getPath('userData'));
@@ -121,6 +153,7 @@ class HttpPollingClient extends EventEmitter {
     this.shellStreams = new Map();
     this.cachedPorts = [];  // Cache detected serial ports for heartbeat
     this.cachedGpuInfo = null; // Cache GPU/VRAM info for heartbeat (refreshed periodically, not on every heartbeat — exec is slow)
+    this.cachedCpuInfo = null; // Cache CPU usage/model for heartbeat (needs a 200ms sampling window, so refreshed periodically too)
   }
 
   async connect() {
@@ -130,9 +163,10 @@ class HttpPollingClient extends EventEmitter {
       if (result && result.ports) this.cachedPorts = result.ports;
     } catch (e) {}
 
-    // Kick off GPU detection in the background so it's cached before the
+    // Kick off GPU/CPU detection in the background so it's cached before the
     // heartbeat needs it, without delaying the initial connection.
     this._refreshGpuInfo();
+    this._refreshCpuInfo();
 
     await this._sendHeartbeat();
     this.connected = true;
@@ -162,6 +196,13 @@ class HttpPollingClient extends EventEmitter {
     this.gpuRefreshInterval = setInterval(() => {
       this._refreshGpuInfo();
     }, 10000);
+
+    // Refresh cached CPU usage every 5s (matches heartbeat cadence — the
+    // 200ms sampling window is cheap, just kept off the heartbeat's own
+    // critical path for consistency with how GPU info is handled)
+    this.cpuRefreshInterval = setInterval(() => {
+      this._refreshCpuInfo();
+    }, 5000);
   }
 
   async _refreshGpuInfo() {
@@ -169,6 +210,14 @@ class HttpPollingClient extends EventEmitter {
       this.cachedGpuInfo = await getGpuInfo();
     } catch (e) {
       this.cachedGpuInfo = null;
+    }
+  }
+
+  async _refreshCpuInfo() {
+    try {
+      this.cachedCpuInfo = await getCpuInfo();
+    } catch (e) {
+      this.cachedCpuInfo = null;
     }
   }
 
@@ -185,7 +234,8 @@ class HttpPollingClient extends EventEmitter {
         },
         systemInfo: {
           ...getRamInfo(),
-          gpu: this.cachedGpuInfo
+          gpu: this.cachedGpuInfo,
+          cpu: this.cachedCpuInfo
         }
       })
     });
@@ -506,6 +556,7 @@ class HttpPollingClient extends EventEmitter {
     if (this.heartbeatInterval) { clearInterval(this.heartbeatInterval); this.heartbeatInterval = null; }
     if (this.portRefreshInterval) { clearInterval(this.portRefreshInterval); this.portRefreshInterval = null; }
     if (this.gpuRefreshInterval) { clearInterval(this.gpuRefreshInterval); this.gpuRefreshInterval = null; }
+    if (this.cpuRefreshInterval) { clearInterval(this.cpuRefreshInterval); this.cpuRefreshInterval = null; }
     for (const [, intervalId] of this.shellPollIntervals) clearInterval(intervalId);
     this.shellPollIntervals.clear();
   }

@@ -2,6 +2,14 @@
 
 All notable changes to the NetConfig Agent GUI are documented in this file.
 
+## [1.7.0] - 2026-07-09
+
+### Added
+- Heartbeat now also reports live CPU usage % (sampled over a 200ms window), CPU model, and core count, shown alongside RAM/VRAM in the web app's Agent Settings page.
+
+### Changed
+- Sends a one-shot "going offline" beacon to the backend on quit, manual disconnect, and uninstall, so devices connected through this agent are disconnected from the web app almost instantly instead of waiting up to 15s for the heartbeat to expire.
+
 ## [1.6.0] - 2026-07-08
 
 ### Added
