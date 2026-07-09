@@ -25,8 +25,8 @@ export class LLMService {
 
     // UX-only padding added to fresh OpenRouter config generations so the
     // progress modal animation has time to play out instead of feeling
-    // abrupt. Configurable via env, defaults to 8s. Does not apply to Ollama.
-    this.uxDelayMs = Number(process.env.LLM_UX_DELAY_MS ?? 14000);
+    // abrupt. Configurable via env, defaults to 5s. Does not apply to Ollama.
+    this.uxDelayMs = Number(process.env.LLM_UX_DELAY_MS ?? 5000);
     
     // HTTP Client for OpenRouter
     this.client = axios.create({
@@ -598,6 +598,14 @@ Generate backup_name and description as JSON:`;
       
       // Update stats
       this.stats.totalTokens += tokensUsed;
+      
+      // UX smoothing: OpenRouter responses can return in ~1s, which makes the
+      // progress modal's animation feel abrupt/cut-off. Pad fresh (non-cached)
+      // OpenRouter generations so the perceived generation time feels more
+      // substantial. Doesn't apply to Ollama, which is already slow enough.
+      if (this.provider !== 'ollama') {
+        await new Promise(resolve => setTimeout(resolve, this.uxDelayMs));
+      }
       
       return result;
       

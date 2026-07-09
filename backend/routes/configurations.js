@@ -12,7 +12,7 @@ import notificationService from '../services/notificationService.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getOrSetCache, invalidateCache, CacheKeys } from '../lib/cache.js';
 import { extractInterfaceReferences, parseInterfaceBriefOutput, compareInterfaces } from '../utils/interfaceNaming.js';
-import { queueComparison, attachOpenrouterResult } from '../services/modelComparisonService.js';
+import { queueComparison } from '../services/modelComparisonService.js';
 
 const router = express.Router();
 
@@ -350,24 +350,6 @@ router.post('/generate', async (req, res) => {
     const startTime = Date.now();
     console.log('🤖 Starting AI generation...');
 
-    // Private research logging only (see modelComparisonService.js): dispatch
-    // the comparison job's queuing NOW, concurrently with the OpenRouter call
-    // below, instead of after it. This only makes the DB log entry available
-    // sooner — dispatching it is just a couple of fast DB checks, it does NOT
-    // wait for Ollama to actually finish generating (that happens later, on
-    // the agent's own timeline). Crucially, this never gates or delays the
-    // OpenRouter call/response in any way.
-    const comparisonCommandIdPromise = llmService.provider !== 'ollama'
-      ? queueComparison({
-          userId: req.userId,
-          deviceId: device._id,
-          deviceType: device.type,
-          deviceContext: { name: device.name, model: device.model, location: device.location },
-          prompt,
-          templateName: 'cisco_cli'
-        })
-      : Promise.resolve(null);
-
     let aiResult;
     try {
       aiResult = await llmService.generateConfiguration(prompt, device.type, {
@@ -418,19 +400,27 @@ router.post('/generate', async (req, res) => {
       });
     }
 
-    // Backfill the OpenRouter side of the comparison job dispatched above —
-    // fire-and-forget, never awaited, never shown in the UI, never affects
-    // what was just generated or returned.
-    comparisonCommandIdPromise.then(commandId => {
-      if (commandId) {
-        attachOpenrouterResult(commandId, {
+    // Private research logging only (see modelComparisonService.js): dispatched
+    // AFTER the OpenRouter response is already finalized (not concurrently),
+    // so Ollama's real background execution doesn't overlap the UX delay
+    // window above. Fire-and-forget — never awaited, never shown in the UI,
+    // never affects what was just generated or returned.
+    if (llmService.provider !== 'ollama') {
+      queueComparison({
+        userId: req.userId,
+        deviceId: device._id,
+        deviceType: device.type,
+        deviceContext: { name: device.name, model: device.model, location: device.location },
+        prompt,
+        templateName: 'cisco_cli',
+        openrouter: {
           model: llmService.getActiveModel(),
           output: aiResult.displayConfig || aiResult.configuration,
           latencyMs: executionTime,
           success: true
-        });
-      }
-    }).catch(() => {});
+        }
+      }).catch(() => {});
+    }
     
     // Generate explanation WITHOUT blocking the response
     // On Vercel serverless, two sequential LLM calls easily exceed timeout
