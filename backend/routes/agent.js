@@ -9,6 +9,7 @@ import crypto from 'crypto';
 import User from '../models/User.js';
 import AgentCommand from '../models/AgentCommand.js';
 import AgentHeartbeat from '../models/AgentHeartbeat.js';
+import ModelComparisonLog from '../models/ModelComparisonLog.js';
 import ShellSession from '../models/ShellSession.js';
 import Notification from '../models/Notification.js';
 import { authenticateToken } from '../middleware/auth.js';
@@ -443,8 +444,8 @@ router.get('/poll/commands', authenticateAgent, async (req, res) => {
 router.post('/poll/result/:commandId', authenticateAgent, async (req, res) => {
   try {
     const { success, error: errorMsg, ...resultData } = req.body;
-    
-    await AgentCommand.findOneAndUpdate(
+
+    const command = await AgentCommand.findOneAndUpdate(
       { _id: req.params.commandId, userId: req.userId },
       {
         status: success ? 'completed' : 'failed',
@@ -453,12 +454,44 @@ router.post('/poll/result/:commandId', authenticateAgent, async (req, res) => {
         completedAt: new Date()
       }
     );
-    
+
+    // Private comparison logging (see modelComparisonService.js) — this command
+    // was queued purely to compare against an OpenRouter result already
+    // delivered elsewhere; nobody is polling for it, so write the log here.
+    if (command?.data?.comparisonLog) {
+      logComparisonResult(command, { success, errorMsg, resultData }).catch(err => {
+        console.warn('Failed to write model comparison log (non-fatal):', err.message);
+      });
+    }
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
+async function logComparisonResult(command, { success, errorMsg, resultData }) {
+  const ctx = command.data.comparisonContext || {};
+  const ollamaOutput = resultData?.choices?.[0]?.message?.content?.trim() || '';
+  const latencyMs = command.createdAt
+    ? Date.now() - command.createdAt.getTime()
+    : null;
+
+  await ModelComparisonLog.create({
+    userId: command.userId,
+    deviceId: ctx.deviceId || null,
+    deviceType: ctx.deviceType || null,
+    prompt: ctx.prompt,
+    openrouter: ctx.openrouter || null,
+    ollama: {
+      model: command.data.model,
+      output: success ? ollamaOutput : null,
+      latencyMs,
+      success: !!success,
+      error: success ? null : (errorMsg || 'Unknown error')
+    }
+  });
+}
 
 /**
  * POST /api/agent/poll/shell-output - Agent pushes shell output chunks

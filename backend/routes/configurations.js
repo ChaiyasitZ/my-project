@@ -12,6 +12,7 @@ import notificationService from '../services/notificationService.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getOrSetCache, invalidateCache, CacheKeys } from '../lib/cache.js';
 import { extractInterfaceReferences, parseInterfaceBriefOutput, compareInterfaces } from '../utils/interfaceNaming.js';
+import { queueComparison } from '../services/modelComparisonService.js';
 
 const router = express.Router();
 
@@ -396,6 +397,27 @@ router.post('/generate', async (req, res) => {
         message: 'AI generation failed',
         error: aiResult.error,
         executionTime: executionTime
+      });
+    }
+
+    // Private research logging only (see modelComparisonService.js): queues a
+    // real Ollama call with the same prompt, purely to compare against this
+    // OpenRouter result later directly in the DB. Fire-and-forget — never
+    // awaited, never shown in the UI, never affects what was just generated.
+    if (llmService.provider !== 'ollama') {
+      queueComparison({
+        userId: req.userId,
+        deviceId: device._id,
+        deviceType: device.type,
+        deviceContext: { name: device.name, model: device.model, location: device.location },
+        prompt,
+        templateName: 'cisco_cli',
+        openrouter: {
+          model: llmService.getActiveModel(),
+          output: aiResult.displayConfig || aiResult.configuration,
+          latencyMs: executionTime,
+          success: true
+        }
       });
     }
     

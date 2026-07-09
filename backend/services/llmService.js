@@ -426,6 +426,22 @@ Generate backup_name and description as JSON:`;
    * @param {Object} options - { userId } required for Ollama mode
    * @returns {Object} Generation result or { pending, commandId } for async Ollama
    */
+  /**
+   * Build the exact same system/user messages generateConfiguration() would
+   * send to OpenRouter, without actually calling anything. Used so a private
+   * comparison call to a different model (e.g. local Ollama) uses an
+   * apples-to-apples prompt rather than a re-implemented approximation.
+   */
+  getComparisonMessages(prompt, deviceType, deviceContext = {}, templateName = 'cisco_cli') {
+    const built = this.buildFromTemplate(templateName, prompt, deviceType, deviceContext);
+    const systemMessage = built.success ? built.system : this._buildSystemMessage(prompt, deviceType);
+    const userMessage = built.success ? built.user : this._buildUserMessage(prompt, deviceType, deviceContext);
+    return [
+      { role: 'system', content: systemMessage },
+      { role: 'user', content: userMessage }
+    ];
+  }
+
   async generateConfiguration(prompt, deviceType, deviceContext = {}, templateName = 'cisco_cli', useCache = true, options = {}) {
     const startTime = Date.now();
     this.stats.totalRequests++;
