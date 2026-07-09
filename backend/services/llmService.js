@@ -19,14 +19,14 @@ export class LLMService {
     this.provider = process.env.LLM_PROVIDER || 'openrouter';
     this.apiKey = process.env.OPENROUTER_API_KEY || '';
     this.model = process.env.OPENROUTER_MODEL || '';
-    this.ollamaModel = process.env.OLLAMA_MODEL || 'llama3.2';
+    this.ollamaModel = process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b';
     this.apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
     this.timeout = 120000; // 120 seconds
 
     // UX-only padding added to fresh OpenRouter config generations so the
     // progress modal animation has time to play out instead of feeling
     // abrupt. Configurable via env, defaults to 8s. Does not apply to Ollama.
-    this.uxDelayMs = Number(process.env.LLM_UX_DELAY_MS ?? 8000);
+    this.uxDelayMs = Number(process.env.LLM_UX_DELAY_MS ?? 14000);
     
     // HTTP Client for OpenRouter
     this.client = axios.create({
