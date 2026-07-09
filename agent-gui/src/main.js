@@ -1117,11 +1117,32 @@ class OllamaHandler {
     const res = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: model || this.model, messages, stream: false, options: { temperature, num_predict: max_tokens } })
+      // keep_alive keeps the model resident in memory after this call instead
+      // of unloading it after Ollama's default 5m, so back-to-back requests
+      // don't keep re-paying the model-load cost.
+      body: JSON.stringify({ model: model || this.model, messages, stream: false, keep_alive: '30m', options: { temperature, num_predict: max_tokens } })
     });
     if (!res.ok) throw new Error(`Ollama chat failed: ${res.status}`);
     const data = await res.json();
     return { success: true, choices: [{ message: { role: 'assistant', content: data.message?.content || '' } }], usage: { prompt_tokens: data.prompt_eval_count || 0, completion_tokens: data.eval_count || 0 } };
+  }
+
+  /**
+   * Force the model into memory ahead of time so the first real request
+   * doesn't pay the cold-load cost. Sends a trivial 1-token request and
+   * discards the output — only called once at agent startup.
+   */
+  async preloadModel() {
+    try {
+      await fetch(`${this.baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: this.model, messages: [{ role: 'user', content: 'hi' }], stream: false, keep_alive: '30m', options: { num_predict: 1 } })
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async generate(prompt, { model, temperature = 0.7, max_tokens = 4096 } = {}) {
@@ -1224,11 +1245,16 @@ async function connectAgent() {
   if (savedModel) ollamaHandler.setModel(savedModel);
 
   // Best-effort, one-time at agent startup — NOT tied to any prompt/request.
-  ollamaHandler.ensureRunning().then(r => {
+  ollamaHandler.ensureRunning().then(async r => {
     if (r.alreadyRunning) addLog('info', 'Ollama already running.');
     else if (r.started && r.confirmed) addLog('info', 'Started Ollama service.');
     else if (r.started) addLog('warn', 'Attempted to start Ollama, but health check did not confirm it came up.');
-    else addLog('info', `Ollama not running and could not be auto-started (${r.error || 'not installed?'}).`);
+    else { addLog('info', `Ollama not running and could not be auto-started (${r.error || 'not installed?'}).`); return; }
+
+    // Warm the model into memory once at startup so it's already loaded by
+    // the time any real request needs it, instead of cold-loading on demand.
+    const preloaded = await ollamaHandler.preloadModel();
+    addLog('info', preloaded ? `Preloaded Ollama model ${ollamaHandler.getModel()} into memory.` : 'Ollama model preload failed (will load on first use instead).');
   }).catch(() => {});
 
   client = new HttpPollingClient({

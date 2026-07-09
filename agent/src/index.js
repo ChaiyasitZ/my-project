@@ -82,6 +82,13 @@ async function main() {
       ollamaHandler.setModel(configuredModel);
     }
 
+    // One-time warm-up so the model is already resident in memory before any
+    // real request needs it, instead of cold-loading on first use.
+    const preloadSpinner = ora('Preloading Ollama model into memory...').start();
+    const preloaded = await ollamaHandler.preloadModel();
+    if (preloaded) preloadSpinner.succeed(chalk.green(`Preloaded ${ollamaHandler.getModel()}`));
+    else preloadSpinner.warn(chalk.yellow('Preload failed, model will load on first use instead.'));
+
     const models = await ollamaHandler.listModels().catch(() => []);
     if (models.length === 0) {
       console.log(chalk.yellow('  ⚠ No models installed. Pull one with: ollama pull llama3.2'));

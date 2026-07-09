@@ -2,6 +2,14 @@
 
 All notable changes to the NetConfig Agent GUI are documented in this file.
 
+## [1.9.0] - 2026-07-10
+
+### Added
+- After starting/confirming Ollama at startup, the agent now sends a trivial warm-up request to preload the model into memory, so the first real request doesn't pay a cold-load penalty.
+
+### Changed
+- Ollama chat requests now set `keep_alive: '30m'` so the model stays resident in memory between calls instead of unloading after Ollama's default 5-minute idle timeout.
+
 ## [1.8.0] - 2026-07-10
 
 ### Added

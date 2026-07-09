@@ -167,6 +167,9 @@ export class OllamaHandler {
           model: useModel,
           messages,
           stream: false,
+          // Keeps the model resident in memory after this call instead of
+          // unloading after Ollama's default 5m idle timeout.
+          keep_alive: '30m',
           options: {
             temperature,
             top_p,
@@ -214,6 +217,31 @@ export class OllamaHandler {
         throw new Error(`Ollama generation timed out after ${REQUEST_TIMEOUT / 1000}s`);
       }
       throw error;
+    }
+  }
+
+  /**
+   * Force the model into memory ahead of time so the first real request
+   * doesn't pay the cold-load cost. Sends a trivial 1-token request and
+   * discards the output — only ever called once at agent startup.
+   * @returns {boolean} whether the preload request succeeded
+   */
+  async preloadModel() {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: this.getModel(),
+          messages: [{ role: 'user', content: 'hi' }],
+          stream: false,
+          keep_alive: '30m',
+          options: { num_predict: 1 }
+        })
+      });
+      return response.ok;
+    } catch {
+      return false;
     }
   }
 
